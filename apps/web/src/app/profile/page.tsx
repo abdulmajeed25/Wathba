@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Award, PlusCircle } from 'lucide-react';
+import { Award, PlusCircle, Heart, Rocket, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -9,9 +9,9 @@ import { ProjectCard } from '@/components/ProjectCard';
 import { trendingProjects } from '@/data/mock';
 
 const TABS = [
-  { id: 'backed',  label: 'مشاريع دعمتها' },
-  { id: 'created', label: 'مشاريعي' },
-  { id: 'saved',   label: 'محفوظة' },
+  { id: 'backed',  label: 'مشاريع دعمتها', icon: Heart },
+  { id: 'created', label: 'مشاريعي',       icon: Rocket },
+  { id: 'saved',   label: 'محفوظة',         icon: Bookmark },
 ] as const;
 
 export default function ProfilePage() {
@@ -32,10 +32,10 @@ export default function ProfilePage() {
                 'radial-gradient(800px 300px at 80% 0%,rgba(251,191,36,0.10),transparent 60%),radial-gradient(700px 300px at 10% 0%,rgba(var(--accent-rgb),0.10),transparent 55%)',
             }}
           />
-          <div className="relative mx-auto flex max-w-(--container-card) flex-wrap items-center gap-[26px] px-[26px] pt-[48px] pb-[30px]">
+          <div className="relative mx-auto flex max-w-(--container-profile) flex-wrap items-center gap-[26px] px-[26px] pt-[48px] pb-[30px]">
             <div className="relative">
               <div
-                className="grid h-[108px] w-[108px] place-items-center rounded-(--radius-card-featured) text-[46px] font-bold"
+                className="grid h-[108px] w-[108px] place-items-center rounded-[28px] text-[46px] font-bold"
                 style={{ background: 'var(--grad)', color: 'var(--on-accent)', boxShadow: '0 16px 40px -12px rgba(var(--accent-rgb),0.6)' }}
               >س</div>
               <div
@@ -84,21 +84,23 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-(--container-card) px-[26px] pt-[26px]">
+        <section className="mx-auto max-w-(--container-profile) px-[26px] pt-[26px]">
           <div className="mb-[26px] flex flex-wrap gap-[10px]">
             {TABS.map((t) => {
               const active = t.id === tab;
+              const Icon = t.icon;
               return (
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
-                  className="rounded-(--radius-pad) border px-[18px] py-[10px] text-[14px] font-semibold"
+                  className="inline-flex items-center gap-[8px] rounded-(--radius-pad) border px-[18px] py-[10px] text-[14px] font-semibold"
                   style={{
                     background: active ? 'rgba(var(--accent-rgb),0.10)' : 'rgba(var(--ink-rgb),0.04)',
                     borderColor: active ? 'var(--accent)' : 'rgba(var(--ink-rgb),0.1)',
                     color: active ? 'var(--accent)' : 'var(--muted)',
                   }}
                 >
+                  <Icon className="h-[18px] w-[18px]" />
                   {t.label}
                 </button>
               );
@@ -106,13 +108,13 @@ export default function ProfilePage() {
           </div>
 
           <div className="grid gap-[18px] sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {tab === 'backed' && trendingProjects.slice(0, 4).map((p) => <ProjectCard key={p.id} project={p} variant="discover" />)}
+            {tab === 'backed' && trendingProjects.slice(0, 4).map((p) => <ProjectCard key={p.id} project={p} variant="profile" />)}
             {tab === 'created' && (
               <>
-                <ProjectCard project={trendingProjects[0]!} variant="discover" />
+                <ProjectCard project={trendingProjects[0]!} variant="profile" />
                 <Link
                   href="/launch"
-                  className="btng flex items-center justify-center gap-[8px] rounded-(--radius-card) border border-dashed p-[24px] text-center text-[15px] font-semibold"
+                  className="btng flex items-center justify-center gap-[8px] rounded-(--radius-card) border-[1.5px] border-dashed p-[24px] text-center text-[15px] font-semibold"
                   style={{ borderColor: 'rgba(var(--accent-rgb),0.3)', color: 'var(--accent)' }}
                 >
                   <PlusCircle className="h-[22px] w-[22px]" />
@@ -120,7 +122,7 @@ export default function ProfilePage() {
                 </Link>
               </>
             )}
-            {tab === 'saved' && trendingProjects.slice(1, 3).map((p) => <ProjectCard key={p.id} project={p} variant="discover" />)}
+            {tab === 'saved' && trendingProjects.slice(1, 3).map((p) => <ProjectCard key={p.id} project={p} variant="saved" />)}
           </div>
         </section>
       </main>

@@ -52,7 +52,7 @@ export default function SignInPage() {
             {err && (
               <div
                 className="mb-[14px] flex items-center gap-[8px] rounded-(--radius-lg) p-[12px] text-[13px]"
-                style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444' }}
+                style={{ background: 'rgba(var(--error-rgb),0.10)', color: 'var(--error)' }}
               >
                 <AlertCircle className="h-[18px] w-[18px]" />{err}
               </div>

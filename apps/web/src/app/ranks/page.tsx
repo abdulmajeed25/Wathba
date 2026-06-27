@@ -14,7 +14,7 @@ export default function RanksPage() {
     <>
       <Header />
       <main>
-        <section className="mx-auto max-w-(--container-card) px-[26px] pt-[54px] text-center">
+        <section className="mx-auto max-w-(--container-profile) px-[26px] pt-[54px] text-center">
           <div className="mb-[18px] inline-block">
             <Pill tone="gold"><Award className="h-[17px] w-[17px]" fill="currentColor" /> نظام رتب الداعمين</Pill>
           </div>
@@ -29,7 +29,7 @@ export default function RanksPage() {
           </p>
         </section>
 
-        <section className="mx-auto mt-[48px] max-w-(--container-card) px-[26px] pb-[10px]">
+        <section className="mx-auto mt-[48px] max-w-(--container-profile) px-[26px] pb-[10px]">
           <div className="grid gap-[14px] md:grid-cols-5">
             {ranks.map((r) => {
               const Icon = RANK_ICON[r.icon] ?? UserIcon;

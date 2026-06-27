@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
+import { MegaMenu } from './MegaMenu';
 
 /**
  * Sticky app header. Matches design exactly:
@@ -15,7 +16,7 @@ import { ThemeToggle } from './ThemeToggle';
 export function Header() {
   return (
     <header
-      className="sticky top-0 z-50 border-b backdrop-blur-[14px]"
+      className="sticky top-0 z-[60] border-b backdrop-blur-[14px]"
       style={{
         background: 'var(--header-bg)',
         borderColor: 'rgba(var(--ink-rgb),0.07)',
@@ -26,10 +27,7 @@ export function Header() {
 
         <nav className="hidden items-center gap-[24px] text-[14.5px] font-medium text-muted md:flex">
           <Link href="/explore" className="navlink cursor-pointer">استكشف</Link>
-          <Link href="/explore" className="navlink flex cursor-pointer items-center gap-[3px]">
-            الفئات
-            <ChevronDown className="h-[16px] w-[16px] text-muted-2" />
-          </Link>
+          <MegaMenu />
           <Link href="/how" className="navlink cursor-pointer">كيف تعمل</Link>
           <Link href="/ranks" className="navlink cursor-pointer">رتب الداعمين</Link>
         </nav>

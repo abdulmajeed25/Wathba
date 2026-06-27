@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Eye, Megaphone, Group, Settings as SettingsIcon, DollarSign, TrendingUp, Users, Clock, Edit } from 'lucide-react';
+import { Eye, Megaphone, Group, Settings as SettingsIcon, DollarSign, TrendingUp, Users, Clock, Edit, Check } from 'lucide-react';
 import { toArabicDigits } from '@wathba/types';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { Card } from '@/components/Card';
-import { Pill } from '@/components/Pill';
 import { ButtonLink } from '@/components/Button';
+import { useTheme } from '@/providers/ThemeProvider';
 
 const TABS = [
   { id: 'overview', label: 'نظرة عامة', icon: TrendingUp },
@@ -43,6 +43,9 @@ const RECENT = [
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<typeof TABS[number]['id']>('overview');
+  const { theme, setTheme } = useTheme();
+  const [notifBackers, setNotifBackers] = useState(true);
+  const [showTransparency, setShowTransparency] = useState(true);
   return (
     <>
       <Header />
@@ -211,13 +214,121 @@ export default function DashboardPage() {
           {tab === 'settings' && (
             <Card radius="cardLg" className="max-w-[620px] p-[28px]">
               <h3 className="mb-[20px] text-[18px] font-bold">إعدادات المشروع</h3>
-              <Pill tone="accent">إعدادات تفصيلية في Phase 4</Pill>
+
+              {/* theme picker — 2-col swatches with selected check (design lines 1034–1046) */}
+              <div className="mb-[22px]">
+                <label className="mb-[10px] block text-[13.5px] font-semibold text-text-soft">نمط الألوان</label>
+                <div className="grid grid-cols-2 gap-[12px]">
+                  {(['light', 'dark'] as const).map((opt) => {
+                    const active = theme === opt;
+                    return (
+                      <button
+                        key={opt}
+                        onClick={() => setTheme(opt)}
+                        className="flex items-center gap-[12px] rounded-(--radius-btn) border-[1.5px] p-[14px]"
+                        style={{
+                          background: 'rgba(var(--ink-rgb),0.02)',
+                          borderColor: active ? 'var(--accent)' : 'rgba(var(--ink-rgb),0.1)',
+                        }}
+                      >
+                        <div className="flex gap-[4px]">
+                          <span
+                            className="h-[30px] w-[18px] rounded-[5px] border"
+                            style={{
+                              background: opt === 'light' ? '#ffffff' : '#0c1c2f',
+                              borderColor: opt === 'light' ? 'rgba(0,0,0,0.12)' : 'transparent',
+                            }}
+                          />
+                          <span
+                            className="h-[30px] w-[18px] rounded-[5px]"
+                            style={{ background: opt === 'light' ? '#05a661' : '#22d3ee' }}
+                          />
+                        </div>
+                        <div className="text-start">
+                          <div className="text-[14px] font-bold">{opt === 'light' ? 'فاتح' : 'داكن'}</div>
+                          <div className="text-[11.5px] text-muted-2">
+                            {opt === 'light' ? 'مريح وكلاسيكي' : 'عصري وجريء'}
+                          </div>
+                        </div>
+                        {active && (
+                          <Check
+                            className="ms-auto h-[20px] w-[20px]"
+                            style={{ color: 'var(--accent)' }}
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* project title field */}
+              <div className="mb-[18px]">
+                <label className="mb-[8px] block text-[13.5px] font-semibold text-text-soft">عنوان المشروع</label>
+                <input
+                  defaultValue="سِرب — درون التصوير الذكي"
+                  className="w-full rounded-(--radius-lg) border px-[14px] py-[12px] text-[14px]"
+                  style={{ background: 'rgba(var(--ink-rgb),0.04)', borderColor: 'rgba(var(--ink-rgb),0.12)' }}
+                />
+              </div>
+
+              {/* switch rows */}
+              <SwitchRow
+                label="إشعارات الداعمين"
+                hint="أرسل بريداً لكل داعم عند نشر تحديث"
+                on={notifBackers}
+                onToggle={() => setNotifBackers((v) => !v)}
+              />
+              <SwitchRow
+                label="عرض لوحة الشفافية"
+                hint="اجعل توزيع الميزانية مرئياً للجميع"
+                on={showTransparency}
+                onToggle={() => setShowTransparency((v) => !v)}
+              />
             </Card>
           )}
         </section>
       </main>
       <Footer />
     </>
+  );
+}
+
+function SwitchRow({
+  label,
+  hint,
+  on,
+  onToggle,
+}: {
+  label: string;
+  hint: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div
+      className="mb-[12px] flex items-center justify-between rounded-(--radius-pad) border p-[16px]"
+      style={{ background: 'rgba(var(--ink-rgb),0.03)', borderColor: 'rgba(var(--ink-rgb),0.08)' }}
+    >
+      <div>
+        <div className="text-[14px] font-semibold">{label}</div>
+        <div className="text-[12px] text-muted-2">{hint}</div>
+      </div>
+      <button
+        onClick={onToggle}
+        aria-pressed={on}
+        className="relative h-[26px] w-[46px] flex-shrink-0 rounded-[20px]"
+        style={{ background: on ? 'var(--grad)' : 'rgba(var(--ink-rgb),0.15)' }}
+      >
+        <span
+          className="absolute top-[3px] h-[20px] w-[20px] rounded-full transition-all"
+          style={{
+            background: 'var(--on-accent)',
+            ...(on ? { right: 3, left: 'auto' } : { left: 3, right: 'auto' }),
+          }}
+        />
+      </button>
+    </div>
   );
 }
 

@@ -22,7 +22,7 @@ export default function HowPage() {
     <>
       <Header />
       <main>
-        <section className="mx-auto max-w-(--container-card) px-[26px] pt-[58px] text-center">
+        <section className="mx-auto max-w-(--container-narrow) px-[26px] pt-[58px] text-center">
           <div className="num mb-[12px] text-[12px] tracking-[2px]" style={{ color: 'var(--accent)' }}>
             HOW IT WORKS
           </div>
@@ -36,13 +36,13 @@ export default function HowPage() {
         </section>
 
         {/* creators */}
-        <section className="mx-auto mt-[50px] max-w-(--container-app) px-[26px]">
+        <section className="mx-auto mt-[50px] max-w-(--container-creators) px-[26px]">
           <div className="mb-[24px] flex items-center gap-[12px]">
             <div
               className="grid h-[40px] w-[40px] place-items-center rounded-(--radius-pad)"
               style={{ background: 'var(--grad)', color: 'var(--on-accent)' }}
             >
-              <Rocket strokeWidth={2.4} className="h-[22px] w-[22px]" />
+              <Rocket fill="currentColor" className="h-[22px] w-[22px]" />
             </div>
             <h2 className="text-[26px] font-bold">للمبدعين</h2>
           </div>
@@ -85,7 +85,7 @@ export default function HowPage() {
         </section>
 
         {/* fees */}
-        <section className="mx-auto mt-[60px] max-w-(--container-app) px-[26px]">
+        <section className="mx-auto mt-[60px] max-w-(--container-creators) px-[26px]">
           <div
             className="grid grid-cols-1 gap-[30px] rounded-(--radius-card-featured) border p-[40px] text-center md:grid-cols-3"
             style={{ background: 'var(--band)', borderColor: 'rgba(var(--ink-rgb),0.08)' }}
@@ -123,7 +123,7 @@ export default function HowPage() {
         </section>
 
         {/* cta */}
-        <section className="mx-auto mt-[56px] max-w-(--container-app) px-[26px]">
+        <section className="mx-auto mt-[56px] max-w-(--container-creators) px-[26px]">
           <div
             className="rounded-(--radius-card-band) p-[50px] text-center"
             style={{ background: 'var(--cta-grad)', backgroundSize: '220% 220%', animation: 'wathba-gshift 9s ease infinite' }}

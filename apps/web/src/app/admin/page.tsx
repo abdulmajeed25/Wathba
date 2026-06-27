@@ -101,7 +101,7 @@ export default function AdminPage() {
           <div className="space-y-[14px]">
             <div
               className="flex items-start gap-[10px] rounded-(--radius-btn) border p-[14px]"
-              style={{ background: 'rgba(109,77,240,0.08)', borderColor: 'rgba(109,77,240,0.25)' }}
+              style={{ background: 'rgba(var(--purple-rgb),0.08)', borderColor: 'rgba(var(--purple-rgb),0.30)' }}
             >
               <BadgeCheck className="h-[22px] w-[22px] flex-shrink-0" style={{ color: 'var(--purple)' }} />
               <p className="text-[13px] leading-[1.6] text-text-soft">
@@ -121,8 +121,8 @@ export default function AdminPage() {
                   <button
                     className="rounded-(--radius-sm) border px-[12px] py-[6px] text-[12px] font-semibold"
                     style={{
-                      background: partnered ? '#6d4df022' : 'rgba(var(--ink-rgb),0.06)',
-                      borderColor: partnered ? '#6d4df077' : 'transparent',
+                      background: partnered ? 'rgba(var(--purple-rgb),0.13)' : 'rgba(var(--ink-rgb),0.06)',
+                      borderColor: partnered ? 'rgba(var(--purple-rgb),0.47)' : 'transparent',
                       color: partnered ? 'var(--purple)' : 'var(--muted)',
                     }}
                   >

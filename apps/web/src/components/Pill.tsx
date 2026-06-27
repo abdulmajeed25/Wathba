@@ -43,7 +43,7 @@ export function Pill({
   const padding =
     size === 'sm' ? 'px-[10px] py-[5px] text-[11px]'
     : size === 'lg' ? 'px-[15px] py-[8px] text-[13.5px]'
-    : 'px-[13px] py-[6px] text-[12.5px]';
+    : 'px-[15px] py-[7px] text-[13px]';
 
   return (
     <span
@@ -54,7 +54,7 @@ export function Pill({
       )}
       style={{
         background: `rgba(${TONE_RGB[tone]},0.10)`,
-        borderColor: `rgba(${TONE_RGB[tone]},0.28)`,
+        borderColor: `rgba(${TONE_RGB[tone]},0.30)`,
         color: TONE_COLOR[tone],
       }}
     >

@@ -23,7 +23,7 @@ export default function LaunchPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-(--container-card) px-[26px] pt-[40px] pb-[60px]">
+      <main className="mx-auto max-w-(--container-launch) px-[26px] pt-[40px] pb-[60px]">
         <div className="num mb-[8px] text-[12px] tracking-[2px]" style={{ color: 'var(--accent)' }}>
           START A PROJECT
         </div>
@@ -138,7 +138,7 @@ export default function LaunchPage() {
               <h2 className="mb-[6px] text-[21px] font-bold">القصة والوسائط</h2>
               <p className="mb-[24px] text-[13.5px] text-muted-2">المشاريع ذات الفيديو تجمع تمويلاً أكثر بنسبة ٨٥٪.</p>
               <div
-                className="btng mb-[20px] cursor-pointer rounded-(--radius-card) border border-dashed p-[36px] text-center"
+                className="btng mb-[20px] cursor-pointer rounded-(--radius-card) border-[2px] border-dashed p-[36px] text-center"
                 style={{ borderColor: 'rgba(var(--ink-rgb),0.15)' }}
               >
                 <CloudUpload className="mx-auto h-[40px] w-[40px]" style={{ color: 'var(--accent)' }} />
@@ -148,8 +148,7 @@ export default function LaunchPage() {
               <label className="mb-[8px] block text-[13.5px] font-semibold text-text-soft">قصة المشروع</label>
               <textarea
                 placeholder="احكِ قصتك: ما المشكلة التي تحلّها؟ من أنت؟ لماذا الآن؟"
-                rows={6}
-                className="w-full resize-y rounded-(--radius-pad) border p-[14px] text-[14.5px] leading-[1.7]"
+                className="min-h-[140px] w-full resize-y rounded-(--radius-pad) border p-[14px] text-[14.5px] leading-[1.7]"
                 style={{ background: 'rgba(var(--ink-rgb),0.04)', borderColor: 'rgba(var(--ink-rgb),0.12)' }}
               />
             </div>
@@ -166,7 +165,7 @@ export default function LaunchPage() {
               ].map((t, i) => (
                 <div
                   key={i}
-                  className="mb-[13px] flex items-center gap-[16px] rounded-(--radius-card) border p-[18px]"
+                  className="mb-[13px] flex items-center gap-[16px] rounded-(--radius-btn) border p-[18px]"
                   style={{ background: 'rgba(var(--ink-rgb),0.03)', borderColor: 'rgba(var(--ink-rgb),0.1)' }}
                 >
                   <div
@@ -183,7 +182,7 @@ export default function LaunchPage() {
                 </div>
               ))}
               <button
-                className="btng flex w-full items-center justify-center gap-[8px] rounded-(--radius-pad) border border-dashed p-[16px] text-[14px] font-semibold"
+                className="btng flex w-full items-center justify-center gap-[8px] rounded-(--radius-btn) border-[1.5px] border-dashed p-[16px] text-[14px] font-semibold"
                 style={{ borderColor: 'rgba(var(--accent-rgb),0.3)', color: 'var(--accent)' }}
               >
                 <PlusCircle className="h-[20px] w-[20px]" />

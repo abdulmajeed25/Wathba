@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import {
   Bell, Share2, ArrowRight, ShieldCheck, BadgeCheck, Lightbulb, BarChart3,
-  BookOpen, MessageCircle, HelpCircle, Megaphone, Eye,
+  BookOpen, MessageCircle, HelpCircle, Megaphone, Eye, PlayCircle,
 } from 'lucide-react';
 import { toArabicDigits } from '@wathba/types';
 import { Header } from '@/components/Header';
@@ -89,7 +89,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         {/* gallery + funding sidebar */}
         <section className="mx-auto grid max-w-(--container-app) items-start gap-[30px] px-[26px] pt-[24px] md:grid-cols-[1.55fr_1fr]">
           <div>
-            <Ph className="relative h-[430px] rounded-(--radius-card) border" label="فيديو المشروع" {...{ style: { borderColor: 'rgba(var(--ink-rgb),0.08)' } }} />
+            <Ph className="relative h-[430px] rounded-(--radius-card-xl) border" label="فيديو المشروع" icon={PlayCircle} iconSize={46} {...{ style: { borderColor: 'rgba(var(--ink-rgb),0.08)' } }} />
             <div className="mt-[12px] grid grid-cols-4 gap-[12px]">
               {[0, 1, 2, 3].map((i) => (
                 <Ph key={i} className="lift h-[78px] cursor-pointer rounded-(--radius-pad) border" {...{ style: { borderColor: 'rgba(var(--ink-rgb),0.08)' } }} />

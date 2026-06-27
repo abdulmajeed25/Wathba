@@ -9,32 +9,43 @@ import { cn } from '@/lib/cn';
 
 interface Props {
   project: Data;
-  /** Trending grid (4-col) = 158px image. Discover grid = 170px. */
-  variant?: 'trending' | 'discover' | 'category';
+  /**
+   * Variant — each has its own exact image height + title size + padding,
+   * directly from the design source.
+   *   trending (home, 4-col):     158h | title 16.5 | pad 15/16/17 | no desc
+   *   discover (explore, 4-col):  170h | title 17   | pad 16/17/18 | desc 13/1.55
+   *   category (cat page, 4-col): 170h | title 17   | pad 16/17/18 | no desc
+   *   search   (search results):  160h | title 16   | pad 15/16/17 | pct 14, raised 12
+   *   profile  (profile backed):  140h | title 15.5 | pad 15/16/17 | no desc, no badges
+   *   saved    (profile saved):   same as profile + gold-filled bookmark overlay
+   */
+  variant?: 'trending' | 'discover' | 'category' | 'search' | 'profile' | 'saved';
   className?: string;
 }
 
-/**
- * Trending/discover/category card. Matches the design 1:1:
- *   border 1px ink-08, radius 18, surface bg, flex column.
- *   image: `.ph` pattern, height per variant.
- *   top-right: category chip (rgba(6,18,31,0.8) bg, blur, 1px ink-12 border).
- *   top-left:  bookmark icon (30×30, radius 9, muted).
- *   body: padding 15px 16px 17px.
- *     title 16.5/700 LS -0.3 (trending) | 17/700 LS -0.3 (discover).
- *     meta "بواسطة …" 12.5 muted-2.
- *     progress: height 6, alpha 0.08.
- *     pct 15/700 accent (or pos if ≥100); raised 12.5 Space Grotesk muted-2.
- *     backers + days row 11.5 muted-2.
- *   §7 platform-partner: bottom-right pill on the image.
- */
 export function ProjectCard({ project: p, variant = 'trending', className }: Props) {
   const pct = Math.round((p.raisedHalalas / p.goalHalalas) * 100);
   const over = pct >= 100;
-  const titleSize = variant === 'discover' ? 'text-[17px]' : 'text-[16.5px]';
-  const imgHeight = variant === 'discover' ? 'h-[170px]' : 'h-[158px]';
   const formatSAR = (h: number) =>
     `${(h / 100).toLocaleString('en-US', { maximumFractionDigits: 0 })} ر.س`;
+
+  const spec = (() => {
+    switch (variant) {
+      case 'discover':
+        return { imgH: 'h-[170px]', title: 'text-[17px]', pad: 'px-[17px] pt-[16px] pb-[18px]', pctSize: 'text-[15px]', raisedSize: 'text-[12.5px]', progressMb: 'mb-[10px]', showDesc: true, showBadges: true, showBookmark: false };
+      case 'category':
+        return { imgH: 'h-[170px]', title: 'text-[17px]', pad: 'px-[17px] pt-[16px] pb-[18px]', pctSize: 'text-[15px]', raisedSize: 'text-[12.5px]', progressMb: 'mb-[10px]', showDesc: false, showBadges: false, showBookmark: false };
+      case 'search':
+        return { imgH: 'h-[160px]', title: 'text-[16px]', pad: 'px-[16px] pt-[15px] pb-[17px]', pctSize: 'text-[14px]', raisedSize: 'text-[12px]', progressMb: 'mb-[9px]', showDesc: false, showBadges: true, showBookmark: false };
+      case 'profile':
+        return { imgH: 'h-[140px]', title: 'text-[15.5px]', pad: 'px-[16px] pt-[15px] pb-[17px]', pctSize: 'text-[13px]', raisedSize: 'text-[12px]', progressMb: 'mb-[8px]', showDesc: false, showBadges: false, showBookmark: false };
+      case 'saved':
+        return { imgH: 'h-[140px]', title: 'text-[15.5px]', pad: 'px-[16px] pt-[15px] pb-[17px]', pctSize: 'text-[13px]', raisedSize: 'text-[12px]', progressMb: 'mb-[8px]', showDesc: false, showBadges: false, showBookmark: false, savedBookmark: true };
+      case 'trending':
+      default:
+        return { imgH: 'h-[158px]', title: 'text-[16.5px]', pad: 'px-[16px] pt-[15px] pb-[17px]', pctSize: 'text-[15px]', raisedSize: 'text-[12.5px]', progressMb: 'mb-[10px]', showDesc: false, showBadges: true, showBookmark: true };
+    }
+  })();
 
   return (
     <Link
@@ -45,23 +56,32 @@ export function ProjectCard({ project: p, variant = 'trending', className }: Pro
       )}
       style={{ borderColor: 'rgba(var(--ink-rgb),0.08)' }}
     >
-      <Ph className={imgHeight} label={p.categoryAr}>
-        {/* category chip (top-right) */}
-        <div
-          className="absolute top-[11px] right-[11px] rounded-[20px] border px-[10px] py-[5px] text-[11px] font-semibold text-text-soft backdrop-blur-[5px]"
-          style={{ background: 'rgba(6,18,31,0.8)', borderColor: 'rgba(var(--ink-rgb),0.12)', color: '#fff' }}
-        >
-          {p.categoryAr}
-        </div>
-        {/* bookmark (top-left) */}
-        <div
-          className="absolute top-[11px] left-[11px] grid h-[30px] w-[30px] place-items-center rounded-(--radius-sm) border backdrop-blur-[5px]"
-          style={{ background: 'rgba(6,18,31,0.8)', borderColor: 'rgba(var(--ink-rgb),0.12)' }}
-        >
-          <Bookmark className="h-[16px] w-[16px]" style={{ color: '#9aa7a0' }} />
-        </div>
-        {/* §7 platform-partner */}
-        {p.platformPartner && (
+      <Ph className={spec.imgH} label={p.categoryAr}>
+        {spec.showBadges && (
+          <div
+            className="absolute top-[11px] right-[11px] rounded-[20px] border px-[10px] py-[5px] text-[11px] font-semibold backdrop-blur-[5px]"
+            style={{ background: 'rgba(6,18,31,0.8)', borderColor: 'rgba(var(--ink-rgb),0.12)', color: '#fff' }}
+          >
+            {p.categoryAr}
+          </div>
+        )}
+        {spec.showBookmark && (
+          <div
+            className="absolute top-[11px] left-[11px] grid h-[30px] w-[30px] place-items-center rounded-(--radius-sm) border backdrop-blur-[5px]"
+            style={{ background: 'rgba(6,18,31,0.8)', borderColor: 'rgba(var(--ink-rgb),0.12)' }}
+          >
+            <Bookmark className="h-[16px] w-[16px]" style={{ color: '#9aa7a0' }} />
+          </div>
+        )}
+        {'savedBookmark' in spec && spec.savedBookmark && (
+          <div
+            className="absolute top-[11px] left-[11px] grid h-[30px] w-[30px] place-items-center rounded-(--radius-sm)"
+            style={{ background: 'rgba(6,18,31,0.8)' }}
+          >
+            <Bookmark className="h-[17px] w-[17px]" fill="currentColor" style={{ color: 'var(--gold)' }} />
+          </div>
+        )}
+        {p.platformPartner && spec.showBadges && (
           <div className="absolute right-[11px] bottom-[11px]">
             <Pill tone="partner" size="sm">
               <BadgeCheck className="h-[12px] w-[12px]" /> بشراكة وثبة
@@ -70,20 +90,24 @@ export function ProjectCard({ project: p, variant = 'trending', className }: Pro
         )}
       </Ph>
 
-      <div className="flex flex-1 flex-col px-[16px] pt-[15px] pb-[17px]">
-        <h3 className={cn(titleSize, 'mb-[4px] font-bold tracking-[-0.3px] text-text')}>{p.titleAr}</h3>
-        <div className="mb-[13px] text-[12.5px] text-muted-2">بواسطة {p.creator}</div>
+      <div className={cn('flex flex-1 flex-col', spec.pad)}>
+        <h3 className={cn(spec.title, 'mb-[4px] font-bold tracking-[-0.3px] text-text')}>{p.titleAr}</h3>
+        <div className={cn('text-[12.5px] text-muted-2', spec.showDesc ? 'mb-[8px]' : 'mb-[13px]')}>بواسطة {p.creator}</div>
+
+        {spec.showDesc && (
+          <p className="mb-[14px] text-[13px] leading-[1.55] text-muted">{p.shortDescAr}</p>
+        )}
 
         <div className="mt-auto">
-          <ProgressBar pct={pct / 100} height={6} trackAlpha={0.08} over={over} className="mb-[10px]" />
+          <ProgressBar pct={pct / 100} height={6} trackAlpha={0.08} over={over} className={spec.progressMb} />
           <div className="flex items-center justify-between">
             <span
-              className="num text-[15px] font-bold"
+              className={cn('num font-bold', spec.pctSize)}
               style={{ color: over ? 'var(--pos)' : 'var(--accent)' }}
             >
               {toArabicDigits(pct)}٪
             </span>
-            <span className="num text-[12.5px] text-muted">{formatSAR(p.raisedHalalas)}</span>
+            <span className={cn('num text-muted', spec.raisedSize)}>{formatSAR(p.raisedHalalas)}</span>
           </div>
           <div className="mt-[8px] flex items-center justify-between text-[11.5px] text-muted-2">
             <span className="num">{toArabicDigits(p.backersCount.toLocaleString('en-US'))} داعم</span>

@@ -26,10 +26,7 @@ export default function MyPledgesPage() {
   return (
     <>
       <Header />
-      <main className="mx-auto max-w-(--container-card) px-[26px] pt-[40px] pb-[60px]">
-        <div className="num mb-[6px] text-[12px] tracking-[2px]" style={{ color: 'var(--accent)' }}>
-          MY PLEDGES
-        </div>
+      <main className="mx-auto max-w-(--container-profile) px-[26px] pt-[40px] pb-[60px]">
         <h1 className="mb-[6px] text-[32px] font-bold tracking-[-0.6px]">دعومي</h1>
         <p className="mb-[26px] text-[14px] text-muted">
           تتبّع كل المشاريع التي دعمتها وحالتها الحالية.

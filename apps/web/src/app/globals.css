@@ -30,6 +30,7 @@
   --color-purple: var(--purple);
   --color-blue: var(--blue);
   --color-rank-silver: var(--rank-silver);
+  --color-error: var(--error);
 
   /* font-size scale (exact prototype values) */
   --text-9half: 9.5px;
@@ -93,10 +94,15 @@
   --shadow-featured: 0 30px 70px -30px rgba(0, 0, 0, 0.8);
   --shadow-mega: 0 40px 80px -30px rgba(0, 0, 0, 0.55);
 
-  /* containers — design uses 1320 outer */
-  --container-prose: 760px;
-  --container-card: 1040px;
-  --container-app: 1320px;
+  /* containers — exact values from design source */
+  --container-prose:    760px;   /* legal/privacy/contracts (read-heavy) */
+  --container-help:     820px;   /* help center / FAQ-heavy */
+  --container-launch:   980px;   /* launch wizard */
+  --container-narrow:  1000px;   /* how-it-works hero, search hero */
+  --container-card:    1040px;   /* pledge wizard, generic card-page */
+  --container-profile: 1100px;   /* ranks, profile */
+  --container-creators:1160px;   /* how-it-works body sections */
+  --container-app:     1320px;   /* default outer (home/explore/category/project/dashboard/search-results/footer) */
 }
 
 /* ---------------------------------------------------------------------------

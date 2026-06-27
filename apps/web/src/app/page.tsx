@@ -216,12 +216,35 @@ export default function HomePage() {
           <div className="mb-[22px] flex flex-wrap items-center justify-between gap-[14px]">
             <div>
               <h2 className="flex items-center gap-[10px] text-[28px] font-bold tracking-[-0.5px]">
-                <TrendingUp className="h-[28px] w-[28px]" style={{ color: 'var(--accent)' }} />
+                <TrendingUp className="h-[28px] w-[28px]" fill="currentColor" style={{ color: 'var(--accent)' }} />
                 المشاريع الرائجة
               </h2>
               <p className="mt-[6px] text-[14px] text-muted-2">
                 أكثر المشاريع جذباً للداعمين هذا الأسبوع
               </p>
+            </div>
+            {/* design lines 301–305: 4 filter tab pills in a tinted box */}
+            <div
+              className="flex gap-[9px] rounded-(--radius-brand) border p-[5px]"
+              style={{ background: 'rgba(var(--ink-rgb),0.04)', borderColor: 'rgba(var(--ink-rgb),0.08)' }}
+            >
+              {[
+                { id: 'hot',    label: 'الأكثر رواجاً', active: true },
+                { id: 'new',    label: 'الأحدث' },
+                { id: 'ending', label: 'تنتهي قريباً' },
+                { id: 'funded', label: 'الأعلى تمويلاً' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  className="rounded-(--radius-sm) px-[15px] py-[8px] text-[13.5px] font-semibold"
+                  style={{
+                    background: t.active ? 'var(--surface)' : 'transparent',
+                    color: t.active ? 'var(--text)' : 'var(--muted)',
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="grid gap-[18px] sm:grid-cols-2 md:grid-cols-4">

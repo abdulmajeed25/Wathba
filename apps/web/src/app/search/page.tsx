@@ -20,7 +20,7 @@ export default function SearchPage() {
     <>
       <Header />
       <main>
-        <section className="mx-auto max-w-(--container-card) px-[26px] pt-[48px]">
+        <section className="mx-auto max-w-(--container-narrow) px-[26px] pt-[48px]">
           <h1 className="mb-[20px] text-[32px] font-bold tracking-[-0.7px]">ابحث في وثبة</h1>
           <div
             className="mb-[18px] flex items-center gap-[12px] rounded-(--radius-card) border-[1.5px] px-[20px] py-[16px]"
@@ -63,7 +63,7 @@ export default function SearchPage() {
             <span className="num font-bold text-text">{toArabicDigits(results.length)}</span> نتيجة
           </div>
           <div className="grid gap-[18px] sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {results.map((p) => <ProjectCard key={p.id} project={p} variant="discover" />)}
+            {results.map((p) => <ProjectCard key={p.id} project={p} variant="search" />)}
           </div>
         </section>
       </main>
