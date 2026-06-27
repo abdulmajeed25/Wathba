@@ -1,5 +1,13 @@
 import { Module } from '@nestjs/common';
+import { FundingController } from './funding.controller';
+import { FundingService } from './funding.service';
+import { DeadlineScheduler } from './deadline.scheduler';
+import { ContractsModule } from '../contracts/contracts.module';
 
-/** Funding — pledges + FSM + deadline job (80% rule). Fills in Phase 1. */
-@Module({})
+@Module({
+  imports: [ContractsModule],
+  controllers: [FundingController],
+  providers: [FundingService, DeadlineScheduler],
+  exports: [FundingService],
+})
 export class FundingModule {}
