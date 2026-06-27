@@ -14,6 +14,8 @@
     "build": "echo \"use EAS build\""
   },
   "dependencies": {
+    "@expo-google-fonts/ibm-plex-sans-arabic": "^0.4.0",
+    "@expo-google-fonts/space-grotesk": "^0.4.0",
     "@expo/vector-icons": "^14.0.4",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@tanstack/react-query": "^5.62.7",

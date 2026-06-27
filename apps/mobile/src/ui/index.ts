@@ -12,3 +12,8 @@ export { Badge } from './Badge';
 export type { BadgeProps } from './Badge';
 export { Screen } from './Screen';
 export type { ScreenProps } from './Screen';
+export { ProjectCard } from './ProjectCard';
+export type { ProjectCardProps } from './ProjectCard';
+export { Tabs } from './Tabs';
+export type { TabsProps, TabItem } from './Tabs';
+export { Header } from './Header';

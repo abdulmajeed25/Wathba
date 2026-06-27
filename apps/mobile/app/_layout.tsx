@@ -6,6 +6,18 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useFonts } from 'expo-font';
+import {
+  IBMPlexSansArabic_400Regular,
+  IBMPlexSansArabic_500Medium,
+  IBMPlexSansArabic_600SemiBold,
+  IBMPlexSansArabic_700Bold,
+} from '@expo-google-fonts/ibm-plex-sans-arabic';
+import {
+  SpaceGrotesk_400Regular,
+  SpaceGrotesk_500Medium,
+  SpaceGrotesk_600SemiBold,
+  SpaceGrotesk_700Bold,
+} from '@expo-google-fonts/space-grotesk';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { ensureRtl } from '../src/i18n/rtl';
@@ -36,9 +48,14 @@ function ShellInner() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
-    // We register the Material Symbols family lazily via @expo/vector-icons;
-    // the Arabic UI font + Space Grotesk are loaded from Google Fonts at build
-    // time. For now we rely on system Arabic + IBM Plex packaged later (Phase 1).
+    IBMPlexSansArabic: IBMPlexSansArabic_400Regular,
+    'IBMPlexSansArabic-Medium': IBMPlexSansArabic_500Medium,
+    'IBMPlexSansArabic-SemiBold': IBMPlexSansArabic_600SemiBold,
+    'IBMPlexSansArabic-Bold': IBMPlexSansArabic_700Bold,
+    SpaceGrotesk: SpaceGrotesk_400Regular,
+    'SpaceGrotesk-Medium': SpaceGrotesk_500Medium,
+    'SpaceGrotesk-SemiBold': SpaceGrotesk_600SemiBold,
+    'SpaceGrotesk-Bold': SpaceGrotesk_700Bold,
   });
 
   useEffect(() => {
