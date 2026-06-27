@@ -22,6 +22,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { ensureRtl } from '../src/i18n/rtl';
 import { queryClient } from '../src/api/queryClient';
+import { useAuthStore } from '../src/auth/store';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -63,6 +64,10 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => undefined);
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    useAuthStore.getState().hydrate().catch(() => undefined);
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
