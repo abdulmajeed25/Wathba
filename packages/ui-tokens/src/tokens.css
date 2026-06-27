@@ -1,0 +1,235 @@
+/*
+ * Wathba design tokens — extracted byte-for-byte from WATHBAوثبة.dc.html.
+ * This file is the single source of truth for the visual layer.
+ *
+ * Tailwind v4 picks these up via @theme in apps/web/src/app/globals.css.
+ */
+
+:root,
+[data-theme='light'] {
+  /* surfaces */
+  --bg: #f4f6f1;
+  --surface: #ffffff;
+  --surface2: #ffffff;
+  --footer: #eef1ea;
+  --ph-bg: #eaeee7;
+  --card: #ffffff;
+  --band: #eef2ea;
+  --avatar: linear-gradient(135deg, #e9ede7, #d9e0d8);
+
+  /* text */
+  --text: #16201b;
+  --text-soft: #3b4942;
+  --muted: #5d6b62;
+  --muted2: #8a958c;
+  --ph-label: #9aa7a0;
+
+  /* ink/alpha base */
+  --ink-rgb: 18, 33, 26;
+
+  /* accent */
+  --accent: #05a661;
+  --accent-rgb: 5, 166, 97;
+  --accent2-rgb: 6, 140, 110;
+  --on-accent: #ffffff;
+  --header-bg: rgba(255, 255, 255, 0.82);
+
+  /* gradients */
+  --grad: linear-gradient(135deg, #05c074, #03a98e);
+  --grad-bar: linear-gradient(90deg, #05c074, #03a98e);
+  --grad-bar-over: linear-gradient(90deg, #05c074, #10b04f);
+  --grad-barv: linear-gradient(180deg, #05c074, #03a98e);
+  --cta-grad: linear-gradient(120deg, #05c074, #02b39a, #12c86d);
+
+  /* status / role colors */
+  --gold: #b9820a;
+  --pos: #05a661;
+  --purple: #6d4df0;
+  --blue: #2563eb;
+  --rank-silver: #67736a;
+
+  /* shadows */
+  --card-shadow: 0 2px 14px rgba(18, 33, 26, 0.06);
+  --card-shadow-h: 0 16px 34px -14px rgba(18, 33, 26, 0.18);
+}
+
+[data-theme='dark'] {
+  --bg: #0a1422;
+  --surface: #102339;
+  --surface2: #0c1c2f;
+  --footer: #08111d;
+  --ph-bg: #0e2138;
+  --card: linear-gradient(180deg, #102339, #0c1c2f);
+  --band: linear-gradient(120deg, #0d2236, #0b1a2c);
+  --avatar: linear-gradient(135deg, #1d3251, #0c1c2f);
+
+  --text: #eaf1fb;
+  --text-soft: #c3d3e8;
+  --muted: #9fb3cf;
+  --muted2: #7f95b3;
+  --ph-label: #3d5876;
+
+  --ink-rgb: 255, 255, 255;
+
+  --accent: #22d3ee;
+  --accent-rgb: 34, 211, 238;
+  --accent2-rgb: 59, 130, 246;
+  --on-accent: #06121f;
+  --header-bg: rgba(10, 20, 34, 0.72);
+
+  --grad: linear-gradient(135deg, #3b82f6, #22d3ee);
+  --grad-bar: linear-gradient(90deg, #3b82f6, #22d3ee);
+  --grad-bar-over: linear-gradient(90deg, #22d3ee, #34d399);
+  --grad-barv: linear-gradient(180deg, #22d3ee, #3b82f6);
+  --cta-grad: linear-gradient(120deg, #1d4ed8, #0891b2, #3b82f6);
+
+  --gold: #fbbf24;
+  --pos: #34d399;
+  --purple: #a78bfa;
+  --blue: #60a5fa;
+  --rank-silver: #cbd5e1;
+
+  --card-shadow: none;
+  --card-shadow-h: 0 22px 48px -24px rgba(0, 0, 0, 0.8);
+}
+
+/* Numeric font feature (Space Grotesk tabular) — applied via .num utility */
+.num {
+  font-family: var(--font-grotesk), 'Space Grotesk', sans-serif;
+  font-feature-settings: 'tnum';
+}
+
+/* The "ph" placeholder — diagonal hatched image stand-in (matches prototype) */
+.ph {
+  background-color: var(--ph-bg);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(var(--accent-rgb), 0.07) 0,
+    rgba(var(--accent-rgb), 0.07) 2px,
+    transparent 2px,
+    transparent 11px
+  );
+}
+
+/* Hero gradient text */
+.gradtext {
+  background: linear-gradient(120deg, var(--blue), var(--accent) 60%, var(--purple));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Card lift transition */
+.lift {
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.35s,
+    border-color 0.35s;
+  box-shadow: var(--card-shadow);
+}
+.lift:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--card-shadow-h);
+}
+
+/* Nav link underline grow on hover */
+.navlink {
+  position: relative;
+  transition: color 0.25s;
+}
+.navlink:hover { color: var(--text); }
+.navlink::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  right: 0;
+  height: 2px;
+  width: 0;
+  background: var(--grad-bar);
+  transition: width 0.3s;
+}
+.navlink:hover::after { width: 100%; }
+
+/* Primary CTA hover */
+.btnp {
+  transition: transform 0.2s, box-shadow 0.3s, filter 0.25s;
+}
+.btnp:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px -10px rgba(var(--accent-rgb), 0.55);
+  filter: brightness(1.06);
+}
+.btnp:active { transform: translateY(0); }
+
+/* Ghost button hover */
+.btng {
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+.btng:hover {
+  background: rgba(var(--ink-rgb), 0.06);
+  border-color: rgba(var(--ink-rgb), 0.28);
+}
+
+/* Filter chip hover */
+.chip { transition: all 0.25s; }
+.chip:hover {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  color: var(--text);
+}
+
+/* Body-level radial gradient overlay (the prototype's signature look) */
+body {
+  background:
+    radial-gradient(1200px 700px at 85% -5%, rgba(var(--accent-rgb), 0.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 0%, rgba(var(--accent2-rgb), 0.10), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.4s, color 0.4s;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--ink-rgb), 0.18);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(var(--ink-rgb), 0.3); }
+
+::selection { background: var(--accent); color: var(--on-accent); }
+
+/* Animations */
+@keyframes wathba-fade-up {
+  from { opacity: 0.001; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes wathba-fade-in {
+  from { opacity: 0.001; }
+  to   { opacity: 1; }
+}
+@keyframes wathba-floaty {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+@keyframes wathba-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes wathba-gshift {
+  0%   { background-position:   0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position:   0% 50%; }
+}
+@keyframes wathba-pulsering {
+  0%   { box-shadow: 0 0 0  0px rgba(var(--accent-rgb), 0.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(var(--accent-rgb), 0.00); }
+  100% { box-shadow: 0 0 0  0px rgba(var(--accent-rgb), 0.00); }
+}
+@keyframes wathba-ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.viewfade { animation: wathba-fade-up 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
