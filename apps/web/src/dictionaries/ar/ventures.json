@@ -1,0 +1,474 @@
+{
+  "meta": {
+    "home": "المشاريع",
+    "explore": "استكشف المشاريع",
+    "detail": "{name}",
+    "back": "ادعم {name}",
+    "ledger": "السجل المفتوح — {name}",
+    "submit": "قدّم مشروعًا",
+    "v2030": "قطاعات رؤية 2030",
+    "v2030Sector": "{name}",
+    "compare": "قارن المشاريع",
+    "dataroom": "غرفة البيانات — {name}",
+    "captable": "هيكل الملكية — {name}",
+    "meetings": "اجتماعات — {name}",
+    "postmortem": "تحليل بعدي — {name}",
+    "updatePermalink": "تحديث — {title}",
+    "myProjects": "مشاريعي",
+    "founderPortal": "لوحة المؤسس — {name}",
+    "founderUpdates": "التحديثات — {name}",
+    "backerPortal": "لوحة الداعم — {name}",
+    "backerDocuments": "المستندات — {name}",
+    "governance": "الحوكمة",
+    "governanceTreasury": "خزينة المنصة",
+    "governanceDispute": "نزاع — {id}"
+  },
+  "hub": {
+    "title": "المشاريع",
+    "subtitle": "مشاريع سعودية المنحى، سجلات مفتوحة، تدعمها بدقائق.",
+    "ctaExplore": "استكشف",
+    "ctaSubmit": "قدّم مشروعك",
+    "ctaV2030": "قطاعات رؤية 2030",
+    "trendingHeading": "الرائج الآن",
+    "v2030Heading": "حسب القطاع",
+    "ledgersHeading": "سجلات مفتوحة",
+    "noTrending": "لا شيء رائج لين الحين.",
+    "emptyV2030": "ما في مشاريع في هذا القطاع."
+  },
+  "explore": {
+    "title": "استكشف المشاريع",
+    "subtitle": "فلتر بالقطاع والحالة والحد الأدنى للأثر.",
+    "filters": {
+      "sector": "القطاع",
+      "state": "الحالة",
+      "impactMin": "الحد الأدنى للأثر",
+      "backingType": "نوع الدعم"
+    },
+    "states": {
+      "all": "الكل",
+      "raising": "جمع تمويل",
+      "active": "نشط",
+      "milestoneHold": "إيقاف عند معلم",
+      "closed": "مغلق"
+    },
+    "backingTypes": {
+      "all": "الكل",
+      "reward": "مكافأة",
+      "equity": "حصة",
+      "royalty": "إتاوة",
+      "strategicSponsor": "راعٍ استراتيجي"
+    },
+    "noResults": "ما في مشاريع مطابقة. خفّف فلتر.",
+    "loadMore": "حمّل المزيد"
+  },
+  "card": {
+    "raisedLabel": "{raised} من {target}",
+    "backersLabel": "{count} داعم",
+    "trustLabel": "ثقة {score}",
+    "impactLabel": "أثر {pct}٪",
+    "openCta": "افتح",
+    "backCta": "ادعم"
+  },
+  "trustScore": {
+    "title": "درجة الثقة",
+    "subtitle": "تُحسب من صحة السجل ووتيرة المعالم وإثباتات الهوية.",
+    "score": "{score}/100",
+    "factors": {
+      "ledgerHealth": "صحة السجل",
+      "milestonePace": "وتيرة المعالم",
+      "identityVerified": "الهوية موثّقة",
+      "auditFlags": "تنبيهات التدقيق",
+      "communityVotes": "أصوات المجتمع"
+    },
+    "viewBreakdown": "اعرض التفصيل"
+  },
+  "impact": {
+    "title": "مساهمة رؤية 2030",
+    "subtitle": "كيف يخدم المشروع مخرجات رؤية 2030.",
+    "noMapping": "ما في ربط معلن."
+  },
+  "detail": {
+    "tabs": {
+      "businessCase": "ملف الأعمال",
+      "team": "الفريق",
+      "ledger": "السجل",
+      "milestones": "المعالم",
+      "employment": "التوظيف",
+      "community": "المجتمع",
+      "updates": "التحديثات",
+      "impact": "الأثر"
+    },
+    "header": {
+      "stateLabel": "{state}",
+      "sectorLabel": "{sector}",
+      "raisedHeading": "المُجمع",
+      "backersHeading": "الداعمون",
+      "targetHeading": "الهدف",
+      "backCta": "ادعم المشروع",
+      "ledgerCta": "افتح السجل",
+      "shareCta": "شارك"
+    },
+    "businessCase": {
+      "summary": "الملخص",
+      "problem": "المشكلة",
+      "solution": "الحل",
+      "market": "السوق",
+      "useOfFunds": "أوجه الإنفاق",
+      "noDoc": "ما في ملف أعمال منشور."
+    },
+    "team": {
+      "founderHeading": "المؤسس",
+      "coreHeading": "الفريق الأساسي",
+      "advisorsHeading": "المستشارون",
+      "noTeam": "قائمة الفريق قادمة."
+    },
+    "milestones": {
+      "timelineHeading": "الخط الزمني",
+      "evidenceHeading": "الأدلة",
+      "auditCommentsHeading": "تعليقات تدقيق الذكاء",
+      "noMilestones": "مخطط المعالم يفتح بعد إقفال جمع التمويل.",
+      "voteCta": "افتح التصويت",
+      "states": {
+        "planned": "مخطّط",
+        "active": "نشط",
+        "evidence": "أدلة مرفوعة",
+        "voting": "تصويت",
+        "passed": "اجتاز",
+        "failed": "أخفق"
+      }
+    },
+    "employment": {
+      "openRolesHeading": "أدوار مفتوحة",
+      "noRoles": "ما في أدوار.",
+      "applyCta": "تقدّم"
+    },
+    "community": {
+      "title": "مساحة المجتمع المضمّنة",
+      "openInCommunity": "افتح الفضاء"
+    },
+    "updates": {
+      "noUpdates": "ما في تحديثات."
+    }
+  },
+  "back": {
+    "title": "ادعم هذا المشروع",
+    "subtitle": "اختر نوع الدعم والتوقيت — الدفع آخر خطوة.",
+    "stepHeading": "خطوة {n} من {total}",
+    "steps": {
+      "type": "نوع الدعم",
+      "timing": "توقيت التعهد",
+      "terms": "الشروط",
+      "review": "مراجعة",
+      "payment": "الدفع"
+    },
+    "types": {
+      "reward": "مكافأة",
+      "equity": "حصة",
+      "royalty": "إتاوة",
+      "strategicSponsor": "راعٍ استراتيجي"
+    },
+    "typeDescriptions": {
+      "reward": "تستلم مكافأة ملموسة عند الإطلاق.",
+      "equity": "حصة صغيرة — تُسجّل عند تأسيس الشركة.",
+      "royalty": "نسبة محدودة من الإيرادات.",
+      "strategicSponsor": "رعاية — وصول واسم، بدون عائد."
+    },
+    "timings": {
+      "soft": "تعهد ناعم",
+      "direct": "مباشر",
+      "recurring": "متكرر"
+    },
+    "timingDescriptions": {
+      "soft": "نية فقط — تُحصّل إذا وصل المشروع لهدفه.",
+      "direct": "تُحصّل الآن.",
+      "recurring": "شهريًا حتى يتحقق الهدف أو تُلغي."
+    },
+    "amountField": "المبلغ (ر.س)",
+    "previousCta": "رجوع",
+    "nextCta": "متابعة",
+    "confirmCta": "تأكيد",
+    "paymentNotice": "تسليم لمزوّد الدفع — معلّق لين اختيار المزوّد.",
+    "summary": "ستلتزم بمبلغ {amount} كـ {type} ({timing}).",
+    "completedTitle": "تم تسجيل التعهد",
+    "completedBody": "نخبرك عند السحب."
+  },
+  "ledger": {
+    "title": "السجل المفتوح",
+    "subtitle": "كل قيد، مدقّق ذاتيًا، وقابل للتحقق سلسليًا.",
+    "filters": {
+      "kind": "النوع",
+      "date": "التاريخ",
+      "flag": "العلامة"
+    },
+    "kinds": {
+      "all": "الكل",
+      "pledge": "تعهدات",
+      "draw": "سحوبات",
+      "expense": "مصاريف",
+      "refund": "استردادات",
+      "return": "عوائد"
+    },
+    "flags": {
+      "all": "الكل",
+      "none": "بدون علامة",
+      "info": "معلومة",
+      "caution": "تنبيه",
+      "anomaly": "شذوذ"
+    },
+    "columns": {
+      "date": "التاريخ",
+      "kind": "النوع",
+      "counterparty": "الطرف المقابل",
+      "amount": "المبلغ",
+      "balance": "الرصيد",
+      "flag": "العلامة"
+    },
+    "redactedLabel": "محجوب",
+    "exportCsv": "تصدير CSV",
+    "exportPdf": "تصدير PDF",
+    "verifyChain": "تحقق من السلسلة التشفيرية",
+    "chainStatus": "حالة السلسلة: {status}",
+    "chainStatuses": {
+      "verified": "موثّق",
+      "pending": "بانتظار التحقق الليلي",
+      "failed": "فشل — مرفوع"
+    },
+    "balanceChartTitle": "الرصيد التراكمي",
+    "empty": "ما في قيود مطابقة."
+  },
+  "submit": {
+    "title": "قدّم مشروعًا",
+    "subtitle": "سبع خطوات. الذكاء يعطيك تغذية راجعة وأنت تكتب.",
+    "stepLabel": "خطوة {n} من {total}",
+    "steps": {
+      "basics": "الأساسيات",
+      "sectors": "القطاعات",
+      "team": "الفريق",
+      "businessCase": "ملف الأعمال",
+      "milestones": "المعالم",
+      "backing": "شروط الدعم",
+      "review": "مراجعة"
+    },
+    "aiFeedbackHeading": "تغذية راجعة من الذكاء",
+    "aiFeedbackEmpty": "ما في تغذية راجعة — املأ الخطوة.",
+    "submitCta": "ارفع للتحقق",
+    "submitted": "تم — التحقق ياخذ 5–7 أيام."
+  },
+  "v2030": {
+    "title": "قطاعات رؤية 2030",
+    "subtitle": "وين تنزل المشاريع في الخطة الوطنية.",
+    "sectorHeading": "{name}",
+    "ventureCount": "{count} مشروع",
+    "noVentures": "ما في مشاريع في هذا القطاع."
+  },
+  "compare": {
+    "title": "قارن المشاريع",
+    "subtitle": "جنبًا إلى جنب: الثقة، صحة السجل، المعالم، شروط الدعم.",
+    "rows": {
+      "trustScore": "درجة الثقة",
+      "raised": "المُجمع",
+      "target": "الهدف",
+      "backers": "الداعمون",
+      "state": "الحالة",
+      "milestones": "المعالم",
+      "backingTypes": "أنواع الدعم"
+    },
+    "addVenture": "أضف مشروعًا"
+  },
+  "dataroom": {
+    "title": "غرفة البيانات",
+    "subtitle": "مستندات محمية — يجب الإقرار باتفاقية عدم الإفصاح.",
+    "ndaPending": "أقرّ بالاتفاقية",
+    "ndaAcknowledged": "تم الإقرار",
+    "openDoc": "افتح",
+    "noDocs": "ما في مستندات.",
+    "accessLogHeading": "سجل الوصول"
+  },
+  "captable": {
+    "title": "هيكل الملكية",
+    "subtitle": "لقطة لتوزيع الحصص.",
+    "noCaptable": "غير منشور.",
+    "shareholderHeading": "المساهم",
+    "sharesHeading": "الحصص",
+    "percentHeading": "النسبة",
+    "youLabel": "أنت"
+  },
+  "meetings": {
+    "title": "الاجتماعات",
+    "subtitle": "الجدول، جداول الأعمال، المحاضر، الأصوات المرتبطة.",
+    "upcomingHeading": "القادمة",
+    "pastHeading": "السابقة",
+    "scheduleCta": "جدول",
+    "openAgenda": "جدول الأعمال",
+    "openMinutes": "المحضر",
+    "linkedVote": "تصويت مرتبط",
+    "noMeetings": "ما في اجتماعات."
+  },
+  "postmortem": {
+    "title": "تحليل بعدي",
+    "subtitle": "ما اللي صار، حالة السجل النهائية، والدروس.",
+    "whatHappened": "ما اللي صار",
+    "whatHappenedBody": "أغلق المشروع بعد ما وصل لهدفه لكن فاتته نافذة المعلم الثاني.",
+    "finalLedger": "السجل النهائي",
+    "finalLedgerBody": "وُزّع الرصيد النهائي بنسبٍ تناسبية على الداعمين؛ والمصاريف سُوّيت بالكامل.",
+    "lessons": "الدروس (عامة)",
+    "lessonsBody": "حدّد تجارب أصغر؛ ثبّت أشكال أدلة المعالم مبكرًا؛ خلِّ الجمعية شهرية وقت التوسّع.",
+    "noPostmortem": "التحليل البعدي ما نُشر بعد."
+  },
+  "updatePermalink": {
+    "subtitle": "تحديث للمستثمرين — نُشر {date}.",
+    "openVenture": "افتح المشروع"
+  },
+  "myProjects": {
+    "title": "مشاريعي",
+    "subtitle": "الأفكار، اللي تقودها، اللي معك بفريقها، اللي دعمتها، تقديماتك.",
+    "tabs": {
+      "ideas": "أفكار",
+      "leading": "أقود",
+      "team": "فريق",
+      "backed": "دعمت",
+      "applications": "تقديمات"
+    },
+    "emptyIdeas": "ما في مسودات.",
+    "emptyLeading": "ما تقود أي مشروع.",
+    "emptyTeam": "ما أنت في فريق.",
+    "emptyBacked": "ما دعمت شيء.",
+    "emptyApplications": "ما في تقديمات."
+  },
+  "founderPortal": {
+    "title": "لوحة المؤسس",
+    "tabs": {
+      "roster": "الفريق",
+      "milestonePlanner": "مخطط المعالم",
+      "hiring": "التوظيف",
+      "escrow": "الحساب المضمون",
+      "returns": "العوائد"
+    },
+    "roster": {
+      "inviteCta": "ادعُ",
+      "removeCta": "أزل",
+      "noMembers": "ما في أعضاء فريق."
+    },
+    "milestones": {
+      "addCta": "أضف معلمًا",
+      "lockCta": "أقفل وانشر",
+      "lockedNotice": "المعالم مقفلة — التغيير يحتاج تصويت الداعمين."
+    },
+    "hiring": {
+      "openRolesHeading": "أدوار مفتوحة",
+      "applicantsHeading": "المتقدمون (ترتيب ذكي)",
+      "newRole": "دور جديد",
+      "noApplicants": "ما في متقدمين."
+    },
+    "escrow": {
+      "title": "الحساب المضمون",
+      "available": "متاح",
+      "committed": "ملتزم",
+      "reserved": "محجوز",
+      "drawCta": "اسحب"
+    },
+    "returns": {
+      "noHistory": "ما تم صرف عوائد."
+    }
+  },
+  "founderUpdates": {
+    "title": "تحديثات المستثمرين",
+    "subtitle": "كاتب + بثّ إلى قناة المساحة، البريد الوارد، وموجز البريد.",
+    "draftHeading": "مسودة",
+    "titleField": "العنوان",
+    "bodyField": "النص",
+    "publishCta": "انشر",
+    "publishedNotice": "نُشر — الرابط منسوخ.",
+    "broadcastChannels": "القنوات",
+    "channels": {
+      "spaceUpdates": "قناة #updates",
+      "inbox": "البريد الوارد",
+      "emailDigest": "موجز البريد"
+    },
+    "noUpdates": "ما في تحديثات."
+  },
+  "backerPortal": {
+    "title": "لوحة الداعم",
+    "tabs": {
+      "milestones": "المعالم",
+      "returns": "العوائد",
+      "history": "سجل المدفوعات"
+    },
+    "milestoneVoteHeading": "تصويت مفتوح",
+    "voteOpensIn": "التصويت يبدأ خلال {days} يوم",
+    "voteClosesIn": "التصويت يقفل خلال {hours} ساعة",
+    "voteCast": "صوتك: {choice}",
+    "votePass": "اجتياز",
+    "voteFail": "إخفاق",
+    "voteHold": "تعليق",
+    "noVotes": "ما في تصويت مفتوح.",
+    "returnsHeading": "العوائد",
+    "historyHeading": "سجل المدفوعات",
+    "noReturns": "ما في عوائد.",
+    "noHistory": "ما في مدفوعات."
+  },
+  "backerDocuments": {
+    "title": "المستندات",
+    "subtitle": "إيصالات، شروط، ملخص زكاة/ضريبة، كشوف سنوية.",
+    "kinds": {
+      "receipt": "إيصال",
+      "terms": "شروط",
+      "zakat": "ملخص زكاة/ضريبة",
+      "yearly": "كشف سنوي"
+    },
+    "downloadCta": "حمّل",
+    "noDocs": "ما في مستندات."
+  },
+  "governance": {
+    "title": "الحوكمة",
+    "subtitle": "المجلس، مجمّع المدققين، الخزينة، النزاعات.",
+    "councilHeading": "المجلس",
+    "auditorHeading": "مجمّع المدققين",
+    "councilSubtitle": "أعضاء منتخبون؛ ولايات متعاقبة.",
+    "auditorSubtitle": "مجمّع من مدققين معتمدين.",
+    "openTreasury": "افتح الخزينة",
+    "openDisputes": "افتح النزاعات"
+  },
+  "treasury": {
+    "title": "خزينة المنصة",
+    "subtitle": "دخل من رسوم المنصة، صرف للتشغيل والاحتياطي.",
+    "headings": {
+      "balance": "الرصيد الحالي",
+      "inflowsMtd": "الدخل (من بداية الشهر)",
+      "outflowsMtd": "الصرف (من بداية الشهر)"
+    },
+    "exportCsv": "تصدير CSV"
+  },
+  "dispute": {
+    "title": "نزاع {id}",
+    "subtitle": "مُقدَّم → فرز الذكاء → مراجعة المجلس (7 أيام) → قرار → نافذة اعتراض 48 ساعة → نهائي.",
+    "states": {
+      "filed": "مُقدَّم",
+      "aiTriage": "فرز الذكاء",
+      "councilReview": "مراجعة المجلس (7ي)",
+      "resolution": "القرار",
+      "objection": "نافذة الاعتراض (48س)",
+      "final": "نهائي"
+    },
+    "timelineHeading": "الخط الزمني",
+    "evidenceHeading": "الأدلة",
+    "noEvidence": "ما في أدلة مرفقة."
+  },
+  "shared": {
+    "currencyLabel": "{amount} ر.س",
+    "openInLedger": "افتح في السجل",
+    "openProfile": "افتح الملف",
+    "by": "بواسطة {name}",
+    "stateLabel": "{state}"
+  },
+  "units": {
+    "raisedOfTarget": "{raised} من {target}",
+    "backers": "{count} داعم",
+    "ventures": "{count} مشروع",
+    "milestones": "{count} معلم",
+    "trustScore": "{score}/100",
+    "impactPct": "{pct}٪",
+    "daysAgo": "قبل {count} ي",
+    "weeks": "{count}س"
+  }
+}

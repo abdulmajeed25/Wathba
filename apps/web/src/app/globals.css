@@ -1,123 +1,111 @@
 @import 'tailwindcss';
-@import '@wathba/ui-tokens/tokens.css';
 
 /* ---------------------------------------------------------------------------
- * Tailwind v4 theme — bridges the design tokens (CSS vars) to utilities.
- * Every utility class compiles against these values.
+ * Wathba (وثبة) — standalone app tokens.
+ *
+ * Most of the visual surface comes from `wathba-shell.tsx` which injects its
+ * own CSS variables on a scoped wrapper div (see `components/ventures/wathba/
+ * wathba-tokens.ts`).  The handful of vars below cover the sibling ventures
+ * views (`venture-card`, `explore-view`, etc.) that were copied from
+ * project200 and use platform utility classes like `border-edge` / `bg-base`.
+ * They were originally backed by project200's purple-tinted dark theme; here
+ * we re-bind them to Wathba's green-on-light palette so the layouts render
+ * cleanly inside the same app shell.
  * ------------------------------------------------------------------------- */
-@theme {
-  /* fonts — wired to next/font CSS vars in layout.tsx */
-  --font-sans: var(--font-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
-  --font-arabic: var(--font-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
-  --font-grotesk: var(--font-grotesk), 'Space Grotesk', system-ui, sans-serif;
 
-  /* design colors (resolve to CSS vars in tokens.css) */
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface2);
-  --color-footer: var(--footer);
-  --color-ph: var(--ph-bg);
-  --color-band: var(--band);
-  --color-text: var(--text);
-  --color-text-soft: var(--text-soft);
-  --color-muted: var(--muted);
-  --color-muted-2: var(--muted2);
-  --color-ph-label: var(--ph-label);
-  --color-accent: var(--accent);
-  --color-on-accent: var(--on-accent);
-  --color-gold: var(--gold);
-  --color-pos: var(--pos);
-  --color-purple: var(--purple);
-  --color-blue: var(--blue);
-  --color-rank-silver: var(--rank-silver);
-  --color-error: var(--error);
+:root {
+  --bg-base: #f4f6f1;
+  --bg-elevated: #ffffff;
+  --bg-floating: #ffffff;
 
-  /* font-size scale (exact prototype values) */
-  --text-9half: 9.5px;
-  --text-11: 11px;
-  --text-11half: 11.5px;
-  --text-12: 12px;
-  --text-12half: 12.5px;
-  --text-13: 13px;
-  --text-13half: 13.5px;
-  --text-14: 14px;
-  --text-14half: 14.5px;
-  --text-15: 15px;
-  --text-15half: 15.5px;
-  --text-16: 16px;
-  --text-16half: 16.5px;
-  --text-17: 17px;
-  --text-18: 18px;
-  --text-18half: 18.5px;
-  --text-19: 19px;
-  --text-20: 20px;
-  --text-21: 21px;
-  --text-22: 22px;
-  --text-23: 23px;
-  --text-24: 24px;
-  --text-26: 26px;
-  --text-28: 28px;
-  --text-30: 30px;
-  --text-32: 32px;
-  --text-34: 34px;
-  --text-36: 36px;
-  --text-38: 38px;
-  --text-40: 40px;
-  --text-42: 42px;
-  --text-44: 44px;
-  --text-46: 46px;
-  --text-48: 48px;
-  --text-62: 62px;
+  --text-primary: #16201b;
+  --text-secondary: #3b4942;
+  --text-tertiary: #5d6b62;
 
-  /* radii — every distinct value used on a card/button/pill */
-  --radius-xs: 8px;
+  --border-subtle: rgba(18, 33, 26, 0.08);
+  --border-strong: rgba(18, 33, 26, 0.16);
+
+  --brand-primary: #05a661;
+  --brand-primary-dark: #047649;
+  --brand-primary-light: #10c777;
+
   --radius-sm: 9px;
   --radius-md: 10px;
   --radius-lg: 11px;
-  --radius-pad: 12px;
-  --radius-brand: 13px;
-  --radius-btn: 14px;
-  --radius-card: 16px;
-  --radius-card-lg: 18px;
-  --radius-card-xl: 20px;
-  --radius-card-hero: 22px;
-  --radius-card-featured: 24px;
-  --radius-card-band: 26px;
-  --radius-card-cta: 28px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
   --radius-pill: 30px;
-
-  /* shadows */
-  --shadow-card: 0 2px 14px rgba(18, 33, 26, 0.06);
-  --shadow-card-hover: 0 16px 34px -14px rgba(18, 33, 26, 0.18);
-  --shadow-logo: 0 8px 22px -8px rgba(5, 166, 97, 0.7);
-  --shadow-btn-glow: 0 14px 30px -10px rgba(5, 166, 97, 0.55);
-  --shadow-featured: 0 30px 70px -30px rgba(0, 0, 0, 0.8);
-  --shadow-mega: 0 40px 80px -30px rgba(0, 0, 0, 0.55);
-
-  /* containers — exact values from design source */
-  --container-prose:    760px;   /* legal/privacy/contracts (read-heavy) */
-  --container-help:     820px;   /* help center / FAQ-heavy */
-  --container-launch:   980px;   /* launch wizard */
-  --container-narrow:  1000px;   /* how-it-works hero, search hero */
-  --container-card:    1040px;   /* pledge wizard, generic card-page */
-  --container-profile: 1100px;   /* ranks, profile */
-  --container-creators:1160px;   /* how-it-works body sections */
-  --container-app:     1320px;   /* default outer (home/explore/category/project/dashboard/search-results/footer) */
 }
 
-/* ---------------------------------------------------------------------------
- * Base
- * ------------------------------------------------------------------------- */
-html {
-  font-family: var(--font-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
+@theme {
+  --font-arabic: var(--font-ibm-plex-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --font-display: var(--font-reem-kufi), 'Reem Kufi', system-ui, sans-serif;
+  --font-body: var(--font-tajawal), 'Tajawal', system-ui, sans-serif;
+
+  --color-base: var(--bg-base);
+  --color-elevated: var(--bg-elevated);
+  --color-floating: var(--bg-floating);
+  --color-brand: var(--brand-primary);
+  --color-brand-dark: var(--brand-primary-dark);
+  --color-brand-light: var(--brand-primary-light);
+  --color-fg: var(--text-primary);
+  --color-fg-muted: var(--text-secondary);
+  --color-fg-faint: var(--text-tertiary);
+  --color-edge: var(--border-subtle);
+  --color-edge-strong: var(--border-strong);
 }
-body {
-  font-family: var(--font-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
+
+@layer base {
+  html {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-arabic);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  html[dir='rtl'] {
+    text-align: right;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand-primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
 }
 
-html[dir='rtl'] { text-align: right; }
+/* Keyframes used by wathba-shell (declared global so the scoped <style> in
+ * wathba-shell.tsx can be removed in a follow-up). */
+@keyframes wathba-fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
-input, textarea, select, button { font-family: inherit; }
-input:focus, textarea:focus { outline: none; }
-
-h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; }
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

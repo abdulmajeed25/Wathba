@@ -1,47 +1,43 @@
-import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans_Arabic, Space_Grotesk } from 'next/font/google';
-import { Providers } from '@/providers/Providers';
-import { THEME_BOOT_SCRIPT } from '@/providers/ThemeProvider';
+import type { Metadata } from 'next';
+import { Reem_Kufi, Tajawal, IBM_Plex_Sans_Arabic } from 'next/font/google';
+import type { ReactNode } from 'react';
+
 import './globals.css';
 
-const arabic = IBM_Plex_Sans_Arabic({
+const reemKufi = Reem_Kufi({
   subsets: ['arabic', 'latin'],
-  weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-arabic',
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-reem-kufi',
   display: 'swap',
 });
 
-const grotesk = Space_Grotesk({
-  subsets: ['latin'],
+const tajawal = Tajawal({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '700'],
+  variable: '--font-tajawal',
+  display: 'swap',
+});
+
+const ibmPlexArabic = IBM_Plex_Sans_Arabic({
+  subsets: ['arabic', 'latin'],
   weight: ['400', '500', '600', '700'],
-  variable: '--font-grotesk',
+  variable: '--font-ibm-plex-arabic',
   display: 'swap',
 });
 
 export const metadata: Metadata = {
-  title: 'وثبة — Wathba',
-  description: 'منصة الدعم الجماعي الأولى عربياً — حوّل فكرتك إلى واقعٍ ملموس',
-  applicationName: 'Wathba',
-  authors: [{ name: 'Wathba' }],
-  keywords: ['crowdfunding', 'KSA', 'Arabic', 'وثبة', 'دعم جماعي'],
+  title: { default: 'وثبة', template: '%s' },
+  description: 'وثبة — منصة دعم المشاريع الإبداعية بضمان التنفيذ',
 };
 
-export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f4f6f1' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a1422' },
-  ],
-};
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning className={`${arabic.variable} ${grotesk.variable}`}>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-      </head>
-      <body className="min-h-dvh">
-        <Providers>{children}</Providers>
-      </body>
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`${reemKufi.variable} ${tajawal.variable} ${ibmPlexArabic.variable}`}
+    >
+      <body>{children}</body>
     </html>
   );
 }

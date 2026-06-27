@@ -1,0 +1,474 @@
+{
+  "meta": {
+    "home": "Ventures",
+    "explore": "Explore ventures",
+    "detail": "{name}",
+    "back": "Back {name}",
+    "ledger": "Open ledger — {name}",
+    "submit": "Submit a venture",
+    "v2030": "Vision 2030 sectors",
+    "v2030Sector": "{name}",
+    "compare": "Compare ventures",
+    "dataroom": "Data room — {name}",
+    "captable": "Cap table — {name}",
+    "meetings": "Meetings — {name}",
+    "postmortem": "Post-mortem — {name}",
+    "updatePermalink": "Update — {title}",
+    "myProjects": "My ventures",
+    "founderPortal": "Founder portal — {name}",
+    "founderUpdates": "Updates — {name}",
+    "backerPortal": "Backer portal — {name}",
+    "backerDocuments": "Documents — {name}",
+    "governance": "Governance",
+    "governanceTreasury": "Platform treasury",
+    "governanceDispute": "Dispute — {id}"
+  },
+  "hub": {
+    "title": "Ventures",
+    "subtitle": "Saudi-aligned ventures, open ledgers, backable in minutes.",
+    "ctaExplore": "Explore ventures",
+    "ctaSubmit": "Submit yours",
+    "ctaV2030": "Vision 2030 sectors",
+    "trendingHeading": "Trending now",
+    "v2030Heading": "By sector",
+    "ledgersHeading": "Open ledgers",
+    "noTrending": "Nothing trending yet.",
+    "emptyV2030": "No ventures in this sector yet."
+  },
+  "explore": {
+    "title": "Explore ventures",
+    "subtitle": "Filter by sector, state, and impact floor.",
+    "filters": {
+      "sector": "Sector",
+      "state": "State",
+      "impactMin": "Impact floor",
+      "backingType": "Backing"
+    },
+    "states": {
+      "all": "All",
+      "raising": "Raising",
+      "active": "Active",
+      "milestoneHold": "On milestone hold",
+      "closed": "Closed"
+    },
+    "backingTypes": {
+      "all": "All",
+      "reward": "Reward",
+      "equity": "Equity",
+      "royalty": "Royalty",
+      "strategicSponsor": "Strategic sponsor"
+    },
+    "noResults": "No ventures match. Loosen a filter.",
+    "loadMore": "Load more"
+  },
+  "card": {
+    "raisedLabel": "{raised} of {target}",
+    "backersLabel": "{count} backers",
+    "trustLabel": "Trust {score}",
+    "impactLabel": "Impact {pct}%",
+    "openCta": "Open",
+    "backCta": "Back"
+  },
+  "trustScore": {
+    "title": "Trust score",
+    "subtitle": "Calculated from ledger health, milestone pace, and identity proofs.",
+    "score": "{score}/100",
+    "factors": {
+      "ledgerHealth": "Ledger health",
+      "milestonePace": "Milestone pace",
+      "identityVerified": "Identity verified",
+      "auditFlags": "Audit flags",
+      "communityVotes": "Community votes"
+    },
+    "viewBreakdown": "View breakdown"
+  },
+  "impact": {
+    "title": "V2030 contribution",
+    "subtitle": "How this venture maps to Vision 2030 outcomes.",
+    "noMapping": "No mapping declared."
+  },
+  "detail": {
+    "tabs": {
+      "businessCase": "Business case",
+      "team": "Team",
+      "ledger": "Ledger",
+      "milestones": "Milestones",
+      "employment": "Employment",
+      "community": "Community",
+      "updates": "Updates",
+      "impact": "Impact"
+    },
+    "header": {
+      "stateLabel": "{state}",
+      "sectorLabel": "{sector}",
+      "raisedHeading": "Raised",
+      "backersHeading": "Backers",
+      "targetHeading": "Target",
+      "backCta": "Back this venture",
+      "ledgerCta": "Open ledger",
+      "shareCta": "Share"
+    },
+    "businessCase": {
+      "summary": "Summary",
+      "problem": "Problem",
+      "solution": "Solution",
+      "market": "Market",
+      "useOfFunds": "Use of funds",
+      "noDoc": "No business case posted yet."
+    },
+    "team": {
+      "founderHeading": "Founder",
+      "coreHeading": "Core team",
+      "advisorsHeading": "Advisors",
+      "noTeam": "Team listing pending."
+    },
+    "milestones": {
+      "timelineHeading": "Timeline",
+      "evidenceHeading": "Evidence",
+      "auditCommentsHeading": "AI audit comments",
+      "noMilestones": "Milestones planner unlocked when raising closes.",
+      "voteCta": "Open vote",
+      "states": {
+        "planned": "Planned",
+        "active": "Active",
+        "evidence": "Evidence submitted",
+        "voting": "Voting",
+        "passed": "Passed",
+        "failed": "Failed"
+      }
+    },
+    "employment": {
+      "openRolesHeading": "Open roles",
+      "noRoles": "No open roles.",
+      "applyCta": "Apply"
+    },
+    "community": {
+      "title": "Embedded community",
+      "openInCommunity": "Open space"
+    },
+    "updates": {
+      "noUpdates": "No updates yet."
+    }
+  },
+  "back": {
+    "title": "Back this venture",
+    "subtitle": "Pick a backing type and timing — payment is the last step.",
+    "stepHeading": "Step {n} of {total}",
+    "steps": {
+      "type": "Backing type",
+      "timing": "Pledge timing",
+      "terms": "Terms",
+      "review": "Review",
+      "payment": "Payment"
+    },
+    "types": {
+      "reward": "Reward",
+      "equity": "Equity",
+      "royalty": "Royalty",
+      "strategicSponsor": "Strategic sponsor"
+    },
+    "typeDescriptions": {
+      "reward": "Receive a tangible reward when the venture ships.",
+      "equity": "A small share — only when the venture is registered.",
+      "royalty": "A small percentage of revenue, capped.",
+      "strategicSponsor": "Sponsorship — name placement + access, no return."
+    },
+    "timings": {
+      "soft": "Soft pledge",
+      "direct": "Direct",
+      "recurring": "Recurring"
+    },
+    "timingDescriptions": {
+      "soft": "Intent only — collected if the venture reaches its target.",
+      "direct": "Collected now.",
+      "recurring": "Monthly until the target is met or you cancel."
+    },
+    "amountField": "Amount (SAR)",
+    "previousCta": "Back",
+    "nextCta": "Continue",
+    "confirmCta": "Confirm",
+    "paymentNotice": "Payment provider hand-off — flag-gated until backend selection lands.",
+    "summary": "You're committing {amount} as {type} ({timing}).",
+    "completedTitle": "Pledge recorded",
+    "completedBody": "We'll let you know when it's drawn."
+  },
+  "ledger": {
+    "title": "Open ledger",
+    "subtitle": "Every append, AI-audited, chain-verifiable.",
+    "filters": {
+      "kind": "Kind",
+      "date": "Date",
+      "flag": "Flag"
+    },
+    "kinds": {
+      "all": "All",
+      "pledge": "Pledges",
+      "draw": "Draws",
+      "expense": "Expenses",
+      "refund": "Refunds",
+      "return": "Returns"
+    },
+    "flags": {
+      "all": "All",
+      "none": "No flag",
+      "info": "Info",
+      "caution": "Caution",
+      "anomaly": "Anomaly"
+    },
+    "columns": {
+      "date": "Date",
+      "kind": "Kind",
+      "counterparty": "Counterparty",
+      "amount": "Amount",
+      "balance": "Balance",
+      "flag": "Flag"
+    },
+    "redactedLabel": "Redacted",
+    "exportCsv": "Export CSV",
+    "exportPdf": "Export PDF",
+    "verifyChain": "Verify cryptographic chain",
+    "chainStatus": "Chain status: {status}",
+    "chainStatuses": {
+      "verified": "Verified",
+      "pending": "Pending nightly verify",
+      "failed": "Failed — escalated"
+    },
+    "balanceChartTitle": "Running balance",
+    "empty": "No entries match the filter."
+  },
+  "submit": {
+    "title": "Submit a venture",
+    "subtitle": "Seven steps. AI gives feedback as you go.",
+    "stepLabel": "Step {n} of {total}",
+    "steps": {
+      "basics": "Basics",
+      "sectors": "Sectors",
+      "team": "Team",
+      "businessCase": "Business case",
+      "milestones": "Milestones",
+      "backing": "Backing terms",
+      "review": "Review"
+    },
+    "aiFeedbackHeading": "AI feedback",
+    "aiFeedbackEmpty": "No feedback yet — fill the step.",
+    "submitCta": "Submit for vetting",
+    "submitted": "Submitted — vetting takes 5–7 days."
+  },
+  "v2030": {
+    "title": "Vision 2030 sectors",
+    "subtitle": "Where ventures live in the national plan.",
+    "sectorHeading": "{name}",
+    "ventureCount": "{count} ventures",
+    "noVentures": "No ventures in this sector yet."
+  },
+  "compare": {
+    "title": "Compare ventures",
+    "subtitle": "Side by side: trust, ledger health, milestones, backing terms.",
+    "rows": {
+      "trustScore": "Trust score",
+      "raised": "Raised",
+      "target": "Target",
+      "backers": "Backers",
+      "state": "State",
+      "milestones": "Milestones",
+      "backingTypes": "Backing types"
+    },
+    "addVenture": "Add a venture"
+  },
+  "dataroom": {
+    "title": "Data room",
+    "subtitle": "Gated documents — NDA acknowledged on entry.",
+    "ndaPending": "Acknowledge NDA",
+    "ndaAcknowledged": "NDA acknowledged",
+    "openDoc": "Open",
+    "noDocs": "No documents posted.",
+    "accessLogHeading": "Access log"
+  },
+  "captable": {
+    "title": "Cap table",
+    "subtitle": "Equity ownership snapshot.",
+    "noCaptable": "Cap table not published.",
+    "shareholderHeading": "Shareholder",
+    "sharesHeading": "Shares",
+    "percentHeading": "%",
+    "youLabel": "You"
+  },
+  "meetings": {
+    "title": "AGM + meetings",
+    "subtitle": "Schedule, agendas, minutes, linked votes.",
+    "upcomingHeading": "Upcoming",
+    "pastHeading": "Past",
+    "scheduleCta": "Schedule",
+    "openAgenda": "Agenda",
+    "openMinutes": "Minutes",
+    "linkedVote": "Linked vote",
+    "noMeetings": "No meetings."
+  },
+  "postmortem": {
+    "title": "Post-mortem",
+    "subtitle": "What happened, the ledger's final state, and the lessons.",
+    "whatHappened": "What happened",
+    "whatHappenedBody": "The venture closed after meeting its target but missing its second milestone window.",
+    "finalLedger": "Final ledger",
+    "finalLedgerBody": "Final balance distributed pro-rata to backers; expenses fully reconciled.",
+    "lessons": "Lessons (public)",
+    "lessonsBody": "Scope smaller pilots; lock milestone evidence formats earlier; do AGM monthly during ramp.",
+    "noPostmortem": "Post-mortem not posted yet."
+  },
+  "updatePermalink": {
+    "subtitle": "Investor update — published {date}.",
+    "openVenture": "Open venture"
+  },
+  "myProjects": {
+    "title": "My ventures",
+    "subtitle": "Ideas, leading, team, backed, applications.",
+    "tabs": {
+      "ideas": "Ideas",
+      "leading": "Leading",
+      "team": "Team",
+      "backed": "Backed",
+      "applications": "Applications"
+    },
+    "emptyIdeas": "No drafts.",
+    "emptyLeading": "You aren't leading any venture.",
+    "emptyTeam": "You aren't on any team.",
+    "emptyBacked": "You haven't backed anything yet.",
+    "emptyApplications": "No applications open."
+  },
+  "founderPortal": {
+    "title": "Founder portal",
+    "tabs": {
+      "roster": "Roster",
+      "milestonePlanner": "Milestone planner",
+      "hiring": "Hiring",
+      "escrow": "Escrow",
+      "returns": "Returns"
+    },
+    "roster": {
+      "inviteCta": "Invite",
+      "removeCta": "Remove",
+      "noMembers": "No team members yet."
+    },
+    "milestones": {
+      "addCta": "Add milestone",
+      "lockCta": "Lock & publish",
+      "lockedNotice": "Milestones locked — changes need backer vote."
+    },
+    "hiring": {
+      "openRolesHeading": "Open roles",
+      "applicantsHeading": "Applicants (AI-ranked)",
+      "newRole": "New role",
+      "noApplicants": "No applicants yet."
+    },
+    "escrow": {
+      "title": "Escrow",
+      "available": "Available",
+      "committed": "Committed",
+      "reserved": "Reserved",
+      "drawCta": "Draw funds"
+    },
+    "returns": {
+      "noHistory": "No returns paid yet."
+    }
+  },
+  "founderUpdates": {
+    "title": "Investor updates",
+    "subtitle": "Composer + broadcast to space, inbox, and email digest.",
+    "draftHeading": "Draft",
+    "titleField": "Title",
+    "bodyField": "Body",
+    "publishCta": "Publish",
+    "publishedNotice": "Published — link copied.",
+    "broadcastChannels": "Channels",
+    "channels": {
+      "spaceUpdates": "Space #updates",
+      "inbox": "Inbox",
+      "emailDigest": "Email digest"
+    },
+    "noUpdates": "No updates posted yet."
+  },
+  "backerPortal": {
+    "title": "Backer portal",
+    "tabs": {
+      "milestones": "Milestones",
+      "returns": "Returns",
+      "history": "Payment history"
+    },
+    "milestoneVoteHeading": "Open vote",
+    "voteOpensIn": "Vote opens in {days} days",
+    "voteClosesIn": "Vote closes in {hours} hours",
+    "voteCast": "Vote cast — {choice}",
+    "votePass": "Pass",
+    "voteFail": "Fail",
+    "voteHold": "Hold",
+    "noVotes": "No votes open.",
+    "returnsHeading": "Returns",
+    "historyHeading": "Payment history",
+    "noReturns": "No returns yet.",
+    "noHistory": "No payments yet."
+  },
+  "backerDocuments": {
+    "title": "Documents",
+    "subtitle": "Receipts, terms, zakat/tax summaries, yearly statements.",
+    "kinds": {
+      "receipt": "Receipt",
+      "terms": "Terms",
+      "zakat": "Zakat/tax summary",
+      "yearly": "Yearly statement"
+    },
+    "downloadCta": "Download",
+    "noDocs": "No documents yet."
+  },
+  "governance": {
+    "title": "Governance",
+    "subtitle": "Council, auditor pool, treasury, disputes.",
+    "councilHeading": "Council",
+    "auditorHeading": "Auditor pool",
+    "councilSubtitle": "Elected members; staggered terms.",
+    "auditorSubtitle": "Pool of certified auditors.",
+    "openTreasury": "Open treasury",
+    "openDisputes": "Open disputes"
+  },
+  "treasury": {
+    "title": "Platform treasury",
+    "subtitle": "Inflows from platform fees, outflows to ops + reserves.",
+    "headings": {
+      "balance": "Current balance",
+      "inflowsMtd": "Inflows (month-to-date)",
+      "outflowsMtd": "Outflows (month-to-date)"
+    },
+    "exportCsv": "Export CSV"
+  },
+  "dispute": {
+    "title": "Dispute {id}",
+    "subtitle": "Filed → AI triage → 7-day council → resolution → 48-hour objection window → final.",
+    "states": {
+      "filed": "Filed",
+      "aiTriage": "AI triage",
+      "councilReview": "Council review (7d)",
+      "resolution": "Resolution",
+      "objection": "Objection window (48h)",
+      "final": "Final"
+    },
+    "timelineHeading": "Timeline",
+    "evidenceHeading": "Evidence",
+    "noEvidence": "No evidence attached."
+  },
+  "shared": {
+    "currencyLabel": "{amount} SAR",
+    "openInLedger": "Open in ledger",
+    "openProfile": "Open profile",
+    "by": "By {name}",
+    "stateLabel": "{state}"
+  },
+  "units": {
+    "raisedOfTarget": "{raised} of {target}",
+    "backers": "{count} backers",
+    "ventures": "{count} ventures",
+    "milestones": "{count} milestones",
+    "trustScore": "{score}/100",
+    "impactPct": "{pct}%",
+    "daysAgo": "{count}d ago",
+    "weeks": "{count}w"
+  }
+}
