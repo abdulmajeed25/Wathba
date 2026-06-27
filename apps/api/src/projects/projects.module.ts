@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { ProjectsController } from './projects.controller';
+import { ProjectsService } from './projects.service';
 
-/**
- * Projects bounded context — project lifecycle, CRUD, publishing.
- * Implementation lands in Phase 1.
- */
-@Module({})
+@Module({
+  controllers: [ProjectsController],
+  providers: [ProjectsService],
+  exports: [ProjectsService],
+})
 export class ProjectsModule {}

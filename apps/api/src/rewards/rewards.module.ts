@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
+import { RewardsController } from './rewards.controller';
+import { RewardsService } from './rewards.service';
 
-/**
- * Rewards bounded context — reward tiers per project.
- * Implementation lands in Phase 1.
- */
-@Module({})
+@Module({
+  controllers: [RewardsController],
+  providers: [RewardsService],
+  exports: [RewardsService],
+})
 export class RewardsModule {}

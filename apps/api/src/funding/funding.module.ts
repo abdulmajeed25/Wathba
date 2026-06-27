@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
+import { FundingController } from './funding.controller';
+import { FundingService } from './funding.service';
+import { DeadlineScheduler } from './deadline.scheduler';
+import { ContractsModule } from '../contracts/contracts.module';
 
-/**
- * Funding bounded context — pledges + funding FSM + deadline job.
- * Implementation lands in Phase 1.
- *
- * FSM: DRAFT → UNDER_REVIEW → LIVE → {SUCCESSFUL|FAILED}
- *      SUCCESSFUL → FUNDED → IN_PRODUCTION → DELIVERED
- *      FAILED → REFUNDED
- * Rule: at deadline, capture iff raised >= goal * releaseThresholdPct/100.
- */
-@Module({})
+@Module({
+  imports: [ContractsModule],
+  controllers: [FundingController],
+  providers: [FundingService, DeadlineScheduler],
+  exports: [FundingService],
+})
 export class FundingModule {}

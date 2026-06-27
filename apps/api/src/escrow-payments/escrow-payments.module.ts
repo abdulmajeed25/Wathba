@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { MoyasarAdapter } from './moyasar.adapter';
+import { EscrowService } from './escrow.service';
 
-/**
- * Escrow-payments bounded context — Moyasar Split integration.
- * Hold (authorize) → Capture → Refund + payouts.
- * Implementation lands in Phase 1.
- */
-@Module({})
+@Global()
+@Module({
+  providers: [MoyasarAdapter, EscrowService],
+  exports: [EscrowService, MoyasarAdapter],
+})
 export class EscrowPaymentsModule {}
