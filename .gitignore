@@ -1,0 +1,38 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+build/
+.next/
+.expo/
+.expo-shared/
+.turbo/
+.cache/
+
+# native
+*.tsbuildinfo
+*.log
+.DS_Store
+.env
+.env.local
+.env.*.local
+
+# expo
+web-build/
+ios/
+android/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# nest
+coverage/
+
+# editor
+.vscode/
+.idea/
