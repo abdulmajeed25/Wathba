@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
+import { MilestonesController } from './milestones.controller';
+import { MilestonesService } from './milestones.service';
 
-/**
- * Milestones bounded context — milestone CRUD + escrow release workflow +
- * Live Transparency Dashboard data.
- * Implementation lands in Phase 2.
- */
-@Module({})
+@Module({
+  controllers: [MilestonesController],
+  providers: [MilestonesService],
+  exports: [MilestonesService],
+})
 export class MilestonesModule {}
