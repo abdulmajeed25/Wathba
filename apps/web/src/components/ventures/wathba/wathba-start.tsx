@@ -41,7 +41,22 @@ const STEPS: readonly StepDef[] = [
   { n: 2, label: 'التمويل', icon: 'payments' },
   { n: 3, label: 'القصة', icon: 'auto_stories' },
   { n: 4, label: 'المكافآت', icon: 'redeem' },
-  { n: 5, label: 'المراجعة', icon: 'rocket_launch' },
+  { n: 5, label: 'المراحل', icon: 'flag' },
+  { n: 6, label: 'المراجعة', icon: 'rocket_launch' },
+];
+
+// ── Milestones step — creator defines the release plan; pcts must sum to 100.
+interface DraftMilestone {
+  id: string;
+  titleAr: string;
+  descAr: string;
+  releasePct: number;
+}
+const DEFAULT_MILESTONES: DraftMilestone[] = [
+  { id: 'dm0', titleAr: 'تأمين خط الإنتاج',        descAr: 'توقيع المصنع + شراء المواد',           releasePct: 25 },
+  { id: 'dm1', titleAr: 'الإنتاج الأوّلي والجودة', descAr: 'إنتاج الدفعة الأولى + شهادات الجودة',    releasePct: 35 },
+  { id: 'dm2', titleAr: 'الشحن للداعمين',           descAr: 'بدء شحن الباقات للداعمين',              releasePct: 25 },
+  { id: 'dm3', titleAr: 'التشغيل والدعم',           descAr: 'دعم فني للداعمين خلال أول ٩٠ يوماً',    releasePct: 15 },
 ];
 
 // ── Default reward tiers (design lines 906–911, "tiers" placeholder count 3)
@@ -97,6 +112,7 @@ export function WathbaStart() {
   const [mediaName, setMediaName] = useState<string>('');
   const [tiers, setTiers] = useState<DraftTier[]>(DEFAULT_TIERS);
   const [editingTier, setEditingTier] = useState<string | null>(null);
+  const [milestones, setMilestones] = useState<DraftMilestone[]>(DEFAULT_MILESTONES);
 
   // submit state
   const [submitting, setSubmitting] = useState(false);
@@ -133,6 +149,7 @@ export function WathbaStart() {
             story,
             mediaPlaceholder: mediaName || null,
             tiers,
+            milestones,
           },
           willingToLead: true,
           fundingGoal,
@@ -304,6 +321,9 @@ export function WathbaStart() {
             />
           )}
           {step === 5 && (
+            <StepMilestones milestones={milestones} onChange={setMilestones} />
+          )}
+          {step === 6 && (
             <StepReview
               title={title}
               categoryLabel={selectedCategory?.ar ?? 'تقنية'}
@@ -812,7 +832,190 @@ function StepTiers({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 5 — review (design 916–931)
+// STEP 5 — milestones (creator defines the release plan, must sum to 100%)
+// ─────────────────────────────────────────────────────────────────────────
+function StepMilestones({
+  milestones,
+  onChange,
+}: {
+  milestones: DraftMilestone[];
+  onChange: (rows: DraftMilestone[]) => void;
+}): ReactNode {
+  const total = milestones.reduce((a, m) => a + (Number(m.releasePct) || 0), 0);
+  const valid = total === 100;
+
+  const setRow = (id: string, patch: Partial<DraftMilestone>): void => {
+    onChange(milestones.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  };
+  const addRow = (): void => {
+    onChange([
+      ...milestones,
+      { id: `dm-${Date.now()}`, titleAr: '', descAr: '', releasePct: 0 },
+    ]);
+  };
+  const removeRow = (id: string): void => {
+    onChange(milestones.filter((m) => m.id !== id));
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>مراحل التسليم والصرف</h2>
+      <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.6 }}>
+        قسّم رحلة مشروعك إلى مراحل واضحة. كل مرحلة تصرف نسبة محددة من التمويل
+        بعد رفع الأدلة وموافقة المنصة. <strong>مجموع النسب يجب أن يساوي ١٠٠٪.</strong>
+      </p>
+
+      <div
+        style={{
+          marginBottom: 18,
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: valid ? 'rgba(52,211,153,.08)' : 'rgba(251,191,36,.10)',
+          border: `1px solid ${valid ? 'rgba(52,211,153,.30)' : 'rgba(251,191,36,.30)'}`,
+          color: valid ? 'var(--pos)' : 'var(--gold)',
+          fontSize: 13,
+          fontWeight: 700,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <Icon name={valid ? 'check_circle' : 'info'} size={16} color={valid ? 'var(--pos)' : 'var(--gold)'} />
+        المجموع: <Num style={{ fontWeight: 700 }}>{total}</Num>٪ {valid ? '· جاهز' : '· يجب أن يساوي ١٠٠٪'}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+        {milestones.map((m, i) => (
+          <div
+            key={m.id}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid rgba(var(--ink-rgb),.08)',
+              borderRadius: 14,
+              padding: 16,
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr 100px auto',
+              gap: 12,
+              alignItems: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: 32, height: 32, borderRadius: 9,
+                background: 'rgba(var(--accent-rgb),.10)',
+                color: 'var(--accent)',
+                display: 'grid', placeItems: 'center',
+                fontWeight: 700, fontSize: 14,
+                fontFamily: '"Space Grotesk", sans-serif',
+              }}
+            >
+              {i + 1}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input
+                type="text"
+                value={m.titleAr}
+                onChange={(e) => setRow(m.id, { titleAr: e.target.value })}
+                placeholder="عنوان المرحلة"
+                style={{
+                  background: 'rgba(var(--ink-rgb),.04)',
+                  border: '1px solid rgba(var(--ink-rgb),.12)',
+                  borderRadius: 9,
+                  padding: '8px 12px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <input
+                type="text"
+                value={m.descAr}
+                onChange={(e) => setRow(m.id, { descAr: e.target.value })}
+                placeholder="ما الذي يجب تحقيقه؟ ما الأدلة المطلوبة؟"
+                style={{
+                  background: 'rgba(var(--ink-rgb),.04)',
+                  border: '1px solid rgba(var(--ink-rgb),.12)',
+                  borderRadius: 9,
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  color: 'var(--text-soft)',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={m.releasePct || ''}
+                onChange={(e) => setRow(m.id, { releasePct: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
+                placeholder="0"
+                style={{
+                  width: 64,
+                  background: 'rgba(var(--ink-rgb),.04)',
+                  border: '1px solid rgba(var(--ink-rgb),.12)',
+                  borderRadius: 9,
+                  padding: '8px',
+                  fontSize: 15,
+                  textAlign: 'center',
+                  fontFamily: '"Space Grotesk", sans-serif',
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>%</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(m.id)}
+              disabled={milestones.length <= 1}
+              aria-label="إزالة المرحلة"
+              style={{
+                cursor: milestones.length <= 1 ? 'not-allowed' : 'pointer',
+                background: 'transparent',
+                border: 'none',
+                color: milestones.length <= 1 ? 'var(--muted2)' : 'var(--muted)',
+                fontFamily: 'inherit',
+                opacity: milestones.length <= 1 ? 0.5 : 1,
+                padding: 4,
+              }}
+            >
+              <Icon name="check" size={20} color="transparent" />
+              <span style={{ fontSize: 18 }}>×</span>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={addRow}
+        style={{
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          background: 'transparent',
+          border: '1px dashed rgba(var(--accent-rgb),.40)',
+          borderRadius: 11,
+          padding: '10px 16px',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--accent)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        <Icon name="add_circle" size={16} color="var(--accent)" />
+        أضف مرحلة
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP 6 — review (design 916–931)
 // ─────────────────────────────────────────────────────────────────────────
 function StepReview({
   title,
