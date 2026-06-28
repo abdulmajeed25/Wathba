@@ -7,6 +7,7 @@ import {
   deriveLiveProject,
   type WathbaProject as WathbaProjectShape,
   wathbaBudgetRows,
+  wathbaMilestones,
   wathbaProjectComments,
   wathbaProjectFaqs,
   wathbaProjectTabs,
@@ -18,12 +19,22 @@ import {
 import { Icon, Num } from './wathba-icons';
 
 /**
- * Project detail — literal 1:1 port of WATBHوثبة.dc.html lines 507–714.
- * Top header → gallery + funding sidebar → tab bar (5) → tab content + tier rail.
- * Every hex/gradient/px/rem mirrors the design verbatim.
+ * Project detail — literal 1:1 port of WATBHوثبة.dc.html lines 507–714,
+ * extended with the v2 surfaces: §7 platform-partner banner, §5 80%
+ * threshold disclosure in the sidebar, Milestones escrow tab.
  */
 
-type TabId = 'story' | 'transparency' | 'updates' | 'community' | 'faq';
+type TabId = 'story' | 'transparency' | 'milestones' | 'updates' | 'community' | 'faq';
+
+const MILESTONE_TONE: Record<
+  'PENDING' | 'SUBMITTED' | 'APPROVED' | 'RELEASED',
+  { label: string; bg: string; color: string; border: string }
+> = {
+  PENDING:   { label: 'قيد الانتظار',    bg: 'rgba(var(--ink-rgb),.06)',  color: 'var(--muted)',  border: 'rgba(var(--ink-rgb),.18)' },
+  SUBMITTED: { label: 'قيد المراجعة',    bg: 'rgba(251,191,36,.10)',      color: 'var(--gold)',   border: 'rgba(251,191,36,.32)'      },
+  APPROVED:  { label: 'موافق · بانتظار الصرف', bg: 'rgba(var(--accent2-rgb),.10)', color: 'var(--blue)', border: 'rgba(var(--accent2-rgb),.32)' },
+  RELEASED:  { label: 'تم الصرف',         bg: 'rgba(52,211,153,.10)',     color: 'var(--pos)',    border: 'rgba(52,211,153,.32)'      },
+};
 
 export type WathbaComment = (typeof wathbaProjectComments)[number];
 
@@ -100,6 +111,39 @@ export function WathbaProject({
           {active.desc}
         </p>
       </section>
+
+      {/* §7 platform-partner mandatory disclosure */}
+      {active.platformPartner && (
+        <section
+          style={{
+            maxWidth: 1320,
+            margin: '18px auto 0',
+            padding: '0 26px',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 12,
+              background: 'rgba(var(--purple-rgb),.07)',
+              border: '1px solid rgba(var(--purple-rgb),.30)',
+              borderRadius: 16,
+              padding: 18,
+            }}
+          >
+            <Icon name="verified" size={22} color="var(--purple)" />
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginBottom: 6 }}>
+                بشراكة وثبة · Wathba Venture
+              </div>
+              <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-soft)' }}>
+                {active.platformPartner.disclosureAr}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ───────── gallery + funding sidebar ───────── */}
       <section
@@ -227,6 +271,33 @@ export function WathbaProject({
               }}
             />
           </div>
+
+          {/* §5 mandatory threshold disclosure — visible BEFORE the pledge button */}
+          {active.releaseThresholdPct && active.releaseThresholdPct < 100 && (
+            <div
+              style={{
+                marginBottom: 20,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 9,
+                background: 'rgba(var(--accent-rgb),.07)',
+                border: '1px solid rgba(var(--accent-rgb),.20)',
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
+              <Icon name="lightbulb" size={18} color="var(--accent)" />
+              <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-soft)' }}>
+                يكفي الوصول لـ{' '}
+                <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                  ${Math.round((active.goal * active.releaseThresholdPct) / 100).toLocaleString('en-US')}
+                </Num>{' '}
+                ({active.releaseThresholdPct}%) لإطلاق الإنتاج. المبلغ الأكبر هدف
+                امتداد (Stretch Goal) لميزات إضافية.
+              </div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 0, marginBottom: 22 }}>
             <div style={{ flex: 1 }}>
               <Num
@@ -703,6 +774,171 @@ export function WathbaProject({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* MILESTONES — §10 escrow rail */}
+          {tab === 'milestones' && (
+            <div className="wathba-fade">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <Icon name="flag" size={24} color="var(--accent)" />
+                <h2 style={{ fontSize: 24, fontWeight: 700 }}>مراحل التسليم والصرف</h2>
+              </div>
+              <p style={{ fontSize: 15, color: 'var(--muted)', marginBottom: 22 }}>
+                كل مرحلة تُصرف فقط بعد رفع الأدلة وموافقة المنصة. مبالغك في حساب
+                ضمان حتى ذلك الحين.
+              </p>
+
+              {/* aggregate progress bar (SVG, RTL-safe) */}
+              {(() => {
+                const released = wathbaMilestones
+                  .filter((m) => m.status === 'RELEASED')
+                  .reduce((a, m) => a + m.releasePct, 0);
+                const approved = wathbaMilestones
+                  .filter((m) => m.status === 'APPROVED')
+                  .reduce((a, m) => a + m.releasePct, 0);
+                const totalPct = released + approved;
+                return (
+                  <div
+                    style={{
+                      background: 'var(--card)',
+                      border: '1px solid rgba(var(--ink-rgb),.08)',
+                      borderRadius: 18,
+                      padding: 24,
+                      marginBottom: 22,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        marginBottom: 14,
+                      }}
+                    >
+                      <span>تقدّم الصرف</span>
+                      <Num style={{ color: 'var(--accent)' }}>
+                        صُرف {released}٪ · موافق {approved}٪ · إجمالي {totalPct}٪
+                      </Num>
+                    </div>
+                    <svg viewBox="0 0 400 18" style={{ width: '100%', height: 18, direction: 'ltr' }}>
+                      <rect x="0" y="0" width="400" height="18" rx="9" fill="rgba(var(--ink-rgb),.06)" />
+                      <rect x="0" y="0" width={400 * (released / 100)} height="18" rx="9" fill="var(--pos)" />
+                      <rect
+                        x={400 * (released / 100)}
+                        y="0"
+                        width={400 * (approved / 100)}
+                        height="18"
+                        fill="var(--gold)"
+                        rx="0"
+                      />
+                    </svg>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 12, color: 'var(--muted-2)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 10, height: 10, background: 'var(--pos)', borderRadius: 2 }} />
+                        صُرف
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 10, height: 10, background: 'var(--gold)', borderRadius: 2 }} />
+                        موافق · بانتظار الصرف
+                      </span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 10, height: 10, background: 'rgba(var(--ink-rgb),.12)', borderRadius: 2 }} />
+                        قادم
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* per-milestone cards */}
+              {wathbaMilestones.map((m) => {
+                const tone = MILESTONE_TONE[m.status];
+                const amount = Math.round((active.raised * m.releasePct) / 100);
+                return (
+                  <div
+                    key={m.id}
+                    style={{
+                      background: 'var(--card)',
+                      border: '1px solid rgba(var(--ink-rgb),.08)',
+                      borderRadius: 16,
+                      padding: 22,
+                      marginBottom: 14,
+                      display: 'flex',
+                      gap: 14,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        background: tone.bg,
+                        color: tone.color,
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontWeight: 700,
+                        fontSize: 16,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {m.order}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 10,
+                          marginBottom: 8,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <h3 style={{ fontSize: 17, fontWeight: 700 }}>{m.titleAr}</h3>
+                        <span
+                          style={{
+                            fontSize: 11.5,
+                            fontWeight: 700,
+                            padding: '4px 10px',
+                            borderRadius: 20,
+                            background: tone.bg,
+                            color: tone.color,
+                            border: `1px solid ${tone.border}`,
+                          }}
+                        >
+                          {tone.label}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 14, lineHeight: 1.65, color: 'var(--muted)', marginBottom: 10 }}>
+                        {m.descAr}
+                      </p>
+                      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--muted-2)' }}>
+                        <Num>
+                          نسبة الصرف: <strong style={{ color: 'var(--text)' }}>{m.releasePct}%</strong>
+                        </Num>
+                        <Num>
+                          المبلغ: <strong style={{ color: 'var(--accent)' }}>${amount.toLocaleString('en-US')}</strong>
+                        </Num>
+                        {m.releasedAt && <Num>تاريخ الصرف: {m.releasedAt}</Num>}
+                        {m.evidenceUrl && (
+                          <a
+                            href={m.evidenceUrl}
+                            style={{
+                              color: 'var(--accent)',
+                              textDecoration: 'underline',
+                              fontWeight: 600,
+                            }}
+                          >
+                            عرض الأدلة
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 

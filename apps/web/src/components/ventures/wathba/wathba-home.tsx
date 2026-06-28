@@ -603,6 +603,28 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                 >
                   <Icon name="bookmark" size={16} color="var(--muted)" />
                 </div>
+                {/* §7 platform-partner — mandatory badge on the card */}
+                {p.platformPartner && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 11,
+                      bottom: 11,
+                      background: 'rgba(var(--purple-rgb),.92)',
+                      color: 'var(--on-accent)',
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Icon name="verified" size={12} color="var(--on-accent)" />
+                    بشراكة وثبة
+                  </div>
+                )}
               </div>
               <div
                 style={{

@@ -74,6 +74,33 @@ export function WathbaPledge({
           دعمك مؤمَّن — لن يُخصم أي مبلغ إلا عند نجاح المشروع.
         </p>
 
+        {/* §5 mandatory threshold disclosure — must be visible BEFORE pledge */}
+        {active.releaseThresholdPct && active.releaseThresholdPct < 100 && (
+          <div
+            style={{
+              marginBottom: 26,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              background: 'rgba(var(--accent-rgb),.06)',
+              border: '1px solid rgba(var(--accent-rgb),.22)',
+              borderRadius: 14,
+              padding: '14px 16px',
+            }}
+          >
+            <Icon name="info" size={20} color="var(--accent)" />
+            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-soft)' }}>
+              <strong>قاعدة عتبة الإطلاق:</strong>{' '}
+              يُطلق المشروع عند بلوغ{' '}
+              <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                ${Math.round((active.goal * active.releaseThresholdPct) / 100).toLocaleString('en-US')}
+              </Num>{' '}
+              ({active.releaseThresholdPct}% من الهدف). إذا لم يبلغ ذلك بحلول الموعد
+              النهائي، يُعاد كامل دعمك تلقائياً إلى بطاقتك خلال أيام عمل قليلة.
+            </div>
+          </div>
+        )}
+
         {/* stepper */}
         <div
           style={{
