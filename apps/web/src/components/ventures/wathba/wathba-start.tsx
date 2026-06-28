@@ -136,7 +136,7 @@ export function WathbaStart() {
           },
           willingToLead: true,
           fundingGoal,
-          fundingCurrency: 'USD',
+          fundingCurrency: 'SAR',
         },
       });
       router.push('/projects/dashboard');

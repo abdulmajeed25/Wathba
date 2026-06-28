@@ -152,6 +152,8 @@ export interface Milestone {
   titleAr: string;
   releasePct: number;
   evidenceRequired: string;
+  /** URL/path to the evidence uploaded by the creator at SUBMITTED. */
+  evidenceUrl?: string | null;
   status: MilestoneStatus;
   releasedHalalas: Halalas;
   submittedAt?: string | null;

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import type { ApiBidPublic, ApiRfqPublic } from '@/lib/api/wathba';
 import {
   type WathbaRfq,
   type WathbaSupplierBid,
@@ -35,9 +36,47 @@ const STATUS_TONE: Record<string, { label: string; color: string; bg: string }> 
   REJECTED: { label: 'مرفوض',    color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
 };
 
-export function WathbaSupplier() {
+export function WathbaSupplier({
+  liveRfqs,
+  liveMyBids,
+}: {
+  liveRfqs?: ApiRfqPublic[] | null;
+  liveMyBids?: ApiBidPublic[] | null;
+} = {}) {
+  // Live data with bundled-fixture fallback (DB empty / API unreachable).
+  const rfqs: WathbaRfq[] =
+    liveRfqs && liveRfqs.length > 0
+      ? liveRfqs.map((r) => ({
+          id: r.id,
+          ventureTitleAr: r.ventureTitleAr,
+          ventureSlug: r.ventureSlug,
+          specsAr: r.specsAr,
+          dueDate: r.dueDate.slice(0, 10),
+          bidsCount: r.bidsCount,
+          status: r.status,
+          category: r.category,
+        }))
+      : wathbaRfqs;
+
+  const myBids: WathbaSupplierBid[] =
+    liveMyBids && liveMyBids.length > 0
+      ? liveMyBids.map((b) => ({
+          id: b.id,
+          rfqId: b.rfqId,
+          rfqTitleAr: b.rfqTitleAr,
+          amount: Math.round(b.amountHalalas / 100),
+          leadTimeDays: b.leadTimeDays,
+          status: b.status,
+          submittedAt: b.submittedAt.slice(0, 10),
+        }))
+      : wathbaMySupplierBids;
+
+  const isLive = Boolean(
+    (liveRfqs && liveRfqs.length > 0) || (liveMyBids && liveMyBids.length > 0),
+  );
+
   const [tab, setTab] = useState<TabId>('rfqs');
-  const [selRfq, setSelRfq] = useState<string>(wathbaRfqs[0]!.id);
+  const [selRfq, setSelRfq] = useState<string>(rfqs[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [lead, setLead] = useState('');
   const [compliance, setCompliance] = useState('');
@@ -45,6 +84,9 @@ export function WathbaSupplier() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // TODO: when SUPPLIER-role auth lands, POST to `/v1/rfqs/${selRfq}/bids`
+    // with the bearer cookie. Today this remains a UI-only confirmation so
+    // the screen can be reviewed.
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 4000);
     setAmount(''); setLead(''); setCompliance('');
@@ -60,6 +102,11 @@ export function WathbaSupplier() {
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
           المزاد العكسي للموردين
         </h1>
+        {isLive && (
+          <div style={{ marginBottom: 10, fontSize: 11, color: 'var(--pos)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="verified" size={13} color="var(--pos)" /> بيانات مباشرة من API
+          </div>
+        )}
         <p style={{ fontSize: 16, color: 'var(--text-soft)', maxWidth: 720, lineHeight: 1.6 }}>
           صناعيّون من المنطقة يقدّمون عروضاً تنافسية لتلبية طلبات المبدعين. اختر طلباً مفتوحاً،
           قدّم عرضك (السعر، مهلة التسليم، التزام المواصفات)، وستقوم خوارزمية وثبة بترتيب العروض
@@ -111,11 +158,11 @@ export function WathbaSupplier() {
 
       {/* body */}
       <section style={{ maxWidth: 1160, margin: '0 auto', padding: '30px 26px 80px' }}>
-        {tab === 'rfqs' && <RfqList rfqs={wathbaRfqs} onApply={(id) => { setSelRfq(id); setTab('submit'); }} />}
-        {tab === 'bids' && <BidList bids={wathbaMySupplierBids} />}
+        {tab === 'rfqs' && <RfqList rfqs={rfqs} onApply={(id) => { setSelRfq(id); setTab('submit'); }} />}
+        {tab === 'bids' && <BidList bids={myBids} />}
         {tab === 'submit' && (
           <SubmitForm
-            rfqs={wathbaRfqs.filter((r) => r.status === 'OPEN')}
+            rfqs={rfqs.filter((r) => r.status === 'OPEN')}
             selRfq={selRfq}
             setSelRfq={setSelRfq}
             amount={amount}

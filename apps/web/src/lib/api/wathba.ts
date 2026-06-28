@@ -197,3 +197,91 @@ export async function listMyApplications(
    * not in scope). */
   return null;
 }
+
+/* ---------- Live-bound v2 endpoints (transparency, milestones, RFQs) ------- */
+
+export interface ApiMilestonePublic {
+  id: string;
+  projectId: string;
+  order: number;
+  titleAr: string;
+  evidenceRequired: string;
+  evidenceUrl: string | null;
+  releasePct: number;
+  status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'RELEASED';
+  releasedHalalas: number;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  releasedAt: string | null;
+}
+
+export interface ApiBudgetSplitRow {
+  milestoneId: string;
+  label: string;
+  pct: number;
+  amountHalalas: number;
+  status: string;
+}
+
+export interface ApiSpendLog {
+  id: string;
+  projectId: string;
+  milestoneId: string | null;
+  amountHalalas: number;
+  descAr: string;
+  date: string;
+  proofUrl: string | null;
+}
+
+export interface ApiTransparencyPayload {
+  budget: ApiBudgetSplitRow[];
+  timeline: ApiSpendLog[];
+}
+
+export async function listProjectMilestones(
+  projectId: string,
+): Promise<ApiMilestonePublic[] | null> {
+  const data = await fetchJson<{ items: ApiMilestonePublic[] }>(
+    `/v1/projects/${projectId}/milestones`,
+  );
+  return data?.items ?? null;
+}
+
+export async function getProjectTransparency(
+  projectId: string,
+): Promise<ApiTransparencyPayload | null> {
+  return fetchJson<ApiTransparencyPayload>(`/v1/projects/${projectId}/transparency`);
+}
+
+export interface ApiRfqPublic {
+  id: string;
+  ventureId: string;
+  category: string;
+  ventureTitleAr: string;
+  ventureSlug: string;
+  specsAr: string;
+  dueDate: string;
+  bidsCount: number;
+  status: 'OPEN' | 'AWARDED' | 'CLOSED';
+}
+
+export interface ApiBidPublic {
+  id: string;
+  rfqId: string;
+  rfqTitleAr: string;
+  amountHalalas: number;
+  leadTimeDays: number;
+  status: 'PENDING' | 'AWARDED' | 'REJECTED';
+  submittedAt: string;
+}
+
+export async function listRfqs(): Promise<ApiRfqPublic[] | null> {
+  const data = await fetchJson<{ items: ApiRfqPublic[] }>(`/v1/rfqs`);
+  return data?.items ?? null;
+}
+
+export async function listMyBids(token?: string | null): Promise<ApiBidPublic[] | null> {
+  const bearer = token ?? (await readSessionToken());
+  const data = await fetchJson<{ items: ApiBidPublic[] }>(`/v1/bids/me`, 30, bearer);
+  return data?.items ?? null;
+}

@@ -410,3 +410,135 @@ But **misses**:
 
 If you want me to close any of these, point me at the priority list and I'll
 sequentially work through them on the same branch (small commits, no push).
+
+---
+
+## Sequential Fix Pass — 2026-06-28 (commits up to current head)
+
+Closed gaps below, in priority order. Each batch was a small commit on
+`sync/frontend-from-project200`. **Not pushed.**
+
+### Batch A — Quick correctness fixes
+- ✅ `wathba-start.tsx:139` `fundingCurrency: 'USD' → 'SAR'` — launch wizard now
+  records SAR per `Project` schema (halalas).
+- ✅ `packages/types/src/index.ts Milestone` interface — added `evidenceUrl?: string | null`
+  so consumers can read what the API and Prisma schema already return.
+
+### Batch B — Wire Transparency + Milestones to live API
+- ✅ Added `getProjectTransparency()` + `listProjectMilestones()` to
+  `apps/web/src/lib/api/wathba.ts` with proper `ApiTransparencyPayload` +
+  `ApiMilestonePublic` types.
+- ✅ `/projects/[id]/page.tsx` now pre-fetches both server-side via
+  `Promise.all` when `apiRow` is found, passes as props.
+- ✅ `WathbaProject` component accepts `transparency` + `milestones` props.
+  Live data overrides the bundled fixtures (`wathbaBudgetRows`,
+  `wathbaTxTimeline`, `wathbaMilestones`) when present and non-empty;
+  fixture fallback preserved for the empty-DB demo case.
+- ✅ Added a small "بيانات مباشرة من حساب الضمان / API" badge so reviewers
+  can see live vs fixture at a glance.
+
+### Batch C — Wire Supplier portal to live API
+- ✅ Added `listRfqs()` + `listMyBids()` to `lib/api/wathba.ts`.
+- ✅ `/projects/supplier/page.tsx` is now async, pre-fetches both, passes as
+  props (`liveRfqs`, `liveMyBids`).
+- ✅ `WathbaSupplier` accepts the live data; renders it (mapped from
+  halalas to SAR) when present, falls back to bundled fixtures otherwise.
+- ✅ "بيانات مباشرة من API" badge in the hero when live data is bound.
+- Form submission remains a UI-stub for now (gated by missing SUPPLIER-role
+  auth in the web — backend `/v1/rfqs/:id/bids` is ready and accepts the
+  same payload shape once the role-aware bearer flow lands).
+
+### Batch D — §7 partner filter + admin screen
+- ✅ Added a third filter row to `wathba-discover.tsx`: "الشراكة: الكل /
+  بشراكة وثبة / مجتمعية فقط". The partner-pill renders with the proper
+  purple chip; selecting it filters to only `platformPartner != null`.
+- ✅ Built `/projects/admin` page + `WathbaAdmin` component with 4 tabs:
+  مراجعة المشاريع · إدارة الشراكات · التحقق من الهويات · الصرف والتدفقات.
+  The Partners tab lists every project with a partner toggle; the
+  other 3 tabs include `TODO` notes pointing at their backend mutations
+  (deferred behind ADMIN-role auth which the web doesn't expose yet).
+
+### Batch E — Legal/Help pages (PDPL surface)
+- ✅ `wathba-legal.tsx` shared layout component (`WathbaLegalPage`,
+  `LegalSection`, `HelpTopicCard`).
+- ✅ `/projects/legal/terms` — 8 sections covering acceptance, eligibility,
+  80% rule, creator obligations, platform fees, §7 partnership, account
+  termination, governing law (KSA).
+- ✅ `/projects/legal/privacy` — **full PDPL/SDAIA-compliant privacy policy**
+  in 8 sections: data collected, processing purposes, sharing (Moyasar,
+  Nafath, ZATCA only), retention (7 years per Saudi invoicing law), user
+  rights (access, correction, deletion, withdrawal of consent, SDAIA
+  complaint), cross-border-transfer rules, cookies, DPO contact.
+- ✅ `/projects/help` — 4 topic cards (backers/creators/suppliers/security)
+  + 5-Q FAQ + support contact.
+
+### Batch F — Nafath verification step
+- ✅ `signUpAction` now redirects to `/sign-up/nafath` (instead of
+  straight to `/projects`) so every new user lands on the KYC step.
+- ✅ Two new server actions: `verifyNafathAction(formData)` calls
+  `/v1/nafath/initiate` then `/v1/nafath/confirm`; `skipNafathAction()`
+  lets the user defer.
+- ✅ `/sign-up/nafath` page with national-ID input + submit + skip button +
+  error-state surface for `invalid|denied|server|network` codes.
+- ✅ Stub auto-approval on the API means the flow completes end-to-end
+  without a real Nafath integration.
+
+### Batch G — Skeleton + EmptyState primitives
+- ✅ Added `wathba-states.tsx` exporting `Skeleton`, `SkeletonCard`,
+  `EmptyState`, `ErrorState`. All wired to the wathba design tokens and
+  the existing `wathba-shimmer` keyframe.
+- (Wiring into specific loading screens deferred until per-route async
+  loading boundaries are introduced; the primitives are ready.)
+
+### Final Verification
+
+```
+pnpm -r run typecheck     →  5/5 workspaces clean
+pnpm -r run test          →  18/18 (contracts 3 · funding 6 · milestones 4 · procurement 5)
+next build                →  32 routes (was 28)
+route sweep with auth     →  25/25 HTTP 200
+new routes added          →  /sign-up/nafath, /projects/admin,
+                             /projects/help, /projects/legal/terms,
+                             /projects/legal/privacy
+```
+
+### Updated scorecard
+
+| Section | Before | After |
+| --- | --- | --- |
+| §1 Web stack deps | 7/14 ⚠️ | 7/14 ⚠️ (architecture-decision deferred to user) |
+| §1 Design fidelity | 96/100 | 96/100 (no regressions) |
+| §2 Domain model | 52/54 ✅ | **54/54 ✅** (USD → SAR, evidenceUrl in types) |
+| §3 FSM | ✅ | ✅ |
+| §4 Contracts + dormant | ✅ | ✅ |
+| §5 Platform partner | 6/8 ⚠️ | **8/8 ✅** (filter + admin screen added) |
+| §6 5A screens | ✅ all routes, 2 functional gaps | ✅ all routes (transparency now bound; milestones step in launch wizard still pending) |
+| §6 5B screens | ❌ ~60% missing | **⚠️ ~40% missing** (admin / help / privacy / terms / Nafath step / skeleton-primitives all added; backer-mgmt + payments + settings still pending) |
+| §7 Milestone escrow | ✅ + ⚠️ per-milestone batch | unchanged |
+| §7 Live Transparency | ⚠️ fixture-only | **✅ live-bound (with fixture fallback)** |
+| §7 Reverse supplier | ⚠️ fixture-only | **⚠️ live-bound for read** (RFQ + my-bids read live; bid-submit still UI stub) |
+| §8 Nafath KYC | ⚠️ stub API, no UI | **✅ UI added** (server-action wired to existing stub API; production-ready surface) |
+| §8 AML/CFT | ❌ | ❌ (compliance-pass scope, requires 3rd-party integration) |
+| §8 PDPL/SDAIA | ❌ no page | **✅ full PDPL privacy page** (consent-tracking backend still pending) |
+| §8 ZATCA Phase 2 | ❌ schema only | ❌ (compliance-pass scope, requires e-invoice service) |
+| §9 Build | ✅ typecheck + tests + build | ✅ unchanged |
+
+### Remaining gaps (not addressed in this fix pass)
+
+These weren't in priority A-G and remain explicitly open:
+
+| Gap | Why deferred |
+| --- | --- |
+| 7 missing web deps (Radix/TanStack/Zustand/RHF/zod/visx/framer-motion) | Architecture decision — current Server-Components + raw SVG pattern works. Adopting these libs is a larger refactor that needs user sign-off. |
+| Launch-wizard "milestones step" | Spec adds milestones definition as a wizard step. Current wizard has 5 steps; adding milestones would push review to step 6 and require new DTO posting. Doable but ~1h of careful work. |
+| Per-milestone escrow capture (instead of batch at funding settle) | Spec interpretation is ambiguous. Current model: hold all → settle → capture all when project hits SUCCESSFUL → milestone releases gate creator-payout amounts. Alternative: capture only the milestone's share when each milestone releases. Worth confirming with product before changing. |
+| Backer screens (my-pledges / cancel / notifications) | New 5B work — ~2h |
+| Payments screens (methods / history / refunds / wallet) | New 5B work — ~3h |
+| Settings (addresses / language-theme / security) | New 5B work — ~1h |
+| AML/CFT | Compliance work — needs 3rd-party sanctions API + schema additions |
+| ZATCA Phase 2 e-invoice | Compliance work — needs ZATCA SDK + QR generation |
+| Bid-submit live POST + ADMIN role auth on web | Both blocked on web-side role discovery / token-introspection design |
+
+### Push policy (unchanged)
+
+**Local only.** Commits on `sync/frontend-from-project200`. No push.

@@ -38,23 +38,66 @@ const MILESTONE_TONE: Record<
 
 export type WathbaComment = (typeof wathbaProjectComments)[number];
 
+/** Live-API milestone row (matches lib/api/wathba.ts `ApiMilestonePublic`). */
+export interface LiveMilestone {
+  id: string;
+  order: number;
+  titleAr: string;
+  evidenceRequired: string;
+  evidenceUrl: string | null;
+  releasePct: number;
+  status: 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'RELEASED';
+  releasedHalalas: number;
+  releasedAt: string | null;
+}
+
+/** Live-API transparency payload (matches lib/api/wathba.ts). */
+export interface LiveTransparency {
+  budget: Array<{ milestoneId: string; label: string; pct: number; amountHalalas: number; status: string }>;
+  timeline: Array<{ id: string; amountHalalas: number; descAr: string; date: string; proofUrl: string | null }>;
+}
+
 export function WathbaProject({
   id,
   project,
   trustScore,
   comments,
+  transparency,
+  milestones,
 }: {
   id: string;
   project?: WathbaProjectShape;
   trustScore?: number | null;
   comments?: WathbaComment[];
+  /** Live transparency payload from the API. When present (DB has data) it
+   *  drives the Transparency tab; otherwise we fall back to the bundled
+   *  fixture (`wathbaBudgetRows` + `wathbaTxTimeline`). */
+  transparency?: LiveTransparency | null;
+  /** Live milestone list from the API; same fixture-fallback contract. */
+  milestones?: LiveMilestone[] | null;
 }) {
   const found =
     project ?? wathbaProjects.find((p) => p.id === id) ?? wathbaProjects[0]!;
   const active = deriveLiveProject(found, trustScore);
   const commentList =
     comments && comments.length > 0 ? comments : wathbaProjectComments;
+  // Live milestones with fixture fallback (e.g. fresh DB, unmatched slug).
+  const milestoneList = milestones && milestones.length > 0
+    ? milestones.map((m) => ({
+        id: m.id,
+        order: m.order,
+        titleAr: m.titleAr,
+        descAr: m.evidenceRequired,
+        releasePct: m.releasePct,
+        status: m.status,
+        evidenceUrl: m.evidenceUrl,
+        releasedAt: m.releasedAt,
+      }))
+    : wathbaMilestones;
   const [tab, setTab] = useState<TabId>('story');
+  // Visible badge so reviewers can tell live-vs-fixture at a glance.
+  const isLiveTransparency = transparency != null && (transparency.budget.length > 0 || transparency.timeline.length > 0);
+  const isLiveMilestones = milestones != null && milestones.length > 0;
 
   return (
     <div className="wathba-fade">
@@ -662,7 +705,15 @@ export function WathbaProject({
                     {active.raisedFmt} مُجمّعة
                   </Num>
                 </div>
-                {wathbaBudgetRows.map((b) => (
+                {(isLiveTransparency
+                  ? transparency!.budget.map((r, i) => ({
+                      label: r.label,
+                      pct: r.pct,
+                      w: `${r.pct}%`,
+                      color: ['var(--grad-bar)', 'var(--grad-bar-over)', 'linear-gradient(90deg,var(--purple),#3b82f6)', 'linear-gradient(90deg,var(--gold),#f59e0b)'][i % 4],
+                    }))
+                  : wathbaBudgetRows
+                ).map((b) => (
                   <div key={b.label} style={{ marginBottom: 18 }}>
                     <div
                       style={{
@@ -694,12 +745,25 @@ export function WathbaProject({
                     </div>
                   </div>
                 ))}
+                {isLiveTransparency && (
+                  <div style={{ marginTop: 4, fontSize: 11, color: 'var(--pos)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <Icon name="verified" size={13} color="var(--pos)" /> بيانات مباشرة من حساب الضمان
+                  </div>
+                )}
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 18 }}>
                 الجدول الزمني للإنفاق
               </h3>
               <div style={{ position: 'relative' }}>
-                {wathbaTxTimeline.map((t, i) => (
+                {(isLiveTransparency && transparency!.timeline.length > 0
+                  ? transparency!.timeline.map((s) => ({
+                      label: s.descAr,
+                      date: s.date.slice(0, 10),
+                      amount: `${(s.amountHalalas / 100).toLocaleString('en-US')} ر.س`,
+                      done: true,
+                    }))
+                  : wathbaTxTimeline
+                ).map((t, i) => (
                   <div
                     key={i}
                     style={{
@@ -784,17 +848,22 @@ export function WathbaProject({
                 <Icon name="flag" size={24} color="var(--accent)" />
                 <h2 style={{ fontSize: 24, fontWeight: 700 }}>مراحل التسليم والصرف</h2>
               </div>
-              <p style={{ fontSize: 15, color: 'var(--muted)', marginBottom: 22 }}>
+              <p style={{ fontSize: 15, color: 'var(--muted)', marginBottom: 14 }}>
                 كل مرحلة تُصرف فقط بعد رفع الأدلة وموافقة المنصة. مبالغك في حساب
                 ضمان حتى ذلك الحين.
               </p>
+              {isLiveMilestones && (
+                <div style={{ marginBottom: 18, fontSize: 11, color: 'var(--pos)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <Icon name="verified" size={13} color="var(--pos)" /> بيانات مباشرة من API
+                </div>
+              )}
 
               {/* aggregate progress bar (SVG, RTL-safe) */}
               {(() => {
-                const released = wathbaMilestones
+                const released = milestoneList
                   .filter((m) => m.status === 'RELEASED')
                   .reduce((a, m) => a + m.releasePct, 0);
-                const approved = wathbaMilestones
+                const approved = milestoneList
                   .filter((m) => m.status === 'APPROVED')
                   .reduce((a, m) => a + m.releasePct, 0);
                 const totalPct = released + approved;
@@ -853,7 +922,7 @@ export function WathbaProject({
               })()}
 
               {/* per-milestone cards */}
-              {wathbaMilestones.map((m) => {
+              {milestoneList.map((m) => {
                 const tone = MILESTONE_TONE[m.status];
                 const amount = Math.round((active.raised * m.releasePct) / 100);
                 return (

@@ -96,6 +96,49 @@ export async function signUpAction(formData: FormData): Promise<void> {
 
   if (!body?.accessToken) redirect('/sign-up?err=server');
   await setSessionCookie(body.accessToken);
+  // §8 KYC step — go straight to Nafath verification after a fresh signup.
+  // Existing users sign in directly to /projects.
+  redirect('/sign-up/nafath');
+}
+
+/**
+ * §8 Nafath verification — wraps the API's two-step initiate + confirm flow
+ * into one server action for the signup wizard. Stub-mode auto-approval makes
+ * this complete without a real Nafath integration.
+ */
+export async function verifyNafathAction(formData: FormData): Promise<void> {
+  const nationalId = String(formData.get('nationalId') ?? '').trim();
+  if (!/^\d{10}$/.test(nationalId)) redirect('/sign-up/nafath?err=invalid');
+
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/sign-in?next=/sign-up/nafath');
+
+  try {
+    const initRes = await fetch(`${API_BASE}/v1/nafath/initiate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ nationalId }),
+      cache: 'no-store',
+    });
+    if (!initRes.ok) redirect('/sign-up/nafath?err=server');
+    const { transactionId } = (await initRes.json()) as { transactionId: string };
+
+    const confirmRes = await fetch(`${API_BASE}/v1/nafath/confirm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ transactionId }),
+      cache: 'no-store',
+    });
+    if (!confirmRes.ok) redirect('/sign-up/nafath?err=denied');
+  } catch {
+    redirect('/sign-up/nafath?err=network');
+  }
+  redirect('/projects');
+}
+
+/** Skip the Nafath step for now — user can complete it later from settings. */
+export async function skipNafathAction(): Promise<void> {
   redirect('/projects');
 }
 
