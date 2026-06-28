@@ -285,3 +285,24 @@ export async function listMyBids(token?: string | null): Promise<ApiBidPublic[] 
   const data = await fetchJson<{ items: ApiBidPublic[] }>(`/v1/bids/me`, 30, bearer);
   return data?.items ?? null;
 }
+
+export interface ApiPayoutRow {
+  id: string;
+  projectId: string;
+  amountHalalas: number;
+  milestoneId: string | null;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  zatcaInvoiceId: string | null;
+  sentAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiPayoutsPayload {
+  totalSentHalalas: number;
+  items: ApiPayoutRow[];
+}
+
+export async function listMyPayouts(token?: string | null): Promise<ApiPayoutsPayload | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<ApiPayoutsPayload>(`/v1/payouts/me`, 30, bearer);
+}
