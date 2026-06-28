@@ -306,3 +306,21 @@ export async function listMyPayouts(token?: string | null): Promise<ApiPayoutsPa
   const bearer = token ?? (await readSessionToken());
   return fetchJson<ApiPayoutsPayload>(`/v1/payouts/me`, 30, bearer);
 }
+
+export interface ApiUserMe {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  roles: string[];
+  nafathVerified: boolean;
+  reputationTier: string;
+  totalPledgedHalalas: number;
+  locale: string;
+  createdAt: string;
+}
+
+export async function getMe(token?: string | null): Promise<ApiUserMe | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<ApiUserMe>(`/v1/users/me`, 0, bearer);
+}

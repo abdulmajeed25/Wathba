@@ -142,6 +142,32 @@ export async function skipNafathAction(): Promise<void> {
   redirect('/projects');
 }
 
+/** Update name + phone on the current user (Settings → Profile tab). */
+export async function updateProfileAction(formData: FormData): Promise<void> {
+  const name = String(formData.get('name') ?? '').trim();
+  const phone = String(formData.get('phone') ?? '').trim();
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/sign-in');
+
+  const body: Record<string, string> = {};
+  if (name.length >= 2) body.name = name;
+  if (phone && /^\+?\d{8,15}$/.test(phone)) body.phone = phone;
+
+  try {
+    const res = await fetch(`${API_BASE}/v1/users/me`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
+    if (!res.ok) redirect('/projects/settings?err=server');
+  } catch {
+    redirect('/projects/settings?err=network');
+  }
+  redirect('/projects/settings?ok=profile');
+}
+
 export async function signOutAction(): Promise<void> {
   await clearSessionCookie();
   redirect('/sign-in');
