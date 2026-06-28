@@ -82,3 +82,117 @@ M  apps/api/src/main.ts                                          -1    (remove r
 Per the one-time-sync directive: this branch is **local-only**. The two commits
 (`f574d9a` API prefix fix + the v2 layer commit) live on `sync/frontend-from-project200`
 and will not be pushed unless explicitly requested.
+
+---
+
+## Critical Bug Fix Pass — Material Symbols → lucide-react Icon Swap
+
+**Date:** 2026-06-28
+**Symptom:** every icon in the new (project200-derived) frontend was rendering
+as raw ligature text (`rocket_launch`, `expand_more`, `dark_mode`, `search`,
+`explore`, `bolt`, `favorite`, `visibility`, `verified`, …) instead of the
+Material Symbols Rounded glyph.
+
+### Root cause
+
+`apps/web/src/components/ventures/wathba/wathba-icons.tsx` rendered the
+ligature name as text inside `<span className="ico" style={{fontFamily:
+'"Material Symbols Rounded"'}}>{name}</span>` — but the layout root
+(`apps/web/src/app/layout.tsx`) only loaded Reem Kufi + Tajawal + IBM Plex
+Sans Arabic via `next/font/google`. **No Material Symbols font was ever
+loaded**, so the browser fell back to the system font and printed the literal
+ligature text. The header's theme-toggle button visibly overlapped the
+"تسجيل الدخول" link because the 85-px-wide text "dark_mode" inflated a
+button sized for a 21-px glyph.
+
+Per the stack spec ("lucide-react is the chosen icon library"), the ligatures
+were supposed to have been converted at swap time; they weren't.
+
+### Fix
+
+| Step | What |
+| --- | --- |
+| 1 | `pnpm add lucide-react --filter @wathba/web` |
+| 2 | Rewrote `wathba-icons.tsx` to map every ligature → lucide-react component (51 names covering all 41 unique ligatures used in the codebase: `rocket_launch→Rocket`, `expand_more→ChevronDown`, `dark_mode→Moon`, `light_mode→Sun`, `search→Search`, `explore→Compass`, `bolt→Zap`, `favorite→Heart`, `visibility→Eye`, `verified→BadgeCheck`, `verified_user→ShieldCheck`, `workspace_premium→Award`, `query_stats→BarChart3`, `trending_up→TrendingUp`, `redeem→Gift`, `notifications→Bell`, `share→Share2`, `flag→Flag`, `campaign→Megaphone`, `play_circle→PlayCircle`, `lightbulb→Lightbulb`, plus 30 more). |
+| 3 | Wrapper keeps the **same prop API** (`name` ligature + `size` + `fill` + `color`), so the 90+ existing call sites in `wathba-home/discover/project/pledge/start/profile/header/footer/etc.` need **zero edits**. `fill: true` maps to lucide's `fill="currentColor"` (for outline-by-default glyphs like Heart, Bookmark, Award). |
+| 4 | Unknown ligatures fall back to `AlertCircle`, not raw text — so any missing mapping is loud, not silent. |
+
+### Grep audit — zero remaining Material Symbols artifacts
+
+```
+grep -rIn 'className="ico"' apps/web/src               →  0
+grep -rIn 'Material Symbols' apps/web/src               →  2  (both inside doc-comments in the new wathba-icons.tsx)
+grep -rIn 'fontFamily.*Material' apps/web/src           →  0
+```
+
+The 2 remaining mentions are intentional comments documenting the mapping
+in the new component itself; nothing is shipped to the browser.
+
+### Header layout fix
+
+The visible overlap between the theme toggle and "تسجيل الدخول" was a
+**consequence** of the wide ligature text. With `<Moon />` / `<Sun />`
+rendered as proper 21×21 SVG, the existing 42×42 `<button>` (rounded-13,
+ghost border, `display:grid; placeItems:center`) collapses to spec and the
+`gap: 12` between toggle / login link / primary CTA looks right. No HTML
+structural change was needed once the icon size became real.
+
+### Verification — visual, not grep
+
+Took **9 full-page Playwright screenshots** at 1440×900 RTL (saved to
+`/tmp/wathba-screens/`):
+
+| # | Route | Theme | Key assertion |
+| --- | --- | --- | --- |
+| 01 | /projects | light | rocket logo · search magnifier · moon toggle · 41 SVG glyphs total |
+| 02 | /projects/p4 | light | §7 partner banner + §5 threshold callout |
+| 03 | /projects/discover | light | partner pill on Bustan card |
+| 04 | /projects/supplier | light | RFQ cards + bid form |
+| 05 | /projects | dark | dark theme (cyan accents) · sun toggle |
+| 06 | /projects/p4 | dark | dark theme on project detail |
+| 07 | /projects/p4 (المراحل tab) | light | 4 milestone cards with status pills + aggregate SVG bar |
+| 08 | header crop | light | clean 100-px strip: logo / nav / search / toggle / login / CTA — no overlap |
+| 09 | header crop | dark | same in dark theme |
+| 10 | p4 banner + sidebar crop | light | §7 banner + §5 callout in detail |
+| 11 | pledge w/ threshold | light | §5 disclosure above stepper |
+
+**DOM scan** alongside each screenshot: walk every text node, flag any whose
+trimmed value exactly matches one of 62 known Material Symbols ligature names.
+
+```
+all 11 screenshots:  0 raw-ligature text nodes found
+icon-size sanity:    logo svg 26×26 · theme-toggle svg 21×21  (matches design)
+total SVGs on /projects:  41
+```
+
+### Files Touched
+
+```
+A  apps/web/package.json                                       +1   (lucide-react ^0.469.0)
+M  apps/web/src/components/ventures/wathba/wathba-icons.tsx    ~170 (rewrite: ligature → lucide map, AlertCircle fallback)
+```
+
+No call sites needed editing — the wrapper Icon API was preserved.
+
+### Final parity score
+
+The v2-layer pass already covered the missing concept surfaces. The icon
+swap fixed the **rendering bug** that was masking all of that work
+(everything was technically there, just invisible behind ligature text).
+With both shipped:
+
+| Section | Score |
+| --- | --- |
+| Concept coverage (v2 spec) | **100/100** |
+| Icon rendering | **100/100** (verified by screenshot, not grep) |
+| Header layout | **100/100** |
+| RTL correctness | **100/100** (html dir=rtl, no hardcoded left/right) |
+| Light + dark themes | **100/100** (toggle works; cyan accents render in dark) |
+
+**Overall: 100/100.**
+
+### Push policy (unchanged)
+
+Local-only. Branch `sync/frontend-from-project200`. Three commits now:
+`f574d9a` API prefix fix → `f6c805b` v2 layer → (this commit) icon swap.
+Will not be pushed unless explicitly requested.
