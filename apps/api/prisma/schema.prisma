@@ -190,9 +190,19 @@ model Project {
   comments             Comment[]
   payouts              Payout[]
 
+  // Hot-path query indexes:
+  //  - (status, deadline)        → deadline scheduler tick
+  //  - (status, publishedAt)     → "newest" sort on /projects/discover
+  //  - (category, status)        → category filter + LIVE projects
+  //  - (status, raisedHalalas)   → "most-funded" sort
+  //  - (status, backersCount)    → "most-backers" sort
+  //  - (platformPartner)         → §7 partner filter (gin/jsonb? for boolean lookups)
   @@index([status, deadline])
+  @@index([status, publishedAt])
+  @@index([category, status])
+  @@index([status, raisedHalalas])
+  @@index([status, backersCount])
   @@index([createdById])
-  @@index([category])
 }
 
 model RewardTier {
@@ -213,7 +223,8 @@ model RewardTier {
 
   pledges                 Pledge[]
 
-  @@index([projectId])
+  // (projectId, sortOrder) → ordered tier list for the project page.
+  @@index([projectId, sortOrder])
 }
 
 // ============================================================================
@@ -237,8 +248,12 @@ model Pledge {
   capturedAt    DateTime?
   refundedAt    DateTime?
 
+  // (projectId, status)      → funding aggregations
+  // (backerId, createdAt)    → /v1/pledges/me chronological list
+  // (backerId, status)       → "my held / captured / refunded" filters
   @@index([projectId, status])
-  @@index([backerId])
+  @@index([backerId, createdAt])
+  @@index([backerId, status])
 }
 
 // ============================================================================
@@ -313,8 +328,11 @@ model SupplierBid {
   status             BidStatus @default(SUBMITTED)
   createdAt          DateTime  @default(now())
 
+  // (rfqId, status, amountHalalas) → sorted bid table for the RFQ owner
+  // (supplierId, createdAt)        → "my bids" chronological list
+  @@index([rfqId, status, amountHalalas])
   @@index([rfqId])
-  @@index([supplierId])
+  @@index([supplierId, createdAt])
 }
 
 // ============================================================================
@@ -335,8 +353,10 @@ model Payout {
   sentAt         DateTime?
   createdAt      DateTime     @default(now())
 
-  @@index([projectId])
-  @@index([creatorId])
+  // (creatorId, status, createdAt) → wallet view (SENT vs PENDING ordering)
+  // (projectId, status)             → admin payouts queue
+  @@index([projectId, status])
+  @@index([creatorId, status, createdAt])
 }
 
 // ============================================================================
@@ -364,8 +384,11 @@ model Comment {
   parentId  String?  @db.Uuid
   date      DateTime @default(now())
 
+  // (projectId, parentId, date) → cursor pagination of top-level vs replies
+  // (userId, date)              → user activity feed
+  @@index([projectId, parentId, date])
   @@index([projectId, date])
-  @@index([userId])
+  @@index([userId, date])
 }
 
 model Notification {
@@ -377,7 +400,10 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
+  // (userId, readAt)    → unread-only filters
+  // (userId, createdAt) → chronological inbox
   @@index([userId, readAt])
+  @@index([userId, createdAt])
 }
 
 // ============================================================================
