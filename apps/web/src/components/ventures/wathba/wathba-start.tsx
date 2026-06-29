@@ -26,6 +26,7 @@ import {
 } from 'react';
 
 import { api } from '@/lib/api/client';
+import { useLaunchWizard } from '@/lib/stores/launch-wizard';
 
 import { wathbaCategories } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
@@ -45,32 +46,10 @@ const STEPS: readonly StepDef[] = [
   { n: 6, label: 'المراجعة', icon: 'rocket_launch' },
 ];
 
-// ── Milestones step — creator defines the release plan; pcts must sum to 100.
-interface DraftMilestone {
-  id: string;
-  titleAr: string;
-  descAr: string;
-  releasePct: number;
-}
-const DEFAULT_MILESTONES: DraftMilestone[] = [
-  { id: 'dm0', titleAr: 'تأمين خط الإنتاج',        descAr: 'توقيع المصنع + شراء المواد',           releasePct: 25 },
-  { id: 'dm1', titleAr: 'الإنتاج الأوّلي والجودة', descAr: 'إنتاج الدفعة الأولى + شهادات الجودة',    releasePct: 35 },
-  { id: 'dm2', titleAr: 'الشحن للداعمين',           descAr: 'بدء شحن الباقات للداعمين',              releasePct: 25 },
-  { id: 'dm3', titleAr: 'التشغيل والدعم',           descAr: 'دعم فني للداعمين خلال أول ٩٠ يوماً',    releasePct: 15 },
-];
-
-// ── Default reward tiers (design lines 906–911, "tiers" placeholder count 3)
-interface DraftTier {
-  id: string;
-  price: string; // raw text, e.g. "$25"
-  title: string;
-  desc: string;
-}
-const DEFAULT_TIERS: DraftTier[] = [
-  { id: 'dt0', price: '$25', title: 'داعم مبكر', desc: 'شارة + تحديثات حصرية' },
-  { id: 'dt1', price: '$79', title: 'الباقة الأساسية', desc: 'وحدة + شحن مجاني' },
-  { id: 'dt2', price: '$149', title: 'الباقة المزدوجة', desc: 'وحدتان + إكسسوارات' },
-];
+// Wizard state lives in the Zustand store now — see
+// src/lib/stores/launch-wizard.ts for DraftTier / DraftMilestone types
+// and the seed defaults that pre-populate the form.
+import type { DraftTier, DraftMilestone } from '@/lib/stores/launch-wizard';
 
 // ── Step 2: number sanitiser (strip commas, parse int) ─────────────────────
 function parseAmount(s: string): number {
@@ -100,19 +79,22 @@ function slugify(title: string): string {
 
 export function WathbaStart() {
   const router = useRouter();
-  const [step, setStep] = useState<number>(1);
-
-  // form state — all steps preserved across navigation
-  const [title, setTitle] = useState<string>('');
-  const [tagline, setTagline] = useState<string>('');
-  const [categoryId, setCategoryId] = useState<string>('');
-  const [goalText, setGoalText] = useState<string>('400,000');
-  const [durationText, setDurationText] = useState<string>('30');
-  const [story, setStory] = useState<string>('');
-  const [mediaName, setMediaName] = useState<string>('');
-  const [tiers, setTiers] = useState<DraftTier[]>(DEFAULT_TIERS);
-  const [editingTier, setEditingTier] = useState<string | null>(null);
-  const [milestones, setMilestones] = useState<DraftMilestone[]>(DEFAULT_MILESTONES);
+  // Zustand store with localStorage persistence — wizard state survives
+  // page navigation, hot-reload, and accidental tab close.
+  const state = useLaunchWizard();
+  const { step, title, tagline, categoryId, goalText, durationText, story, mediaName, tiers, editingTier, milestones, set, reset } = state;
+  const setStep = (v: number | ((s: number) => number)) =>
+    set('step', typeof v === 'function' ? v(step) : v);
+  const setTitle = (v: string) => set('title', v);
+  const setTagline = (v: string) => set('tagline', v);
+  const setCategoryId = (v: string) => set('categoryId', v);
+  const setGoalText = (v: string) => set('goalText', v);
+  const setDurationText = (v: string) => set('durationText', v);
+  const setStory = (v: string) => set('story', v);
+  const setMediaName = (v: string) => set('mediaName', v);
+  const setTiers = (v: DraftTier[]) => set('tiers', v);
+  const setEditingTier = (v: string | null) => set('editingTier', v);
+  const setMilestones = (v: DraftMilestone[]) => set('milestones', v);
 
   // submit state
   const [submitting, setSubmitting] = useState(false);
@@ -156,6 +138,9 @@ export function WathbaStart() {
           fundingCurrency: 'SAR',
         },
       });
+      // Successful submit — clear the persisted draft so a brand-new
+      // launch doesn't re-populate with the old plan.
+      reset();
       router.push('/projects/dashboard');
     } catch (err) {
       setSubmitError(
