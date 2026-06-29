@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { ApiUserMe } from '@/lib/api/wathba';
 import { signOutAction, updateProfileAction } from '@/lib/auth/actions';
 import { Icon, Num } from './wathba-icons';
+import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 
 type TabId = 'profile' | 'addresses' | 'language' | 'security' | 'notifications';
 
@@ -42,44 +43,17 @@ export function WathbaSettings({
         </p>
       </section>
 
-      <section
-        style={{
-          maxWidth: 1040, margin: '28px auto 0', padding: '0 26px',
-          borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 26, overflowX: 'auto' }}>
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <button
-                type="button" key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  cursor: 'pointer', padding: '14px 2px',
-                  background: 'transparent',
-                  borderTop: 'none', borderInline: 'none',
-                  borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
-                  color: active ? 'var(--accent)' : 'var(--muted)',
-                  fontSize: 14.5, fontWeight: 600,
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  whiteSpace: 'nowrap', fontFamily: 'inherit',
-                }}
-              >
-                <Icon name={t.icon} size={18} /> {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section style={{ maxWidth: 1040, margin: '0 auto', padding: '24px 26px 80px' }}>
-        {tab === 'profile' && <ProfileTab me={me} okFlag={okFlag} errFlag={errFlag} />}
-        {tab === 'addresses' && <AddressesTab />}
-        {tab === 'language' && <LanguageTab me={me} />}
-        {tab === 'security' && <SecurityTab me={me} />}
-        {tab === 'notifications' && <NotificationsTab />}
-      </section>
+      <WathbaTabs tabs={TABS} value={tab} onValueChange={(v) => setTab(v as TabId)} maxWidth={1040}>
+        <section style={{ maxWidth: 1040, margin: '0 auto', padding: '24px 26px 80px' }}>
+          <WathbaTabsContent value="profile">
+            <ProfileTab me={me} okFlag={okFlag} errFlag={errFlag} />
+          </WathbaTabsContent>
+          <WathbaTabsContent value="addresses"><AddressesTab /></WathbaTabsContent>
+          <WathbaTabsContent value="language"><LanguageTab me={me} /></WathbaTabsContent>
+          <WathbaTabsContent value="security"><SecurityTab me={me} /></WathbaTabsContent>
+          <WathbaTabsContent value="notifications"><NotificationsTab /></WathbaTabsContent>
+        </section>
+      </WathbaTabs>
     </div>
   );
 }

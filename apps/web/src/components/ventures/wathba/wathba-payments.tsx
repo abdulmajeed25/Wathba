@@ -7,6 +7,7 @@ import type { ApiBackingRow, ApiPayoutsPayload } from '@/lib/api/wathba';
 import { wathbaProjects } from './wathba-data';
 import { EmptyState } from './wathba-states';
 import { Icon, Num } from './wathba-icons';
+import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 
 /**
  * §6.5B Payments hub — 4 tabs.
@@ -62,63 +63,24 @@ export function WathbaPayments({
         </p>
       </section>
 
-      <section
-        style={{
-          maxWidth: 1040,
-          margin: '28px auto 0',
-          padding: '0 26px',
-          borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 26, overflowX: 'auto' }}>
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <button
-                type="button"
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  cursor: 'pointer',
-                  padding: '14px 2px',
-                  background: 'transparent',
-                  borderTop: 'none',
-                  borderInline: 'none',
-                  borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
-                  color: active ? 'var(--accent)' : 'var(--muted)',
-                  fontSize: 14.5,
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  whiteSpace: 'nowrap',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <Icon name={t.icon} size={18} />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section style={{ maxWidth: 1040, margin: '0 auto', padding: '24px 26px 80px' }}>
-        {tab === 'methods' && <MethodsTab />}
-        {tab === 'history' && <HistoryTab pledges={pledges ?? []} />}
-        {tab === 'refunds' && (
-          refunded.length === 0 ? (
-            <EmptyState
-              icon="check"
-              title="لا استردادات في حسابك"
-              body="ستظهر هنا أي مبالغ يُسترد فيها دعمك (مثلاً عند فشل حملة في بلوغ عتبة ٨٠٪)."
-            />
-          ) : (
-            <HistoryTab pledges={refunded} />
-          )
-        )}
-        {tab === 'wallet' && <WalletTab payouts={payouts} />}
-      </section>
+      <WathbaTabs tabs={TABS} value={tab} onValueChange={(v) => setTab(v as TabId)} maxWidth={1040}>
+        <section style={{ maxWidth: 1040, margin: '0 auto', padding: '24px 26px 80px' }}>
+          <WathbaTabsContent value="methods"><MethodsTab /></WathbaTabsContent>
+          <WathbaTabsContent value="history"><HistoryTab pledges={pledges ?? []} /></WathbaTabsContent>
+          <WathbaTabsContent value="refunds">
+            {refunded.length === 0 ? (
+              <EmptyState
+                icon="check"
+                title="لا استردادات في حسابك"
+                body="ستظهر هنا أي مبالغ يُسترد فيها دعمك (مثلاً عند فشل حملة في بلوغ عتبة ٨٠٪)."
+              />
+            ) : (
+              <HistoryTab pledges={refunded} />
+            )}
+          </WathbaTabsContent>
+          <WathbaTabsContent value="wallet"><WalletTab payouts={payouts} /></WathbaTabsContent>
+        </section>
+      </WathbaTabs>
     </div>
   );
 }

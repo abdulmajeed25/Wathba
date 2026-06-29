@@ -13,6 +13,7 @@ import {
   wathbaRfqs,
 } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
+import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 
 /**
  * §10 reverse-supplier-auction portal — suppliers see open RFQs creators
@@ -104,64 +105,27 @@ export function WathbaSupplier({
         </p>
       </section>
 
-      {/* tab bar */}
-      <section
-        style={{
-          maxWidth: 1160,
-          margin: '30px auto 0',
-          padding: '0 26px',
-          borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 26 }}>
-          {TABS.map((t) => {
-            const isActive = tab === t.id;
-            return (
-              <button
-                type="button"
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  cursor: 'pointer',
-                  padding: '14px 2px',
-                  borderBottom: `2px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
-                  color: isActive ? 'var(--accent)' : 'var(--muted)',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottomWidth: 2,
-                  borderBottomStyle: 'solid',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <Icon name={t.icon} size={19} />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* body */}
-      <section style={{ maxWidth: 1160, margin: '0 auto', padding: '30px 26px 80px' }}>
-        {tab === 'rfqs' && <RfqList rfqs={rfqs} onApply={(id) => { setSelRfq(id); setTab('submit'); }} />}
-        {tab === 'bids' && <BidList bids={myBids} />}
-        {tab === 'submit' && (
-          <SubmitForm
-            rfqs={rfqs.filter((r) => r.status === 'OPEN')}
-            initialRfqId={selRfq}
-            onSubmitted={() => {
-              setSubmitted(true);
-              setTimeout(() => setSubmitted(false), 4000);
-            }}
-            submitted={submitted}
-          />
-        )}
-      </section>
+      <WathbaTabs tabs={TABS} value={tab} onValueChange={(v) => setTab(v as TabId)} maxWidth={1160} containerStyle={{ margin: '30px auto 0' }}>
+        <section style={{ maxWidth: 1160, margin: '0 auto', padding: '30px 26px 80px' }}>
+          <WathbaTabsContent value="rfqs">
+            <RfqList rfqs={rfqs} onApply={(id) => { setSelRfq(id); setTab('submit'); }} />
+          </WathbaTabsContent>
+          <WathbaTabsContent value="bids">
+            <BidList bids={myBids} />
+          </WathbaTabsContent>
+          <WathbaTabsContent value="submit">
+            <SubmitForm
+              rfqs={rfqs.filter((r) => r.status === 'OPEN')}
+              initialRfqId={selRfq}
+              onSubmitted={() => {
+                setSubmitted(true);
+                setTimeout(() => setSubmitted(false), 4000);
+              }}
+              submitted={submitted}
+            />
+          </WathbaTabsContent>
+        </section>
+      </WathbaTabs>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { deriveProject, wathbaProjects } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
+import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 
 /**
  * §7 admin surface — minimal partner-management view. Lets an admin see every
@@ -39,92 +40,54 @@ export function WathbaAdmin() {
         </p>
       </section>
 
-      <section
-        style={{
-          maxWidth: 1160,
-          margin: '28px auto 0',
-          padding: '0 26px',
-          borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 26 }}>
-          {TABS.map((t) => {
-            const active = tab === t.id;
-            return (
-              <button
-                type="button"
-                key={t.id}
-                onClick={() => setTab(t.id)}
+      <WathbaTabs tabs={TABS} value={tab} onValueChange={(v) => setTab(v as TabId)} maxWidth={1160}>
+        <section style={{ maxWidth: 1160, margin: '0 auto', padding: '24px 26px 80px' }}>
+          <WathbaTabsContent value="partners">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div
                 style={{
-                  cursor: 'pointer',
-                  padding: '14px 2px',
-                  background: 'transparent',
-                  borderTop: 'none',
-                  borderInline: 'none',
-                  borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
-                  color: active ? 'var(--accent)' : 'var(--muted)',
-                  fontSize: 15,
-                  fontWeight: 600,
+                  background: 'rgba(var(--purple-rgb),.07)',
+                  border: '1px solid rgba(var(--purple-rgb),.30)',
+                  borderRadius: 14,
+                  padding: 18,
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontFamily: 'inherit',
+                  gap: 12,
                 }}
               >
-                <Icon name={t.icon} size={19} />
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section style={{ maxWidth: 1160, margin: '0 auto', padding: '24px 26px 80px' }}>
-        {tab === 'partners' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div
-              style={{
-                background: 'rgba(var(--purple-rgb),.07)',
-                border: '1px solid rgba(var(--purple-rgb),.30)',
-                borderRadius: 14,
-                padding: 18,
-                display: 'flex',
-                gap: 12,
-              }}
-            >
-              <Icon name="info" size={20} color="var(--purple)" />
-              <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-soft)' }}>
-                وسم «بشراكة وثبة» يجب أن يكون مرئياً للداعمين على بطاقة المشروع
-                وفي صفحة التفاصيل. هذا التزام شفافية إلزامي (§7). نص الإفصاح
-                مطلوب أن يكون ≥٢٠ حرفاً ويوضّح طبيعة الشراكة.
-              </p>
+                <Icon name="info" size={20} color="var(--purple)" />
+                <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-soft)' }}>
+                  وسم «بشراكة وثبة» يجب أن يكون مرئياً للداعمين على بطاقة المشروع
+                  وفي صفحة التفاصيل. هذا التزام شفافية إلزامي (§7). نص الإفصاح
+                  مطلوب أن يكون ≥٢٠ حرفاً ويوضّح طبيعة الشراكة.
+                </p>
+              </div>
+              {projects.map((p) => {
+                const partnered = p.platformPartner != null;
+                return (
+                  <PartnerRow key={p.id} title={p.titleAr} creator={p.creator} partnered={partnered} />
+                );
+              })}
             </div>
-            {projects.map((p) => {
-              const partnered = p.platformPartner != null;
-              return (
-                <PartnerRow key={p.id} title={p.titleAr} creator={p.creator} partnered={partnered} />
-              );
-            })}
-          </div>
-        )}
+          </WathbaTabsContent>
 
-        {tab === 'review' && (
-          <p style={{ fontSize: 14, color: 'var(--muted)' }}>
-            قائمة مراجعة المشاريع تأتي مع ربط مسار `/v1/admin/review-queue` —
-            (متاحة في الـAPI، يُربط هنا عند توفّر مصادقة الدور ADMIN في الواجهة).
-          </p>
-        )}
-        {tab === 'kyc' && (
-          <p style={{ fontSize: 14, color: 'var(--muted)' }}>
-            طابور تحقّق نفاذ — `/v1/admin/kyc-queue` متاح، الربط مرتبط بدور ADMIN.
-          </p>
-        )}
-        {tab === 'payouts' && (
-          <p style={{ fontSize: 14, color: 'var(--muted)' }}>
-            تتبّع الصرف عبر مراحل المشاريع. ربط `/v1/payouts` قيد الوصول.
-          </p>
-        )}
-      </section>
+          <WathbaTabsContent value="review">
+            <p style={{ fontSize: 14, color: 'var(--muted)' }}>
+              قائمة مراجعة المشاريع تأتي مع ربط مسار `/v1/admin/review-queue` —
+              (متاحة في الـAPI، يُربط هنا عند توفّر مصادقة الدور ADMIN في الواجهة).
+            </p>
+          </WathbaTabsContent>
+          <WathbaTabsContent value="kyc">
+            <p style={{ fontSize: 14, color: 'var(--muted)' }}>
+              طابور تحقّق نفاذ — `/v1/admin/kyc-queue` متاح، الربط مرتبط بدور ADMIN.
+            </p>
+          </WathbaTabsContent>
+          <WathbaTabsContent value="payouts">
+            <p style={{ fontSize: 14, color: 'var(--muted)' }}>
+              تتبّع الصرف عبر مراحل المشاريع. ربط `/v1/payouts` قيد الوصول.
+            </p>
+          </WathbaTabsContent>
+        </section>
+      </WathbaTabs>
     </div>
   );
 }
