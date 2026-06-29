@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import type { ApiBackingRow, ApiPayoutsPayload } from '@/lib/api/wathba';
 import { wathbaProjects } from './wathba-data';
@@ -261,8 +262,22 @@ function HistoryTab({ pledges }: { pledges: ApiBackingRow[] }) {
 }
 
 function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined }) {
-  const sent = (payouts?.totalSentHalalas ?? 0) / 100;
-  const items = payouts?.items ?? [];
+  // TanStack Query: SSR-pre-fetched data seeds `initialData`; the hook then
+  // polls /v1/payouts/me every 60 s so PENDING → SENT transitions surface
+  // without a page reload.
+  const { data, isFetching, refetch } = useQuery<ApiPayoutsPayload | null>({
+    queryKey: ['payouts', 'me'],
+    queryFn: async () => {
+      const r = await fetch('/api/payouts/me', { credentials: 'include' });
+      if (!r.ok) return null;
+      return (await r.json()) as ApiPayoutsPayload;
+    },
+    initialData: payouts ?? undefined,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+  const sent = (data?.totalSentHalalas ?? 0) / 100;
+  const items = data?.items ?? [];
   const pending = items
     .filter((p) => p.status === 'PENDING')
     .reduce((a, p) => a + p.amountHalalas, 0) / 100;
@@ -270,6 +285,27 @@ function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       {/* totals */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {isFetching && (
+            <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
+          )}
+          {isFetching ? 'جاري التحديث…' : 'يُحدّث تلقائياً كل دقيقة'}
+        </span>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          style={{
+            fontFamily: 'inherit', cursor: 'pointer',
+            background: 'transparent',
+            border: '1px solid rgba(var(--ink-rgb),.16)',
+            color: 'var(--muted)', fontSize: 12, fontWeight: 600,
+            padding: '6px 14px', borderRadius: 11,
+          }}
+        >
+          تحديث الآن
+        </button>
+      </div>
       <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
         <TotalCard
           label="تم التحويل"
