@@ -324,3 +324,23 @@ export async function getMe(token?: string | null): Promise<ApiUserMe | null> {
   const bearer = token ?? (await readSessionToken());
   return fetchJson<ApiUserMe>(`/v1/users/me`, 0, bearer);
 }
+
+export interface ApiSearchHit {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  category: string;
+  raisedHalalas: number;
+  fundingGoalHalalas: number;
+  daysLeft: number;
+  status: string;
+}
+
+/** Postgres FTS — public endpoint, no auth. */
+export async function searchProjects(q: string, limit = 20): Promise<ApiSearchHit[] | null> {
+  if (!q.trim()) return [];
+  const data = await fetchJson<{ items: ApiSearchHit[] }>(
+    `/v1/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+  );
+  return data?.items ?? null;
+}
