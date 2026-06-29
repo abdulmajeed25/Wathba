@@ -93,7 +93,7 @@ export interface RichCampaign {
 const sirbStory: StoryBlock[] = [
   { kind: 'h2', id: 'intro',     text: 'مَن نحن وماذا نصنع' },
   { kind: 'p', text: 'سِرب فريق صغير من ٧ مهندسين عرب يعملون منذ سنتين على بناء أول درون عربي متخصص في التصوير الذكي. نحلم بأن يستطيع أي مبدع — مصوّر، صانع محتوى، أو هاوٍ — أن يحصل على لقطات احترافية بدون فريق تصوير كامل.' },
-  { kind: 'video', provider: 'youtube', videoId: 'dQw4w9WgXcQ', caption: 'فيديو تعريفي بدورة حياة المنتج من أول رسمة إلى الإنتاج (٢ دقيقة).' },
+  { kind: 'video', provider: 'youtube', videoId: 'jNQXAC9IVRw', caption: 'فيديو تعريفي بدورة حياة المنتج من أول رسمة إلى الإنتاج (٢ دقيقة).' },
   { kind: 'h2', id: 'problem',   text: 'المشكلة' },
   { kind: 'p', text: 'الدرونات الموجودة اليوم إما باهظة الثمن وموجّهة للمحترفين، أو رخيصة بجودة هاوي. لا يوجد خيار في المنتصف يمنحك جودة سينمائية بسعر مقبول، خاصة لمن يصوّرون بانفراد بدون فريق دعم.' },
   { kind: 'compare', before: 'درون احترافي: ١٥٠٠٠+ ر.س، يحتاج طيار محترف، لا يتبع تلقائياً', after: 'درون هاوي: ٨٠٠ ر.س، جودة 4K بصعوبة، لا يثبت الكاميرا' },
@@ -139,7 +139,7 @@ const sirbStory: StoryBlock[] = [
 const hekayaStory: StoryBlock[] = [
   { kind: 'h2', id: 'intro',     text: 'لماذا لعبة طاولة عربية؟' },
   { kind: 'p', text: 'بعد ٣ سنوات من تصميم ألعاب الفيديو، لاحظنا أن أطفالنا يقضون ٧ ساعات يومياً أمام الشاشات. حكايا محاولتنا لإعادة الأسرة حول الطاولة بلعبة استراتيجية بنكهة عربية أصيلة.' },
-  { kind: 'video', provider: 'youtube', videoId: 'dQw4w9WgXcQ' },
+  { kind: 'video', provider: 'youtube', videoId: 'jNQXAC9IVRw' },
   { kind: 'h2', id: 'gameplay',  text: 'طريقة اللعب' },
   { kind: 'p', text: 'لعبة استراتيجية لـ٢-٦ لاعبين، عمر ١٠+، تستغرق الجلسة ٤٥-٦٠ دقيقة. كل لاعب يبني قبيلته الخاصة عبر العصور — من الجاهلية إلى العباسي إلى الأموي. تكسب نقاطاً من خلال التجارة، الشعر، الحروب التقليدية، والاكتشافات العلمية.' },
   { kind: 'img', alt: 'لقطة من أعلى للوحة اللعبة كاملة', ratio: 'wide' },
@@ -164,7 +164,7 @@ const hekayaStory: StoryBlock[] = [
 const bustanStory: StoryBlock[] = [
   { kind: 'h2', id: 'intro',     text: 'حقيبة من البحر' },
   { kind: 'p', text: 'بستان مشروع تصميم تونسي يحوّل بلاستيك المحيطات إلى حقائب يومية أنيقة. كل حقيبة تساوي ١٦ زجاجة بلاستيك أُنقذت من الوصول للبحر.' },
-  { kind: 'video', provider: 'youtube', videoId: 'dQw4w9WgXcQ', caption: 'مشاهدة عملية التصنيع من تجميع البلاستيك إلى الحقيبة النهائية.' },
+  { kind: 'video', provider: 'youtube', videoId: 'jNQXAC9IVRw', caption: 'مشاهدة عملية التصنيع من تجميع البلاستيك إلى الحقيبة النهائية.' },
   { kind: 'h2', id: 'process',   text: 'كيف نصنعها' },
   { kind: 'list', items: [
     'نجمع البلاستيك مع شريكنا «بحر نظيف» في صفاقس',
@@ -194,7 +194,7 @@ function shortStory(titleAr: string): StoryBlock[] {
   return [
     { kind: 'h2', id: 'intro', text: 'فكرة المشروع' },
     { kind: 'p', text: `${titleAr} مشروع نتعاوّن فيه مع مبدعين من المنطقة لتقديم تجربة فريدة. نشاركك هنا التفاصيل الكاملة للرحلة من الفكرة إلى التنفيذ.` },
-    { kind: 'video', provider: 'youtube', videoId: 'dQw4w9WgXcQ' },
+    { kind: 'video', provider: 'youtube', videoId: 'jNQXAC9IVRw' },
     { kind: 'h2', id: 'features', text: 'المميّزات' },
     { kind: 'list', items: ['جودة عالية في كل تفصيلة', 'تصميم يجمع التقليد بالمعاصرة', 'شفافية كاملة في الإنفاق'] },
     { kind: 'img', alt: 'صورة معبّرة عن المشروع', ratio: 'wide' },
@@ -368,7 +368,7 @@ export const wathbaRichCampaigns: Record<string, RichCampaign> = {
   p1: {
     weLoveBadge: 'مشروع نحبه',
     tagline: 'كاميرا طائرة تتبعك تلقائياً وتصوّر بدقة 8K — مصمَّمة بالكامل في المنطقة.',
-    youtubeId: 'dQw4w9WgXcQ',
+    youtubeId: 'jNQXAC9IVRw',
     heroImage: { alt: 'سِرب يحلّق فوق صحراء الربع الخالي عند الغروب' },
     story: sirbStory,
     rewards: buildRewards({
@@ -389,7 +389,7 @@ export const wathbaRichCampaigns: Record<string, RichCampaign> = {
   p2: {
     weLoveBadge: 'مشروع نحبه',
     tagline: 'لعبة طاولة استراتيجية بنكهة عربية أصيلة — تجمع الأسرة لتسع ساعات من المرح.',
-    youtubeId: 'dQw4w9WgXcQ',
+    youtubeId: 'jNQXAC9IVRw',
     heroImage: { alt: 'حكايا — اللوحة كاملة محضرة للعب الجلسة الأولى' },
     story: hekayaStory,
     rewards: buildRewards({
@@ -410,7 +410,7 @@ export const wathbaRichCampaigns: Record<string, RichCampaign> = {
   p3: {
     weLoveBadge: null,
     tagline: 'رحلة بصرية مدّتها ٩٠ دقيقة عبر صحاري الجزيرة العربية ومَن يسكنها.',
-    youtubeId: 'dQw4w9WgXcQ',
+    youtubeId: 'jNQXAC9IVRw',
     heroImage: { alt: 'لقطة من الفيلم — قافلة في الربع الخالي' },
     story: shortStory('صدى'),
     rewards: buildRewards({
@@ -431,7 +431,7 @@ export const wathbaRichCampaigns: Record<string, RichCampaign> = {
   p4: {
     weLoveBadge: 'بشراكة وثبة',
     tagline: 'حقائب يومية أنيقة من بلاستيك المحيطات — كل حقيبة تساوي ١٦ زجاجة محذوفة.',
-    youtubeId: 'dQw4w9WgXcQ',
+    youtubeId: 'jNQXAC9IVRw',
     heroImage: { alt: 'بستان — تشكيلة الألوان الأربعة معاً' },
     story: bustanStory,
     rewards: buildRewards({
@@ -459,7 +459,7 @@ export function getRichCampaign(projectId: string, titleAr: string): RichCampaig
   return {
     weLoveBadge: null,
     tagline: 'تفاصيل المشروع كاملة على الصفحة.',
-    youtubeId: 'dQw4w9WgXcQ',
+    youtubeId: 'jNQXAC9IVRw',
     heroImage: { alt: `صورة المشروع — ${titleAr}` },
     story: shortStory(titleAr),
     rewards: buildRewards({

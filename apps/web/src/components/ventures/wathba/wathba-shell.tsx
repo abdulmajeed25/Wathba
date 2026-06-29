@@ -2,7 +2,6 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 
 import { WathbaFooter } from './wathba-footer';
 import { WathbaHeader } from './wathba-header';
@@ -50,13 +49,11 @@ export function WathbaShell({
         }}
       />
       <WathbaHeader theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
-      <motion.main
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35, ease: [0.2, 0.7, 0.2, 1] }}
-      >
-        {children}
-      </motion.main>
+      {/* NO framer-motion wrap on main — first paint must show content
+       *  without waiting for hydration (SEO + no-JS users). Inner cards
+       *  still use motion.div for soft entrances where the loss of
+       *  visibility-on-load is acceptable. */}
+      <main className="wathba-fade">{children}</main>
       <WathbaFooter />
     </div>
   );

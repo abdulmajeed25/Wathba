@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
-import { motion } from 'framer-motion';
 
 import {
   deriveLiveProject,
@@ -366,10 +365,7 @@ function CampaignTab({
 function HeroMedia({ youtubeId, alt }: { youtubeId: string; alt: string }) {
   const [loaded, setLoaded] = useState(false);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
+    <div
       style={{
         aspectRatio: '16/9',
         borderRadius: 20, overflow: 'hidden',
@@ -427,7 +423,7 @@ function HeroMedia({ youtubeId, alt }: { youtubeId: string; alt: string }) {
           </span>
         </button>
       )}
-    </motion.div>
+    </div>
   );
 }
 
