@@ -15,10 +15,11 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ err?: string }>;
+  searchParams: Promise<{ err?: string; next?: string }>;
 }) {
   const sp = await searchParams;
   const error = sp.err ? (ERROR_MESSAGES[sp.err] ?? ERROR_MESSAGES.server) : null;
+  const next = sp.next && sp.next.startsWith('/') ? sp.next : '/projects';
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
@@ -30,6 +31,7 @@ export default async function SignInPage({
       </div>
 
       <form action={signInAction} className="flex flex-col gap-4">
+        <input type="hidden" name="next" value={next} />
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">البريد الإلكتروني</span>
           <input
@@ -69,7 +71,10 @@ export default async function SignInPage({
 
       <p className="text-center text-sm text-neutral-600">
         ليس لديك حساب؟{' '}
-        <Link href="/sign-up" className="font-semibold text-emerald-700 hover:underline">
+        <Link
+          href={`/sign-up?next=${encodeURIComponent(next)}`}
+          className="font-semibold text-emerald-700 hover:underline"
+        >
           أنشئ حساباً جديداً
         </Link>
       </p>

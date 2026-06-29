@@ -44,10 +44,17 @@ async function clearSessionCookie(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
+/** Safe-list redirect targets so a hostile `next=` can't bounce off-site. */
+function safeNext(raw: unknown): string {
+  const s = typeof raw === 'string' ? raw : '';
+  return s.startsWith('/') && !s.startsWith('//') ? s : '/projects';
+}
+
 export async function signInAction(formData: FormData): Promise<void> {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
-  if (!email || !password) redirect('/sign-in?err=missing');
+  const next = safeNext(formData.get('next'));
+  if (!email || !password) redirect(`/sign-in?err=missing&next=${encodeURIComponent(next)}`);
 
   let body: AuthResponse | null = null;
   try {
@@ -59,23 +66,24 @@ export async function signInAction(formData: FormData): Promise<void> {
     });
     if (!res.ok) {
       const errKey = res.status === 401 ? 'invalid' : 'server';
-      redirect(`/sign-in?err=${errKey}`);
+      redirect(`/sign-in?err=${errKey}&next=${encodeURIComponent(next)}`);
     }
     body = (await res.json()) as AuthResponse;
   } catch {
-    redirect('/sign-in?err=network');
+    redirect(`/sign-in?err=network&next=${encodeURIComponent(next)}`);
   }
 
-  if (!body?.accessToken) redirect('/sign-in?err=server');
+  if (!body?.accessToken) redirect(`/sign-in?err=server&next=${encodeURIComponent(next)}`);
   await setSessionCookie(body.accessToken);
-  redirect('/projects');
+  redirect(next);
 }
 
 export async function signUpAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
-  if (!name || !email || !password) redirect('/sign-up?err=missing');
+  const next = safeNext(formData.get('next'));
+  if (!name || !email || !password) redirect(`/sign-up?err=missing&next=${encodeURIComponent(next)}`);
 
   let body: AuthResponse | null = null;
   try {
@@ -87,18 +95,18 @@ export async function signUpAction(formData: FormData): Promise<void> {
     });
     if (!res.ok) {
       const errKey = res.status === 409 ? 'taken' : res.status === 400 ? 'invalid' : 'server';
-      redirect(`/sign-up?err=${errKey}`);
+      redirect(`/sign-up?err=${errKey}&next=${encodeURIComponent(next)}`);
     }
     body = (await res.json()) as AuthResponse;
   } catch {
-    redirect('/sign-up?err=network');
+    redirect(`/sign-up?err=network&next=${encodeURIComponent(next)}`);
   }
 
-  if (!body?.accessToken) redirect('/sign-up?err=server');
+  if (!body?.accessToken) redirect(`/sign-up?err=server&next=${encodeURIComponent(next)}`);
   await setSessionCookie(body.accessToken);
-  // §8 KYC step — go straight to Nafath verification after a fresh signup.
-  // Existing users sign in directly to /projects.
-  redirect('/sign-up/nafath');
+  // §8 KYC step — go straight to Nafath verification after a fresh signup;
+  // the post-Nafath bounce honors the original `next` URL.
+  redirect(`/sign-up/nafath?next=${encodeURIComponent(next)}`);
 }
 
 /**
