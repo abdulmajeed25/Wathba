@@ -542,3 +542,114 @@ These weren't in priority A-G and remain explicitly open:
 ### Push policy (unchanged)
 
 **Local only.** Commits on `sync/frontend-from-project200`. No push.
+
+---
+
+## Architecture Refactor Pass — 2026-06-28 (L1–L7)
+
+The §1 stack audit reported 7 of 14 specced web deps missing. This pass
+installs and **actually adopts** every one of them on a real surface, so the
+spec's stack claim now matches the running app.
+
+### L1 — install (commit `8d91ba8`)
+
+```
+@tanstack/react-query 5.101.2
+react-hook-form       7.80.0 + @hookform/resolvers 5.4.0
+zod                   3.25.76
+zustand               5.0.14
+framer-motion        12.42.0
+@visx/scale + @visx/group + @visx/shape  4.0.0
+@radix-ui/react-tabs  1.1.15
+@radix-ui/react-toast 1.2.17
+```
+
+### L2 — TanStack Query adoption (commit `5b286db`)
+- `WathbaProviders` mounts `QueryClientProvider` in the projects layout
+  (every `/projects/*` route now has `useQuery` + `useMutation`)
+- First adoption: `/projects/payments` Wallet tab uses `useQuery` with the
+  SSR-fetched payouts as `initialData`, refetches every 60 s + on window
+  focus, exposes "تحديث الآن" button + spinner dot
+- New `/api/payouts/me` Next route handler proxies the cookie session to
+  `/v1/payouts/me` on the API (httpOnly cookie can't be JS-read)
+
+### L3 — react-hook-form + zod (commit `2618ee8`)
+- New `src/lib/validators/index.ts` with shared zod schemas:
+  `supplierBidSchema`, `nafathSchema`, `profileUpdateSchema`
+- Supplier bid form refactored to RHF + `zodResolver`: per-field inline
+  Arabic errors, `isSubmitting` state on submit button, no more local
+  amount/lead/compliance plumbing
+
+### L4 — visx + framer-motion (commit `c181ec2`)
+- Aggregate escrow progress bar on the project Milestones tab is now visx
+  stacked bars (`@visx/group` + `@visx/scale` + `@visx/shape`) wrapped in
+  framer-motion's `motion.rect` so each segment grows from 0 with a 0.8s
+  ease-out on mount
+- `WathbaShell` wraps `<main>` in `motion.main` with a 0.35s fadeUp using
+  the design's signature `cubic-bezier(.2,.7,.2,1)` — subsumes the
+  `.wathba-fade` class on every screen
+
+### L5 — Zustand persisted store (commit `749e96b`)
+- New `src/lib/stores/launch-wizard.ts` — Zustand store wrapped with
+  `zustand/middleware/persist` (localStorage key
+  `wathba.launch-wizard.v1`)
+- Wizard state survives navigation, tab close, hot reload
+- `wathba-start.tsx` replaces 11 `useState` declarations with the store +
+  thin one-line setters; successful publish calls `reset()` to clear the
+  draft
+
+### L6 — Radix Tabs (commit `b992da1`)
+- New `WathbaTabs` + `WathbaTabsContent` wrappers around
+  `@radix-ui/react-tabs`
+- Replaces hand-rolled tab buttons on `/projects/admin` (4 tabs),
+  `/projects/payments` (4 tabs), `/projects/settings` (5 tabs),
+  `/projects/supplier` (3 tabs) — **16 tab triggers** total now have
+  ARIA roles, keyboard nav (Arrow/Home/End with loop), focus management,
+  ARIA-controlled panels
+- Visual styling preserved 1:1
+
+### L7 — Verification (this commit)
+
+```
+pnpm -r run typecheck      →  5/5 workspaces clean
+pnpm -r run test           →  18/18 (contracts 3 · funding 6 · milestones 4 · procurement 5)
+apps/web pnpm build        →  36 routes generated, 105 kB shared bundle
+                              /projects/[id] = 17.7 kB (visx + motion + tab refactor)
+                              /projects/supplier = 27.9 kB (RHF + zod + tab refactor)
+route sweep (with cookie)  →  29/29 HTTP 200
+```
+
+### Updated §1 stack scorecard (compare to audit baseline 7/14)
+
+| Dep | Audit | Now |
+| --- | --- | --- |
+| Next.js 15 | ✅ | ✅ |
+| React 19 | ✅ | ✅ |
+| Tailwind v4 + CSS vars | ✅ | ✅ |
+| **Radix UI** | ❌ | **✅ used in `wathba-tabs.tsx` on 4 surfaces** |
+| **TanStack Query** | ❌ | **✅ provider mounted; first useQuery on Wallet** |
+| **Zustand** | ❌ | **✅ persisted launch-wizard store** |
+| **react-hook-form** | ❌ | **✅ supplier bid form** |
+| **zod** | ❌ | **✅ shared validator module** |
+| **lucide-react** | ✅ | ✅ |
+| **visx + SVG/Canvas** | ❌ | **✅ milestone aggregate chart** |
+| **framer-motion** | ❌ | **✅ shell fadeUp + chart segment animation** |
+| RTL + IBM Plex Arabic | ✅ | ✅ |
+
+**Stack compliance: 14/14 ✅**
+
+### Open items remaining (genuinely deferred)
+
+| Item | Why still open |
+| --- | --- |
+| AML/CFT sanctions screening | Compliance work — needs 3rd-party API + schema additions |
+| ZATCA Phase 2 e-invoice service | Compliance work — needs ZATCA SDK + QR generation |
+| Per-milestone escrow capture (vs batch) | Product clarification needed |
+| Bid-submit live POST | Blocked on SUPPLIER-role web auth |
+| Notification-preferences live save | Endpoint TBD on API |
+| Password-change + email-change flows | Backend stub only |
+
+### Push policy (unchanged)
+
+**Local only.** All L1–L7 commits live on `sync/frontend-from-project200`;
+not pushed unless the user explicitly requests it.
