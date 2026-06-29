@@ -2,6 +2,10 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Group } from '@visx/group';
+import { scaleLinear } from '@visx/scale';
+import { Bar } from '@visx/shape';
 
 import {
   deriveLiveProject,
@@ -858,7 +862,9 @@ export function WathbaProject({
                 </div>
               )}
 
-              {/* aggregate progress bar (SVG, RTL-safe) */}
+              {/* §7 aggregate escrow progress — visx stacked bar (released
+                  ▶ approved ▶ pending track). RTL-safe via direction:ltr on
+                  the inner svg; outer card stays RTL. */}
               {(() => {
                 const released = milestoneList
                   .filter((m) => m.status === 'RELEASED')
@@ -867,8 +873,14 @@ export function WathbaProject({
                   .filter((m) => m.status === 'APPROVED')
                   .reduce((a, m) => a + m.releasePct, 0);
                 const totalPct = released + approved;
+                const W = 400;
+                const H = 18;
+                const scale = scaleLinear<number>({ domain: [0, 100], range: [0, W] });
                 return (
-                  <div
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4 }}
                     style={{
                       background: 'var(--card)',
                       border: '1px solid rgba(var(--ink-rgb),.08)',
@@ -891,17 +903,25 @@ export function WathbaProject({
                         صُرف {released}٪ · موافق {approved}٪ · إجمالي {totalPct}٪
                       </Num>
                     </div>
-                    <svg viewBox="0 0 400 18" style={{ width: '100%', height: 18, direction: 'ltr' }}>
-                      <rect x="0" y="0" width="400" height="18" rx="9" fill="rgba(var(--ink-rgb),.06)" />
-                      <rect x="0" y="0" width={400 * (released / 100)} height="18" rx="9" fill="var(--pos)" />
-                      <rect
-                        x={400 * (released / 100)}
-                        y="0"
-                        width={400 * (approved / 100)}
-                        height="18"
-                        fill="var(--gold)"
-                        rx="0"
-                      />
+                    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H, direction: 'ltr' }}>
+                      <Group>
+                        {/* track */}
+                        <Bar x={0} y={0} width={W} height={H} rx={9} fill="rgba(var(--ink-rgb),.06)" />
+                        {/* released (pos) */}
+                        <motion.rect
+                          initial={{ width: 0 }}
+                          animate={{ width: scale(released) }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
+                          y={0} x={0} height={H} rx={9} fill="var(--pos)"
+                        />
+                        {/* approved-but-not-released (gold) */}
+                        <motion.rect
+                          initial={{ width: 0 }}
+                          animate={{ width: scale(approved) }}
+                          transition={{ duration: 0.8, delay: 0.2, ease: 'easeOut' }}
+                          y={0} x={scale(released)} height={H} fill="var(--gold)"
+                        />
+                      </Group>
                     </svg>
                     <div style={{ display: 'flex', gap: 16, marginTop: 12, fontSize: 12, color: 'var(--muted-2)' }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -917,7 +937,7 @@ export function WathbaProject({
                         قادم
                       </span>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })()}
 
