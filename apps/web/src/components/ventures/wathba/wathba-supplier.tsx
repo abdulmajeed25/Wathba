@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 
 import type { ApiBidPublic, ApiRfqPublic } from '@/lib/api/wathba';
+import { type SupplierBidInput, supplierBidSchema } from '@/lib/validators';
 import {
   type WathbaRfq,
   type WathbaSupplierBid,
@@ -77,20 +80,7 @@ export function WathbaSupplier({
 
   const [tab, setTab] = useState<TabId>('rfqs');
   const [selRfq, setSelRfq] = useState<string>(rfqs[0]?.id ?? '');
-  const [amount, setAmount] = useState('');
-  const [lead, setLead] = useState('');
-  const [compliance, setCompliance] = useState('');
   const [submitted, setSubmitted] = useState(false);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: when SUPPLIER-role auth lands, POST to `/v1/rfqs/${selRfq}/bids`
-    // with the bearer cookie. Today this remains a UI-only confirmation so
-    // the screen can be reviewed.
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
-    setAmount(''); setLead(''); setCompliance('');
-  };
 
   return (
     <div className="wathba-fade">
@@ -163,15 +153,11 @@ export function WathbaSupplier({
         {tab === 'submit' && (
           <SubmitForm
             rfqs={rfqs.filter((r) => r.status === 'OPEN')}
-            selRfq={selRfq}
-            setSelRfq={setSelRfq}
-            amount={amount}
-            setAmount={setAmount}
-            lead={lead}
-            setLead={setLead}
-            compliance={compliance}
-            setCompliance={setCompliance}
-            onSubmit={handleSubmit}
+            initialRfqId={selRfq}
+            onSubmitted={() => {
+              setSubmitted(true);
+              setTimeout(() => setSubmitted(false), 4000);
+            }}
             submitted={submitted}
           />
         )}
@@ -320,30 +306,45 @@ function BidList({ bids }: { bids: WathbaSupplierBid[] }) {
 
 function SubmitForm({
   rfqs,
-  selRfq,
-  setSelRfq,
-  amount,
-  setAmount,
-  lead,
-  setLead,
-  compliance,
-  setCompliance,
-  onSubmit,
+  initialRfqId,
+  onSubmitted,
   submitted,
 }: {
   rfqs: WathbaRfq[];
-  selRfq: string;
-  setSelRfq: (s: string) => void;
-  amount: string;
-  setAmount: (s: string) => void;
-  lead: string;
-  setLead: (s: string) => void;
-  compliance: string;
-  setCompliance: (s: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
+  initialRfqId: string;
+  onSubmitted: () => void;
   submitted: boolean;
 }) {
-  const selected = rfqs.find((r) => r.id === selRfq);
+  // react-hook-form + zod: schema-driven validation with inline Arabic error
+  // messages. The current submit handler is a no-op stub (UI confirmation
+  // only) pending SUPPLIER-role web auth, but the form data is already
+  // validated and shaped per `SupplierBidInput`.
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors, isSubmitting },
+    reset,
+  } = useForm<SupplierBidInput>({
+    resolver: zodResolver(supplierBidSchema),
+    defaultValues: {
+      rfqId: initialRfqId || rfqs[0]?.id || '',
+      amount: 0,
+      leadTimeDays: 0,
+      compliancePct: 0,
+    },
+    mode: 'onBlur',
+  });
+  const selectedId = watch('rfqId');
+  const selected = rfqs.find((r) => r.id === selectedId);
+
+  const onSubmit = handleSubmit(async (_data) => {
+    // TODO: when SUPPLIER-role auth lands, POST to `/v1/rfqs/${rfqId}/bids`.
+    // Today this remains a UI-only confirmation so the screen can be reviewed.
+    await new Promise((r) => setTimeout(r, 300));
+    reset();
+    onSubmitted();
+  });
 
   if (submitted) {
     return (
@@ -390,29 +391,18 @@ function SubmitForm({
     >
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>تقديم عرض جديد</h2>
       <p style={{ fontSize: 13.5, color: 'var(--muted)' }}>
-        كل الحقول إلزامية. السعر بالدولار، مهلة التسليم بالأيام، نسبة الالتزام بالمواصفات
+        كل الحقول إلزامية. السعر بالريال، مهلة التسليم بالأيام، نسبة الالتزام بالمواصفات
         من 0% إلى 100%.
       </p>
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>الطلب</span>
-        <select
-          value={selRfq}
-          onChange={(e) => setSelRfq(e.target.value)}
-          style={{
-            background: 'rgba(var(--ink-rgb),.04)',
-            border: '1px solid rgba(var(--ink-rgb),.12)',
-            borderRadius: 11,
-            padding: '12px 14px',
-            fontSize: 14,
-            color: 'var(--text)',
-            fontFamily: 'inherit',
-          }}
-        >
+        <select {...register('rfqId')} style={inputStyle}>
           {rfqs.map((r) => (
             <option key={r.id} value={r.id}>{r.ventureTitleAr} — {r.category}</option>
           ))}
         </select>
+        {errors.rfqId && <FieldErr msg={errors.rfqId.message!} />}
         {selected && (
           <span style={{ fontSize: 12.5, color: 'var(--muted2)', lineHeight: 1.55, marginTop: 4 }}>
             {selected.specsAr}
@@ -422,36 +412,37 @@ function SubmitForm({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>السعر ($)</span>
+          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>السعر (ر.س)</span>
           <input
-            type="number" min={1} required
-            value={amount} onChange={(e) => setAmount(e.target.value)}
-            placeholder="25000"
+            type="number" min={1} placeholder="25000"
+            {...register('amount')}
             style={inputStyle}
           />
+          {errors.amount && <FieldErr msg={errors.amount.message!} />}
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>المهلة (يوم)</span>
           <input
-            type="number" min={1} max={365} required
-            value={lead} onChange={(e) => setLead(e.target.value)}
-            placeholder="21"
+            type="number" min={1} max={365} placeholder="21"
+            {...register('leadTimeDays')}
             style={inputStyle}
           />
+          {errors.leadTimeDays && <FieldErr msg={errors.leadTimeDays.message!} />}
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>الالتزام (%)</span>
           <input
-            type="number" min={0} max={100} required
-            value={compliance} onChange={(e) => setCompliance(e.target.value)}
-            placeholder="95"
+            type="number" min={0} max={100} placeholder="95"
+            {...register('compliancePct')}
             style={inputStyle}
           />
+          {errors.compliancePct && <FieldErr msg={errors.compliancePct.message!} />}
         </label>
       </div>
 
       <button
         type="submit"
+        disabled={isSubmitting}
         style={{
           background: 'var(--grad)',
           color: 'var(--on-accent)',
@@ -461,7 +452,8 @@ function SubmitForm({
           fontSize: 16,
           padding: 15,
           borderRadius: 14,
-          cursor: 'pointer',
+          cursor: isSubmitting ? 'progress' : 'pointer',
+          opacity: isSubmitting ? 0.7 : 1,
           display: 'inline-flex',
           gap: 8,
           alignItems: 'center',
@@ -469,9 +461,15 @@ function SubmitForm({
         }}
       >
         <Icon name="send" size={20} color="var(--on-accent)" />
-        أرسل العرض
+        {isSubmitting ? 'جاري الإرسال…' : 'أرسل العرض'}
       </button>
     </form>
+  );
+}
+
+function FieldErr({ msg }: { msg: string }) {
+  return (
+    <span style={{ fontSize: 12, color: '#dc2626', marginTop: 4 }}>{msg}</span>
   );
 }
 
