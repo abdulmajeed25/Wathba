@@ -15,6 +15,7 @@ import { WathbaComments } from './wathba-comments';
 import { WathbaRewards } from './wathba-rewards';
 import { WathbaStory, WathbaStoryTOC } from './wathba-story';
 import { Icon, Num } from './wathba-icons';
+import { useTabCounts } from '@/lib/hooks/use-tab-counts';
 
 /**
  * Kickstarter-style campaign page.
@@ -55,13 +56,16 @@ export function WathbaCampaign({
   const rich = getRichCampaign(found.id, found.titleAr);
   const [tab, setTab] = useState<TabId>('campaign');
 
+  // Live tab counts — overrides static fixture badges when the API responds.
+  // Falls back silently to the fixture counts so the page never breaks.
+  const live = useTabCounts(active.id);
   const tabs: RichTabDef[] = [
     { id: 'campaign',     label: 'الحملة',       icon: 'auto_stories' },
-    { id: 'rewards',      label: 'المكافآت',     icon: 'redeem',  badge: String(rich.rewards.length) },
+    { id: 'rewards',      label: 'المكافآت',     icon: 'redeem',  badge: String(live?.rewards ?? rich.rewards.length) },
     { id: 'creator',      label: 'المبدع',       icon: 'person' },
-    { id: 'faq',          label: 'الأسئلة',      icon: 'help',    badge: String(rich.faqs.length) },
-    { id: 'updates',      label: 'التحديثات',    icon: 'campaign', badge: String(rich.updates.length) },
-    { id: 'comments',     label: 'التعليقات',    icon: 'forum',   badge: String(rich.comments.length) },
+    { id: 'faq',          label: 'الأسئلة',      icon: 'help',    badge: String(live?.faq ?? rich.faqs.length) },
+    { id: 'updates',      label: 'التحديثات',    icon: 'campaign', badge: String(live?.updates ?? rich.updates.length) },
+    { id: 'comments',     label: 'التعليقات',    icon: 'forum',   badge: String(live?.comments ?? rich.comments.length) },
     { id: 'community',    label: 'المجتمع',      icon: 'category' },
     { id: 'transparency', label: 'الشفافية',     icon: 'query_stats' },
   ];

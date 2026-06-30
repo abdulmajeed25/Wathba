@@ -8,6 +8,7 @@ import { HealthController } from './health/health.controller';
 import { IdentityModule } from './identity/identity.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RewardsModule } from './rewards/rewards.module';
+import { AddonsModule } from './addons/addons.module';
 import { FundingModule } from './funding/funding.module';
 import { EscrowPaymentsModule } from './escrow-payments/escrow-payments.module';
 import { MilestonesModule } from './milestones/milestones.module';
@@ -27,6 +28,7 @@ import { MediaModule } from './media/media.module';
     IdentityModule,
     ProjectsModule,
     RewardsModule,
+    AddonsModule,
     FundingModule,
     EscrowPaymentsModule,
     MilestonesModule,

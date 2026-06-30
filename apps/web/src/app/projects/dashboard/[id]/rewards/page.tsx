@@ -1,17 +1,18 @@
-import { SectionPlaceholder } from '@/components/ventures/wathba/dashboard/wathba-section-placeholder';
+import { listAddOns, listRewardTiers } from '@/lib/api/wathba';
+import { DashboardRewardsManager } from '@/components/ventures/wathba/dashboard/wathba-dashboard-rewards-manager';
 
-export default function RewardsPage(): React.ReactElement {
+export default async function RewardsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<React.ReactElement> {
+  const { id } = await params;
+  const [tiers, addons] = await Promise.all([listRewardTiers(id), listAddOns(id)]);
   return (
-    <SectionPlaceholder
-      title="المكافآت والإضافات"
-      intro="أنشئ وعدّل باقات المكافآت والإضافات الاختيارية لحملتك."
-      bullets={[
-        'إضافة باقة جديدة + تحديد سعرها وعدد المتبقي',
-        'تعليم باقات «مميّزة» / «محدودة»',
-        'قائمة «ما يتضمنه» مع صور المنتجات',
-        'إعداد الإضافات (Add-ons) الاختيارية القابلة للتكديس',
-        'تحديد دول الشحن وموعد التسليم المتوقع',
-      ]}
+    <DashboardRewardsManager
+      projectId={id}
+      initialTiers={tiers ?? []}
+      initialAddOns={addons ?? []}
     />
   );
 }

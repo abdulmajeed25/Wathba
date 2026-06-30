@@ -348,6 +348,60 @@ export interface ApiUserMe {
   createdAt: string;
 }
 
+export interface ApiRewardTier {
+  id: string;
+  projectId: string;
+  titleAr: string;
+  amountHalalas: number;
+  descAr: string;
+  includesPhysicalProduct: boolean;
+  requiresShipping: boolean;
+  estDeliveryDate: string;
+  limitQty: number | null;
+  claimedQty: number;
+  popular: boolean;
+  featured: boolean;
+  includedItems: Array<{ nameAr: string; qty?: number; thumbnailUrl?: string }>;
+  shipsTo: string[];
+  sortOrder: number;
+}
+
+export interface ApiAddOn {
+  id: string;
+  projectId: string;
+  titleAr: string;
+  amountHalalas: number;
+  descAr: string;
+  imageUrl: string | null;
+  limitQty: number | null;
+  claimedQty: number;
+  sortOrder: number;
+}
+
+export interface ApiTabCounts {
+  rewards: number;
+  addons: number;
+  comments: number;
+  updates: number;
+  faq: number;
+  questions: number;
+  contests: number;
+}
+
+export async function listRewardTiers(projectId: string): Promise<ApiRewardTier[] | null> {
+  const d = await fetchJson<{ items: ApiRewardTier[] }>(`/v1/projects/${projectId}/reward-tiers`);
+  return d?.items ?? null;
+}
+
+export async function listAddOns(projectId: string): Promise<ApiAddOn[] | null> {
+  const d = await fetchJson<{ items: ApiAddOn[] }>(`/v1/projects/${projectId}/addons`);
+  return d?.items ?? null;
+}
+
+export async function getTabCounts(projectId: string): Promise<ApiTabCounts | null> {
+  return fetchJson<ApiTabCounts>(`/v1/projects/${projectId}/tab-counts`, 15);
+}
+
 export async function getMe(token?: string | null): Promise<ApiUserMe | null> {
   const bearer = token ?? (await readSessionToken());
   return fetchJson<ApiUserMe>(`/v1/users/me`, 0, bearer);

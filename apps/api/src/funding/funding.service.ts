@@ -57,23 +57,58 @@ export class FundingService {
       throw new BadRequestException('shipping address is required for this tier');
     }
 
+    // Validate + price-resolve any add-ons. Sold-out add-ons reject the
+    // pledge before we authorize anything against the PSP.
+    const addOnRequests = dto.addOns ?? [];
+    let addOnsSubtotal = 0n;
+    const resolvedAddOns: Array<{ addOnId: string; qty: number; amountHalalas: bigint }> = [];
+    if (addOnRequests.length > 0) {
+      const fetched = await this.prisma.addOn.findMany({
+        where: { id: { in: addOnRequests.map((a) => a.addOnId) } },
+      });
+      const byId = new Map(fetched.map((a) => [a.id, a]));
+      for (const req of addOnRequests) {
+        const a = byId.get(req.addOnId);
+        if (!a || a.projectId !== dto.projectId) {
+          throw new BadRequestException(`add-on ${req.addOnId} is not on this project`);
+        }
+        const qty = req.qty ?? 1;
+        if (a.limitQty !== null && a.claimedQty + qty > a.limitQty) {
+          throw new BadRequestException(`add-on "${a.titleAr}" is sold out`);
+        }
+        const subtotal = a.amountHalalas * BigInt(qty);
+        addOnsSubtotal += subtotal;
+        resolvedAddOns.push({ addOnId: a.id, qty, amountHalalas: subtotal });
+      }
+    }
+
     const contractType =
       dto.contractType ??
       this.contracts.inferType({ includesPhysicalProduct: tier.includesPhysicalProduct });
 
-    // 1) Insert the pledge in HELD state, paymentRef='pending'.
+    // 1) Insert the pledge in HELD state, paymentRef='pending'. Add-on rows
+    //    are written alongside in the same statement; backerNo is assigned
+    //    below in the counter tx (we don't know it yet at this point).
     const pledge = await this.prisma.pledge.create({
       data: {
         backerId,
         projectId: dto.projectId,
         tierId: dto.tierId,
         amountHalalas: BigInt(dto.amountHalalas),
+        addOnsHalalas: addOnsSubtotal,
         contractType,
         shipping: dto.shipping
           ? (dto.shipping as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         status: PledgeStatus.HELD,
         paymentRef: `pending-${Date.now()}-${backerId.slice(0, 8)}`,
+        addOns: resolvedAddOns.length > 0
+          ? { create: resolvedAddOns.map((r) => ({
+              addOnId: r.addOnId,
+              qty: r.qty,
+              amountHalalas: r.amountHalalas,
+            })) }
+          : undefined,
       },
     });
 
@@ -104,16 +139,26 @@ export class FundingService {
       throw new BadRequestException('payment was not authorized');
     }
 
-    // 3) Commit paymentRef + bump counters atomically.
+    // 3) Commit paymentRef + bump counters atomically. Also assigns this
+    //    backer's per-project sequential number (#1, #2 …) used later by
+    //    contest winner announcements without leaking user IDs.
+    const totalContribution = pledge.amountHalalas + addOnsSubtotal;
     const { updated, totals } = await this.prisma.$transaction(async (tx) => {
+      // backerNo = current backersCount BEFORE the increment, +1.
+      const before = await tx.project.findUniqueOrThrow({
+        where: { id: dto.projectId },
+        select: { backersCount: true },
+      });
+      const assignedBackerNo = before.backersCount + 1;
+
       const updated = await tx.pledge.update({
         where: { id: pledge.id },
-        data: { paymentRef: payment.paymentRef },
+        data: { paymentRef: payment.paymentRef, backerNo: assignedBackerNo },
       });
       const proj = await tx.project.update({
         where: { id: dto.projectId },
         data: {
-          raisedHalalas: { increment: pledge.amountHalalas },
+          raisedHalalas: { increment: totalContribution },
           backersCount: { increment: 1 },
         },
         select: { raisedHalalas: true, backersCount: true },
@@ -122,9 +167,15 @@ export class FundingService {
         where: { id: dto.tierId },
         data: { claimedQty: { increment: 1 } },
       });
+      for (const r of resolvedAddOns) {
+        await tx.addOn.update({
+          where: { id: r.addOnId },
+          data: { claimedQty: { increment: r.qty } },
+        });
+      }
       await tx.user.update({
         where: { id: backerId },
-        data: { totalPledgedHalalas: { increment: pledge.amountHalalas } },
+        data: { totalPledgedHalalas: { increment: totalContribution } },
       });
       return { updated, totals: proj };
     });
@@ -153,6 +204,8 @@ export class FundingService {
       projectId: p.projectId,
       tierId: p.tierId,
       amountHalalas: Number(p.amountHalalas),
+      addOnsHalalas: Number(p.addOnsHalalas),
+      backerNo: p.backerNo,
       status: p.status,
       shipping: p.shipping,
       contractType: p.contractType,

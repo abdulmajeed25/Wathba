@@ -1,5 +1,6 @@
 import {
-  IsEnum, IsInt, IsObject, IsOptional, IsString, IsUUID, Min, ValidateNested,
+  ArrayMaxSize, IsArray, IsEnum, IsInt, IsObject, IsOptional, IsString, IsUUID,
+  Min, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -11,6 +12,14 @@ export class ShippingDto {
   @IsString() city!: string;
   @IsString() country!: string;
   @IsString() postal!: string;
+}
+
+/** Optional add-on stacked onto a pledge. */
+export class PledgeAddOnDto {
+  @ApiProperty() @IsUUID() addOnId!: string;
+  @ApiProperty({ default: 1, minimum: 1 })
+  @IsOptional() @IsInt() @Min(1)
+  qty?: number;
 }
 
 export class CreatePledgeDto {
@@ -32,4 +41,9 @@ export class CreatePledgeDto {
   @ApiProperty({ enum: ContractType, required: false, default: ContractType.DONATION })
   @IsOptional() @IsEnum(ContractType)
   contractType?: ContractType;
+
+  @ApiProperty({ required: false, type: [PledgeAddOnDto] })
+  @IsOptional() @IsArray() @ArrayMaxSize(20)
+  @ValidateNested({ each: true }) @Type(() => PledgeAddOnDto)
+  addOns?: PledgeAddOnDto[];
 }
