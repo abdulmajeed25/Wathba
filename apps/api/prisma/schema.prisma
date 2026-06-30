@@ -322,8 +322,9 @@ model Pledge {
   paymentRef    String       @unique
   /// Per-project sequential backer number (#1, #2 …). Assigned in the pledge tx.
   /// Lets us reference backers in contest winner announcements without
-  /// exposing user IDs. Nullable for legacy rows (pre-engagement-phase pledges).
-  backerNo      Int?
+  /// exposing user IDs. Always set since migration 0002_backfill_pledge_backerno
+  /// (legacy NULLs were backfilled in createdAt order per project).
+  backerNo      Int
   createdAt     DateTime     @default(now())
   capturedAt    DateTime?
   refundedAt    DateTime?

@@ -88,9 +88,17 @@ export class FundingService {
       dto.contractType ??
       this.contracts.inferType({ includesPhysicalProduct: tier.includesPhysicalProduct });
 
-    // 1) Insert the pledge in HELD state, paymentRef='pending'. Add-on rows
-    //    are written alongside in the same statement; backerNo is assigned
-    //    below in the counter tx (we don't know it yet at this point).
+    // 1) Insert the pledge in HELD state, paymentRef='pending'. backerNo is
+    //    NOT NULL (since migration 0002), so we assign it here from the current
+    //    max for this project. The @@unique([projectId, backerNo]) constraint
+    //    is the safety net against the rare two-concurrent-inserts race —
+    //    second insert throws, caller can retry. Acceptable for v1 traffic.
+    const lastBackerNo = await this.prisma.pledge.aggregate({
+      where: { projectId: dto.projectId },
+      _max: { backerNo: true },
+    });
+    const assignedBackerNo = (lastBackerNo._max.backerNo ?? 0) + 1;
+
     const pledge = await this.prisma.pledge.create({
       data: {
         backerId,
@@ -103,6 +111,7 @@ export class FundingService {
           ? (dto.shipping as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         status: PledgeStatus.HELD,
+        backerNo: assignedBackerNo,
         paymentRef: `pending-${Date.now()}-${backerId.slice(0, 8)}`,
         addOns: resolvedAddOns.length > 0
           ? { create: resolvedAddOns.map((r) => ({
@@ -141,21 +150,14 @@ export class FundingService {
       throw new BadRequestException('payment was not authorized');
     }
 
-    // 3) Commit paymentRef + bump counters atomically. Also assigns this
-    //    backer's per-project sequential number (#1, #2 …) used later by
-    //    contest winner announcements without leaking user IDs.
+    // 3) Commit paymentRef + bump counters atomically. backerNo was assigned
+    //    at insert time (step 1); this tx only finalises the paymentRef + the
+    //    funded counters.
     const totalContribution = pledge.amountHalalas + addOnsSubtotal;
     const { updated, totals } = await this.prisma.$transaction(async (tx) => {
-      // backerNo = current backersCount BEFORE the increment, +1.
-      const before = await tx.project.findUniqueOrThrow({
-        where: { id: dto.projectId },
-        select: { backersCount: true },
-      });
-      const assignedBackerNo = before.backersCount + 1;
-
       const updated = await tx.pledge.update({
         where: { id: pledge.id },
-        data: { paymentRef: payment.paymentRef, backerNo: assignedBackerNo },
+        data: { paymentRef: payment.paymentRef },
       });
       const proj = await tx.project.update({
         where: { id: dto.projectId },

@@ -175,19 +175,19 @@ export class ContestsService {
     }
 
     // Resolve each winner's per-project Pledge.backerNo. Only CAPTURED pledges
-    // count — held/refunded backers can't win.
+    // count — held/refunded backers can't win. backerNo is NOT NULL since
+    // migration 0002_backfill_pledge_backerno, so no null guard needed.
     const pledges = await this.prisma.pledge.findMany({
       where: {
         projectId,
         backerId: { in: dto.winnerBackerIds },
         status: PledgeStatus.CAPTURED,
-        backerNo: { not: null },
       },
       select: { backerId: true, backerNo: true },
     });
     const numByBacker = new Map<string, number>();
     for (const p of pledges) {
-      if (p.backerNo != null && !numByBacker.has(p.backerId)) {
+      if (!numByBacker.has(p.backerId)) {
         numByBacker.set(p.backerId, p.backerNo);
       }
     }
