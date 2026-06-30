@@ -515,7 +515,8 @@ export interface ApiContest {
 }
 
 export async function listContests(projectId: string): Promise<ApiContest[] | null> {
-  return fetchJson<ApiContest[]>(`/v1/projects/${projectId}/contests`);
+  const d = await fetchJson<{ items: ApiContest[] }>(`/v1/projects/${projectId}/contests`);
+  return d?.items ?? null;
 }
 
 /* ---------- FAQ (Slice 2C) ----------------------------------------------- */
@@ -535,22 +536,25 @@ export type FaqQuestionStatus = 'PENDING' | 'ANSWERED' | 'REJECTED';
 export interface ApiFaqQuestion {
   id: string;
   projectId: string;
-  askedById: string;
-  askedByName: string | null;
+  askerId: string;
   bodyAr: string;
   status: FaqQuestionStatus;
-  resolvedFaqItemId: string | null;
+  answeredFaqItemId: string | null;
   createdAt: string;
 }
 
 export async function listFaqItems(projectId: string): Promise<ApiFaqItem[] | null> {
-  return fetchJson<ApiFaqItem[]>(`/v1/projects/${projectId}/faq`);
+  const d = await fetchJson<{ items: ApiFaqItem[] }>(`/v1/projects/${projectId}/faq`);
+  return d?.items ?? null;
 }
 
 export async function listFaqQuestions(
   projectId: string,
 ): Promise<ApiFaqQuestion[] | null> {
-  return fetchJson<ApiFaqQuestion[]>(`/v1/projects/${projectId}/faq-questions`);
+  const d = await fetchJson<{ items: ApiFaqQuestion[] }>(
+    `/v1/projects/${projectId}/faq/questions`,
+  );
+  return d?.items ?? null;
 }
 
 /* ---------- Community (Slice 2D) ----------------------------------------- */

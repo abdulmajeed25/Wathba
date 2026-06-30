@@ -22,6 +22,8 @@ import { CommentsModule } from './comments/comments.module';
 import { UpdatesModule } from './updates/updates.module';
 import { ContestsModule } from './contests/contests.module';
 import { FaqModule } from './faq/faq.module';
+import { CommunityModule } from './community/community.module';
+import { CreatorsModule } from './creators/creators.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { FaqModule } from './faq/faq.module';
     UpdatesModule,
     ContestsModule,
     FaqModule,
+    CommunityModule,
+    CreatorsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
