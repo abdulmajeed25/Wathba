@@ -20,7 +20,7 @@ import { ContestsBanner } from './wathba-contests-banner';
 import { WathbaFaq } from './wathba-faq';
 import { WathbaCommunityTab } from './wathba-community-tab';
 import { WathbaCreatorTab } from './wathba-creator-tab';
-import { listContests, type ApiContest, type ApiFaqItem } from '@/lib/api/wathba';
+import type { ApiContest, ApiFaqItem } from '@/lib/api/wathba';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isRealProject = (id: string): boolean => UUID_RE.test(id);
@@ -735,9 +735,14 @@ function ContestsLoader({ projectId }: { projectId: string }): React.ReactElemen
   const [contests, setContests] = useState<ApiContest[] | null>(null);
   useEffect(() => {
     let cancel = false;
-    listContests(projectId).then((r) => {
-      if (!cancel) setContests(r ?? []);
-    });
+    fetch(`/api/contests/${projectId}`)
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((d: { items?: ApiContest[] }) => {
+        if (!cancel) setContests(d.items ?? []);
+      })
+      .catch(() => {
+        if (!cancel) setContests([]);
+      });
     return () => {
       cancel = true;
     };

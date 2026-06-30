@@ -172,7 +172,14 @@ export class ProjectsService {
       platformPartner: p.platformPartner,
       createdAt: p.createdAt.toISOString(),
       publishedAt: p.publishedAt?.toISOString() ?? null,
-      rewardTiers: p.rewardTiers,
+      rewardTiers: p.rewardTiers?.map((r) =>
+        Object.fromEntries(
+          Object.entries(r).map(([k, v]) => [
+            k,
+            typeof v === 'bigint' ? Number(v) : v,
+          ]),
+        ),
+      ),
     };
   }
 
