@@ -30,6 +30,7 @@ function navFor(projectId: string): NavItem[] {
     { href: `${base}/comments`, labelAr: 'التعليقات', icon: 'forum' },
     { href: `${base}/faq`, labelAr: 'الأسئلة', icon: 'help' },
     { href: `${base}/community`, labelAr: 'المجتمع', icon: 'groups' },
+    { href: `${base}/creator`, labelAr: 'ملفي كمبدع', icon: 'person' },
     { href: `${base}/settings`, labelAr: 'الإعدادات', icon: 'settings' },
   ];
 }
