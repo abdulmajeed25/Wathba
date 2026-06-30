@@ -488,6 +488,16 @@ export async function listProjectUpdates(
   return fetchJson<{ items: ApiUpdatePublic[] }>(path, 0);
 }
 
+/**
+ * GET /v1/projects/:projectId/updates/:updateId  (public permalink)
+ */
+export async function getProjectUpdate(
+  projectId: string,
+  updateId: string,
+): Promise<ApiUpdatePublic | null> {
+  return fetchJson<ApiUpdatePublic>(`/v1/projects/${projectId}/updates/${updateId}`, 30);
+}
+
 /* ---------- Contests (Slice 2C — Comment & Win) -------------------------- */
 
 export type ContestStatusVal = 'DRAFT' | 'OPEN' | 'CLOSED' | 'ANNOUNCED';

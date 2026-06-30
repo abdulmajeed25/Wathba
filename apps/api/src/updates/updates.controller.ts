@@ -35,6 +35,15 @@ export class UpdatesController {
     return this.updates.list(projectId, q);
   }
 
+  @Get(':updateId')
+  @ApiOperation({ summary: 'Get a single update (public permalink)' })
+  async get(
+    @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @Param('updateId', new ParseUUIDPipe()) updateId: string,
+  ) {
+    return this.updates.getOne(projectId, updateId);
+  }
+
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

@@ -50,6 +50,14 @@ export class UpdatesService {
     return { items: items.map((u) => this.toPublic(u)) };
   }
 
+  async getOne(projectId: string, updateId: string): Promise<PublicUpdate> {
+    const u = await this.prisma.projectUpdate.findFirst({
+      where: { id: updateId, projectId },
+    });
+    if (!u) throw new NotFoundException('update not found');
+    return this.toPublic(u);
+  }
+
   async create(
     creatorId: string,
     projectId: string,
