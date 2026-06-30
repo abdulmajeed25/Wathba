@@ -295,6 +295,18 @@ function buildComments(slug: string): RichComment[] {
     'سؤال للمسؤول: متى تفتح حملة الإصدار التالي؟',
   ];
 
+  // Deterministic per-(slug,i) pseudo-random in [0,1). Same input → same output
+  // on both server and client renders, which kills the hydration mismatch
+  // formerly caused by Math.random() here.
+  const seed = (s: string): number => {
+    let h = 2166136261;
+    for (let k = 0; k < s.length; k++) {
+      h ^= s.charCodeAt(k);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0) / 4294967296;
+  };
+
   const out: RichComment[] = [];
   for (let i = 0; i < 42; i++) {
     const [name, init, rank, rc] = names[i % names.length]!;
@@ -312,7 +324,7 @@ function buildComments(slug: string): RichComment[] {
       rankColor: rc,
       bodyAr: body,
       timeAr,
-      likes: Math.max(0, 32 - i - Math.floor(Math.random() * 8)),
+      likes: Math.max(0, 32 - i - Math.floor(seed(`${slug}|like|${i}`) * 8)),
     };
     // ~25% of comments get a creator reply
     if (i % 4 === 0) {
@@ -325,7 +337,7 @@ function buildComments(slug: string): RichComment[] {
           rankColor: 'var(--accent)',
           bodyAr: 'شكراً جزيلاً لدعمك! سنوافيك بالرد التفصيلي على بريدك خلال ٢٤ ساعة.',
           timeAr: 'قبل ٣ ساعات',
-          likes: Math.floor(Math.random() * 8) + 2,
+          likes: Math.floor(seed(`${slug}|reply|${i}`) * 8) + 2,
           isCreatorReply: true,
         },
       ];
