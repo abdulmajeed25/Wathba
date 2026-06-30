@@ -487,3 +487,68 @@ export async function listProjectUpdates(
   const path = `/v1/projects/${projectId}/updates${qs.toString() ? `?${qs.toString()}` : ''}`;
   return fetchJson<{ items: ApiUpdatePublic[] }>(path, 0);
 }
+
+/* ---------- Contests (Slice 2C — Comment & Win) -------------------------- */
+
+export type ContestStatusVal = 'DRAFT' | 'OPEN' | 'CLOSED' | 'ANNOUNCED';
+
+export interface ApiContestWinner {
+  backerId: string;
+  backerNo: number;
+}
+
+export interface ApiContest {
+  id: string;
+  projectId: string;
+  roundNum: number;
+  promptAr: string;
+  status: ContestStatusVal;
+  winnersCount: number;
+  prizeRewardTierId: string | null;
+  prizeAddOnId: string | null;
+  prizeCustomAr: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  announcedAt: string | null;
+  createdAt: string;
+  winners: ApiContestWinner[];
+}
+
+export async function listContests(projectId: string): Promise<ApiContest[] | null> {
+  return fetchJson<ApiContest[]>(`/v1/projects/${projectId}/contests`);
+}
+
+/* ---------- FAQ (Slice 2C) ----------------------------------------------- */
+
+export interface ApiFaqItem {
+  id: string;
+  projectId: string;
+  questionAr: string;
+  answerAr: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type FaqQuestionStatus = 'PENDING' | 'ANSWERED' | 'REJECTED';
+
+export interface ApiFaqQuestion {
+  id: string;
+  projectId: string;
+  askedById: string;
+  askedByName: string | null;
+  bodyAr: string;
+  status: FaqQuestionStatus;
+  resolvedFaqItemId: string | null;
+  createdAt: string;
+}
+
+export async function listFaqItems(projectId: string): Promise<ApiFaqItem[] | null> {
+  return fetchJson<ApiFaqItem[]>(`/v1/projects/${projectId}/faq`);
+}
+
+export async function listFaqQuestions(
+  projectId: string,
+): Promise<ApiFaqQuestion[] | null> {
+  return fetchJson<ApiFaqQuestion[]>(`/v1/projects/${projectId}/faq-questions`);
+}

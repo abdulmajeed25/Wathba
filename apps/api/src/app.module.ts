@@ -20,6 +20,8 @@ import { AdminModule } from './admin/admin.module';
 import { MediaModule } from './media/media.module';
 import { CommentsModule } from './comments/comments.module';
 import { UpdatesModule } from './updates/updates.module';
+import { ContestsModule } from './contests/contests.module';
+import { FaqModule } from './faq/faq.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { UpdatesModule } from './updates/updates.module';
     MediaModule,
     CommentsModule,
     UpdatesModule,
+    ContestsModule,
+    FaqModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
