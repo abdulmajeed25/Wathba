@@ -1,6 +1,7 @@
 import { FundingService } from './funding.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { ContractsService } from '../contracts/contracts.service';
+import { FundingGateway } from './funding.gateway';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectStatus } from '@prisma/client';
 
@@ -32,7 +33,8 @@ describe('FundingService.settleProject (§5 FSM)', () => {
       refundAllHeld: jest.fn().mockResolvedValue({ refunded: 0, failed: 0 }),
     } as unknown as EscrowService;
     const contracts = {} as ContractsService;
-    return { svc: new FundingService(prisma, escrow, contracts), prisma, escrow };
+    const gateway = { emitTick: jest.fn() } as unknown as FundingGateway;
+    return { svc: new FundingService(prisma, escrow, contracts, gateway), prisma, escrow };
   };
 
   it('captures when raised exactly meets the 80% threshold', async () => {

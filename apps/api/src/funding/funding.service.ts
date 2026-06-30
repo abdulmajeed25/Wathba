@@ -4,6 +4,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { ContractsService } from '../contracts/contracts.service';
+import { FundingGateway } from './funding.gateway';
 import { Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
 
@@ -27,6 +28,7 @@ export class FundingService {
     private readonly prisma: PrismaService,
     private readonly escrow: EscrowService,
     private readonly contracts: ContractsService,
+    private readonly gateway: FundingGateway,
   ) {}
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
@@ -103,17 +105,18 @@ export class FundingService {
     }
 
     // 3) Commit paymentRef + bump counters atomically.
-    return this.prisma.$transaction(async (tx) => {
+    const { updated, totals } = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.pledge.update({
         where: { id: pledge.id },
         data: { paymentRef: payment.paymentRef },
       });
-      await tx.project.update({
+      const proj = await tx.project.update({
         where: { id: dto.projectId },
         data: {
           raisedHalalas: { increment: pledge.amountHalalas },
           backersCount: { increment: 1 },
         },
+        select: { raisedHalalas: true, backersCount: true },
       });
       await tx.rewardTier.update({
         where: { id: dto.tierId },
@@ -123,8 +126,17 @@ export class FundingService {
         where: { id: backerId },
         data: { totalPledgedHalalas: { increment: pledge.amountHalalas } },
       });
-      return updated;
+      return { updated, totals: proj };
     });
+
+    this.gateway.emitTick({
+      projectId: dto.projectId,
+      raisedHalalas: totals.raisedHalalas.toString(),
+      backersCount: totals.backersCount,
+      at: Date.now(),
+    });
+
+    return updated;
   }
 
   async listMine(backerId: string): Promise<Pledge[]> {

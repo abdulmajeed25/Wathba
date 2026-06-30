@@ -2,8 +2,12 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useMemo } from 'react';
 
+import { useLiveFunding } from '@/lib/hooks/use-live-funding';
 import { Icon, Num } from './wathba-icons';
+
+const fmtSAR = (n: number): string => `${n.toLocaleString('en-US')} ر.س`;
 
 /**
  * Right-side sticky funding rail. Top: raised / goal / pct / progress bar +
@@ -42,6 +46,26 @@ export function WathbaCampaignRail({
   variant?: 'sidebar' | 'header';
 }) {
   const thresholdAmount = Math.round(goal * (releaseThresholdPct / 100));
+
+  // Live-funding overlay — replace raised/backers/pct when a tick arrives.
+  const tick = useLiveFunding(projectId);
+  const live = useMemo(() => {
+    if (!tick) return null;
+    const raisedSAR = Number(BigInt(tick.raisedHalalas) / 100n);
+    const livePct = goal > 0 ? Math.min(999, Math.round((raisedSAR / goal) * 100)) : 0;
+    return {
+      raisedFmt: fmtSAR(raisedSAR),
+      backersFmt: tick.backersCount.toLocaleString('en-US'),
+      pct: livePct,
+      pctW: `${Math.min(100, livePct)}%`,
+    };
+  }, [tick, goal]);
+
+  const showRaisedFmt = live?.raisedFmt ?? raisedFmt;
+  const showBackersFmt = live?.backersFmt ?? backersFmt;
+  const showPct = live?.pct ?? pct;
+  const showPctW = live?.pctW ?? pctW;
+
   return (
     <motion.aside
       initial={false}
@@ -55,8 +79,29 @@ export function WathbaCampaignRail({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-        <Num style={{ fontSize: 32, fontWeight: 700, color: 'var(--text)' }}>{raisedFmt}</Num>
-        <Num style={{ fontSize: 16, fontWeight: 700, color: pctColor }}>{pct}%</Num>
+        <Num
+          style={{
+            fontSize: 32,
+            fontWeight: 700,
+            color: 'var(--text)',
+            transition: 'color .25s ease',
+          }}
+        >
+          {showRaisedFmt}
+        </Num>
+        <Num style={{ fontSize: 16, fontWeight: 700, color: pctColor }}>{showPct}%</Num>
+        {live && (
+          <span
+            aria-label="حيّ"
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: '50%',
+              background: 'var(--accent)',
+              animation: 'wathba-pulse 1.4s ease-in-out infinite',
+            }}
+          />
+        )}
       </div>
       <div style={{ fontSize: 13, color: 'var(--muted2)', marginBottom: 16 }}>
         مُموَّل من هدف {goalFmt}
@@ -70,7 +115,7 @@ export function WathbaCampaignRail({
       >
         <motion.div
           initial={{ width: 0 }}
-          animate={{ width: pctW }}
+          animate={{ width: showPctW }}
           transition={{ duration: 1.2, ease: [0.2, 0.7, 0.2, 1] }}
           style={{ height: '100%', background: barGrad, borderRadius: 30 }}
         />
@@ -98,7 +143,7 @@ export function WathbaCampaignRail({
 
       <div style={{ display: 'flex', marginBottom: 20 }}>
         <div style={{ flex: 1 }}>
-          <Num style={{ fontSize: 22, fontWeight: 700 }}>{backersFmt}</Num>
+          <Num style={{ fontSize: 22, fontWeight: 700 }}>{showBackersFmt}</Num>
           <div style={{ fontSize: 12, color: 'var(--muted2)' }}>داعم</div>
         </div>
         <div style={{ width: 1, background: 'rgba(var(--ink-rgb),.1)' }} />
