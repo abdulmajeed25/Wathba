@@ -104,6 +104,29 @@ enum NotificationKind {
   PAYOUT_SENT
   UPDATE_POSTED
   RANK_UP
+  CONTEST_OPENED
+  CONTEST_ANNOUNCED
+  FAQ_ANSWERED
+  COMMENT_REPLY
+}
+
+enum ContestStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  ANNOUNCED
+}
+
+enum FaqQuestionStatus {
+  PENDING
+  ANSWERED
+  HIDDEN
+}
+
+enum CommunityStatScope {
+  CITY
+  COUNTRY
+  TOTALS
 }
 
 // ============================================================================
@@ -132,6 +155,10 @@ model User {
   supplierBids        SupplierBid[]
   addresses           Address[]
   payouts             Payout[]        @relation("PayoutCreator")
+  contestWins         ContestWinner[]
+  faqQuestions        FaqQuestion[]   @relation("FaqAsker")
+  creatorProfile      CreatorProfile?
+  follows             CreatorFollow[] @relation("Follower")
 
   @@index([reputationTier])
   @@index([email])
@@ -182,6 +209,7 @@ model Project {
   publishedAt          DateTime?
 
   rewardTiers          RewardTier[]
+  addOns               AddOn[]
   pledges              Pledge[]
   milestones           Milestone[]
   spendLogs            SpendLog[]
@@ -189,6 +217,10 @@ model Project {
   updates              ProjectUpdate[]
   comments             Comment[]
   payouts              Payout[]
+  contests             Contest[]
+  faqItems             FaqItem[]
+  faqQuestions         FaqQuestion[]
+  communityStats       CommunityStat[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -218,13 +250,55 @@ model RewardTier {
   limitQty                Int?
   claimedQty              Int        @default(0)
   popular                 Boolean    @default(false)
+  featured                Boolean    @default(false)
+  /// [{nameAr, qty, thumbnailUrl}] — the "ما يتضمنه" line items.
+  includedItems           Json       @default("[]")
+  /// ISO 3166-1 alpha-2 country codes the creator ships physical rewards to.
+  shipsTo                 String[]   @default([])
   sortOrder               Int        @default(0)
   createdAt               DateTime   @default(now())
 
   pledges                 Pledge[]
+  contestPrizes           Contest[]  @relation("ContestPrizeRewardTier")
 
   // (projectId, sortOrder) → ordered tier list for the project page.
   @@index([projectId, sortOrder])
+  @@index([projectId, featured])
+}
+
+// Optional pledge add-ons (stacked onto a backer's tier choice). Limited
+// stock supported via limitQty/claimedQty.
+model AddOn {
+  id            String   @id @default(uuid()) @db.Uuid
+  projectId     String   @db.Uuid
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  titleAr       String
+  amountHalalas BigInt
+  descAr        String   @db.Text
+  imageUrl      String?
+  limitQty      Int?
+  claimedQty    Int      @default(0)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  pledgeAddOns  PledgeAddOn[]
+  contestPrizes Contest[] @relation("ContestPrizeAddOn")
+
+  @@index([projectId, sortOrder])
+}
+
+model PledgeAddOn {
+  id            String  @id @default(uuid()) @db.Uuid
+  pledgeId      String  @db.Uuid
+  pledge        Pledge  @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  addOnId       String  @db.Uuid
+  addOn         AddOn   @relation(fields: [addOnId], references: [id])
+  qty           Int     @default(1)
+  amountHalalas BigInt
+  createdAt     DateTime @default(now())
+
+  @@index([pledgeId])
+  @@index([addOnId])
 }
 
 // ============================================================================
@@ -240,17 +314,27 @@ model Pledge {
   tierId        String       @db.Uuid
   tier          RewardTier   @relation(fields: [tierId], references: [id])
   amountHalalas BigInt
+  /// Sum of add-on amounts (sub-total) — convenience cache, recomputed on add-on change.
+  addOnsHalalas BigInt       @default(0)
   status        PledgeStatus @default(HELD)
   shipping      Json?
   contractType  ContractType @default(DONATION)
   paymentRef    String       @unique
+  /// Per-project sequential backer number (#1, #2 …). Assigned in the pledge tx.
+  /// Lets us reference backers in contest winner announcements without
+  /// exposing user IDs. Nullable for legacy rows (pre-engagement-phase pledges).
+  backerNo      Int?
   createdAt     DateTime     @default(now())
   capturedAt    DateTime?
   refundedAt    DateTime?
 
+  addOns        PledgeAddOn[]
+
   // (projectId, status)      → funding aggregations
   // (backerId, createdAt)    → /v1/pledges/me chronological list
   // (backerId, status)       → "my held / captured / refunded" filters
+  // (projectId, backerNo)    → look up backer by # for contest announcements
+  @@unique([projectId, backerNo])
   @@index([projectId, status])
   @@index([backerId, createdAt])
   @@index([backerId, status])
@@ -364,14 +448,20 @@ model Payout {
 // ============================================================================
 
 model ProjectUpdate {
-  id        String   @id @default(uuid()) @db.Uuid
-  projectId String   @db.Uuid
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  titleAr   String
-  bodyAr    String   @db.Text
-  date      DateTime @default(now())
+  id            String   @id @default(uuid()) @db.Uuid
+  projectId     String   @db.Uuid
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  titleAr       String
+  bodyAr        String   @db.Text
+  /// Numbered update order (#1, #2 …) — manually assigned by the creator.
+  /// Highest is "latest" on the campaign page.
+  orderNum      Int      @default(0)
+  likeCount     Int      @default(0)
+  commentCount  Int      @default(0)
+  date          DateTime @default(now())
 
   @@index([projectId, date])
+  @@index([projectId, orderNum])
 }
 
 model Comment {
@@ -382,13 +472,160 @@ model Comment {
   user      User     @relation(fields: [userId], references: [id])
   bodyAr    String   @db.Text
   parentId  String?  @db.Uuid
+  /// Cached: comment author is the project creator. Drives the "Creator"
+  /// badge on the public page. Recomputed if creator changes (shouldn't).
+  isCreator Boolean  @default(false)
+  /// Creator-pinned: floats to top of the list.
+  pinned    Boolean  @default(false)
+  pinnedAt  DateTime?
+  /// Moderator hidden — shown as "removed" placeholder, body suppressed.
+  hidden    Boolean  @default(false)
+  likeCount Int      @default(0)
   date      DateTime @default(now())
 
   // (projectId, parentId, date) → cursor pagination of top-level vs replies
   // (userId, date)              → user activity feed
+  // (projectId, pinned)         → fast pinned-first ordering
   @@index([projectId, parentId, date])
   @@index([projectId, date])
   @@index([userId, date])
+  @@index([projectId, pinned, date])
+}
+
+// ============================================================================
+// CONTESTS — "علّق واربح" (Comment & Win) engagement rounds.
+// ============================================================================
+
+model Contest {
+  id                  String        @id @default(uuid()) @db.Uuid
+  projectId           String        @db.Uuid
+  project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Sequential round number for this project (الجولة 1، 2 …).
+  roundNum            Int
+  promptAr            String        @db.Text
+  /// Prize is one of: a RewardTier, an AddOn, or a custom free-text label.
+  prizeRewardTierId   String?       @db.Uuid
+  prizeRewardTier     RewardTier?   @relation("ContestPrizeRewardTier", fields: [prizeRewardTierId], references: [id])
+  prizeAddOnId        String?       @db.Uuid
+  prizeAddOn          AddOn?        @relation("ContestPrizeAddOn", fields: [prizeAddOnId], references: [id])
+  prizeCustomAr       String?
+  winnersCount        Int
+  status              ContestStatus @default(DRAFT)
+  startsAt            DateTime?
+  endsAt              DateTime?
+  announcedAt         DateTime?
+  /// Pinned creator comment auto-posted on announce — id for later edit/unpin.
+  announcementCommentId String?     @db.Uuid
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  winners             ContestWinner[]
+
+  @@unique([projectId, roundNum])
+  @@index([projectId, status])
+}
+
+model ContestWinner {
+  id        String   @id @default(uuid()) @db.Uuid
+  contestId String   @db.Uuid
+  contest   Contest  @relation(fields: [contestId], references: [id], onDelete: Cascade)
+  backerId  String   @db.Uuid
+  backer    User     @relation(fields: [backerId], references: [id])
+  /// Snapshot of backer's per-project backerNo at announce time
+  /// (the # displayed publicly — "الداعم رقم #1234").
+  backerNo  Int
+  createdAt DateTime @default(now())
+
+  @@unique([contestId, backerId])
+  @@index([contestId])
+}
+
+// ============================================================================
+// FAQ
+// ============================================================================
+
+model FaqItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  projectId  String   @db.Uuid
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  questionAr String
+  answerAr   String   @db.Text
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([projectId, sortOrder])
+}
+
+/// Incoming question from a logged-in user ("اسأل المبدع").
+/// Creator answers from the dashboard; when ANSWERED, an FaqItem is created
+/// and the question is linked to it.
+model FaqQuestion {
+  id                String            @id @default(uuid()) @db.Uuid
+  projectId         String            @db.Uuid
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  askerId           String?           @db.Uuid
+  asker             User?             @relation("FaqAsker", fields: [askerId], references: [id])
+  bodyAr            String            @db.Text
+  status            FaqQuestionStatus @default(PENDING)
+  answeredFaqItemId String?           @db.Uuid
+  createdAt         DateTime          @default(now())
+
+  @@index([projectId, status, createdAt])
+}
+
+// ============================================================================
+// COMMUNITY STATS — per-project aggregates for the Community tab.
+// Materialized on pledge events; read-mostly so we keep it denormalised.
+// ============================================================================
+
+model CommunityStat {
+  id        String             @id @default(uuid()) @db.Uuid
+  projectId String             @db.Uuid
+  project   Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scope     CommunityStatScope
+  /// City name (Arabic), ISO-3166 alpha-2 country code, or one of
+  /// 'NEW' / 'RETURNING' / 'TOTAL' when scope = TOTALS.
+  key       String
+  backers   Int                @default(0)
+
+  @@unique([projectId, scope, key])
+  @@index([projectId, scope, backers])
+}
+
+// ============================================================================
+// CREATOR PROFILE — public, denormalised over User. One row per creator.
+// ============================================================================
+
+model CreatorProfile {
+  id                   String   @id @default(uuid()) @db.Uuid
+  userId               String   @unique @db.Uuid
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avatarUrl            String?
+  bioAr                String?  @db.Text
+  websiteUrl           String?
+  /// [{nameAr, role, avatarUrl}] — the collaborators / partners list.
+  collaborators        Json     @default("[]")
+  followersCount       Int      @default(0)
+  createdProjectsCount Int      @default(0)
+  backedProjectsCount  Int      @default(0)
+  lastSeenAt           DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  follows              CreatorFollow[]
+}
+
+model CreatorFollow {
+  id               String         @id @default(uuid()) @db.Uuid
+  followerId       String         @db.Uuid
+  follower         User           @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  creatorProfileId String         @db.Uuid
+  creatorProfile   CreatorProfile @relation(fields: [creatorProfileId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+
+  @@unique([followerId, creatorProfileId])
+  @@index([creatorProfileId])
 }
 
 model Notification {
