@@ -237,6 +237,35 @@ export interface ApiTransparencyPayload {
   timeline: ApiSpendLog[];
 }
 
+export interface ApiProjectDetail {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  category: string;
+  storyAr: string;
+  mediaUrls: string[];
+  fundingGoalHalalas: number;
+  releaseThresholdPct: number;
+  durationDays: number;
+  deadline: string;
+  status: string;
+  productSpecAr: string | null;
+  expectedDeliveryDate: string | null;
+  createdBy: string;
+  raisedHalalas: number;
+  backersCount: number;
+  platformPartner: Record<string, unknown> | null;
+  publishedAt: string | null;
+  createdAt: string;
+  rewardTiers?: Array<Record<string, unknown>>;
+}
+
+export async function getProjectDetail(
+  projectId: string,
+): Promise<ApiProjectDetail | null> {
+  return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`);
+}
+
 export async function listProjectMilestones(
   projectId: string,
 ): Promise<ApiMilestonePublic[] | null> {
