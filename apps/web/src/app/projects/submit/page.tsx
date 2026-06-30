@@ -1,21 +1,21 @@
 import type { Metadata } from 'next';
 
 import { SubmissionWizard } from '@/components/ventures/submission-wizard';
-import { getDictionary } from '@/lib/i18n/get-dictionary';
-import { getLocale } from '@/lib/i18n/server';
+import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await getLocale();
-  const dict = await getDictionary(locale, 'ventures');
-  return { title: dict.meta.submit };
-}
+export const metadata: Metadata = { title: 'إطلاق مشروع · وثبة' };
 
-export default async function ProjectsSubmitPage() {
-  const locale = await getLocale();
-  const dict = await getDictionary(locale, 'ventures');
+export default async function ProjectsSubmitPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ err?: string }>;
+}): Promise<React.ReactElement> {
+  const params = (await searchParams) ?? {};
   return (
-    <div className="mx-auto w-full max-w-[960px] px-5 py-8">
-      <SubmissionWizard locale={locale} dict={dict} />
-    </div>
+    <WathbaShell>
+      <main style={{ maxWidth: 760, margin: '0 auto', padding: '40px 24px 80px' }}>
+        <SubmissionWizard initialError={params.err} />
+      </main>
+    </WathbaShell>
   );
 }
