@@ -177,7 +177,7 @@ function Ranks({
               <span
                 style={{
                   height: 5,
-                  background: 'rgba(5,166,97,0.16)',
+                  background: 'rgba(var(--accent-rgb), 0.16)',
                   borderRadius: 999,
                   overflow: 'hidden',
                 }}

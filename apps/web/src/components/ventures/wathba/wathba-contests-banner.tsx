@@ -36,8 +36,9 @@ function OpenBanner({ contest }: { contest: ApiContest }): React.ReactElement {
   return (
     <div
       style={{
-        background: 'linear-gradient(135deg, rgba(5,166,97,0.10), rgba(99,102,241,0.08))',
-        border: '1px solid rgba(5,166,97,0.30)',
+        background:
+          'linear-gradient(135deg, rgba(var(--accent-rgb), 0.10), rgba(var(--purple-rgb), 0.08))',
+        border: '1px solid rgba(var(--accent-rgb), 0.30)',
         borderRadius: 16,
         padding: 18,
         display: 'flex',
@@ -117,8 +118,8 @@ function AnnouncedRibbon({ contest }: { contest: ApiContest }): React.ReactEleme
   return (
     <div
       style={{
-        background: 'rgba(99,102,241,0.08)',
-        border: '1px solid rgba(99,102,241,0.30)',
+        background: 'rgba(var(--purple-rgb), 0.08)',
+        border: '1px solid rgba(var(--purple-rgb), 0.30)',
         borderRadius: 14,
         padding: '12px 16px',
         display: 'flex',

@@ -142,8 +142,8 @@ function AskCreator({
         style={{
           marginTop: 16,
           padding: 18,
-          background: 'rgba(5,166,97,0.06)',
-          border: '1px solid rgba(5,166,97,0.30)',
+          background: 'rgba(var(--accent-rgb), 0.06)',
+          border: '1px solid rgba(var(--accent-rgb), 0.30)',
           borderRadius: 14,
           textAlign: 'center',
         }}
@@ -177,8 +177,8 @@ function AskCreator({
         style={{
           marginTop: 16,
           padding: 18,
-          background: 'rgba(5,166,97,0.10)',
-          border: '1px solid rgba(5,166,97,0.30)',
+          background: 'rgba(var(--accent-rgb), 0.10)',
+          border: '1px solid rgba(var(--accent-rgb), 0.30)',
           borderRadius: 14,
           textAlign: 'center',
           fontSize: 14,
@@ -223,11 +223,11 @@ function AskCreator({
           style={{
             marginTop: 8,
             padding: '6px 10px',
-            background: 'rgba(239,68,68,0.08)',
-            border: '1px solid rgba(239,68,68,0.3)',
+            background: 'rgba(var(--err-rgb), 0.08)',
+            border: '1px solid rgba(var(--err-rgb), 0.30)',
             borderRadius: 8,
             fontSize: 12,
-            color: '#dc2626',
+            color: 'var(--err, #dc2626)',
           }}
         >
           {error}
