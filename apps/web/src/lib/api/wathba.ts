@@ -552,3 +552,62 @@ export async function listFaqQuestions(
 ): Promise<ApiFaqQuestion[] | null> {
   return fetchJson<ApiFaqQuestion[]>(`/v1/projects/${projectId}/faq-questions`);
 }
+
+/* ---------- Community (Slice 2D) ----------------------------------------- */
+
+export interface ApiCommunityRow {
+  key: string;
+  backers: number;
+}
+
+export interface ApiCommunitySnapshot {
+  topCities: ApiCommunityRow[];
+  topCountries: ApiCommunityRow[];
+  totals: { newCount: number; returningCount: number; total: number };
+}
+
+export async function getCommunitySnapshot(
+  projectId: string,
+): Promise<ApiCommunitySnapshot | null> {
+  return fetchJson<ApiCommunitySnapshot>(`/v1/projects/${projectId}/community`);
+}
+
+/* ---------- Creator profile (Slice 2D) ----------------------------------- */
+
+export interface ApiCreatorCollaborator {
+  nameAr: string;
+  role?: string;
+  avatarUrl?: string;
+}
+
+export interface ApiCreatorPastProject {
+  id: string;
+  titleAr: string;
+  raisedHalalas: number;
+  fundingGoalHalalas: number;
+  status: string;
+  fundedPct: number;
+  delivered: boolean;
+  publishedAt: string | null;
+}
+
+export interface ApiCreatorProfile {
+  userId: string;
+  name: string;
+  nafathVerified: boolean;
+  avatarUrl: string | null;
+  bioAr: string | null;
+  websiteUrl: string | null;
+  collaborators: ApiCreatorCollaborator[];
+  followersCount: number;
+  createdProjectsCount: number;
+  backedProjectsCount: number;
+  lastSeenAt: string | null;
+  pastProjects: ApiCreatorPastProject[];
+}
+
+export async function getCreatorProfile(
+  userId: string,
+): Promise<ApiCreatorProfile | null> {
+  return fetchJson<ApiCreatorProfile>(`/v1/creators/${userId}`);
+}
