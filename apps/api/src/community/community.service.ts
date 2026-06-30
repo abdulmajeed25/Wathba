@@ -85,6 +85,17 @@ export class CommunityService {
     });
     const newOrReturning = otherPledges === 0 ? 'NEW' : 'RETURNING';
 
+    // Tier 3.5 idempotency guard. Reserve the pledge BEFORE the increment
+    // tx — a PK collision means "already materialised, skip" and we never
+    // touch the aggregate counters again. Done outside the main $transaction
+    // because Prisma's interactive tx aborts on the first failed statement
+    // (Postgres semantics), so we can't catch-and-continue inside it.
+    try {
+      await this.prisma.communityMaterialised.create({ data: { pledgeId: pledge.id } });
+    } catch {
+      return;
+    }
+
     await this.prisma.$transaction(async (tx) => {
       if (city) {
         await tx.communityStat.upsert({

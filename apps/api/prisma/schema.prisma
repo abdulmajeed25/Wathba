@@ -331,6 +331,7 @@ model Pledge {
   refundedAt    DateTime?
 
   addOns        PledgeAddOn[]
+  materialised  CommunityMaterialised?
 
   // (projectId, status)      → funding aggregations
   // (backerId, createdAt)    → /v1/pledges/me chronological list
@@ -482,6 +483,15 @@ model UpdateLike {
 
   @@id([updateId, userId])
   @@index([userId])
+}
+
+/// Idempotency guard for CommunityService.materializeFromPledge — Tier 3.5.
+/// Before incrementing aggregates we insert a row keyed on the pledge id;
+/// the PK clash on a worker retry tells us "already counted, skip".
+model CommunityMaterialised {
+  pledgeId  String   @id @db.Uuid
+  pledge    Pledge   @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  appliedAt DateTime @default(now())
 }
 
 model Comment {
