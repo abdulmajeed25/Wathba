@@ -1,11 +1,10 @@
 /**
  * Server-side fetchers for the Wathba (وثبة) ventures pillar.
  *
- * This file is the OUTBOUND ADAPTER between our copied-from-project200 UI
- * surface (which historically called `/v1/ventures…` shaped routes) and the
- * standalone Wathba NestJS API (`apps/api`, prefix `/v1`).  The five exports
- * keep their old signatures so no caller needed to change; field-mapping
- * happens here.
+ * This file is the OUTBOUND ADAPTER between the ventures-style UI surface
+ * (which historically called `/v1/ventures…` shaped routes) and the standalone
+ * Wathba NestJS API (`apps/api`, prefix `/v1`). The five exports keep their
+ * old signatures so no caller needed to change; field-mapping happens here.
  *
  * Endpoint mapping (Wathba apps/api):
  *   listVentures        → GET  /v1/projects        — public list

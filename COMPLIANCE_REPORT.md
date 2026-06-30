@@ -1,7 +1,7 @@
 # Wathba (وثبة) — Full Implementation Compliance Report
 
 **Date:** 2026-06-28
-**Branch:** `sync/frontend-from-project200` (local, not pushed)
+**Branch:** `wathba-main` (local, not pushed)
 **Method:** 6 read-only Explore subagents running in parallel, each owning one section
 of the spec. Each verified by **evidence** — file:line citations, `grep` results, HTTP
 sweeps, and screenshot inspection — not by trusting checklists.
@@ -12,7 +12,7 @@ Status legend: ✅ implemented · ⚠️ partial · ❌ missing
 
 ## Headline
 
-The new project200-derived frontend covers **most concept surfaces** but ships with
+The new ventures-style frontend covers **most concept surfaces** but ships with
 **7 of 14 specced web deps missing**, **2 §7 platform-partner pieces missing**, **~60% of 5B
 screens absent**, and **3 of 4 compliance areas (AML/PDPL/ZATCA) effectively unimplemented**.
 Backend FSM, escrow, contracts, and dormant-investment isolation are clean. Icon-rendering
@@ -62,7 +62,7 @@ bug is fully fixed and verified visually.
 | Arabic/English RTL | ✅ | — | `<html dir="rtl">` `layout.tsx:37` | ✅ |
 | IBM Plex Sans Arabic | ✅ | — | `next/font/google` `layout.tsx:21–26` | ✅ |
 
-**7 of 14 web deps absent.** The new project200-derived frontend was written without
+**7 of 14 web deps absent.** The new ventures-style frontend was written without
 them — it uses Server Components + Server Actions + local `useState` + raw SVG / CSS
 keyframes instead. This is **architecturally viable** (the app works), but it **deviates
 from the stack spec**. Decision point: install + adopt these libs, or formally accept
@@ -153,7 +153,7 @@ API stack 100% complete.
 | API schema | ✅ all money fields use `Halalas` (BigInt). Header comment "All money in BigInt halalas (100 halalas = 1 SAR). Never floats." |
 | Type helpers | ✅ `types/index.ts` has `toHalalas/toSar/fmtSAR` |
 | **`wathba-start.tsx:139` hardcodes `fundingCurrency: 'USD'`** | **⚠️ web posts USD to API** — would mis-store if API trusted it |
-| Display copy in fixtures | uses `$X` placeholder (inherited from project200) — flagged for next pass |
+| Display copy in fixtures | uses `$X` placeholder (inherited from the source ventures surface) — flagged for next pass |
 
 ### Dormant investment isolation — clean
 
@@ -375,7 +375,7 @@ Icon grep result: **0 leaked ligatures** across the 5 audited routes (`/projects
 
 | Deviation | Reason |
 | --- | --- |
-| `$` display currency in fixtures | Inherited from the project200 frontend swap; flagged for the SAR-everywhere pass. API is fine (halalas BigInt). |
+| `$` display currency in fixtures | Inherited from the source ventures frontend swap; flagged for the SAR-everywhere pass. API is fine (halalas BigInt). |
 | Server Components + Server Actions instead of TanStack Query / RHF | The new frontend's chosen architecture pattern. Functionally equivalent for the current scope; the spec gap is real but not a correctness issue. |
 | Milestones tab is a v2 extension to the project-detail design | Spec §3 added it after the original design was made. |
 | Dashboard extends design wireframe with real feature set | Production-readiness; design was placeholder. |
@@ -384,7 +384,7 @@ Icon grep result: **0 leaked ligatures** across the 5 audited routes (`/projects
 
 ## Push policy
 
-**Not pushed.** Branch `sync/frontend-from-project200` (`e4a4aa5` head). Per the
+**Not pushed.** Branch `wathba-main` (`e4a4aa5` head). Per the
 one-time-sync directive, this report is local-only too — committed alongside in
 the same branch when the fix pass is decided.
 
@@ -416,7 +416,7 @@ sequentially work through them on the same branch (small commits, no push).
 ## Sequential Fix Pass — 2026-06-28 (commits up to current head)
 
 Closed gaps below, in priority order. Each batch was a small commit on
-`sync/frontend-from-project200`. **Not pushed.**
+`wathba-main`. **Not pushed.**
 
 ### Batch A — Quick correctness fixes
 - ✅ `wathba-start.tsx:139` `fundingCurrency: 'USD' → 'SAR'` — launch wizard now
@@ -541,7 +541,7 @@ These weren't in priority A-G and remain explicitly open:
 
 ### Push policy (unchanged)
 
-**Local only.** Commits on `sync/frontend-from-project200`. No push.
+**Local only.** Commits on `wathba-main`. No push.
 
 ---
 
@@ -651,5 +651,5 @@ route sweep (with cookie)  →  29/29 HTTP 200
 
 ### Push policy (unchanged)
 
-**Local only.** All L1–L7 commits live on `sync/frontend-from-project200`;
+**Local only.** All L1–L7 commits live on `wathba-main`;
 not pushed unless the user explicitly requests it.

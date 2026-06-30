@@ -7,10 +7,10 @@ import type ventures from '@/dictionaries/en/ventures.json';
 
 /**
  * Slimmed dictionary surface for the Wathba (وثبة) web app.
- * Only the `ventures` namespace ships here; the broader 18-namespace shim
- * from project200 was trimmed when this surface was copied across to the
- * standalone Wathba monorepo. Add a namespace here when a new dictionary
- * is introduced.
+ * Only the `ventures` namespace ships here; the broader multi-namespace shim
+ * from the source surface was trimmed when this app was brought into the
+ * standalone Wathba monorepo. Add a namespace here when a new dictionary is
+ * introduced.
  */
 export interface DictionaryShapes {
   ventures: typeof ventures;

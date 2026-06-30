@@ -1,11 +1,11 @@
 # Wathba — Master-Build-Prompt v2 Concept Coverage (post frontend-swap)
 
 **Date:** 2026-06-28
-**Branch:** `sync/frontend-from-project200` (local, not pushed per the one-time-sync directive)
+**Branch:** `wathba-main` (local, not pushed per the one-time-sync directive)
 **Context:** the design-fidelity audit on the prior 1:1 prototype-faithful frontend
 reached **99.6/100** and is preserved in git history at commits `9de24f7` and `7452608`
 (plus the prior `DESIGN_AUDIT.md`). The current main was then **swapped** to the
-production ventures-style frontend from project200 (commit `098278d`), which is
+production ventures-style frontend from the source ventures app (commit `098278d`), which is
 structurally different — it adds captable/dataroom/v2030/compare/etc. and lacked the
 v2 concept surfaces. This document tracks the **v2 layering pass** that put those
 surfaces back on top of the new shell.
@@ -80,7 +80,7 @@ M  apps/api/src/main.ts                                          -1    (remove r
 ## Push policy
 
 Per the one-time-sync directive: this branch is **local-only**. The two commits
-(`f574d9a` API prefix fix + the v2 layer commit) live on `sync/frontend-from-project200`
+(`f574d9a` API prefix fix + the v2 layer commit) live on `wathba-main`
 and will not be pushed unless explicitly requested.
 
 ---
@@ -88,7 +88,7 @@ and will not be pushed unless explicitly requested.
 ## Critical Bug Fix Pass — Material Symbols → lucide-react Icon Swap
 
 **Date:** 2026-06-28
-**Symptom:** every icon in the new (project200-derived) frontend was rendering
+**Symptom:** every icon in the new (ventures-style) frontend was rendering
 as raw ligature text (`rocket_launch`, `expand_more`, `dark_mode`, `search`,
 `explore`, `bolt`, `favorite`, `visibility`, `verified`, …) instead of the
 Material Symbols Rounded glyph.
@@ -193,6 +193,6 @@ With both shipped:
 
 ### Push policy (unchanged)
 
-Local-only. Branch `sync/frontend-from-project200`. Three commits now:
+Local-only. Branch `wathba-main`. Three commits now:
 `f574d9a` API prefix fix → `f6c805b` v2 layer → (this commit) icon swap.
 Will not be pushed unless explicitly requested.

@@ -3,10 +3,9 @@ import { Icon, Num } from './wathba-icons';
 
 /**
  * Notifications center — in-app inbox. The Wathba backend's notifications
- * module exists (apps/api/src/notifications/*) but isn't exposed by the
- * project200-derived web routes. This screen consumes a stub fixture today;
- * wiring to /v1/notifications/me lands in the same pass as the role-aware
- * bearer flow.
+ * module exists (apps/api/src/notifications/*) but isn't yet wired to the web
+ * routes. This screen consumes a stub fixture today; wiring to
+ * /v1/notifications/me lands in the same pass as the role-aware bearer flow.
  */
 
 interface InboxItem {
