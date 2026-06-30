@@ -26,6 +26,7 @@ import {
 } from 'react';
 
 import { api } from '@/lib/api/client';
+import { useUpload } from '@/lib/hooks/use-upload';
 import { useLaunchWizard } from '@/lib/stores/launch-wizard';
 
 import { wathbaCategories } from './wathba-data';
@@ -82,7 +83,7 @@ export function WathbaStart() {
   // Zustand store with localStorage persistence — wizard state survives
   // page navigation, hot-reload, and accidental tab close.
   const state = useLaunchWizard();
-  const { step, title, tagline, categoryId, goalText, durationText, story, mediaName, tiers, editingTier, milestones, set, reset } = state;
+  const { step, title, tagline, categoryId, goalText, durationText, story, mediaName, mediaKey, mediaUrl, tiers, editingTier, milestones, set, reset } = state;
   const setStep = (v: number | ((s: number) => number)) =>
     set('step', typeof v === 'function' ? v(step) : v);
   const setTitle = (v: string) => set('title', v);
@@ -92,6 +93,8 @@ export function WathbaStart() {
   const setDurationText = (v: string) => set('durationText', v);
   const setStory = (v: string) => set('story', v);
   const setMediaName = (v: string) => set('mediaName', v);
+  const setMediaKey = (v: string) => set('mediaKey', v);
+  const setMediaUrl = (v: string) => set('mediaUrl', v);
   const setTiers = (v: DraftTier[]) => set('tiers', v);
   const setEditingTier = (v: string | null) => set('editingTier', v);
   const setMilestones = (v: DraftMilestone[]) => set('milestones', v);
@@ -130,6 +133,8 @@ export function WathbaStart() {
             campaignDays,
             story,
             mediaPlaceholder: mediaName || null,
+            mediaKey: mediaKey || null,
+            mediaUrl: mediaUrl || null,
             tiers,
             milestones,
           },
@@ -293,8 +298,11 @@ export function WathbaStart() {
             <StepStory
               story={story}
               mediaName={mediaName}
+              mediaUrl={mediaUrl}
               onStory={setStory}
               onMedia={setMediaName}
+              onMediaKey={setMediaKey}
+              onMediaUrl={setMediaUrl}
             />
           )}
           {step === 4 && (
@@ -593,24 +601,74 @@ function StepFunding({
 function StepStory({
   story,
   mediaName,
+  mediaUrl,
   onStory,
   onMedia,
+  onMediaKey,
+  onMediaUrl,
 }: {
   story: string;
   mediaName: string;
+  mediaUrl: string;
   onStory: (v: string) => void;
   onMedia: (v: string) => void;
+  onMediaKey: (v: string) => void;
+  onMediaUrl: (v: string) => void;
 }) {
-  const onFile = (e: ChangeEvent<HTMLInputElement>): void => {
+  const { upload, uploading, progress, error } = useUpload();
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const f = e.target.files?.[0];
-    onMedia(f?.name ?? '');
+    if (!f) return;
+    onMedia(f.name);
+    // Pick `hero` for image, `story` for video — fits MIME validation server-side.
+    const kind = f.type.startsWith('video/') ? 'story' : 'hero';
+    const res = await upload(f, kind);
+    if (res) {
+      onMediaKey(res.key);
+      onMediaUrl(res.publicUrl);
+    } else {
+      onMediaKey('');
+      onMediaUrl('');
+    }
   };
+
+  const isImage = mediaUrl && /\.(png|jpe?g|webp|avif|gif)$/i.test(mediaUrl);
+  const isVideo = mediaUrl && /\.(mp4|webm)$/i.test(mediaUrl);
+
   return (
     <div className="wathba-fade">
       <h2 style={{ fontSize: 21, fontWeight: 700, marginBottom: 6 }}>القصة والوسائط</h2>
       <p style={{ fontSize: 13.5, color: 'var(--muted2)', marginBottom: 24 }}>
         المشاريع ذات الفيديو تجمع تمويلاً أكثر بنسبة ٨٥٪.
       </p>
+
+      {mediaUrl && (isImage || isVideo) && (
+        <div
+          style={{
+            marginBottom: 16,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: '1px solid rgba(var(--ink-rgb),.08)',
+            background: 'rgba(var(--ink-rgb),.04)',
+          }}
+        >
+          {isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl}
+              alt={mediaName}
+              style={{ width: '100%', display: 'block', maxHeight: 360, objectFit: 'cover' }}
+            />
+          ) : (
+            <video
+              src={mediaUrl}
+              controls
+              style={{ width: '100%', display: 'block', maxHeight: 360 }}
+            />
+          )}
+        </div>
+      )}
 
       <label
         className="btng"
@@ -621,23 +679,36 @@ function StepStory({
           padding: 36,
           textAlign: 'center',
           marginBottom: 20,
-          cursor: 'pointer',
+          cursor: uploading ? 'wait' : 'pointer',
+          opacity: uploading ? 0.6 : 1,
         }}
       >
         <input
           type="file"
-          accept="video/mp4,image/png,image/jpeg"
-          onChange={onFile}
+          accept="video/mp4,video/webm,image/png,image/jpeg,image/webp,image/avif"
+          onChange={(e) => {
+            void onFile(e);
+          }}
+          disabled={uploading}
           style={{ display: 'none' }}
           aria-label="رفع وسائط المشروع"
         />
         <Icon name="cloud_upload" size={40} color="var(--accent)" />
         <div style={{ fontSize: 15, fontWeight: 600, marginTop: 12 }}>
-          {mediaName ? mediaName : 'اسحب فيديو أو صور المشروع هنا'}
+          {uploading
+            ? `جارٍ الرفع… ${progress}%`
+            : mediaName
+              ? mediaName
+              : 'اسحب فيديو أو صور المشروع هنا'}
         </div>
         <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginTop: 5 }}>
-          MP4، PNG، JPG — حتى 200MB
+          PNG/JPG/WebP حتى ٨MB · MP4/WebM حتى ٢٥MB
         </div>
+        {error && (
+          <div style={{ fontSize: 12, color: 'var(--danger, #c53030)', marginTop: 8 }}>
+            تعذّر الرفع: {error}
+          </div>
+        )}
       </label>
 
       <label style={labelStyle}>قصة المشروع</label>

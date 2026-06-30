@@ -36,6 +36,8 @@ interface LaunchWizardState {
   durationText: string;
   story: string;
   mediaName: string;
+  mediaKey: string;
+  mediaUrl: string;
   tiers: DraftTier[];
   editingTier: string | null;
   milestones: DraftMilestone[];
@@ -69,6 +71,8 @@ const DEFAULTS = {
   durationText: '30',
   story: '',
   mediaName: '',
+  mediaKey: '',
+  mediaUrl: '',
   tiers: DEFAULT_TIERS,
   editingTier: null,
   milestones: DEFAULT_MILESTONES,
@@ -92,6 +96,8 @@ export const useLaunchWizard = create<LaunchWizardState>()(
         durationText: s.durationText,
         story: s.story,
         mediaName: s.mediaName,
+        mediaKey: s.mediaKey,
+        mediaUrl: s.mediaUrl,
         tiers: s.tiers,
         milestones: s.milestones,
       }),
