@@ -498,6 +498,47 @@ export async function getProjectUpdate(
   return fetchJson<ApiUpdatePublic>(`/v1/projects/${projectId}/updates/${updateId}`, 30);
 }
 
+/* ---------- Notifications (Slice 2.6) ------------------------------------ */
+
+export type NotificationKind =
+  | 'PLEDGE_RECEIVED'
+  | 'PROJECT_FUNDED'
+  | 'PROJECT_FAILED'
+  | 'MILESTONE_APPROVED'
+  | 'PAYOUT_SENT'
+  | 'UPDATE_POSTED'
+  | 'RANK_UP'
+  | 'CONTEST_OPENED'
+  | 'CONTEST_ANNOUNCED'
+  | 'FAQ_ANSWERED'
+  | 'COMMENT_REPLY';
+
+export interface ApiNotification {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  payload: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiNotificationsPage {
+  items: ApiNotification[];
+  unreadCount: number;
+}
+
+export async function listMyNotifications(
+  opts: { unreadOnly?: boolean; take?: number } = {},
+  token?: string | null,
+): Promise<ApiNotificationsPage | null> {
+  const qs = new URLSearchParams();
+  if (opts.unreadOnly) qs.set('unread', 'true');
+  if (opts.take) qs.set('take', String(opts.take));
+  const path = `/v1/notifications/me${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<ApiNotificationsPage>(path, 0, bearer);
+}
+
 /* ---------- Contests (Slice 2C — Comment & Win) -------------------------- */
 
 export type ContestStatusVal = 'DRAFT' | 'OPEN' | 'CLOSED' | 'ANNOUNCED';
