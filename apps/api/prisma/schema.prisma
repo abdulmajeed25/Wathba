@@ -644,19 +644,3 @@ model Notification {
   @@index([userId, createdAt])
 }
 
-// ============================================================================
-// DORMANT — INVESTMENT (§6).
-// Never referenced by other contexts; no controllers; flagged OFF.
-// ============================================================================
-
-model InvestmentOffer {
-  id               String   @id @default(uuid()) @db.Uuid
-  projectId        String   @db.Uuid
-  profitSharePct   Int
-  minTicketHalalas BigInt
-  termsAr          String   @db.Text
-  status           String   @default("DORMANT")
-  createdAt        DateTime @default(now())
-
-  @@index([projectId])
-}
