@@ -23,6 +23,16 @@ const STATUS_COLOR: Record<ContestStatusVal, string> = {
   ANNOUNCED: '#6366f1',
 };
 
+type FilterId = 'all' | ContestStatusVal;
+
+const FILTERS: Array<{ id: FilterId; label: string }> = [
+  { id: 'all',       label: 'الكل' },
+  { id: 'OPEN',      label: 'مفتوحة' },
+  { id: 'ANNOUNCED', label: 'أُعلنت' },
+  { id: 'CLOSED',    label: 'مغلقة' },
+  { id: 'DRAFT',     label: 'مسودّات' },
+];
+
 export function ContestsManager({
   projectId,
   initial,
@@ -30,6 +40,21 @@ export function ContestsManager({
   projectId: string;
   initial: ApiContest[];
 }): React.ReactElement {
+  // Sort by round desc so the newest sits on top.
+  const sorted = [...initial].sort((a, b) => b.roundNum - a.roundNum);
+  const [filter, setFilter] = useState<FilterId>('all');
+  const counts: Record<FilterId, number> = {
+    all: sorted.length,
+    DRAFT: 0, OPEN: 0, CLOSED: 0, ANNOUNCED: 0,
+  };
+  for (const c of sorted) counts[c.status] += 1;
+
+  const visible = filter === 'all' ? sorted : sorted.filter((c) => c.status === filter);
+  const totalWinners = sorted
+    .filter((c) => c.status === 'ANNOUNCED')
+    .reduce((acc, c) => acc + c.winners.length, 0);
+  const nextRoundNum = (sorted[0]?.roundNum ?? 0) + 1;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       <SectionHeader
@@ -37,14 +62,131 @@ export function ContestsManager({
         subtitle="أنشئ جولات جوائز للتفاعل مع الداعمين، واختر الفائزين بأرقامهم العامّة (مثل #128) لحماية الخصوصية."
       />
 
-      <CreateRoundCard projectId={projectId} nextRound={(initial[initial.length - 1]?.roundNum ?? 0) + 1} />
+      {/* KPI strip */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: 12,
+        }}
+      >
+        <Kpi label="إجمالي الجولات" value={sorted.length} accent="var(--brand-primary, #05a661)" />
+        <Kpi label="جولات مفتوحة الآن" value={counts.OPEN} accent="var(--blue, #2563eb)" />
+        <Kpi label="جولات أُعلِنت" value={counts.ANNOUNCED} accent="var(--purple, #6d4df0)" />
+        <Kpi label="إجمالي الفائزين" value={totalWinners} accent="var(--gold, #b9820a)" />
+      </div>
+
+      <CreateRoundCard projectId={projectId} nextRound={nextRoundNum} />
+
+      {/* Status filter tabs */}
+      {sorted.length > 0 && (
+        <div
+          role="tablist"
+          aria-label="فلترة الجولات حسب الحالة"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 6,
+            borderBottom: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
+            paddingBottom: 4,
+          }}
+        >
+          {FILTERS.map((f) => {
+            const n = counts[f.id];
+            const active = filter === f.id;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setFilter(f.id)}
+                style={{
+                  cursor: 'pointer',
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: `2px solid ${active ? 'var(--brand-primary, #05a661)' : 'transparent'}`,
+                  color: active ? 'var(--brand-primary, #05a661)' : 'var(--text-secondary, #3b4942)',
+                  fontFamily: 'inherit',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  padding: '8px 12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                {f.label}
+                <span
+                  style={{
+                    fontSize: 11,
+                    background: 'rgba(var(--ink-rgb), .06)',
+                    color: 'var(--text-secondary, #3b4942)',
+                    padding: '1px 7px',
+                    borderRadius: 999,
+                    minWidth: 18,
+                    textAlign: 'center',
+                  }}
+                >
+                  {n}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {initial.length === 0 ? (
+        {sorted.length === 0 ? (
           <EmptyHint />
+        ) : visible.length === 0 ? (
+          <div
+            style={{
+              padding: 18,
+              background: 'var(--bg-elevated, #fff)',
+              border: '1px dashed var(--border-strong, rgba(18,33,26,0.16))',
+              borderRadius: 12,
+              textAlign: 'center',
+              fontSize: 13,
+              color: 'var(--text-secondary, #3b4942)',
+            }}
+          >
+            لا جولات في هذه الحالة. جرّب فلتراً آخر.
+          </div>
         ) : (
-          initial.map((c) => <RoundCard key={c.id} projectId={projectId} contest={c} />)
+          visible.map((c) => <RoundCard key={c.id} projectId={projectId} contest={c} />)
         )}
+      </div>
+    </div>
+  );
+}
+
+function Kpi({
+  label, value, accent,
+}: { label: string; value: number; accent: string }): React.ReactElement {
+  return (
+    <div
+      style={{
+        background: 'var(--bg-elevated, #fff)',
+        border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
+        borderRadius: 12,
+        padding: '14px 16px',
+      }}
+    >
+      <div style={{ fontSize: 11.5, color: 'var(--text-secondary, #3b4942)', letterSpacing: '.04em' }}>
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 26,
+          fontWeight: 700,
+          color: accent,
+          marginTop: 4,
+          fontFamily: '"Space Grotesk", sans-serif',
+          fontFeatureSettings: '"tnum"',
+        }}
+      >
+        {value}
       </div>
     </div>
   );
