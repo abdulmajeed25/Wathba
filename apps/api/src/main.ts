@@ -40,7 +40,7 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
+   
   console.error('Failed to start API', err);
   process.exit(1);
 });

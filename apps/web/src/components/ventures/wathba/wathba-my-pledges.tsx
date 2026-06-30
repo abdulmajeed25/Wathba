@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import type { ApiBackingRow } from '@/lib/api/wathba';
 import { wathbaProjects } from './wathba-data';
 import { EmptyState } from './wathba-states';
@@ -40,7 +42,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
             title="لم تدعم أي مشروع بعد"
             body="ابدأ رحلتك بدعم أول مشروع — كل دعم محجوز فقط ويُخصم عند نجاح الحملة."
             cta={
-              <a
+              <Link
                 href="/projects/discover"
                 style={{
                   display: 'inline-flex',
@@ -57,7 +59,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
               >
                 <Icon name="explore" size={16} color="var(--on-accent)" />
                 استكشف المشاريع
-              </a>
+              </Link>
             }
           />
         ) : (

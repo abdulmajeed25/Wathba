@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import {
   HelpTopicCard,
@@ -71,7 +72,7 @@ export default function HelpPage() {
             <>
               نعم. نستخدم ثلاثة أنواع عقود — تبرّع، استصناع، سَلَم — يُحدَّد المناسب
               تلقائياً بحسب نوع المكافأة. كل العقود تخضع لمراجعة شرعية مستمرّة.{' '}
-              تفاصيل في <a href="/projects/legal/contracts" style={{ color: 'var(--accent)' }}>صفحة العقود</a>.
+              تفاصيل في <Link href="/projects/legal/contracts" style={{ color: 'var(--accent)' }}>صفحة العقود</Link>.
             </>
           }
         />

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import type { ApiUserMe } from '@/lib/api/wathba';
@@ -146,13 +147,13 @@ function ProfileTab({
           {me?.nafathVerified ? 'مؤكَّدة ✓' : 'غير مؤكَّدة — مطلوبة قبل إطلاق المشاريع.'}
         </div>
         {!me?.nafathVerified && (
-          <a href="/sign-up/nafath" style={{
+          <Link href="/sign-up/nafath" style={{
             background: 'var(--grad)', color: 'var(--on-accent)',
             textDecoration: 'none', padding: '8px 14px',
             borderRadius: 10, fontSize: 12, fontWeight: 700,
           }}>
             تحقّق الآن
-          </a>
+          </Link>
         )}
       </div>
 
@@ -185,7 +186,7 @@ function AddressesTab() {
       </p>
       <p style={{ fontSize: 13, color: 'var(--muted2)' }}>
         لمراجعة عنوان دعمٍ سابق، افتح صفحة الدعم من{' '}
-        <a href="/projects/me/pledges" style={{ color: 'var(--accent)' }}>«مكفوفاتي»</a>.
+        <Link href="/projects/me/pledges" style={{ color: 'var(--accent)' }}>«مكفوفاتي»</Link>.
       </p>
     </div>
   );

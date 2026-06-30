@@ -21,7 +21,7 @@ const PROFILE_ID = '99999999-9999-9999-9999-999999999999';
 function makePrisma(over: Partial<Record<string, unknown>> = {}): any {
   // Hand-rolled `any` typing keeps the test concise; PrismaService is too big
   // to mock structurally and recursive arrow definitions hit TS7022.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const prisma: any = {
     user: { findUnique: jest.fn() },
     project: { findMany: jest.fn() },
