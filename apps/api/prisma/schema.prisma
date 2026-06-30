@@ -159,6 +159,7 @@ model User {
   faqQuestions        FaqQuestion[]   @relation("FaqAsker")
   creatorProfile      CreatorProfile?
   follows             CreatorFollow[] @relation("Follower")
+  updateLikes         UpdateLike[]
 
   @@index([reputationTier])
   @@index([email])
@@ -457,12 +458,30 @@ model ProjectUpdate {
   /// Numbered update order (#1, #2 …) — manually assigned by the creator.
   /// Highest is "latest" on the campaign page.
   orderNum      Int      @default(0)
+  /// Materialised count over UpdateLike — updated atomically with insert /
+  /// delete in UpdatesService.like() so it stays in sync with the join rows.
   likeCount     Int      @default(0)
   commentCount  Int      @default(0)
   date          DateTime @default(now())
 
+  likes         UpdateLike[]
+
   @@index([projectId, date])
   @@index([projectId, orderNum])
+}
+
+/// Per-user like join — kills the double-like exploit on /v1/updates/:id/like.
+/// Tier 3.4. likeCount on ProjectUpdate stays as a denormalised counter for
+/// list rendering speed; the join row is the source of truth.
+model UpdateLike {
+  updateId  String        @db.Uuid
+  update    ProjectUpdate @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  userId    String        @db.Uuid
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@id([updateId, userId])
+  @@index([userId])
 }
 
 model Comment {

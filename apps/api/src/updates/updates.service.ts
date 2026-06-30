@@ -107,22 +107,52 @@ export class UpdatesService {
     return this.toPublic(updated);
   }
 
+  /**
+   * Toggle like — Tier 3.4. Idempotent per (userId, updateId): first call
+   * inserts a join row + increments likeCount; second call removes the row
+   * + decrements. The denormalised counter stays in sync via the same tx.
+   */
   async like(
-    _userId: string,
+    userId: string,
     projectId: string,
     updateId: string,
-  ): Promise<PublicUpdate> {
+  ): Promise<PublicUpdate & { liked: boolean }> {
     const existing = await this.prisma.projectUpdate.findFirst({
       where: { id: updateId, projectId },
       select: { id: true },
     });
     if (!existing) throw new NotFoundException('update not found');
 
-    const updated = await this.prisma.projectUpdate.update({
-      where: { id: updateId },
-      data: { likeCount: { increment: 1 } },
+    const { row, liked } = await this.prisma.$transaction(async (tx) => {
+      const had = await tx.updateLike.findUnique({
+        where: { updateId_userId: { updateId, userId } },
+        select: { updateId: true },
+      });
+      if (had) {
+        await tx.updateLike.delete({
+          where: { updateId_userId: { updateId, userId } },
+        });
+        let r = await tx.projectUpdate.update({
+          where: { id: updateId },
+          data: { likeCount: { decrement: 1 } },
+        });
+        // Defensive: never let the counter dip below 0 (historical drift).
+        if (r.likeCount < 0) {
+          r = await tx.projectUpdate.update({
+            where: { id: updateId },
+            data: { likeCount: 0 },
+          });
+        }
+        return { row: r, liked: false };
+      }
+      await tx.updateLike.create({ data: { updateId, userId } });
+      const r = await tx.projectUpdate.update({
+        where: { id: updateId },
+        data: { likeCount: { increment: 1 } },
+      });
+      return { row: r, liked: true };
     });
-    return this.toPublic(updated);
+    return { ...this.toPublic(row), liked };
   }
 
   async remove(
