@@ -24,6 +24,8 @@ export interface WathbaProject {
   releaseThresholdPct?: number;
   /** §7 platform-partner — Wathba co-invests; mandatory disclosure when present. */
   platformPartner?: { stakeType: string; disclosureAr: string } | null;
+  /** UUID of the creator User; present only for real-API projects, not fixtures. */
+  createdById?: string;
 }
 
 export const wathbaProjects: WathbaProject[] = [

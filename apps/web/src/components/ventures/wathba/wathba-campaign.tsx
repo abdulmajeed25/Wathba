@@ -16,6 +16,14 @@ import { WathbaRewards } from './wathba-rewards';
 import { WathbaStory, WathbaStoryTOC } from './wathba-story';
 import { Icon, Num } from './wathba-icons';
 import { useTabCounts } from '@/lib/hooks/use-tab-counts';
+import { ContestsBanner } from './wathba-contests-banner';
+import { WathbaFaq } from './wathba-faq';
+import { WathbaCommunityTab } from './wathba-community-tab';
+import { WathbaCreatorTab } from './wathba-creator-tab';
+import { listContests, type ApiContest, type ApiFaqItem } from '@/lib/api/wathba';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRealProject = (id: string): boolean => UUID_RE.test(id);
 
 /**
  * Kickstarter-style campaign page.
@@ -284,11 +292,31 @@ export function WathbaCampaign({
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="creator">
-            <CreatorTab projectId={active.id} name={active.creator} loc={active.loc} />
+            {isRealProject(active.id) && active.createdById ? (
+              <WathbaCreatorTab userId={active.createdById} />
+            ) : (
+              <CreatorTab projectId={active.id} name={active.creator} loc={active.loc} />
+            )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="faq">
-            <FaqTab faqs={rich.faqs} />
+            {isRealProject(active.id) ? (
+              <WathbaFaq
+                projectId={active.id}
+                items={(rich.faqs ?? []).map<ApiFaqItem>((f, i) => ({
+                  id: `fixture-${i}`,
+                  projectId: active.id,
+                  questionAr: f.q,
+                  answerAr: f.a,
+                  sortOrder: i,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                }))}
+                isAuthenticated={false}
+              />
+            ) : (
+              <FaqTab faqs={rich.faqs} />
+            )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="updates">
@@ -296,11 +324,16 @@ export function WathbaCampaign({
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="comments">
+            {isRealProject(active.id) && <ContestsLoader projectId={active.id} />}
             <WathbaComments projectId={active.id} comments={rich.comments} />
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="community">
-            <CommunityTab backers={active.backersFmt} />
+            {isRealProject(active.id) ? (
+              <WathbaCommunityTab projectId={active.id} />
+            ) : (
+              <CommunityTab backers={active.backersFmt} />
+            )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="transparency">
@@ -696,4 +729,19 @@ function Stat({ label, value, icon }: { label: string; value: string; icon: stri
       <Num style={{ fontSize: 20, fontWeight: 700 }}>{value}</Num>
     </div>
   );
+}
+
+function ContestsLoader({ projectId }: { projectId: string }): React.ReactElement | null {
+  const [contests, setContests] = useState<ApiContest[] | null>(null);
+  useEffect(() => {
+    let cancel = false;
+    listContests(projectId).then((r) => {
+      if (!cancel) setContests(r ?? []);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [projectId]);
+  if (!contests || contests.length === 0) return null;
+  return <ContestsBanner contests={contests} />;
 }
