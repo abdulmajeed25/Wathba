@@ -17,6 +17,8 @@ import { ContractsModule } from './contracts/contracts.module';
 import { InvestmentModule } from './investment/investment.module';
 import { AdminModule } from './admin/admin.module';
 import { MediaModule } from './media/media.module';
+import { CommentsModule } from './comments/comments.module';
+import { UpdatesModule } from './updates/updates.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { MediaModule } from './media/media.module';
     InvestmentModule, // DORMANT — see investment/investment.module.ts
     AdminModule,
     MediaModule,
+    CommentsModule,
+    UpdatesModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

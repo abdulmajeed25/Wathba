@@ -372,3 +372,64 @@ export async function searchProjects(q: string, limit = 20): Promise<ApiSearchHi
   );
   return data?.items ?? null;
 }
+
+/* ---------- Engagement: Comments + Updates (Slice 2B) --------------------- */
+
+export interface ApiCommentPublic {
+  id: string;
+  projectId: string;
+  userId: string;
+  userName: string;
+  isCreator: boolean;
+  pinned: boolean;
+  hidden: boolean;
+  likeCount: number;
+  bodyAr: string | null;
+  parentId: string | null;
+  date: string;
+}
+
+export interface ApiCommentsPage {
+  items: ApiCommentPublic[];
+  nextCursor: string | null;
+}
+
+/**
+ * GET /v1/projects/:projectId/comments  (public)
+ * Pinned float first; then chronological newest→oldest, cursor-paginated.
+ */
+export async function listProjectComments(
+  projectId: string,
+  opts: { take?: number; parentId?: string; cursor?: string } = {},
+): Promise<ApiCommentsPage | null> {
+  const qs = new URLSearchParams();
+  if (opts.take) qs.set('take', String(opts.take));
+  if (opts.parentId) qs.set('parentId', opts.parentId);
+  if (opts.cursor) qs.set('cursor', opts.cursor);
+  const path = `/v1/projects/${projectId}/comments${qs.toString() ? `?${qs.toString()}` : ''}`;
+  return fetchJson<ApiCommentsPage>(path, 0);
+}
+
+export interface ApiUpdatePublic {
+  id: string;
+  projectId: string;
+  orderNum: number;
+  titleAr: string;
+  bodyAr: string;
+  likeCount: number;
+  commentCount: number;
+  date: string;
+}
+
+/**
+ * GET /v1/projects/:projectId/updates  (public)
+ */
+export async function listProjectUpdates(
+  projectId: string,
+  opts: { take?: number } = {},
+): Promise<{ items: ApiUpdatePublic[] } | null> {
+  const qs = new URLSearchParams();
+  if (opts.take) qs.set('take', String(opts.take));
+  const path = `/v1/projects/${projectId}/updates${qs.toString() ? `?${qs.toString()}` : ''}`;
+  return fetchJson<{ items: ApiUpdatePublic[] }>(path, 0);
+}

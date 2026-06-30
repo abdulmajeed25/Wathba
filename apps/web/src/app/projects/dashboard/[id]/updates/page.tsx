@@ -1,16 +1,19 @@
-import { SectionPlaceholder } from '@/components/ventures/wathba/dashboard/wathba-section-placeholder';
+import { DashboardUpdatesComposer } from '@/components/ventures/wathba/dashboard/wathba-dashboard-updates-composer';
+import { listProjectUpdates } from '@/lib/api/wathba';
 
-export default function UpdatesPage(): React.ReactElement {
-  return (
-    <SectionPlaceholder
-      title="التحديثات"
-      intro="انشر تحديثات مرقّمة لداعميك (نص، صور، فيديو، استبيانات)."
-      bullets={[
-        'تأليف تحديث جديد (#1, #2 …)',
-        'إضافة نص + صور + فيديو + يوتيوب',
-        'إحصاءات: عدد الإعجابات + عدد التعليقات',
-        'إخطار جميع الداعمين تلقائياً عند النشر',
-      ]}
-    />
-  );
+/**
+ * Per-project creator dashboard — Updates composer + list. SSR-fetches the
+ * existing updates so the creator sees the current numbered series and the
+ * composer adds the next #N on submit.
+ */
+export default async function UpdatesPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<React.ReactElement> {
+  const { id } = await params;
+  const page = await listProjectUpdates(id, { take: 50 });
+  const items = page?.items ?? [];
+
+  return <DashboardUpdatesComposer projectId={id} initial={items} />;
 }
