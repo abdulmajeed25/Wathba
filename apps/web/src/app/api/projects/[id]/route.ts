@@ -1,49 +1,54 @@
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BASE_URL ?? 'http://localhost:4000';
 const SESSION_COOKIE = 'wathba_session';
 
 /**
- * Browser-side PATCH proxy for /v1/projects/:id. The Story editor (and any
- * other creator-dashboard surface that mutates project fields) calls this
- * with a JSON body forwarded verbatim. The session cookie is exchanged for a
- * bearer token server-side so the browser never sees it.
+ * Browser proxy for the project resource.
+ *
+ *   GET    /api/projects/:id   → /v1/projects/:id   (public; no auth)
+ *   PATCH  /api/projects/:id   → /v1/projects/:id   (owner-only)
+ *
+ * Used by the creator dashboard surfaces (Story editor, Settings) so the
+ * httpOnly `wathba_session` cookie can be exchanged for a bearer token
+ * without leaking it into the browser.
  */
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  const { id } = await params;
+  const apiRes = await fetch(`${API_BASE}/v1/projects/${id}`, { cache: 'no-store' });
+  const text = await apiRes.text();
+  return new NextResponse(text, {
+    status: apiRes.status,
+    headers: { 'content-type': apiRes.headers.get('content-type') ?? 'application/json' },
+  });
+}
+
 export async function PATCH(
   req: Request,
-  ctx: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
-  const { id } = await ctx.params;
+  const { id } = await params;
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) {
-    return NextResponse.json({ message: 'auth required' }, { status: 401 });
-  }
+  if (!token) return NextResponse.json({ message: 'auth required' }, { status: 401 });
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ message: 'invalid JSON' }, { status: 400 });
-  }
-
-  try {
-    const res = await fetch(`${API_BASE}/v1/projects/${id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-    });
-    const text = await res.text();
-    return new NextResponse(text, {
-      status: res.status,
-      headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/json' },
-    });
-  } catch {
-    return NextResponse.json({ message: 'upstream unavailable' }, { status: 502 });
-  }
+  const body = await req.text();
+  const apiRes = await fetch(`${API_BASE}/v1/projects/${id}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body,
+  });
+  const text = await apiRes.text();
+  return new NextResponse(text, {
+    status: apiRes.status,
+    headers: { 'content-type': apiRes.headers.get('content-type') ?? 'application/json' },
+  });
 }

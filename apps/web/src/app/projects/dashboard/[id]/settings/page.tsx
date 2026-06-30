@@ -1,17 +1,21 @@
-import { SectionPlaceholder } from '@/components/ventures/wathba/dashboard/wathba-section-placeholder';
+import { notFound } from 'next/navigation';
 
-export default function SettingsPage(): React.ReactElement {
-  return (
-    <SectionPlaceholder
-      title="الإعدادات"
-      intro="بيانات الحملة الأساسية، الهدف، عتبة الإفراج، والمظهر."
-      bullets={[
-        'العنوان والوصف المختصر والتصنيف',
-        'هدف التمويل وعتبة الإفراج (٪ القاعدة الأساسية ٨٠٪)',
-        'الموعد النهائي ومدّة الحملة',
-        'الصورة الرئيسية (Hero)',
-        'الرؤية (مسوّدة / قيد المراجعة / منشور)',
-      ]}
-    />
-  );
+import { DashboardSettings } from '@/components/ventures/wathba/dashboard/wathba-dashboard-settings';
+import { getProjectDetail } from '@/lib/api/wathba';
+
+/**
+ * Creator Dashboard — "الإعدادات" (Settings). Server-fetches the project
+ * (the layout already verified ownership) and hands the detail object to
+ * the client form. The form mutates via the /api/projects/[id] proxy and
+ * calls router.refresh() to re-render this server component.
+ */
+export default async function SettingsPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<React.ReactElement> {
+  const { id } = await params;
+  const project = await getProjectDetail(id);
+  if (!project) notFound();
+  return <DashboardSettings project={project} />;
 }
