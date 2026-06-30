@@ -539,6 +539,29 @@ export async function listMyNotifications(
   return fetchJson<ApiNotificationsPage>(path, 0, bearer);
 }
 
+/* ---------- Admin (Slice 2.7) -------------------------------------------- */
+
+export interface ApiKycRow {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+export async function listReviewQueue(
+  token?: string | null,
+): Promise<{ items: ApiProjectDetail[] } | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<{ items: ApiProjectDetail[] }>(`/v1/admin/review-queue`, 0, bearer);
+}
+
+export async function listKycQueue(
+  token?: string | null,
+): Promise<{ items: ApiKycRow[] } | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<{ items: ApiKycRow[] }>(`/v1/admin/kyc-queue`, 0, bearer);
+}
+
 /* ---------- Contests (Slice 2C — Comment & Win) -------------------------- */
 
 export type ContestStatusVal = 'DRAFT' | 'OPEN' | 'CLOSED' | 'ANNOUNCED';
