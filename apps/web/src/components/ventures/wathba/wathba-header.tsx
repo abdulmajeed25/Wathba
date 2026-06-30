@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { deriveProject, wathbaCategories, wathbaProjects } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 import type { WathbaTheme } from './wathba-tokens';
+import { WathbaNotificationBell } from './wathba-notification-bell';
 
 const MEGA_FILTERS = [
   { id: 'love', ar: 'مشاريع نحبها', icon: 'favorite', status: 'all' as const },
@@ -418,6 +419,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           >
             <Icon name={theme === 'dark' ? 'light_mode' : 'dark_mode'} size={21} color="var(--muted)" />
           </button>
+          <WathbaNotificationBell />
           <Link
             href="/projects/dashboard"
             style={{
