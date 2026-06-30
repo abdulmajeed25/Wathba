@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { FundingGateway } from './funding.gateway';
+import { CommunityService } from '../community/community.service';
 import { Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
 
@@ -29,6 +30,7 @@ export class FundingService {
     private readonly escrow: EscrowService,
     private readonly contracts: ContractsService,
     private readonly gateway: FundingGateway,
+    private readonly community: CommunityService,
   ) {}
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
@@ -186,6 +188,13 @@ export class FundingService {
       backersCount: totals.backersCount,
       at: Date.now(),
     });
+
+    // Slice 3 — Update community aggregates (top cities/countries +
+    // NEW/RETURNING/TOTAL) AFTER the pledge tx commits. Failure here must
+    // never roll back the pledge — log and move on.
+    this.community
+      .materializeFromPledge(updated.id)
+      .catch((err) => this.logger.warn(`community.materialize failed: ${err}`));
 
     return updated;
   }
