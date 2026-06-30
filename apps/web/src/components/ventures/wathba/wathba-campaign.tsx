@@ -1,8 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   deriveLiveProject,
@@ -78,11 +77,56 @@ export function WathbaCampaign({
     { id: 'transparency', label: 'الشفافية',     icon: 'query_stats' },
   ];
 
-  // Allow deep-linking via location.hash on mount.
+  // Anchor-scroll model: every tab maps to a vertical section below. Clicking
+  // a tab smooth-scrolls to its section; scrolling the page updates `tab`.
+  // Sticky-bar height we leave above the section on scroll (px).
+  const STICKY_OFFSET = 64;
+
+  const scrollSuppressedUntil = useRef<number>(0);
+  const scrollTo = (id: TabId): void => {
+    const el = document.getElementById(`section-${id}`);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - STICKY_OFFSET;
+    // Suppress the IntersectionObserver-driven setTab() for the duration of
+    // the smooth scroll so the clicked tab stays highlighted until we settle.
+    scrollSuppressedUntil.current = Date.now() + 900;
+    setTab(id);
+    window.scrollTo({ top, behavior: 'smooth' });
+    history.replaceState(null, '', `#${id}`);
+  };
+
+  // Deep-link via location.hash on mount.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const h = window.location.hash.replace(/^#/, '');
-    if (h && tabs.find((t) => t.id === h)) setTab(h as TabId);
+    if (h && tabs.find((t) => t.id === h)) {
+      // defer one frame so the sections are mounted before scrolling
+      requestAnimationFrame(() => scrollTo(h as TabId));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // IntersectionObserver — updates the active tab as the reader scrolls.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (Date.now() < scrollSuppressedUntil.current) return;
+        // Choose the entry with the highest intersection ratio that's in view.
+        const inView = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!inView) return;
+        const id = (inView.target as HTMLElement).id.replace('section-', '') as TabId;
+        if (tabs.find((t) => t.id === id)) setTab(id);
+      },
+      { rootMargin: `-${STICKY_OFFSET + 8}px 0px -55% 0px`, threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+    tabs.forEach((t) => {
+      const el = document.getElementById(`section-${t.id}`);
+      if (el) obs.observe(el);
+    });
+    return () => obs.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -199,148 +243,157 @@ export function WathbaCampaign({
         </div>
       </section>
 
-      {/* ── STICKY TAB BAR + DEEP-LINK ANCHORS ────────────────────────── */}
-      <TabsPrimitive.Root value={tab} onValueChange={(v) => { setTab(v as TabId); history.replaceState(null, '', `#${v}`); }}>
+      {/* ── STICKY TAB BAR (RTL — tabs flow right→left, CTAs sit on LEFT) ─ */}
+      <div
+        dir="rtl"
+        style={{
+          position: 'sticky', top: 0, zIndex: 30,
+          background: 'var(--bg)',
+          borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
+          marginTop: 36,
+        }}
+      >
         <div
           style={{
-            position: 'sticky', top: 0, zIndex: 30,
-            background: 'var(--bg)',
-            borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
-            marginTop: 36,
+            maxWidth: 1320, margin: '0 auto', padding: '0 26px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 16,
           }}
         >
-          <div
-            style={{
-              maxWidth: 1320, margin: '0 auto', padding: '0 26px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              gap: 16,
-            }}
-          >
-            <TabsPrimitive.List loop style={{ display: 'flex', gap: 18, overflowX: 'auto' }}>
-              {tabs.map((t) => {
-                const isActive = t.id === tab;
-                return (
-                  <TabsPrimitive.Trigger
-                    key={t.id} value={t.id}
-                    style={{
-                      cursor: 'pointer', padding: '16px 4px',
-                      background: 'transparent',
-                      borderTop: 'none', borderInline: 'none',
-                      borderBottom: `2px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
-                      color: isActive ? 'var(--accent)' : 'var(--muted)',
-                      fontSize: 14.5, fontWeight: 600,
-                      display: 'inline-flex', alignItems: 'center', gap: 7,
-                      whiteSpace: 'nowrap', fontFamily: 'inherit',
-                    }}
-                  >
-                    <Icon name={t.icon} size={17} />
-                    {t.label}
-                    {t.badge && (
-                      <Num style={{
-                        fontSize: 11,
-                        background: 'rgba(var(--ink-rgb),.08)',
-                        color: 'var(--muted)',
-                        padding: '2px 7px', borderRadius: 20,
-                      }}>
-                        {t.badge}
-                      </Num>
-                    )}
-                  </TabsPrimitive.Trigger>
-                );
-              })}
-            </TabsPrimitive.List>
+          {/* First child in RTL flex = visually on the RIGHT (start of reading) */}
+          <div role="tablist" aria-orientation="horizontal" style={{ display: 'flex', gap: 18, overflowX: 'auto' }}>
+            {tabs.map((t) => {
+              const isActive = t.id === tab;
+              return (
+                <button
+                  type="button"
+                  key={t.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-controls={`section-${t.id}`}
+                  onClick={() => scrollTo(t.id)}
+                  style={{
+                    cursor: 'pointer', padding: '16px 4px',
+                    background: 'transparent',
+                    borderTop: 'none', borderInline: 'none',
+                    borderBottom: `2px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
+                    color: isActive ? 'var(--accent)' : 'var(--muted)',
+                    fontSize: 14.5, fontWeight: 600,
+                    display: 'inline-flex', alignItems: 'center', gap: 7,
+                    whiteSpace: 'nowrap', fontFamily: 'inherit',
+                  }}
+                >
+                  <Icon name={t.icon} size={17} />
+                  {t.label}
+                  {t.badge && (
+                    <Num style={{
+                      fontSize: 11,
+                      background: 'rgba(var(--ink-rgb),.08)',
+                      color: 'var(--muted)',
+                      padding: '2px 7px', borderRadius: 20,
+                    }}>
+                      {t.badge}
+                    </Num>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-            {/* secondary CTA pinned right of the tab bar */}
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button
-                type="button"
-                style={{
-                  background: 'transparent',
-                  border: '1px solid rgba(var(--ink-rgb),.16)',
-                  color: 'var(--text)', fontFamily: 'inherit',
-                  fontWeight: 600, fontSize: 12.5, padding: '8px 12px',
-                  borderRadius: 11, cursor: 'pointer',
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                }}
-              >
-                <Icon name="notifications" size={14} /> ذكّرني
-              </button>
-              <Link
-                href={`/projects/${active.id}/back`}
-                style={{
-                  background: 'var(--grad)', color: 'var(--on-accent)',
-                  fontWeight: 700, fontSize: 12.5, padding: '8px 14px',
-                  borderRadius: 11, textDecoration: 'none',
-                }}
-              >
-                ادعم المشروع
-              </Link>
-            </div>
+          {/* Second child in RTL flex = visually on the LEFT.
+              Inside this group: child[0] sits to the RIGHT of child[1] in RTL.
+              We want visual LEFT→RIGHT: «ذكّرني»  «ادعم المشروع»
+              → so «ادعم» first (right slot), «ذكّرني» second (left slot). */}
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <Link
+              href={`/projects/${active.id}/back`}
+              style={{
+                background: 'var(--grad)', color: 'var(--on-accent)',
+                fontWeight: 700, fontSize: 12.5, padding: '8px 14px',
+                borderRadius: 11, textDecoration: 'none',
+              }}
+            >
+              ادعم المشروع
+            </Link>
+            <button
+              type="button"
+              style={{
+                background: 'transparent',
+                border: '1px solid rgba(var(--ink-rgb),.16)',
+                color: 'var(--text)', fontFamily: 'inherit',
+                fontWeight: 600, fontSize: 12.5, padding: '8px 12px',
+                borderRadius: 11, cursor: 'pointer',
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              <Icon name="notifications" size={14} /> ذكّرني
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* ── TAB PANELS ───────────────────────────────────────────────── */}
-        <section style={{ maxWidth: 1320, margin: '0 auto', padding: '36px 26px 80px' }}>
-          <TabsPrimitive.Content value="campaign">
-            <CampaignTab projectId={active.id} creatorName={active.creator} loc={active.loc} rich={rich} />
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="rewards">
-            <div style={{ maxWidth: 820, margin: '0 auto' }}>
-              <WathbaRewards projectId={active.id} tiers={rich.rewards} />
-            </div>
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="creator">
-            {isRealProject(active.id) && active.createdById ? (
-              <WathbaCreatorTab userId={active.createdById} />
-            ) : (
-              <CreatorTab projectId={active.id} name={active.creator} loc={active.loc} />
-            )}
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="faq">
-            {isRealProject(active.id) ? (
-              <WathbaFaq
-                projectId={active.id}
-                items={(rich.faqs ?? []).map<ApiFaqItem>((f, i) => ({
-                  id: `fixture-${i}`,
-                  projectId: active.id,
-                  questionAr: f.q,
-                  answerAr: f.a,
-                  sortOrder: i,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                }))}
-                isAuthenticated={false}
-              />
-            ) : (
-              <FaqTab faqs={rich.faqs} />
-            )}
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="updates">
-            <UpdatesTab updates={rich.updates} />
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="comments">
-            {isRealProject(active.id) && <ContestsLoader projectId={active.id} />}
-            <WathbaComments projectId={active.id} comments={rich.comments} />
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="community">
-            {isRealProject(active.id) ? (
-              <WathbaCommunityTab projectId={active.id} />
-            ) : (
-              <CommunityTab backers={active.backersFmt} />
-            )}
-          </TabsPrimitive.Content>
-
-          <TabsPrimitive.Content value="transparency">
-            <TransparencyTab raisedFmt={active.raisedFmt} />
-          </TabsPrimitive.Content>
+      {/* ── SECTIONS — single long scroll. Each gets a section-* id that
+            the tab bar scrolls to + the IntersectionObserver watches. ─── */}
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '36px 26px 80px' }}>
+        <section id="section-campaign" style={{ scrollMarginTop: STICKY_OFFSET + 8 }}>
+          <CampaignTab projectId={active.id} creatorName={active.creator} loc={active.loc} rich={rich} />
         </section>
-      </TabsPrimitive.Root>
+
+        <section id="section-rewards" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          <div style={{ maxWidth: 820, margin: '0 auto' }}>
+            <WathbaRewards projectId={active.id} tiers={rich.rewards} />
+          </div>
+        </section>
+
+        <section id="section-creator" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          {isRealProject(active.id) && active.createdById ? (
+            <WathbaCreatorTab userId={active.createdById} />
+          ) : (
+            <CreatorTab projectId={active.id} name={active.creator} loc={active.loc} />
+          )}
+        </section>
+
+        <section id="section-faq" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          {isRealProject(active.id) ? (
+            <WathbaFaq
+              projectId={active.id}
+              items={(rich.faqs ?? []).map<ApiFaqItem>((f, i) => ({
+                id: `fixture-${i}`,
+                projectId: active.id,
+                questionAr: f.q,
+                answerAr: f.a,
+                sortOrder: i,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }))}
+              isAuthenticated={false}
+            />
+          ) : (
+            <FaqTab faqs={rich.faqs} />
+          )}
+        </section>
+
+        <section id="section-updates" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          <UpdatesTab updates={rich.updates} />
+        </section>
+
+        <section id="section-comments" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          {isRealProject(active.id) && <ContestsLoader projectId={active.id} />}
+          <WathbaComments projectId={active.id} comments={rich.comments} />
+        </section>
+
+        <section id="section-community" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          {isRealProject(active.id) ? (
+            <WathbaCommunityTab projectId={active.id} />
+          ) : (
+            <CommunityTab backers={active.backersFmt} />
+          )}
+        </section>
+
+        <section id="section-transparency" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+          <TransparencyTab raisedFmt={active.raisedFmt} />
+        </section>
+      </div>
     </div>
   );
 }
