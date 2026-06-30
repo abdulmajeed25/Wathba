@@ -19,6 +19,7 @@ import { ContestsBanner } from './wathba-contests-banner';
 import { WathbaFaq } from './wathba-faq';
 import { WathbaCommunityTab } from './wathba-community-tab';
 import { WathbaCreatorTab } from './wathba-creator-tab';
+import { WathbaTransparency } from './wathba-transparency';
 import type { ApiContest, ApiFaqItem } from '@/lib/api/wathba';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -79,20 +80,31 @@ export function WathbaCampaign({
 
   // Anchor-scroll model: every tab maps to a vertical section below. Clicking
   // a tab smooth-scrolls to its section; scrolling the page updates `tab`.
-  // Sticky-bar height we leave above the section on scroll (px).
-  const STICKY_OFFSET = 64;
+  // The WathbaShell global header is sticky at top:0, height 72px, z-index 60.
+  // Our tab bar sits BELOW it (top:72, z:30); we offset section scroll by both.
+  const HEADER_H = 72;
+  const TAB_BAR_H = 57;
+  const STICKY_OFFSET = HEADER_H + TAB_BAR_H + 8;
 
   const scrollSuppressedUntil = useRef<number>(0);
   const scrollTo = (id: TabId): void => {
     const el = document.getElementById(`section-${id}`);
     if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY - STICKY_OFFSET;
-    // Suppress the IntersectionObserver-driven setTab() for the duration of
-    // the smooth scroll so the clicked tab stays highlighted until we settle.
-    scrollSuppressedUntil.current = Date.now() + 900;
+    // Suppress observer-driven setTab() for the duration of the smooth
+    // scroll so the clicked tab stays highlighted until we settle.
+    scrollSuppressedUntil.current = Date.now() + 1400;
     setTab(id);
-    window.scrollTo({ top, behavior: 'smooth' });
     history.replaceState(null, '', `#${id}`);
+    // Primary scroll — uses scroll-margin-top on the section for the offset.
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Lazy fetches can grow the layout after the smooth-scroll target was
+    // computed. Re-target twice (instant) to settle on the new position.
+    window.setTimeout(() => {
+      el.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, 800);
+    window.setTimeout(() => {
+      el.scrollIntoView({ behavior: 'auto', block: 'start' });
+    }, 1400);
   };
 
   // Deep-link via location.hash on mount.
@@ -243,11 +255,11 @@ export function WathbaCampaign({
         </div>
       </section>
 
-      {/* ── STICKY TAB BAR (RTL — tabs flow right→left, CTAs sit on LEFT) ─ */}
+      {/* ── STICKY TAB BAR — sits below the WathbaShell header (top:72) ── */}
       <div
         dir="rtl"
         style={{
-          position: 'sticky', top: 0, zIndex: 30,
+          position: 'sticky', top: HEADER_H, zIndex: 40,
           background: 'var(--bg)',
           borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
           marginTop: 36,
@@ -339,13 +351,13 @@ export function WathbaCampaign({
           <CampaignTab projectId={active.id} creatorName={active.creator} loc={active.loc} rich={rich} />
         </section>
 
-        <section id="section-rewards" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+        <section id="section-rewards" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           <div style={{ maxWidth: 820, margin: '0 auto' }}>
             <WathbaRewards projectId={active.id} tiers={rich.rewards} />
           </div>
         </section>
 
-        <section id="section-creator" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+        <section id="section-creator" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           {isRealProject(active.id) && active.createdById ? (
             <WathbaCreatorTab userId={active.createdById} />
           ) : (
@@ -353,7 +365,7 @@ export function WathbaCampaign({
           )}
         </section>
 
-        <section id="section-faq" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+        <section id="section-faq" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           {isRealProject(active.id) ? (
             <WathbaFaq
               projectId={active.id}
@@ -373,16 +385,16 @@ export function WathbaCampaign({
           )}
         </section>
 
-        <section id="section-updates" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+        <section id="section-updates" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           <UpdatesTab updates={rich.updates} />
         </section>
 
-        <section id="section-comments" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+        <section id="section-comments" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           {isRealProject(active.id) && <ContestsLoader projectId={active.id} />}
           <WathbaComments projectId={active.id} comments={rich.comments} />
         </section>
 
-        <section id="section-community" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
+        <section id="section-community" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           {isRealProject(active.id) ? (
             <WathbaCommunityTab projectId={active.id} />
           ) : (
@@ -390,8 +402,8 @@ export function WathbaCampaign({
           )}
         </section>
 
-        <section id="section-transparency" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72 }}>
-          <TransparencyTab raisedFmt={active.raisedFmt} />
+        <section id="section-transparency" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
+          <WathbaTransparency projectId={active.id} raisedFmt={active.raisedFmt} />
         </section>
       </div>
     </div>
@@ -732,39 +744,6 @@ function CommunityTab({ backers }: { backers: string }) {
   );
 }
 
-function TransparencyTab({ raisedFmt }: { raisedFmt: string }) {
-  return (
-    <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-          <Icon name="query_stats" size={22} color="var(--pos)" />
-          <h2 style={{ fontSize: 24, fontWeight: 700 }}>لوحة الشفافية الحيّة</h2>
-        </div>
-        <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.65 }}>
-          نوضّح بالضبط كيف يُنفَق كل ريال تدعمنا به. تُحدَّث اللوحة تلقائياً مع كل
-          مرحلة من مراحل المشروع. لمزيد من التفاصيل (المراحل + جدول الصرف الزمني)،
-          افتح صفحة الشفافية الكاملة من هنا.
-        </p>
-      </div>
-      <div
-        style={{
-          background: 'var(--card)',
-          border: '1px solid rgba(var(--ink-rgb),.08)',
-          borderRadius: 16, padding: 22,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>إجمالي المُجمَّع حتى الآن</span>
-          <Num style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>{raisedFmt}</Num>
-        </div>
-        <p style={{ fontSize: 13, color: 'var(--muted)' }}>
-          ميزانية المشروع موزّعة على ٤ بنود رئيسية: تصنيع وإنتاج (٤٨٪)، بحث وتطوير
-          (٢٤٪)، شحن وتغليف (١٦٪)، تشغيل وتسويق (١٢٪).
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function Stat({ label, value, icon }: { label: string; value: string; icon: string }) {
   return (
