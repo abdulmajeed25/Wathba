@@ -1,12 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { deriveProject, type WathbaProject, wathbaProjects } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 
 const suggestions = ['تقنية', 'درون', 'لعبة', 'فيلم وثائقي', 'موسيقى', 'حديقة ذكية', 'رواية مصوّرة'];
+
+interface ApiHit {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  category: string;
+  raisedHalalas: number;
+  fundingGoalHalalas: number;
+  daysLeft: number;
+}
 
 export function WathbaSearch({
   initialQ = '',
@@ -16,15 +27,59 @@ export function WathbaSearch({
   projects?: WathbaProject[];
 }) {
   const [q, setQ] = useState(initialQ);
+
+  // Debounce — wait 250ms after the user stops typing before hitting /v1/search.
+  const [debounced, setDebounced] = useState(initialQ);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(q.trim()), 250);
+    return () => clearTimeout(id);
+  }, [q]);
+
+  // Live Postgres FTS via /v1/search (cursor + GIN + Arabic-diacritic
+  // normalised). Falls back to the in-memory fixture filter when the
+  // endpoint is unreachable / DB empty — keeps the demo discoverable
+  // even before any project is seeded.
+  const { data: live, isFetching, isError } = useQuery<ApiHit[]>({
+    queryKey: ['search', debounced],
+    queryFn: async () => {
+      if (!debounced) return [];
+      const r = await fetch(`/api/search?q=${encodeURIComponent(debounced)}`);
+      if (!r.ok) throw new Error(`API ${r.status}`);
+      const j = (await r.json()) as { items: ApiHit[] };
+      return j.items;
+    },
+    enabled: debounced.length > 0,
+    staleTime: 30_000,
+  });
+
   const source = projects ?? wathbaProjects;
   const list = useMemo(() => {
+    // Live API hits win when present. Map them onto the derived shape.
+    if (debounced && live && live.length > 0) {
+      return live.map((h) => {
+        const matchingFixture = source.find(
+          (s) => s.id === h.id || s.titleAr === h.titleAr,
+        );
+        const base = matchingFixture ?? source[0]!;
+        return deriveProject({
+          ...base,
+          titleAr: h.titleAr,
+          desc: h.shortDescAr,
+          raised: Math.round(h.raisedHalalas / 100),
+          goal: Math.round(h.fundingGoalHalalas / 100),
+          daysLeft: h.daysLeft,
+        });
+      });
+    }
+    // Empty query → show everything; failed/empty live → fixture-substring.
     const all = source.map(deriveProject);
     const trimmed = q.trim();
     if (!trimmed) return all;
     return all.filter((p) =>
       `${p.titleAr} ${p.titleEn} ${p.creator} ${p.cat} ${p.desc}`.includes(trimmed),
     );
-  }, [q, source]);
+  }, [q, debounced, live, source]);
+  const isLive = Boolean(debounced && live && live.length > 0 && !isError);
 
   return (
     <div className="wathba-fade">
@@ -91,8 +146,20 @@ export function WathbaSearch({
         </div>
       </section>
       <section style={{ maxWidth: 1320, margin: '30px auto 0', padding: '0 26px 10px' }}>
-        <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 20 }}>
-          <Num style={{ color: 'var(--text)', fontWeight: 700 }}>{list.length}</Num> نتيجة
+        <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Num style={{ color: 'var(--text)', fontWeight: 700 }}>{list.length}</Num>
+          <span>نتيجة</span>
+          {isFetching && (
+            <span style={{ fontSize: 12, color: 'var(--muted2)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
+              جاري البحث…
+            </span>
+          )}
+          {isLive && !isFetching && (
+            <span style={{ fontSize: 11.5, color: 'var(--pos)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Icon name="verified" size={12} color="var(--pos)" /> بحث مباشر من قاعدة البيانات
+            </span>
+          )}
         </div>
         <div
           style={{

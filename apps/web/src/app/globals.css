@@ -6,11 +6,11 @@
  * Most of the visual surface comes from `wathba-shell.tsx` which injects its
  * own CSS variables on a scoped wrapper div (see `components/ventures/wathba/
  * wathba-tokens.ts`).  The handful of vars below cover the sibling ventures
- * views (`venture-card`, `explore-view`, etc.) that were copied from
- * project200 and use platform utility classes like `border-edge` / `bg-base`.
- * They were originally backed by project200's purple-tinted dark theme; here
- * we re-bind them to Wathba's green-on-light palette so the layouts render
- * cleanly inside the same app shell.
+ * views (`venture-card`, `explore-view`, etc.) that were carried in from the
+ * source ventures surface and use platform utility classes like `border-edge`
+ * / `bg-base`. They were originally backed by a purple-tinted dark theme;
+ * here we re-bind them to Wathba's green-on-light palette so the layouts
+ * render cleanly inside the same app shell.
  * ------------------------------------------------------------------------- */
 
 :root {
@@ -98,6 +98,11 @@
     opacity: 1;
     transform: none;
   }
+}
+
+@keyframes wathba-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.9); }
+  50%      { opacity: 1;    transform: scale(1.15); }
 }
 
 @media (prefers-reduced-motion: reduce) {

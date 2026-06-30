@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRewardTierDto, UpdateRewardTierDto } from './dto/reward.dto';
-import { ProjectStatus, type RewardTier } from '@prisma/client';
+import { Prisma, ProjectStatus, type RewardTier } from '@prisma/client';
 
 @Injectable()
 export class RewardsService {
@@ -29,6 +29,9 @@ export class RewardsService {
         estDeliveryDate: new Date(dto.estDeliveryDate),
         limitQty: dto.limitQty ?? null,
         popular: dto.popular ?? false,
+        featured: dto.featured ?? false,
+        includedItems: (dto.includedItems ?? []) as unknown as Prisma.InputJsonValue,
+        shipsTo: dto.shipsTo ?? [],
         sortOrder: dto.sortOrder ?? 0,
       },
     });
@@ -61,6 +64,11 @@ export class RewardsService {
         }),
         ...(dto.limitQty !== undefined && { limitQty: dto.limitQty }),
         ...(dto.popular !== undefined && { popular: dto.popular }),
+        ...(dto.featured !== undefined && { featured: dto.featured }),
+        ...(dto.includedItems !== undefined && {
+          includedItems: dto.includedItems as unknown as Prisma.InputJsonValue,
+        }),
+        ...(dto.shipsTo !== undefined && { shipsTo: dto.shipsTo }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
       },
     });
@@ -98,6 +106,9 @@ export class RewardsService {
       limitQty: t.limitQty,
       claimedQty: t.claimedQty,
       popular: t.popular,
+      featured: t.featured,
+      includedItems: t.includedItems,
+      shipsTo: t.shipsTo,
       sortOrder: t.sortOrder,
     };
   }

@@ -49,7 +49,11 @@ export function WathbaShell({
         }}
       />
       <WathbaHeader theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
-      <main>{children}</main>
+      {/* NO framer-motion wrap on main — first paint must show content
+       *  without waiting for hydration (SEO + no-JS users). Inner cards
+       *  still use motion.div for soft entrances where the loss of
+       *  visibility-on-load is acceptable. */}
+      <main className="wathba-fade">{children}</main>
       <WathbaFooter />
     </div>
   );

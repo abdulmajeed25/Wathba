@@ -27,6 +27,9 @@ export function WathbaDiscover({
   const [cat, setCat] = useState(initialCat);
   const [sort, setSort] = useState(initialSort);
   const [status, setStatus] = useState(initialStatus);
+  /** §7 partner filter — 'all' = no filter, 'partner' = only Wathba-venture
+   *  projects, 'community' = only community-funded (non-partner). */
+  const [partnerFilter, setPartnerFilter] = useState<'all' | 'partner' | 'community'>('all');
   const source = projects ?? wathbaProjects;
 
   const list = useMemo(() => {
@@ -35,13 +38,15 @@ export function WathbaDiscover({
     if (status === 'live') d = d.filter((p) => p.pct < 100);
     else if (status === 'funded') d = d.filter((p) => p.pct >= 100);
     else if (status === 'near') d = d.filter((p) => p.pct >= 70 && p.pct < 100);
+    if (partnerFilter === 'partner') d = d.filter((p) => p.platformPartner != null);
+    else if (partnerFilter === 'community') d = d.filter((p) => p.platformPartner == null);
     if (sort === 'newest') d.sort((a, b) => b.daysLeft - a.daysLeft);
     else if (sort === 'mostfunded') d.sort((a, b) => b.raised - a.raised);
     else if (sort === 'ending') d.sort((a, b) => a.daysLeft - b.daysLeft);
     else if (sort === 'backers') d.sort((a, b) => b.backers - a.backers);
     else d.sort((a, b) => b.pct - a.pct);
     return d;
-  }, [cat, sort, status, source]);
+  }, [cat, sort, status, partnerFilter, source]);
 
   const chips = [{ id: 'all', ar: 'الكل', icon: 'apps' }, ...wathbaCategories];
 
@@ -159,6 +164,46 @@ export function WathbaDiscover({
               </span>
             );
           })}
+
+          {/* §7 platform-partner filter — separates Wathba-venture co-investments
+              from purely community-funded projects, per the spec's transparency rule. */}
+          <span style={{ fontSize: 12.5, color: 'var(--muted2)', marginInlineEnd: 4, marginInlineStart: 14 }}>الشراكة:</span>
+          {([
+            { id: 'all',       label: 'الكل' },
+            { id: 'partner',   label: 'بشراكة وثبة' },
+            { id: 'community', label: 'مجتمعية فقط' },
+          ] as const).map((o) => {
+            const active = partnerFilter === o.id;
+            const partnerActive = o.id === 'partner' && active;
+            return (
+              <span
+                key={o.id}
+                onClick={() => setPartnerFilter(o.id)}
+                style={{
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  padding: '7px 14px',
+                  borderRadius: 30,
+                  background: partnerActive
+                    ? 'rgba(var(--purple-rgb),.92)'
+                    : active
+                      ? 'var(--grad)'
+                      : 'transparent',
+                  color: active ? 'var(--on-accent)' : 'var(--muted)',
+                  border: `1px solid ${active ? 'transparent' : 'rgba(var(--ink-rgb),.12)'}`,
+                }}
+              >
+                {o.id === 'partner' && (
+                  <Icon name="verified" size={13} color={active ? 'var(--on-accent)' : 'var(--purple)'} />
+                )}
+                {o.label}
+              </span>
+            );
+          })}
         </div>
 
         <div
@@ -214,6 +259,27 @@ export function WathbaDiscover({
                 >
                   {p.cat}
                 </div>
+                {p.platformPartner && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      right: 11,
+                      bottom: 11,
+                      background: 'rgba(var(--purple-rgb),.92)',
+                      color: 'var(--on-accent)',
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <Icon name="verified" size={12} color="var(--on-accent)" />
+                    بشراكة وثبة
+                  </div>
+                )}
               </div>
               <div
                 style={{

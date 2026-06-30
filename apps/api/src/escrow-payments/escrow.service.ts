@@ -30,32 +30,55 @@ export class EscrowService {
     });
   }
 
+  /**
+   * Max concurrent PSP calls per settlement. Tuned for Moyasar's documented
+   * rate limit (~25 req/s). A project with 500 backers settles in ~20 batches
+   * of 25 instead of 500 sequential roundtrips.
+   */
+  private static readonly BATCH_CONCURRENCY = 25;
+
   async captureAllHeld(projectId: string): Promise<{ captured: number; failed: number }> {
     const pledges = await this.prisma.pledge.findMany({
       where: { projectId, status: PledgeStatus.HELD },
     });
-    let captured = 0;
-    let failed = 0;
-    for (const p of pledges) {
-      if (await this.captureOne(p)) captured++;
-      else failed++;
-    }
-    this.logger.log(`Captured ${captured} / failed ${failed} pledges for project=${projectId}`);
-    return { captured, failed };
+    const { ok, fail } = await this.runConcurrent(pledges, (p) => this.captureOne(p));
+    this.logger.log(`Captured ${ok} / failed ${fail} pledges for project=${projectId}`);
+    return { captured: ok, failed: fail };
   }
 
   async refundAllHeld(projectId: string): Promise<{ refunded: number; failed: number }> {
     const pledges = await this.prisma.pledge.findMany({
       where: { projectId, status: PledgeStatus.HELD },
     });
-    let refunded = 0;
-    let failed = 0;
-    for (const p of pledges) {
-      if (await this.refundOne(p)) refunded++;
-      else failed++;
+    const { ok, fail } = await this.runConcurrent(pledges, (p) => this.refundOne(p));
+    this.logger.log(`Refunded ${ok} / failed ${fail} pledges for project=${projectId}`);
+    return { refunded: ok, failed: fail };
+  }
+
+  /**
+   * Bounded-concurrency runner: walks `pledges` in batches of
+   * BATCH_CONCURRENCY using Promise.allSettled, so a single PSP timeout
+   * stalls only its own pledge instead of every later one in the list.
+   * Returns counts; per-pledge errors are logged inside captureOne /
+   * refundOne. The pledge stays in HELD on failure so the next settlement
+   * attempt or operator intervention can retry — explicit "mark FAILED on
+   * settlement-time failure" is a separate decision (Tier 2/3 cleanup).
+   */
+  private async runConcurrent(
+    pledges: Pledge[],
+    task: (p: Pledge) => Promise<boolean>,
+  ): Promise<{ ok: number; fail: number }> {
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < pledges.length; i += EscrowService.BATCH_CONCURRENCY) {
+      const slice = pledges.slice(i, i + EscrowService.BATCH_CONCURRENCY);
+      const results = await Promise.allSettled(slice.map((p) => task(p)));
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) ok++;
+        else fail++;
+      }
     }
-    this.logger.log(`Refunded ${refunded} / failed ${failed} pledges for project=${projectId}`);
-    return { refunded, failed };
+    return { ok, fail };
   }
 
   private async captureOne(p: Pledge): Promise<boolean> {

@@ -1,7 +1,16 @@
 import {
-  IsBoolean, IsDateString, IsInt, IsOptional, IsString, MaxLength, Min, MinLength,
+  ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString,
+  Length, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+
+/** One "ما يتضمنه" line item in a reward tier. */
+export class RewardIncludedItemDto {
+  @IsString() @MinLength(1) @MaxLength(80) nameAr!: string;
+  @IsOptional() @IsInt() @Min(1) qty?: number;
+  @IsOptional() @IsString() @MaxLength(400) thumbnailUrl?: string;
+}
 
 export class CreateRewardTierDto {
   @ApiProperty({ example: 'الإصدار المبكر' })
@@ -28,6 +37,27 @@ export class CreateRewardTierDto {
   @ApiProperty({ default: false })
   @IsOptional() @IsBoolean() popular?: boolean;
 
+  @ApiProperty({ default: false, description: 'Show with "مميّزة" badge.' })
+  @IsOptional() @IsBoolean() featured?: boolean;
+
+  @ApiProperty({
+    required: false,
+    type: [RewardIncludedItemDto],
+    description: 'Line items shown under "ما يتضمنه".',
+  })
+  @IsOptional() @IsArray() @ArrayMaxSize(20)
+  @ValidateNested({ each: true }) @Type(() => RewardIncludedItemDto)
+  includedItems?: RewardIncludedItemDto[];
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    description: 'ISO-3166-1 alpha-2 country codes ("SA", "AE"…).',
+  })
+  @IsOptional() @IsArray() @ArrayMaxSize(60)
+  @IsString({ each: true }) @Length(2, 2, { each: true })
+  shipsTo?: string[];
+
   @ApiProperty({ default: 0 })
   @IsOptional() @IsInt() sortOrder?: number;
 }
@@ -41,5 +71,12 @@ export class UpdateRewardTierDto {
   @IsOptional() @IsDateString() estDeliveryDate?: string;
   @IsOptional() @IsInt() @Min(1) limitQty?: number | null;
   @IsOptional() @IsBoolean() popular?: boolean;
+  @IsOptional() @IsBoolean() featured?: boolean;
+  @IsOptional() @IsArray() @ArrayMaxSize(20)
+  @ValidateNested({ each: true }) @Type(() => RewardIncludedItemDto)
+  includedItems?: RewardIncludedItemDto[];
+  @IsOptional() @IsArray() @ArrayMaxSize(60)
+  @IsString({ each: true }) @Length(2, 2, { each: true })
+  shipsTo?: string[];
   @IsOptional() @IsInt() sortOrder?: number;
 }

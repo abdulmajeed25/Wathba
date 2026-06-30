@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
+import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { MilestonesService } from './milestones.service';
@@ -50,7 +51,8 @@ export class MilestonesController {
   }
 
   @Post('milestones/:milestoneId/approve')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Approve a submitted milestone (admin)' })
   async approve(
@@ -62,7 +64,8 @@ export class MilestonesController {
   }
 
   @Post('milestones/:milestoneId/release')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Release escrow tranche for an approved milestone (admin)' })
   async release(

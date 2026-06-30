@@ -26,6 +26,8 @@ import {
 } from 'react';
 
 import { api } from '@/lib/api/client';
+import { useUpload } from '@/lib/hooks/use-upload';
+import { useLaunchWizard } from '@/lib/stores/launch-wizard';
 
 import { wathbaCategories } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
@@ -41,21 +43,14 @@ const STEPS: readonly StepDef[] = [
   { n: 2, label: 'التمويل', icon: 'payments' },
   { n: 3, label: 'القصة', icon: 'auto_stories' },
   { n: 4, label: 'المكافآت', icon: 'redeem' },
-  { n: 5, label: 'المراجعة', icon: 'rocket_launch' },
+  { n: 5, label: 'المراحل', icon: 'flag' },
+  { n: 6, label: 'المراجعة', icon: 'rocket_launch' },
 ];
 
-// ── Default reward tiers (design lines 906–911, "tiers" placeholder count 3)
-interface DraftTier {
-  id: string;
-  price: string; // raw text, e.g. "$25"
-  title: string;
-  desc: string;
-}
-const DEFAULT_TIERS: DraftTier[] = [
-  { id: 'dt0', price: '$25', title: 'داعم مبكر', desc: 'شارة + تحديثات حصرية' },
-  { id: 'dt1', price: '$79', title: 'الباقة الأساسية', desc: 'وحدة + شحن مجاني' },
-  { id: 'dt2', price: '$149', title: 'الباقة المزدوجة', desc: 'وحدتان + إكسسوارات' },
-];
+// Wizard state lives in the Zustand store now — see
+// src/lib/stores/launch-wizard.ts for DraftTier / DraftMilestone types
+// and the seed defaults that pre-populate the form.
+import type { DraftTier, DraftMilestone } from '@/lib/stores/launch-wizard';
 
 // ── Step 2: number sanitiser (strip commas, parse int) ─────────────────────
 function parseAmount(s: string): number {
@@ -85,18 +80,24 @@ function slugify(title: string): string {
 
 export function WathbaStart() {
   const router = useRouter();
-  const [step, setStep] = useState<number>(1);
-
-  // form state — all steps preserved across navigation
-  const [title, setTitle] = useState<string>('');
-  const [tagline, setTagline] = useState<string>('');
-  const [categoryId, setCategoryId] = useState<string>('');
-  const [goalText, setGoalText] = useState<string>('400,000');
-  const [durationText, setDurationText] = useState<string>('30');
-  const [story, setStory] = useState<string>('');
-  const [mediaName, setMediaName] = useState<string>('');
-  const [tiers, setTiers] = useState<DraftTier[]>(DEFAULT_TIERS);
-  const [editingTier, setEditingTier] = useState<string | null>(null);
+  // Zustand store with localStorage persistence — wizard state survives
+  // page navigation, hot-reload, and accidental tab close.
+  const state = useLaunchWizard();
+  const { step, title, tagline, categoryId, goalText, durationText, story, mediaName, mediaKey, mediaUrl, tiers, editingTier, milestones, set, reset } = state;
+  const setStep = (v: number | ((s: number) => number)) =>
+    set('step', typeof v === 'function' ? v(step) : v);
+  const setTitle = (v: string) => set('title', v);
+  const setTagline = (v: string) => set('tagline', v);
+  const setCategoryId = (v: string) => set('categoryId', v);
+  const setGoalText = (v: string) => set('goalText', v);
+  const setDurationText = (v: string) => set('durationText', v);
+  const setStory = (v: string) => set('story', v);
+  const setMediaName = (v: string) => set('mediaName', v);
+  const setMediaKey = (v: string) => set('mediaKey', v);
+  const setMediaUrl = (v: string) => set('mediaUrl', v);
+  const setTiers = (v: DraftTier[]) => set('tiers', v);
+  const setEditingTier = (v: string | null) => set('editingTier', v);
+  const setMilestones = (v: DraftMilestone[]) => set('milestones', v);
 
   // submit state
   const [submitting, setSubmitting] = useState(false);
@@ -132,13 +133,19 @@ export function WathbaStart() {
             campaignDays,
             story,
             mediaPlaceholder: mediaName || null,
+            mediaKey: mediaKey || null,
+            mediaUrl: mediaUrl || null,
             tiers,
+            milestones,
           },
           willingToLead: true,
           fundingGoal,
-          fundingCurrency: 'USD',
+          fundingCurrency: 'SAR',
         },
       });
+      // Successful submit — clear the persisted draft so a brand-new
+      // launch doesn't re-populate with the old plan.
+      reset();
       router.push('/projects/dashboard');
     } catch (err) {
       setSubmitError(
@@ -291,8 +298,11 @@ export function WathbaStart() {
             <StepStory
               story={story}
               mediaName={mediaName}
+              mediaUrl={mediaUrl}
               onStory={setStory}
               onMedia={setMediaName}
+              onMediaKey={setMediaKey}
+              onMediaUrl={setMediaUrl}
             />
           )}
           {step === 4 && (
@@ -304,6 +314,9 @@ export function WathbaStart() {
             />
           )}
           {step === 5 && (
+            <StepMilestones milestones={milestones} onChange={setMilestones} />
+          )}
+          {step === 6 && (
             <StepReview
               title={title}
               categoryLabel={selectedCategory?.ar ?? 'تقنية'}
@@ -588,24 +601,74 @@ function StepFunding({
 function StepStory({
   story,
   mediaName,
+  mediaUrl,
   onStory,
   onMedia,
+  onMediaKey,
+  onMediaUrl,
 }: {
   story: string;
   mediaName: string;
+  mediaUrl: string;
   onStory: (v: string) => void;
   onMedia: (v: string) => void;
+  onMediaKey: (v: string) => void;
+  onMediaUrl: (v: string) => void;
 }) {
-  const onFile = (e: ChangeEvent<HTMLInputElement>): void => {
+  const { upload, uploading, progress, error } = useUpload();
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>): Promise<void> => {
     const f = e.target.files?.[0];
-    onMedia(f?.name ?? '');
+    if (!f) return;
+    onMedia(f.name);
+    // Pick `hero` for image, `story` for video — fits MIME validation server-side.
+    const kind = f.type.startsWith('video/') ? 'story' : 'hero';
+    const res = await upload(f, kind);
+    if (res) {
+      onMediaKey(res.key);
+      onMediaUrl(res.publicUrl);
+    } else {
+      onMediaKey('');
+      onMediaUrl('');
+    }
   };
+
+  const isImage = mediaUrl && /\.(png|jpe?g|webp|avif|gif)$/i.test(mediaUrl);
+  const isVideo = mediaUrl && /\.(mp4|webm)$/i.test(mediaUrl);
+
   return (
     <div className="wathba-fade">
       <h2 style={{ fontSize: 21, fontWeight: 700, marginBottom: 6 }}>القصة والوسائط</h2>
       <p style={{ fontSize: 13.5, color: 'var(--muted2)', marginBottom: 24 }}>
         المشاريع ذات الفيديو تجمع تمويلاً أكثر بنسبة ٨٥٪.
       </p>
+
+      {mediaUrl && (isImage || isVideo) && (
+        <div
+          style={{
+            marginBottom: 16,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: '1px solid rgba(var(--ink-rgb),.08)',
+            background: 'rgba(var(--ink-rgb),.04)',
+          }}
+        >
+          {isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl}
+              alt={mediaName}
+              style={{ width: '100%', display: 'block', maxHeight: 360, objectFit: 'cover' }}
+            />
+          ) : (
+            <video
+              src={mediaUrl}
+              controls
+              style={{ width: '100%', display: 'block', maxHeight: 360 }}
+            />
+          )}
+        </div>
+      )}
 
       <label
         className="btng"
@@ -616,23 +679,36 @@ function StepStory({
           padding: 36,
           textAlign: 'center',
           marginBottom: 20,
-          cursor: 'pointer',
+          cursor: uploading ? 'wait' : 'pointer',
+          opacity: uploading ? 0.6 : 1,
         }}
       >
         <input
           type="file"
-          accept="video/mp4,image/png,image/jpeg"
-          onChange={onFile}
+          accept="video/mp4,video/webm,image/png,image/jpeg,image/webp,image/avif"
+          onChange={(e) => {
+            void onFile(e);
+          }}
+          disabled={uploading}
           style={{ display: 'none' }}
           aria-label="رفع وسائط المشروع"
         />
         <Icon name="cloud_upload" size={40} color="var(--accent)" />
         <div style={{ fontSize: 15, fontWeight: 600, marginTop: 12 }}>
-          {mediaName ? mediaName : 'اسحب فيديو أو صور المشروع هنا'}
+          {uploading
+            ? `جارٍ الرفع… ${progress}%`
+            : mediaName
+              ? mediaName
+              : 'اسحب فيديو أو صور المشروع هنا'}
         </div>
         <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginTop: 5 }}>
-          MP4، PNG، JPG — حتى 200MB
+          PNG/JPG/WebP حتى ٨MB · MP4/WebM حتى ٢٥MB
         </div>
+        {error && (
+          <div style={{ fontSize: 12, color: 'var(--danger, #c53030)', marginTop: 8 }}>
+            تعذّر الرفع: {error}
+          </div>
+        )}
       </label>
 
       <label style={labelStyle}>قصة المشروع</label>
@@ -812,7 +888,190 @@ function StepTiers({
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 5 — review (design 916–931)
+// STEP 5 — milestones (creator defines the release plan, must sum to 100%)
+// ─────────────────────────────────────────────────────────────────────────
+function StepMilestones({
+  milestones,
+  onChange,
+}: {
+  milestones: DraftMilestone[];
+  onChange: (rows: DraftMilestone[]) => void;
+}): ReactNode {
+  const total = milestones.reduce((a, m) => a + (Number(m.releasePct) || 0), 0);
+  const valid = total === 100;
+
+  const setRow = (id: string, patch: Partial<DraftMilestone>): void => {
+    onChange(milestones.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  };
+  const addRow = (): void => {
+    onChange([
+      ...milestones,
+      { id: `dm-${Date.now()}`, titleAr: '', descAr: '', releasePct: 0 },
+    ]);
+  };
+  const removeRow = (id: string): void => {
+    onChange(milestones.filter((m) => m.id !== id));
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>مراحل التسليم والصرف</h2>
+      <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 18, lineHeight: 1.6 }}>
+        قسّم رحلة مشروعك إلى مراحل واضحة. كل مرحلة تصرف نسبة محددة من التمويل
+        بعد رفع الأدلة وموافقة المنصة. <strong>مجموع النسب يجب أن يساوي ١٠٠٪.</strong>
+      </p>
+
+      <div
+        style={{
+          marginBottom: 18,
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: valid ? 'rgba(52,211,153,.08)' : 'rgba(251,191,36,.10)',
+          border: `1px solid ${valid ? 'rgba(52,211,153,.30)' : 'rgba(251,191,36,.30)'}`,
+          color: valid ? 'var(--pos)' : 'var(--gold)',
+          fontSize: 13,
+          fontWeight: 700,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+        }}
+      >
+        <Icon name={valid ? 'check_circle' : 'info'} size={16} color={valid ? 'var(--pos)' : 'var(--gold)'} />
+        المجموع: <Num style={{ fontWeight: 700 }}>{total}</Num>٪ {valid ? '· جاهز' : '· يجب أن يساوي ١٠٠٪'}
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 14 }}>
+        {milestones.map((m, i) => (
+          <div
+            key={m.id}
+            style={{
+              background: 'var(--card)',
+              border: '1px solid rgba(var(--ink-rgb),.08)',
+              borderRadius: 14,
+              padding: 16,
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr 100px auto',
+              gap: 12,
+              alignItems: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: 32, height: 32, borderRadius: 9,
+                background: 'rgba(var(--accent-rgb),.10)',
+                color: 'var(--accent)',
+                display: 'grid', placeItems: 'center',
+                fontWeight: 700, fontSize: 14,
+                fontFamily: '"Space Grotesk", sans-serif',
+              }}
+            >
+              {i + 1}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input
+                type="text"
+                value={m.titleAr}
+                onChange={(e) => setRow(m.id, { titleAr: e.target.value })}
+                placeholder="عنوان المرحلة"
+                style={{
+                  background: 'rgba(var(--ink-rgb),.04)',
+                  border: '1px solid rgba(var(--ink-rgb),.12)',
+                  borderRadius: 9,
+                  padding: '8px 12px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: 'var(--text)',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <input
+                type="text"
+                value={m.descAr}
+                onChange={(e) => setRow(m.id, { descAr: e.target.value })}
+                placeholder="ما الذي يجب تحقيقه؟ ما الأدلة المطلوبة؟"
+                style={{
+                  background: 'rgba(var(--ink-rgb),.04)',
+                  border: '1px solid rgba(var(--ink-rgb),.12)',
+                  borderRadius: 9,
+                  padding: '8px 12px',
+                  fontSize: 13,
+                  color: 'var(--text-soft)',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                value={m.releasePct || ''}
+                onChange={(e) => setRow(m.id, { releasePct: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })}
+                placeholder="0"
+                style={{
+                  width: 64,
+                  background: 'rgba(var(--ink-rgb),.04)',
+                  border: '1px solid rgba(var(--ink-rgb),.12)',
+                  borderRadius: 9,
+                  padding: '8px',
+                  fontSize: 15,
+                  textAlign: 'center',
+                  fontFamily: '"Space Grotesk", sans-serif',
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                }}
+              />
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>%</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => removeRow(m.id)}
+              disabled={milestones.length <= 1}
+              aria-label="إزالة المرحلة"
+              style={{
+                cursor: milestones.length <= 1 ? 'not-allowed' : 'pointer',
+                background: 'transparent',
+                border: 'none',
+                color: milestones.length <= 1 ? 'var(--muted2)' : 'var(--muted)',
+                fontFamily: 'inherit',
+                opacity: milestones.length <= 1 ? 0.5 : 1,
+                padding: 4,
+              }}
+            >
+              <Icon name="check" size={20} color="transparent" />
+              <span style={{ fontSize: 18 }}>×</span>
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={addRow}
+        style={{
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          background: 'transparent',
+          border: '1px dashed rgba(var(--accent-rgb),.40)',
+          borderRadius: 11,
+          padding: '10px 16px',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--accent)',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        <Icon name="add_circle" size={16} color="var(--accent)" />
+        أضف مرحلة
+      </button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP 6 — review (design 916–931)
 // ─────────────────────────────────────────────────────────────────────────
 function StepReview({
   title,

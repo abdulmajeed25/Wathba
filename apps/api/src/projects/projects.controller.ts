@@ -6,12 +6,16 @@ import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { ProjectsService } from './projects.service';
+import { TabCountsService } from './tab-counts.service';
 import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
 
 @ApiTags('projects')
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projects: ProjectsService) {}
+  constructor(
+    private readonly projects: ProjectsService,
+    private readonly tabCounts: TabCountsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List discoverable projects (filters + sort + cursor)' })
@@ -25,6 +29,12 @@ export class ProjectsController {
   async get(@Param('id', new ParseUUIDPipe()) id: string) {
     const p = await this.projects.findById(id);
     return this.projects.toPublic(p);
+  }
+
+  @Get(':id/tab-counts')
+  @ApiOperation({ summary: 'Live counts for the campaign page tabs nav (public)' })
+  async tabCountsFor(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.tabCounts.forProject(id);
   }
 
   @Post()

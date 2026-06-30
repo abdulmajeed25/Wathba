@@ -8,14 +8,21 @@ import { HealthController } from './health/health.controller';
 import { IdentityModule } from './identity/identity.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RewardsModule } from './rewards/rewards.module';
+import { AddonsModule } from './addons/addons.module';
 import { FundingModule } from './funding/funding.module';
 import { EscrowPaymentsModule } from './escrow-payments/escrow-payments.module';
 import { MilestonesModule } from './milestones/milestones.module';
 import { ProcurementModule } from './procurement/procurement.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ContractsModule } from './contracts/contracts.module';
-import { InvestmentModule } from './investment/investment.module';
 import { AdminModule } from './admin/admin.module';
+import { MediaModule } from './media/media.module';
+import { CommentsModule } from './comments/comments.module';
+import { UpdatesModule } from './updates/updates.module';
+import { ContestsModule } from './contests/contests.module';
+import { FaqModule } from './faq/faq.module';
+import { CommunityModule } from './community/community.module';
+import { CreatorsModule } from './creators/creators.module';
 
 @Module({
   imports: [
@@ -26,14 +33,21 @@ import { AdminModule } from './admin/admin.module';
     IdentityModule,
     ProjectsModule,
     RewardsModule,
+    AddonsModule,
     FundingModule,
     EscrowPaymentsModule,
     MilestonesModule,
     ProcurementModule,
     NotificationsModule,
     ContractsModule,
-    InvestmentModule, // DORMANT — see investment/investment.module.ts
     AdminModule,
+    MediaModule,
+    CommentsModule,
+    UpdatesModule,
+    ContestsModule,
+    FaqModule,
+    CommunityModule,
+    CreatorsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

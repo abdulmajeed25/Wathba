@@ -4,6 +4,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { ContractsService } from '../contracts/contracts.service';
+import { FundingGateway } from './funding.gateway';
+import { CommunityService } from '../community/community.service';
 import { Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
 
@@ -27,6 +29,8 @@ export class FundingService {
     private readonly prisma: PrismaService,
     private readonly escrow: EscrowService,
     private readonly contracts: ContractsService,
+    private readonly gateway: FundingGateway,
+    private readonly community: CommunityService,
   ) {}
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
@@ -55,23 +59,67 @@ export class FundingService {
       throw new BadRequestException('shipping address is required for this tier');
     }
 
+    // Validate + price-resolve any add-ons. Sold-out add-ons reject the
+    // pledge before we authorize anything against the PSP.
+    const addOnRequests = dto.addOns ?? [];
+    let addOnsSubtotal = 0n;
+    const resolvedAddOns: Array<{ addOnId: string; qty: number; amountHalalas: bigint }> = [];
+    if (addOnRequests.length > 0) {
+      const fetched = await this.prisma.addOn.findMany({
+        where: { id: { in: addOnRequests.map((a) => a.addOnId) } },
+      });
+      const byId = new Map(fetched.map((a) => [a.id, a]));
+      for (const req of addOnRequests) {
+        const a = byId.get(req.addOnId);
+        if (!a || a.projectId !== dto.projectId) {
+          throw new BadRequestException(`add-on ${req.addOnId} is not on this project`);
+        }
+        const qty = req.qty ?? 1;
+        if (a.limitQty !== null && a.claimedQty + qty > a.limitQty) {
+          throw new BadRequestException(`add-on "${a.titleAr}" is sold out`);
+        }
+        const subtotal = a.amountHalalas * BigInt(qty);
+        addOnsSubtotal += subtotal;
+        resolvedAddOns.push({ addOnId: a.id, qty, amountHalalas: subtotal });
+      }
+    }
+
     const contractType =
       dto.contractType ??
       this.contracts.inferType({ includesPhysicalProduct: tier.includesPhysicalProduct });
 
-    // 1) Insert the pledge in HELD state, paymentRef='pending'.
+    // 1) Insert the pledge in HELD state, paymentRef='pending'. backerNo is
+    //    NOT NULL (since migration 0002), so we assign it here from the current
+    //    max for this project. The @@unique([projectId, backerNo]) constraint
+    //    is the safety net against the rare two-concurrent-inserts race —
+    //    second insert throws, caller can retry. Acceptable for v1 traffic.
+    const lastBackerNo = await this.prisma.pledge.aggregate({
+      where: { projectId: dto.projectId },
+      _max: { backerNo: true },
+    });
+    const assignedBackerNo = (lastBackerNo._max.backerNo ?? 0) + 1;
+
     const pledge = await this.prisma.pledge.create({
       data: {
         backerId,
         projectId: dto.projectId,
         tierId: dto.tierId,
         amountHalalas: BigInt(dto.amountHalalas),
+        addOnsHalalas: addOnsSubtotal,
         contractType,
         shipping: dto.shipping
           ? (dto.shipping as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
         status: PledgeStatus.HELD,
+        backerNo: assignedBackerNo,
         paymentRef: `pending-${Date.now()}-${backerId.slice(0, 8)}`,
+        addOns: resolvedAddOns.length > 0
+          ? { create: resolvedAddOns.map((r) => ({
+              addOnId: r.addOnId,
+              qty: r.qty,
+              amountHalalas: r.amountHalalas,
+            })) }
+          : undefined,
       },
     });
 
@@ -102,29 +150,55 @@ export class FundingService {
       throw new BadRequestException('payment was not authorized');
     }
 
-    // 3) Commit paymentRef + bump counters atomically.
-    return this.prisma.$transaction(async (tx) => {
+    // 3) Commit paymentRef + bump counters atomically. backerNo was assigned
+    //    at insert time (step 1); this tx only finalises the paymentRef + the
+    //    funded counters.
+    const totalContribution = pledge.amountHalalas + addOnsSubtotal;
+    const { updated, totals } = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.pledge.update({
         where: { id: pledge.id },
         data: { paymentRef: payment.paymentRef },
       });
-      await tx.project.update({
+      const proj = await tx.project.update({
         where: { id: dto.projectId },
         data: {
-          raisedHalalas: { increment: pledge.amountHalalas },
+          raisedHalalas: { increment: totalContribution },
           backersCount: { increment: 1 },
         },
+        select: { raisedHalalas: true, backersCount: true },
       });
       await tx.rewardTier.update({
         where: { id: dto.tierId },
         data: { claimedQty: { increment: 1 } },
       });
+      for (const r of resolvedAddOns) {
+        await tx.addOn.update({
+          where: { id: r.addOnId },
+          data: { claimedQty: { increment: r.qty } },
+        });
+      }
       await tx.user.update({
         where: { id: backerId },
-        data: { totalPledgedHalalas: { increment: pledge.amountHalalas } },
+        data: { totalPledgedHalalas: { increment: totalContribution } },
       });
-      return updated;
+      return { updated, totals: proj };
     });
+
+    this.gateway.emitTick({
+      projectId: dto.projectId,
+      raisedHalalas: totals.raisedHalalas.toString(),
+      backersCount: totals.backersCount,
+      at: Date.now(),
+    });
+
+    // Slice 3 — Update community aggregates (top cities/countries +
+    // NEW/RETURNING/TOTAL) AFTER the pledge tx commits. Failure here must
+    // never roll back the pledge — log and move on.
+    this.community
+      .materializeFromPledge(updated.id)
+      .catch((err) => this.logger.warn(`community.materialize failed: ${err}`));
+
+    return updated;
   }
 
   async listMine(backerId: string): Promise<Pledge[]> {
@@ -141,6 +215,8 @@ export class FundingService {
       projectId: p.projectId,
       tierId: p.tierId,
       amountHalalas: Number(p.amountHalalas),
+      addOnsHalalas: Number(p.addOnsHalalas),
+      backerNo: p.backerNo,
       status: p.status,
       shipping: p.shipping,
       contractType: p.contractType,

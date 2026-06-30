@@ -20,6 +20,12 @@ export interface WathbaProject {
   loc: string;
   badge: string;
   desc: string;
+  /** §5 funding rule — release threshold below 100 surfaces a Stretch-Goal callout. */
+  releaseThresholdPct?: number;
+  /** §7 platform-partner — Wathba co-invests; mandatory disclosure when present. */
+  platformPartner?: { stakeType: string; disclosureAr: string } | null;
+  /** UUID of the creator User; present only for real-API projects, not fixtures. */
+  createdById?: string;
 }
 
 export const wathbaProjects: WathbaProject[] = [
@@ -82,6 +88,12 @@ export const wathbaProjects: WathbaProject[] = [
     loc: 'تونس',
     badge: '',
     desc: 'حقائب يومية أنيقة مصنوعة بالكامل من بلاستيك المحيطات.',
+    releaseThresholdPct: 80,
+    platformPartner: {
+      stakeType: 'co-founder',
+      disclosureAr:
+        'تستثمر وثبة في هذا المشروع بصفتها شريكاً مؤسساً، وتشارك أرباحه لاحقاً بشكلٍ منفصل عن دعم المجتمع. الدعم الذي تقدّمه عبر الحملة لا يختلف عن أي مشروع آخر.',
+    },
   },
   {
     id: 'p5',
@@ -516,9 +528,113 @@ export const wathbaStatusOptions = [
 export const wathbaProjectTabs = [
   { id: 'story', label: 'القصة', icon: 'auto_stories', badge: null as string | null },
   { id: 'transparency', label: 'الشفافية', icon: 'query_stats', badge: null },
+  { id: 'milestones', label: 'المراحل', icon: 'flag', badge: '4' },
   { id: 'updates', label: 'التحديثات', icon: 'campaign', badge: '4' },
   { id: 'community', label: 'المجتمع', icon: 'forum', badge: '128' },
   { id: 'faq', label: 'الأسئلة', icon: 'help', badge: null },
+];
+
+/**
+ * §10 milestone escrow — each row mirrors apps/api Milestone with
+ * status drawn from PENDING → SUBMITTED → APPROVED → RELEASED. The
+ * release amount is computed as raised × pct / 100.
+ */
+export type MilestoneStatus = 'PENDING' | 'SUBMITTED' | 'APPROVED' | 'RELEASED';
+
+export interface WathbaMilestone {
+  id: string;
+  order: number;
+  titleAr: string;
+  descAr: string;
+  releasePct: number;
+  status: MilestoneStatus;
+  evidenceUrl?: string | null;
+  releasedAt?: string | null;
+}
+
+export const wathbaMilestones: WathbaMilestone[] = [
+  {
+    id: 'm1', order: 1, releasePct: 25, status: 'RELEASED',
+    titleAr: 'تأمين خط الإنتاج', descAr: 'توقيع اتفاقية المصنع وتأمين خطّ تجميع مخصّص لـ٥٠٠ وحدة من النموذج الأوّل.',
+    evidenceUrl: '#evidence-m1', releasedAt: '٢٠٢٦/٠٢/١٢',
+  },
+  {
+    id: 'm2', order: 2, releasePct: 35, status: 'APPROVED',
+    titleAr: 'الإنتاج الأوّلي + شهادة الجودة', descAr: 'إنتاج أوّل ٢٠٠ وحدة + اجتياز اختبار الـIP54 + شهادة CE.',
+    evidenceUrl: '#evidence-m2', releasedAt: null,
+  },
+  {
+    id: 'm3', order: 3, releasePct: 25, status: 'SUBMITTED',
+    titleAr: 'الشحن للداعمين', descAr: 'بدء شحن الباقات للداعمين عبر شركاء الشحن الإقليميين.',
+    evidenceUrl: null, releasedAt: null,
+  },
+  {
+    id: 'm4', order: 4, releasePct: 15, status: 'PENDING',
+    titleAr: 'التشغيل والدعم', descAr: 'دعم فني أولي للداعمين خلال أول ٩٠ يوماً من التسليم + إصلاحات مجّانية.',
+    evidenceUrl: null, releasedAt: null,
+  },
+];
+
+/**
+ * §10 reverse supplier auction — each RFQ is a sourcing request a creator
+ * publishes; suppliers bid (amount + lead time + spec compliance).
+ */
+export interface WathbaRfq {
+  id: string;
+  ventureTitleAr: string;
+  ventureSlug: string;
+  specsAr: string;
+  dueDate: string;
+  bidsCount: number;
+  status: 'OPEN' | 'AWARDED' | 'CLOSED';
+  category: string;
+}
+
+export const wathbaRfqs: WathbaRfq[] = [
+  {
+    id: 'rfq-001',
+    ventureTitleAr: 'سِرب — درون التصوير الذكي',
+    ventureSlug: 'p1',
+    specsAr: 'مطلوب ٥٠٠ وحدة بطارية ليثيوم بوليمر ٤٥٠٠ مللي أمبير، تصنيع بمعايير IEC ٦٢١٣٣ مع شهادة منشأ.',
+    dueDate: '٢٠٢٦/٠٧/١٥', bidsCount: 7, status: 'OPEN', category: 'مكوّنات إلكترونية',
+  },
+  {
+    id: 'rfq-002',
+    ventureTitleAr: 'بستان — حقيبة من مواد معاد تدويرها',
+    ventureSlug: 'p4',
+    specsAr: 'مطلوب ٢٠٠٠ متر من نسيج معاد تدويره مصدره مؤكّد، عرض ١٥٠ سم، وزن ٢٢٠–٢٥٠ غ/م².',
+    dueDate: '٢٠٢٦/٠٧/٠٢', bidsCount: 4, status: 'OPEN', category: 'مواد خام',
+  },
+  {
+    id: 'rfq-003',
+    ventureTitleAr: 'حكايا — لعبة الطاولة العربية',
+    ventureSlug: 'p2',
+    specsAr: 'طباعة ١٠٠٠ صندوق كرتون فاخر ٣٠×٣٠ سم مع طبقة ماط ولامي على الأركان.',
+    dueDate: '٢٠٢٦/٠٦/٣٠', bidsCount: 9, status: 'AWARDED', category: 'تغليف وطباعة',
+  },
+  {
+    id: 'rfq-004',
+    ventureTitleAr: 'نواة — حديقة منزلية ذكية',
+    ventureSlug: 'p7',
+    specsAr: 'تصنيع ٣٠٠ وحدة بلاستيك مقاوم للأشعة فوق البنفسجية، تصميم مزود مع المتسابق، شهادة FDA.',
+    dueDate: '٢٠٢٦/٠٧/٢٠', bidsCount: 2, status: 'OPEN', category: 'تصنيع',
+  },
+];
+
+export interface WathbaSupplierBid {
+  id: string;
+  rfqId: string;
+  rfqTitleAr: string;
+  amount: number;
+  leadTimeDays: number;
+  status: 'PENDING' | 'AWARDED' | 'REJECTED';
+  submittedAt: string;
+}
+
+export const wathbaMySupplierBids: WathbaSupplierBid[] = [
+  { id: 'b-1', rfqId: 'rfq-003', rfqTitleAr: 'حكايا — لعبة الطاولة العربية', amount: 18_500, leadTimeDays: 21, status: 'AWARDED', submittedAt: 'قبل أسبوع' },
+  { id: 'b-2', rfqId: 'rfq-001', rfqTitleAr: 'سِرب — درون التصوير الذكي',    amount: 84_200, leadTimeDays: 30, status: 'PENDING',  submittedAt: 'قبل يومين' },
+  { id: 'b-3', rfqId: 'rfq-002', rfqTitleAr: 'بستان — حقيبة من مواد معاد تدويرها', amount: 22_100, leadTimeDays: 18, status: 'REJECTED', submittedAt: 'قبل ٣ أيام' },
 ];
 
 export const wathbaPledgeSteps = [

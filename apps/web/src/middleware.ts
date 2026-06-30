@@ -1,25 +1,55 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Auth middleware — gates `/projects/*` (and child routes) behind the
- * `wathba_session` httpOnly cookie set by `/sign-in` / `/sign-up`.
+ * Auth middleware — **public-by-default** for browsing, auth-gated only for
+ * acting (Kickstarter pattern).
  *
- * Public routes:
- *   /                — redirects (via app/page.tsx) to /projects → bounces here
- *   /sign-in, /sign-up
- *   /_next/*, /api/*, /favicon.ico, /robots.txt, /sitemap.xml
+ * Anyone can read: home, explore, category, search, full project page,
+ * how-it-works, ranks, legal, help.
+ * Only these paths require `wathba_session`:
+ *   /projects/start              — create a project
+ *   /projects/dashboard          — creator dashboard
+ *   /projects/admin              — admin console
+ *   /projects/supplier           — supplier portal (submit bids)
+ *   /projects/payments           — payment history / wallet
+ *   /projects/settings           — account settings
+ *   /projects/notifications      — inbox
+ *   /projects/me/*               — backer's own pages (pledges / profile)
+ *   /projects/<slug>/back        — pledge flow
+ *   /sign-up/nafath              — KYC step (signed-up users only)
  */
+
+const PROTECTED_PREFIXES = [
+  '/projects/start',
+  '/projects/submit',
+  '/projects/dashboard',
+  '/projects/admin',
+  '/projects/supplier',
+  '/projects/payments',
+  '/projects/settings',
+  '/projects/notifications',
+  '/projects/me/',
+  '/sign-up/nafath',
+];
+
+/** /projects/<anything>/back also requires auth. */
+const BACK_RE = /^\/projects\/[^/]+\/back\b/;
+
+function isProtected(pathname: string): boolean {
+  if (PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) return true;
+  return BACK_RE.test(pathname);
+}
+
 export function middleware(req: NextRequest): NextResponse {
   const session = req.cookies.get('wathba_session')?.value;
-  const { pathname } = req.nextUrl;
-  const requiresAuth = pathname.startsWith('/projects');
+  const { pathname, search } = req.nextUrl;
 
-  if (requiresAuth && !session) {
+  if (isProtected(pathname) && !session) {
     const url = req.nextUrl.clone();
     url.pathname = '/sign-in';
-    /* Preserve the original destination so we can bounce-back post-login;
-     * the sign-in action ignores this today but it's there for the next pass. */
-    url.searchParams.set('next', pathname);
+    // Preserve the original destination so the sign-in action can bounce
+    // the user back. Includes query-string so deep links survive auth.
+    url.searchParams.set('next', pathname + (search || ''));
     return NextResponse.redirect(url);
   }
   return NextResponse.next();
