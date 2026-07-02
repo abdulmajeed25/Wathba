@@ -108,6 +108,38 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                   >
                     {tone.label}
                   </span>
+                  {/* Sprint 1 / P0-202 — refund status detail per pledge */}
+                  {p.state.toUpperCase() === 'REFUNDED' && (
+                    <div
+                      style={{
+                        width: '100%',
+                        fontSize: 12.5,
+                        lineHeight: 1.6,
+                        color: 'var(--muted)',
+                        background: 'rgba(var(--ink-rgb),.035)',
+                        border: '1px solid rgba(var(--ink-rgb),.08)',
+                        borderRadius: 10,
+                        padding: '10px 14px',
+                      }}
+                    >
+                      أُلغي الحجز وأُعيد المبلغ إلى وسيلة الدفع
+                      {p.refundedAt && (
+                        <>
+                          {' '}بتاريخ{' '}
+                          <Num style={{ fontWeight: 600 }}>
+                            {new Date(p.refundedAt).toLocaleDateString('ar-SA')}
+                          </Num>
+                        </>
+                      )}
+                      . يظهر في كشف حسابك خلال ٣–١٤ يوم عمل حسب البنك.
+                      {p.paymentRef && (
+                        <>
+                          {' '}رقم العملية:{' '}
+                          <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{p.paymentRef}</Num>
+                        </>
+                      )}
+                    </div>
+                  )}
                   {p.state.toUpperCase() === 'HELD' && p.venture?.slug && (
                     <a
                       href={`/projects/${p.venture.slug}`}

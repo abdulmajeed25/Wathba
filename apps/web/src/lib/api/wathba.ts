@@ -75,7 +75,25 @@ export interface ApiBackingRow {
   currency: string;
   committedAt: string;
   state: string;
+  /** Sprint 1 / P0-202 — refund visibility. */
+  capturedAt: string | null;
+  refundedAt: string | null;
+  paymentRef: string | null;
   venture?: { id: string; slug: string; title: string; state: string };
+}
+
+/** Raw pledge row as `/v1/pledges/me` actually returns it. */
+interface ApiPledgeRaw {
+  id: string;
+  projectId: string;
+  backerId: string;
+  amountHalalas: number;
+  addOnsHalalas: number;
+  status: string;
+  createdAt: string;
+  capturedAt: string | null;
+  refundedAt: string | null;
+  paymentRef: string | null;
 }
 
 export interface ApiApplicationRow {
@@ -100,8 +118,12 @@ async function fetchJson<T>(
   try {
     const headers: HeadersInit = {};
     if (token) headers.Authorization = `Bearer ${token}`;
+    // Authed reads are per-user and MUST NOT enter the shared data cache
+    // (Next keys the cache on URL, not on the Authorization header — caching
+    // here would leak one user's rows to another and serve stale money
+    // state). Public reads keep ISR-style revalidation.
     const res = await fetch(`${API_BASE}${path}`, {
-      next: { revalidate },
+      ...(token ? { cache: 'no-store' as const } : { next: { revalidate } }),
       ...(Object.keys(headers).length > 0 ? { headers } : {}),
     });
     if (!res.ok) return null;
@@ -185,8 +207,23 @@ export async function listForumThreads(_ventureId: string): Promise<ApiForumThre
 
 export async function listMyBackings(token?: string | null): Promise<ApiBackingRow[] | null> {
   const bearer = token ?? (await readSessionToken());
-  const data = await fetchJson<{ items: ApiBackingRow[] }>('/v1/pledges/me', 30, bearer);
-  return data?.items ?? null;
+  const data = await fetchJson<{ items: ApiPledgeRaw[] }>('/v1/pledges/me', 30, bearer);
+  if (!data?.items) return null;
+  // Map the API pledge shape onto the UI row contract. Before Sprint 1 the
+  // raw items were cast unmapped — `state`/`amount` were undefined and the
+  // page 500'd for any signed-in backer with pledges.
+  return data.items.map((r) => ({
+    id: r.id,
+    ventureId: r.projectId,
+    backerUserId: r.backerId,
+    amount: String(r.amountHalalas + (r.addOnsHalalas ?? 0)),
+    currency: 'SAR',
+    committedAt: r.createdAt,
+    state: r.status,
+    capturedAt: r.capturedAt,
+    refundedAt: r.refundedAt,
+    paymentRef: r.paymentRef,
+  }));
 }
 
 export async function listMyApplications(
