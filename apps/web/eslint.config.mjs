@@ -30,6 +30,12 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       'react/no-unescaped-entities': 'off',
       'react-hooks/exhaustive-deps': 'warn',
+      // Sprint 4 / P1-1001 — every control must carry an accessible name.
+      'jsx-a11y/label-has-associated-control': [
+        'warn',
+        { assert: 'either', depth: 3 },
+      ],
+      'jsx-a11y/control-has-associated-label': 'off',
     },
   },
 );

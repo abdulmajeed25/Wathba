@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import {
   deriveProject,
@@ -488,6 +488,7 @@ export function WathbaPledge({
               </div>
               <div style={{ marginBottom: 14 }}>
                 <label
+                  htmlFor="wathba-card-number"
                   style={{
                     fontSize: 13,
                     color: 'var(--muted)',
@@ -508,6 +509,7 @@ export function WathbaPledge({
                   }}
                 >
                   <input
+                    id="wathba-card-number"
                     value={cardNumber}
                     onChange={(e) => setCardNumber(e.target.value)}
                     placeholder="4111 1111 1111 1111"
@@ -895,9 +897,11 @@ function PledgeField({
   onChange?: (v: string) => void;
   mono?: boolean;
 }) {
+  const id = useId();
   return (
     <div>
       <label
+        htmlFor={id}
         style={{
           fontSize: 13,
           color: 'var(--muted)',
@@ -908,6 +912,8 @@ function PledgeField({
         {label}
       </label>
       <input
+        id={id}
+        aria-label={label}
         placeholder={placeholder}
         defaultValue={defaultValue}
         {...(onChange
