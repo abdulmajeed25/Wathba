@@ -2,7 +2,7 @@ import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, type AuthResponse } from './auth.service';
-import { SignInDto, SignUpDto } from './dto/auth.dto';
+import { RefreshDto, SignInDto, SignUpDto } from './dto/auth.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -33,5 +33,26 @@ export class AuthController {
   @ApiOperation({ summary: 'Sign in (email + password)' })
   async signIn(@Body() dto: SignInDto): Promise<AuthResponse> {
     return this.auth.signIn(dto.email, dto.password);
+  }
+
+  /**
+   * Refresh rotation (Sprint 2 / P1-502) — one-time-use refresh token yields
+   * a new access+refresh pair. Reusing a rotated token revokes every session
+   * for that user (replay defense).
+   */
+  @Post('refresh')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({ summary: 'Rotate refresh token → new access + refresh pair' })
+  async refresh(@Body() dto: RefreshDto): Promise<AuthResponse> {
+    return this.auth.refresh(dto.refreshToken);
+  }
+
+  @Post('signout')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @ApiOperation({ summary: 'Revoke a refresh token (idempotent)' })
+  async signOut(@Body() dto: RefreshDto): Promise<{ revoked: boolean }> {
+    return this.auth.signOut(dto.refreshToken);
   }
 }

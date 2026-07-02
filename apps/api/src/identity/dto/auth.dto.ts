@@ -50,3 +50,9 @@ export class UpdateProfileDto {
   @IsOptional() @IsString()
   locale?: string;
 }
+
+export class RefreshDto {
+  @ApiProperty({ description: 'the rotating refresh token issued at signin/signup/refresh' })
+  @IsString() @MinLength(32)
+  refreshToken!: string;
+}

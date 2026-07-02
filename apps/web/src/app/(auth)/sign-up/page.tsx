@@ -80,13 +80,13 @@ export default async function SignUpPage({
           />
           <span className="text-neutral-600">
             أوافق على{' '}
-            <a href="/projects/legal/terms" className="text-emerald-700 underline">
+            <Link href="/projects/legal/terms" className="text-emerald-700 underline">
               الشروط والأحكام
-            </a>{' '}
+            </Link>{' '}
             و{' '}
-            <a href="/projects/legal/privacy" className="text-emerald-700 underline">
+            <Link href="/projects/legal/privacy" className="text-emerald-700 underline">
               سياسة الخصوصية (PDPL)
-            </a>
+            </Link>
             .
           </span>
         </label>

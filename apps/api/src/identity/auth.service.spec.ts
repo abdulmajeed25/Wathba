@@ -29,6 +29,12 @@ function makePrisma(): any {
         Promise.resolve({ id: 'u1', ...data }),
       ),
     },
+    refreshToken: {
+      create: jest.fn().mockResolvedValue({ id: 'rt-1' }),
+      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUnique: jest.fn(),
+    },
   };
 }
 
@@ -108,5 +114,62 @@ describe('AuthService.signIn — lockout FSM', () => {
       await expect(svc.signIn(EMAIL, 'wrong-pass')).rejects.toBeInstanceOf(UnauthorizedException);
     }
     await expect(svc.signIn('other@test.wathba.sa', PASS)).resolves.toBeDefined();
+  });
+});
+
+describe('AuthService.refresh — rotation FSM (Sprint 2 / P1-502)', () => {
+  const activeRow = {
+    id: 'rt-1',
+    userId: 'u1',
+    tokenHash: 'h',
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 86_400_000),
+  };
+
+  function svcWith(row: any): { svc: AuthService; prisma: any } {
+    const prisma = makePrisma();
+    prisma.refreshToken.findUnique = jest.fn().mockResolvedValue(row);
+    const users = makeUsers({ id: 'u1', email: EMAIL, roles: ['BACKER'] });
+    const svc = new AuthService(prisma, users, makeJwt());
+    return { svc, prisma };
+  }
+
+  it('valid token → new pair + old token revoked with successor link', async () => {
+    const { svc, prisma } = svcWith(activeRow);
+    const out = await svc.refresh('raw-token-value-that-is-long-enough');
+    expect(out.accessToken).toBe('signed.jwt.token');
+    expect(out.refreshToken).toEqual(expect.any(String));
+    expect(prisma.refreshToken.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'rt-1' },
+        data: expect.objectContaining({ revokedAt: expect.any(Date), replacedById: 'rt-1' }),
+      }),
+    );
+  });
+
+  it('replayed (already-revoked) token → 401 and ALL sessions revoked', async () => {
+    const { svc, prisma } = svcWith({ ...activeRow, revokedAt: new Date() });
+    await expect(svc.refresh('raw-token-value-that-is-long-enough')).rejects.toThrow(/reuse detected/);
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }),
+    );
+  });
+
+  it('expired token → 401', async () => {
+    const { svc } = svcWith({ ...activeRow, expiresAt: new Date(Date.now() - 1000) });
+    await expect(svc.refresh('raw-token-value-that-is-long-enough')).rejects.toThrow(/expired/);
+  });
+
+  it('unknown token → 401', async () => {
+    const { svc } = svcWith(null);
+    await expect(svc.refresh('raw-token-value-that-is-long-enough')).rejects.toThrow(/invalid refresh/);
+  });
+
+  it('signOut revokes exactly the presented token (idempotent)', async () => {
+    const { svc, prisma } = svcWith(activeRow);
+    const r = await svc.signOut('raw-token-value-that-is-long-enough');
+    expect(r.revoked).toBe(true);
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
+    expect((await svc.signOut('raw-token-value-that-is-long-enough')).revoked).toBe(false);
   });
 });

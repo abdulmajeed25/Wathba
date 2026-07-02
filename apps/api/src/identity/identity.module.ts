@@ -38,7 +38,8 @@ import { AuditService } from './audit.service';
           signOptions: {
             // JwtModule v11 types expiresIn as `ms.StringValue | number`; the
             // env value is a runtime string so cast at the boundary.
-            expiresIn: (cfg.get<string>('JWT_EXPIRES_IN') ?? '14d') as `${number}d`,
+            // Sprint 2 / P1-502: short-lived access; refresh rotation carries the session.
+            expiresIn: (cfg.get<string>('JWT_EXPIRES_IN') ?? '1h') as `${number}h`,
           },
         };
       },

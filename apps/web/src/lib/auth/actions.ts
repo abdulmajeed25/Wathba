@@ -18,13 +18,15 @@ import { redirect } from 'next/navigation';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const SESSION_COOKIE = 'wathba_session';
+const REFRESH_COOKIE = 'wathba_refresh';
 
 interface AuthResponse {
   accessToken: string;
+  refreshToken?: string;
   user: Record<string, unknown>;
 }
 
-async function setSessionCookie(token: string): Promise<void> {
+async function setSessionCookie(token: string, refreshToken?: string): Promise<void> {
   const store = await cookies();
   store.set({
     name: SESSION_COOKIE,
@@ -33,15 +35,41 @@ async function setSessionCookie(token: string): Promise<void> {
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    /* JWT default TTL on apps/api is ~7d; the cookie outlives a single
-     * navigation pair, then middleware re-checks on every protected hit. */
-    maxAge: 60 * 60 * 24 * 7,
+    /* Access JWT is short-lived (1h on apps/api since Sprint 2); middleware
+     * rotates it via the refresh cookie before it lapses. */
+    maxAge: 60 * 60 * 24 * 30,
   });
+  if (refreshToken) {
+    store.set({
+      name: REFRESH_COOKIE,
+      value: refreshToken,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+  }
 }
 
 async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
+  const refresh = store.get(REFRESH_COOKIE)?.value;
+  if (refresh) {
+    // Best-effort server-side revocation (rotating token, one-time use).
+    try {
+      await fetch(`${API_BASE}/v1/auth/signout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refresh }),
+        cache: 'no-store',
+      });
+    } catch {
+      /* revocation is best-effort — cookie deletion still logs the browser out */
+    }
+  }
   store.delete(SESSION_COOKIE);
+  store.delete(REFRESH_COOKIE);
 }
 
 /** Safe-list redirect targets so a hostile `next=` can't bounce off-site. */
@@ -74,7 +102,7 @@ export async function signInAction(formData: FormData): Promise<void> {
   }
 
   if (!body?.accessToken) redirect(`/sign-in?err=server&next=${encodeURIComponent(next)}`);
-  await setSessionCookie(body.accessToken);
+  await setSessionCookie(body.accessToken, body.refreshToken);
   redirect(next);
 }
 
@@ -106,7 +134,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
   }
 
   if (!body?.accessToken) redirect(`/sign-up?err=server&next=${encodeURIComponent(next)}`);
-  await setSessionCookie(body.accessToken);
+  await setSessionCookie(body.accessToken, body.refreshToken);
   // §8 KYC step — go straight to Nafath verification after a fresh signup;
   // the post-Nafath bounce honors the original `next` URL.
   redirect(`/sign-up/nafath?next=${encodeURIComponent(next)}`);

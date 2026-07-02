@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 import type { UserRole } from '@prisma/client';
@@ -19,8 +20,12 @@ export interface JwtPayload {
 
 export interface AuthResponse {
   accessToken: string;
+  /** Rotating refresh token (Sprint 2 / P1-502) — httpOnly-cookie material. */
+  refreshToken: string;
   user: Record<string, unknown>;
 }
+
+const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /**
  * Per-email login back-off. Hard-coded (no DB / no Redis) for v1: each API
@@ -120,7 +125,69 @@ export class AuthService {
   private async issue(sub: string, email: string, roles: UserRole[]): Promise<AuthResponse> {
     const payload: JwtPayload = { sub, email, roles };
     const accessToken = await this.jwt.signAsync(payload);
+    const refreshToken = await this.mintRefreshToken(sub);
     const user = await this.users.findById(sub);
-    return { accessToken, user: this.users.toPublic(user) };
+    return { accessToken, refreshToken, user: this.users.toPublic(user) };
   }
+
+  // -- Refresh rotation (Sprint 2 / P1-502) -----------------------------------
+
+  private async mintRefreshToken(userId: string, replacesId?: string): Promise<string> {
+    const raw = randomBytes(48).toString('base64url');
+    const row = await this.prisma.refreshToken.create({
+      data: {
+        userId,
+        tokenHash: hashToken(raw),
+        expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+      },
+    });
+    if (replacesId) {
+      await this.prisma.refreshToken.update({
+        where: { id: replacesId },
+        data: { revokedAt: new Date(), replacedById: row.id },
+      });
+    }
+    return raw;
+  }
+
+  /**
+   * Rotate: a valid refresh token yields a fresh access + refresh pair and
+   * revokes itself. Presenting an ALREADY-ROTATED token is a replay signal —
+   * every session for that user is revoked and the caller gets 401.
+   */
+  async refresh(rawToken: string): Promise<AuthResponse> {
+    const row = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: hashToken(rawToken) },
+    });
+    if (!row) throw new UnauthorizedException('invalid refresh token');
+    if (row.revokedAt) {
+      // Replay of a rotated token → assume theft, kill all sessions.
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: row.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('refresh token reuse detected — all sessions revoked');
+    }
+    if (row.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('refresh token expired');
+    }
+    const user = await this.users.findById(row.userId);
+    const payload: JwtPayload = { sub: user.id, email: user.email, roles: user.roles };
+    const accessToken = await this.jwt.signAsync(payload);
+    const refreshToken = await this.mintRefreshToken(user.id, row.id);
+    return { accessToken, refreshToken, user: this.users.toPublic(user) };
+  }
+
+  /** Sign-out: revoke this refresh token (idempotent). */
+  async signOut(rawToken: string): Promise<{ revoked: boolean }> {
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: hashToken(rawToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: count > 0 };
+  }
+}
+
+function hashToken(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex');
 }

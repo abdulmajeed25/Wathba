@@ -40,9 +40,69 @@ function isProtected(pathname: string): boolean {
   return BACK_RE.test(pathname);
 }
 
-export function middleware(req: NextRequest): NextResponse {
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
+/** Decode a JWT's exp (seconds) without verifying — verification is the
+ *  API's job; middleware only needs "is it about to lapse?". */
+function jwtExpMs(token: string): number | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: number;
+    };
+    return typeof json.exp === 'number' ? json.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+const ROTATE_AHEAD_MS = 5 * 60 * 1000; // rotate when <5 min of access left
+
+export async function middleware(req: NextRequest): Promise<NextResponse> {
   const session = req.cookies.get('wathba_session')?.value;
+  const refresh = req.cookies.get('wathba_refresh')?.value;
   const { pathname, search } = req.nextUrl;
+
+  // Sprint 2 / P1-502 — rotate a lapsing access token transparently.
+  if (session && refresh) {
+    const expMs = jwtExpMs(session);
+    if (expMs !== null && expMs - Date.now() < ROTATE_AHEAD_MS) {
+      try {
+        const r = await fetch(`${API_BASE}/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ refreshToken: refresh }),
+          cache: 'no-store',
+        });
+        if (r.ok) {
+          const body = (await r.json()) as { accessToken: string; refreshToken: string };
+          const res = NextResponse.next();
+          const secure = process.env.NODE_ENV === 'production';
+          res.cookies.set('wathba_session', body.accessToken, {
+            httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 60 * 60 * 24 * 30,
+          });
+          res.cookies.set('wathba_refresh', body.refreshToken, {
+            httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 60 * 60 * 24 * 30,
+          });
+          return res;
+        }
+        // Refresh rejected (revoked / replayed / expired) → force re-auth on
+        // protected paths by treating the session as absent.
+        if (isProtected(pathname)) {
+          const url = req.nextUrl.clone();
+          url.pathname = '/sign-in';
+          url.searchParams.set('next', pathname + (search || ''));
+          const res = NextResponse.redirect(url);
+          res.cookies.delete('wathba_session');
+          res.cookies.delete('wathba_refresh');
+          return res;
+        }
+      } catch {
+        /* API unreachable — fall through; SSR fetchers will degrade. */
+      }
+    }
+  }
 
   if (isProtected(pathname) && !session) {
     const url = req.nextUrl.clone();

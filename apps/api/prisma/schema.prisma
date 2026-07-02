@@ -762,3 +762,19 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([action, createdAt])
 }
+
+/// Rotating refresh tokens (Sprint 2 / P1-502). Only the SHA-256 of the
+/// token is stored. Rotation revokes the old row and links its successor;
+/// presenting an already-revoked token is treated as replay → all of the
+/// user's sessions are revoked.
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+}
