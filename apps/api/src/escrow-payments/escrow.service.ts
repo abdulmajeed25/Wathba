@@ -85,9 +85,30 @@ export class EscrowService {
     return { ok, fail };
   }
 
+  /**
+   * Sprint 1 / P0-303: PSP calls retry 3× with exponential backoff before
+   * counting as failed. Moyasar capture/void are idempotent per paymentRef,
+   * so a retry after an ambiguous timeout is safe.
+   */
+  private async withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        this.logger.warn(`${label} attempt ${attempt}/3 failed: ${String(err)}`);
+        if (attempt < 3) await new Promise((r) => setTimeout(r, 250 * 2 ** (attempt - 1)));
+      }
+    }
+    throw lastErr;
+  }
+
   private async captureOne(p: Pledge): Promise<boolean> {
     try {
-      const { ok } = await this.moyasar.capture(p.paymentRef);
+      const { ok } = await this.withRetry(`capture pledge=${p.id}`, () =>
+        this.moyasar.capture(p.paymentRef),
+      );
       if (!ok) return false;
       await this.prisma.pledge.update({
         where: { id: p.id },
@@ -110,7 +131,9 @@ export class EscrowService {
   private async refundOne(p: Pledge): Promise<boolean> {
     try {
       // Held funds are voided rather than refunded; stub returns ok.
-      const { ok } = await this.moyasar.void(p.paymentRef);
+      const { ok } = await this.withRetry(`void pledge=${p.id}`, () =>
+        this.moyasar.void(p.paymentRef),
+      );
       if (!ok) return false;
       await this.prisma.pledge.update({
         where: { id: p.id },

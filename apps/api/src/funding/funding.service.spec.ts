@@ -26,6 +26,11 @@ describe('FundingService.settleProject (§5 FSM)', () => {
       project: {
         findUnique: jest.fn().mockResolvedValue(project),
         update: jest.fn().mockResolvedValue(project),
+        // Sprint 1 / P1-306 atomic claim — count=1 means "we won the settle".
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      pledge: {
+        count: jest.fn().mockResolvedValue(0),
       },
     } as unknown as PrismaService;
     const escrow = {
@@ -39,6 +44,16 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     } as unknown as import('../community/community.service').CommunityService;
     return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any), prisma, escrow };
   };
+
+  it('no-ops when another settler already claimed the transition (P1-306 race)', async () => {
+    const { svc, prisma, escrow } = buildService(buildProject());
+    (prisma as unknown as { project: { updateMany: jest.Mock } }).project.updateMany
+      .mockResolvedValue({ count: 0 });
+    const res = await svc.settleProject('p1');
+    expect(res.transition).toBe('noop');
+    expect(escrow.captureAllHeld).not.toHaveBeenCalled();
+    expect(escrow.refundAllHeld).not.toHaveBeenCalled();
+  });
 
   it('captures when raised exactly meets the 80% threshold', async () => {
     const { svc, escrow } = buildService(buildProject({ raisedHalalas: 80_000_000n }));

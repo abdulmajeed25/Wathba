@@ -264,28 +264,78 @@ export class FundingService {
       `Settling project=${projectId} raised=${project.raisedHalalas} threshold=${threshold} successful=${successful}`,
     );
 
+    // Sprint 1 / P1-306: atomic claim — only the updateMany that still sees
+    // LIVE wins; a concurrent settler (double cron / manual trigger) no-ops.
+    const claimed = await this.prisma.project.updateMany({
+      where: { id: projectId, status: ProjectStatus.LIVE },
+      data: { status: successful ? ProjectStatus.SUCCESSFUL : ProjectStatus.FAILED },
+    });
+    if (claimed.count === 0) return { projectId, transition: 'noop' };
+
     if (successful) {
-      await this.prisma.project.update({
-        where: { id: projectId },
-        data: { status: ProjectStatus.SUCCESSFUL },
-      });
       await this.escrow.captureAllHeld(projectId);
+      // Straggler pass: pledges that passed the LIVE check before our claim
+      // but committed after the first capture query are still HELD — sweep
+      // them once more before declaring FUNDED.
+      const straggler = await this.escrow.captureAllHeld(projectId);
+      const residue = await this.countHeld(projectId);
+      if (straggler.failed > 0 || residue > 0) {
+        this.logger.error(
+          `SETTLEMENT ALERT project=${projectId}: ${residue} pledge(s) still HELD after capture ` +
+            `(authorization holds expire ~7 days — retry via POST /v1/admin/projects/${projectId}/settle)`,
+        );
+      }
       await this.prisma.project.update({
         where: { id: projectId },
         data: { status: ProjectStatus.FUNDED },
       });
       return { projectId, transition: 'funded' };
     }
-    await this.prisma.project.update({
-      where: { id: projectId },
-      data: { status: ProjectStatus.FAILED },
-    });
+
     await this.escrow.refundAllHeld(projectId);
+    const straggler = await this.escrow.refundAllHeld(projectId);
+    const residue = await this.countHeld(projectId);
+    if (straggler.failed > 0 || residue > 0) {
+      this.logger.error(
+        `SETTLEMENT ALERT project=${projectId}: ${residue} pledge(s) still HELD after refund — ` +
+          `retry via POST /v1/admin/projects/${projectId}/settle`,
+      );
+    }
     await this.prisma.project.update({
       where: { id: projectId },
       data: { status: ProjectStatus.REFUNDED },
     });
     return { projectId, transition: 'refunded' };
+  }
+
+  private async countHeld(projectId: string): Promise<number> {
+    return this.prisma.pledge.count({
+      where: { projectId, status: PledgeStatus.HELD },
+    });
+  }
+
+  /**
+   * Sprint 1 / P0-303: manual re-settlement for a project stuck with HELD
+   * pledges after its terminal transition (PSP outage mid-settle). Runs the
+   * matching capture/refund sweep for the project's terminal state.
+   */
+  async resettleResidue(projectId: string): Promise<{
+    projectId: string;
+    swept: { ok: number; failed: number };
+  }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('project not found');
+    if (project.status === ProjectStatus.FUNDED || project.status === ProjectStatus.SUCCESSFUL) {
+      const r = await this.escrow.captureAllHeld(projectId);
+      return { projectId, swept: { ok: r.captured, failed: r.failed } };
+    }
+    if (project.status === ProjectStatus.REFUNDED || project.status === ProjectStatus.FAILED) {
+      const r = await this.escrow.refundAllHeld(projectId);
+      return { projectId, swept: { ok: r.refunded, failed: r.failed } };
+    }
+    throw new BadRequestException(
+      `project is ${project.status} — residue sweep only applies after settlement`,
+    );
   }
 
   /** Settle every project whose deadline has passed (called by deadline cron). */

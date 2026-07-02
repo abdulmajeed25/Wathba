@@ -15,7 +15,10 @@ export class DeadlineScheduler {
 
   @Cron(CronExpression.EVERY_MINUTE, { name: 'funding-deadline-tick' })
   async tick(): Promise<void> {
-    if (process.env.DEADLINE_TICK_DISABLED === 'true') return;
+    if (process.env.DEADLINE_TICK_DISABLED === 'true') {
+      this.logger.warn('deadline tick SKIPPED — DEADLINE_TICK_DISABLED=true (unset this after maintenance!)');
+      return;
+    }
     try {
       const { scanned, settled } = await this.funding.settleDueProjects();
       if (settled > 0) this.logger.log(`Deadline tick: scanned=${scanned} settled=${settled}`);
