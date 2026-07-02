@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ProjectStatus, type Project } from '@prisma/client';
+import { Prisma, ProjectStatus, type Project, type UserRole } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
@@ -70,6 +70,23 @@ export class AdminService {
       phone: u.phone,
       createdAt: u.createdAt.toISOString(),
     }));
+  }
+
+  /** Sprint 3 / P0-302: additive role grant (idempotent). */
+  async grantRole(
+    userId: string,
+    role: 'CREATOR' | 'BACKER' | 'SUPPLIER',
+  ): Promise<{ roles: string[] }> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('user not found');
+    const roles = user.roles.includes(role as UserRole)
+      ? user.roles
+      : [...user.roles, role as UserRole];
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { roles },
+    });
+    return { roles: updated.roles };
   }
 
   async forceVerifyKyc(userId: string): Promise<{ verified: true }> {

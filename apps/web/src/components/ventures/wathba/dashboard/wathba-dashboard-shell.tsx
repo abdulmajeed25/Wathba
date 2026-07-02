@@ -27,6 +27,7 @@ function navFor(projectId: string): NavItem[] {
     { href: `${base}/milestones`, labelAr: 'المراحل والشفافية', icon: 'flag' },
     { href: `${base}/updates`, labelAr: 'التحديثات', icon: 'campaign' },
     { href: `${base}/contests`, labelAr: 'علّق واربح', icon: 'celebration' },
+    { href: `${base}/rfqs`, labelAr: 'طلبات التوريد', icon: 'gavel' },
     { href: `${base}/comments`, labelAr: 'التعليقات', icon: 'forum' },
     { href: `${base}/faq`, labelAr: 'الأسئلة', icon: 'help' },
     { href: `${base}/community`, labelAr: 'المجتمع', icon: 'groups' },

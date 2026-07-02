@@ -33,3 +33,9 @@ export class SetPlatformPartnerDto {
   @Type(() => PlatformStakePayload)
   platformPartner!: PlatformStakePayload | null;
 }
+
+export class GrantRoleDto {
+  @ApiProperty({ enum: ['CREATOR', 'BACKER', 'SUPPLIER'], example: 'SUPPLIER' })
+  @IsIn(['CREATOR', 'BACKER', 'SUPPLIER'])
+  role!: 'CREATOR' | 'BACKER' | 'SUPPLIER';
+}

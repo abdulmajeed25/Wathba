@@ -9,7 +9,7 @@ import { FundingService } from '../funding/funding.service';
 import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { AdminService } from './admin.service';
 import { AuditService } from '../identity/audit.service';
-import { ReviewProjectDto, SetPlatformPartnerDto } from './dto/admin.dto';
+import { GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto } from './dto/admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -93,6 +93,22 @@ export class AdminController {
   @ApiOperation({ summary: 'Users awaiting KYC verification' })
   async kyc() {
     return { items: await this.admin.kycQueue() };
+  }
+
+  @Post('users/:id/grant-role')
+  @ApiOperation({ summary: 'Grant a role (e.g. SUPPLIER) to a user — audited (Sprint 3 / P0-302)' })
+  async grantRole(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: GrantRoleDto,
+  ) {
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: `admin.grant-role.${dto.role}`,
+      entity: 'User',
+      entityId: id,
+    });
+    return this.admin.grantRole(id, dto.role);
   }
 
   @Post('users/:id/force-verify')

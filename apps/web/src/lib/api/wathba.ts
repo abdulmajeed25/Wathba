@@ -336,7 +336,8 @@ export interface ApiBidPublic {
   rfqTitleAr: string;
   amountHalalas: number;
   leadTimeDays: number;
-  status: 'PENDING' | 'AWARDED' | 'REJECTED';
+  specComplianceNote?: string;
+  status: 'PENDING' | 'SUBMITTED' | 'AWARDED' | 'REJECTED';
   submittedAt: string;
 }
 
@@ -349,6 +350,22 @@ export async function listMyBids(token?: string | null): Promise<ApiBidPublic[] 
   const bearer = token ?? (await readSessionToken());
   const data = await fetchJson<{ items: ApiBidPublic[] }>(`/v1/bids/me`, 30, bearer);
   return data?.items ?? null;
+}
+
+export interface ApiRfqDetail extends ApiRfqPublic {
+  awardedBidId: string | null;
+  bids?: ApiBidPublic[];
+}
+
+/** Creator's RFQs for one project (Sprint 3 / P0-302). */
+export async function listProjectRfqs(projectId: string): Promise<ApiRfqPublic[] | null> {
+  const data = await fetchJson<{ items: ApiRfqPublic[] }>(`/v1/rfqs?projectId=${projectId}`);
+  return data?.items ?? null;
+}
+
+/** One RFQ with its bids sorted ascending (reverse auction). */
+export async function getRfqDetail(rfqId: string): Promise<ApiRfqDetail | null> {
+  return fetchJson<ApiRfqDetail>(`/v1/rfqs/${rfqId}`, 0);
 }
 
 export interface ApiPayoutRow {

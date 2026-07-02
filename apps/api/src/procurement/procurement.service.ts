@@ -34,13 +34,19 @@ export class ProcurementService {
     });
   }
 
-  async list(q: ListRFQsQueryDto): Promise<RFQ[]> {
+  async list(q: ListRFQsQueryDto): Promise<
+    Array<RFQ & { project: { titleAr: string; category: string }; _count: { bids: number } }>
+  > {
     const where: Prisma.RFQWhereInput = {};
     if (q.projectId) where.projectId = q.projectId;
     if (q.status) where.status = q.status as RFQStatus;
     return this.prisma.rFQ.findMany({
       where,
       orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+      include: {
+        project: { select: { titleAr: true, category: true } },
+        _count: { select: { bids: true } },
+      },
     });
   }
 
@@ -122,17 +128,32 @@ export class ProcurementService {
     });
   }
 
-  async listMyBids(supplierId: string): Promise<SupplierBid[]> {
+  async listMyBids(
+    supplierId: string,
+  ): Promise<Array<SupplierBid & { rfq?: { project: { titleAr: string } } }>> {
     return this.prisma.supplierBid.findMany({
       where: { supplierId },
       orderBy: { createdAt: 'desc' },
+      include: { rfq: { select: { project: { select: { titleAr: true } } } } },
     });
   }
 
-  toPublicRFQ(r: RFQ & { bids?: SupplierBid[] }): Record<string, unknown> {
+  toPublicRFQ(
+    r: RFQ & {
+      bids?: SupplierBid[];
+      project?: { titleAr: string; category?: string };
+      _count?: { bids: number };
+    },
+  ): Record<string, unknown> {
     return {
       id: r.id,
       projectId: r.projectId,
+      // Web-SDK contract fields (ventures naming) — Sprint 3 / P0-302.
+      ventureId: r.projectId,
+      ventureSlug: r.projectId,
+      ventureTitleAr: r.project?.titleAr ?? 'مشروع',
+      category: r.project?.category ?? 'TECH',
+      bidsCount: r._count?.bids ?? r.bids?.length ?? 0,
       specsAr: r.specsAr,
       dueDate: r.dueDate.toISOString(),
       status: r.status,
@@ -142,15 +163,19 @@ export class ProcurementService {
     };
   }
 
-  toPublicBid(b: SupplierBid): Record<string, unknown> {
+  toPublicBid(
+    b: SupplierBid & { rfq?: { project: { titleAr: string } } },
+  ): Record<string, unknown> {
     return {
       id: b.id,
       rfqId: b.rfqId,
+      rfqTitleAr: b.rfq?.project.titleAr ?? 'طلب توريد',
       supplierId: b.supplierId,
       amountHalalas: Number(b.amountHalalas),
       leadTimeDays: b.leadTimeDays,
       specComplianceNote: b.specComplianceNote,
       status: b.status,
+      submittedAt: b.createdAt.toISOString(),
       createdAt: b.createdAt.toISOString(),
     };
   }

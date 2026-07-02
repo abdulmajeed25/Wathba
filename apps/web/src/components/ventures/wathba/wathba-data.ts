@@ -627,7 +627,7 @@ export interface WathbaSupplierBid {
   rfqTitleAr: string;
   amount: number;
   leadTimeDays: number;
-  status: 'PENDING' | 'AWARDED' | 'REJECTED';
+  status: 'PENDING' | 'SUBMITTED' | 'AWARDED' | 'REJECTED';
   submittedAt: string;
 }
 

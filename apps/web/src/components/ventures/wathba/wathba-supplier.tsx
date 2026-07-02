@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +38,7 @@ const STATUS_TONE: Record<string, { label: string; color: string; bg: string }> 
   AWARDED:  { label: 'مُرسى',   color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
   CLOSED:   { label: 'مغلق',   color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
   PENDING:  { label: 'قيد التقييم', color: 'var(--gold)',   bg: 'rgba(251,191,36,.10)' },
+  SUBMITTED:{ label: 'قيد التقييم', color: 'var(--gold)',   bg: 'rgba(251,191,36,.10)' },
   REJECTED: { label: 'مرفوض',    color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
 };
 
@@ -111,12 +113,13 @@ export function WathbaSupplier({
             <RfqList rfqs={rfqs} onApply={(id) => { setSelRfq(id); setTab('submit'); }} />
           </WathbaTabsContent>
           <WathbaTabsContent value="bids">
-            <BidList bids={myBids} />
+            <BidList bids={myBids} isLive={isLive} />
           </WathbaTabsContent>
           <WathbaTabsContent value="submit">
             <SubmitForm
               rfqs={rfqs.filter((r) => r.status === 'OPEN')}
               initialRfqId={selRfq}
+              isLive={isLive}
               onSubmitted={() => {
                 setSubmitted(true);
                 setTimeout(() => setSubmitted(false), 4000);
@@ -209,11 +212,48 @@ function RfqList({ rfqs, onApply }: { rfqs: WathbaRfq[]; onApply: (id: string) =
   );
 }
 
-function BidList({ bids }: { bids: WathbaSupplierBid[] }) {
+function BidList({ bids, isLive }: { bids: WathbaSupplierBid[]; isLive: boolean }) {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
+
+  async function withdraw(bidId: string): Promise<void> {
+    setBusyId(bidId);
+    setRowError(null);
+    try {
+      const res = await fetch(`/api/bids/${bidId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const j = (await res.json()) as { message?: string };
+        setRowError(j.message ?? 'تعذّر سحب العرض');
+        return;
+      }
+      router.refresh();
+    } catch {
+      setRowError('خطأ في الاتصال — أعد المحاولة.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {rowError && (
+        <div
+          role="alert"
+          style={{
+            fontSize: 13,
+            color: '#ef4444',
+            background: 'rgba(239,68,68,.07)',
+            border: '1px solid rgba(239,68,68,.25)',
+            borderRadius: 11,
+            padding: '12px 14px',
+          }}
+        >
+          {rowError}
+        </div>
+      )}
       {bids.map((b) => {
-        const tone = STATUS_TONE[b.status]!;
+        const tone = STATUS_TONE[b.status] ?? STATUS_TONE.SUBMITTED!;
         return (
           <div
             key={b.id}
@@ -260,6 +300,28 @@ function BidList({ bids }: { bids: WathbaSupplierBid[] }) {
               >
                 {tone.label}
               </span>
+              {isLive && (b.status === 'PENDING' || b.status === 'SUBMITTED') && (
+                <button
+                  type="button"
+                  disabled={busyId === b.id}
+                  onClick={() => void withdraw(b.id)}
+                  style={{
+                    alignSelf: 'center',
+                    cursor: busyId === b.id ? 'wait' : 'pointer',
+                    background: 'transparent',
+                    border: '1px solid rgba(239,68,68,.35)',
+                    color: '#ef4444',
+                    fontWeight: 600,
+                    fontSize: 12,
+                    padding: '7px 14px',
+                    borderRadius: 10,
+                    fontFamily: 'inherit',
+                    opacity: busyId === b.id ? 0.6 : 1,
+                  }}
+                >
+                  {busyId === b.id ? 'جارٍ السحب…' : 'سحب العرض'}
+                </button>
+              )}
             </div>
           </div>
         );
@@ -271,14 +333,18 @@ function BidList({ bids }: { bids: WathbaSupplierBid[] }) {
 function SubmitForm({
   rfqs,
   initialRfqId,
+  isLive,
   onSubmitted,
   submitted,
 }: {
   rfqs: WathbaRfq[];
   initialRfqId: string;
+  isLive: boolean;
   onSubmitted: () => void;
   submitted: boolean;
 }) {
+  const router = useRouter();
+  const [apiError, setApiError] = useState<string | null>(null);
   // react-hook-form + zod: schema-driven validation with inline Arabic error
   // messages. The current submit handler is a no-op stub (UI confirmation
   // only) pending SUPPLIER-role web auth, but the form data is already
@@ -302,12 +368,41 @@ function SubmitForm({
   const selectedId = watch('rfqId');
   const selected = rfqs.find((r) => r.id === selectedId);
 
-  const onSubmit = handleSubmit(async (_data) => {
-    // TODO: when SUPPLIER-role auth lands, POST to `/v1/rfqs/${rfqId}/bids`.
-    // Today this remains a UI-only confirmation so the screen can be reviewed.
-    await new Promise((r) => setTimeout(r, 300));
-    reset();
-    onSubmitted();
+  const onSubmit = handleSubmit(async (data) => {
+    if (!isLive) {
+      // Fixture demo — UI confirmation only.
+      await new Promise((r) => setTimeout(r, 300));
+      reset();
+      onSubmitted();
+      return;
+    }
+    setApiError(null);
+    try {
+      const res = await fetch(`/api/rfqs/${data.rfqId}/bids`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          amountHalalas: Math.round(data.amount * 100),
+          leadTimeDays: data.leadTimeDays,
+          specComplianceNote: `نسبة الالتزام بالمواصفات: ${data.compliancePct}٪ — أُقرّ بمطابقة العرض للمواصفات المذكورة في الطلب.`,
+        }),
+      });
+      if (!res.ok) {
+        const j = (await res.json()) as { message?: string | string[] };
+        const msg = Array.isArray(j.message) ? j.message.join('، ') : j.message;
+        setApiError(
+          res.status === 403
+            ? 'حسابك ليس مورّداً معتمداً بعد — تواصل مع فريق وثبة لتفعيل دور المورد.'
+            : (msg ?? 'تعذّر إرسال العرض'),
+        );
+        return;
+      }
+      reset();
+      onSubmitted();
+      router.refresh(); // re-fetch server props so "عروضي" shows the new bid
+    } catch {
+      setApiError('خطأ في الاتصال — أعد المحاولة.');
+    }
   });
 
   if (submitted) {
@@ -358,6 +453,21 @@ function SubmitForm({
         كل الحقول إلزامية. السعر بالريال، مهلة التسليم بالأيام، نسبة الالتزام بالمواصفات
         من 0% إلى 100%.
       </p>
+      {apiError && (
+        <div
+          role="alert"
+          style={{
+            fontSize: 13,
+            color: '#ef4444',
+            background: 'rgba(239,68,68,.07)',
+            border: '1px solid rgba(239,68,68,.25)',
+            borderRadius: 11,
+            padding: '12px 14px',
+          }}
+        >
+          {apiError}
+        </div>
+      )}
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>الطلب</span>
