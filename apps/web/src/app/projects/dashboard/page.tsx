@@ -6,6 +6,9 @@ import { listMyApplications, listMyBackings } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'لوحة التحكم · وثبة' };
 
+// Per-user, middleware-gated page — must never be statically prerendered.
+export const dynamic = 'force-dynamic';
+
 /**
  * Creator Dashboard — server-rendered. We fan out the two protected
  * /me reads in parallel; both return `null` for unauthenticated SSR (no

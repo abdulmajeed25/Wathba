@@ -6,6 +6,9 @@ import { getMe } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'الإعدادات · وثبة' };
 
+// Per-user, middleware-gated page — must never be statically prerendered.
+export const dynamic = 'force-dynamic';
+
 export default async function SettingsPage({
   searchParams,
 }: {

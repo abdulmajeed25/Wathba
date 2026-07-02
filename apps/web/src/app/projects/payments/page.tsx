@@ -6,6 +6,9 @@ import { listMyBackings, listMyPayouts } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'المدفوعات · وثبة' };
 
+// Per-user, middleware-gated page — must never be statically prerendered.
+export const dynamic = 'force-dynamic';
+
 export default async function PaymentsPage() {
   // Both calls are server-side; auth cookie is read from the request store.
   // Either returns null when the endpoint is unreachable / no data.

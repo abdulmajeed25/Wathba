@@ -6,6 +6,9 @@ import { listMyBids, listRfqs } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'بوابة الموردين · وثبة' };
 
+// Per-user, middleware-gated page — must never be statically prerendered.
+export const dynamic = 'force-dynamic';
+
 export default async function SupplierPage() {
   // Pre-fetch RFQs + the supplier's bids on the server. Returns null when the
   // endpoint is unreachable or returns an error; the client component then

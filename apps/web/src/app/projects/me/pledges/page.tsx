@@ -6,6 +6,9 @@ import { listMyBackings } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'مكفوفاتي · وثبة' };
 
+// Per-user, middleware-gated page — must never be statically prerendered.
+export const dynamic = 'force-dynamic';
+
 export default async function MyPledgesPage() {
   const pledges = await listMyBackings();
   return (
