@@ -38,6 +38,8 @@ const securityHeaders = [
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // Slim Docker runtime (Sprint 4 / P0-1101).
+  output: 'standalone',
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
