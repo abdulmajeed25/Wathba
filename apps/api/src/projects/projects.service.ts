@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
-import { Prisma, ProjectStatus, type Project } from '@prisma/client';
+import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/client';
 
 /**
  * Projects bounded context. Owns the project lifecycle.
@@ -89,6 +89,31 @@ export class ProjectsService {
     return this.prisma.project.update({
       where: { id: projectId },
       data: { status: ProjectStatus.UNDER_REVIEW },
+    });
+  }
+
+  /**
+   * Creator: closes out the campaign once every milestone is RELEASED.
+   * IN_PRODUCTION → DELIVERED is the FSM's terminal success state.
+   */
+  async completeDelivery(creatorId: string, projectId: string): Promise<Project> {
+    const proj = await this.requireOwned(creatorId, projectId);
+    if (proj.status !== ProjectStatus.IN_PRODUCTION) {
+      throw new BadRequestException(
+        `only IN_PRODUCTION projects can be marked delivered (was ${proj.status})`,
+      );
+    }
+    const unreleased = await this.prisma.milestone.count({
+      where: { projectId, status: { not: MilestoneStatus.RELEASED } },
+    });
+    if (unreleased > 0) {
+      throw new BadRequestException(
+        `${unreleased} milestone(s) not yet RELEASED — deliver after the full escrow plan completes`,
+      );
+    }
+    return this.prisma.project.update({
+      where: { id: projectId },
+      data: { status: ProjectStatus.DELIVERED },
     });
   }
 

@@ -67,4 +67,15 @@ export class ProjectsController {
     const p = await this.projects.submitForReview(jwt.sub, id);
     return this.projects.toPublic(p);
   }
+
+  @Post(':id/deliver')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Mark an IN_PRODUCTION project DELIVERED (owner only; all milestones RELEASED)',
+  })
+  async deliver(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    const p = await this.projects.completeDelivery(jwt.sub, id);
+    return this.projects.toPublic(p);
+  }
 }
