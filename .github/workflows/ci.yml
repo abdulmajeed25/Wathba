@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main, wathba-main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck · lint · test · build · audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # version is read from the root package.json "packageManager" field
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate (API client types)
+        run: pnpm --filter @wathba/api prisma:generate
+
+      - name: Typecheck API
+        run: pnpm --filter @wathba/api exec tsc --noEmit
+
+      - name: Typecheck Web
+        run: pnpm --filter @wathba/web exec tsc --noEmit
+
+      - name: Lint API
+        run: pnpm --filter @wathba/api lint
+
+      - name: Lint Web
+        run: pnpm --filter @wathba/web lint
+
+      - name: Test API
+        run: pnpm --filter @wathba/api test
+
+      - name: Build Web
+        run: pnpm --filter @wathba/web build
+
+      # Gate on critical advisories today; tighten to `high` once the
+      # multer transitive advisory (logged in Sprint-0) is resolved.
+      - name: Audit (prod deps, critical)
+        run: pnpm audit --prod --audit-level critical
