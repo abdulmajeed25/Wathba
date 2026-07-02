@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
+import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { ProcurementService } from './procurement.service';
@@ -37,7 +38,8 @@ export class ProcurementController {
   }
 
   @Post('rfqs/:rfqId/bids')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPPLIER')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Supplier submits a bid on an OPEN RFQ' })
   async submitBid(
@@ -50,7 +52,8 @@ export class ProcurementController {
   }
 
   @Delete('bids/:bidId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPPLIER')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Supplier withdraws their own SUBMITTED bid' })
   async withdraw(
@@ -74,7 +77,8 @@ export class ProcurementController {
   }
 
   @Get('bids/me')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPPLIER')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List my (supplier) bids' })
   async myBids(@CurrentUser() jwt: JwtPayload) {
