@@ -53,3 +53,55 @@ jobs:
       # multer transitive advisory (logged in Sprint-0) is resolved.
       - name: Audit (prod deps, critical)
         run: pnpm audit --prod --audit-level critical
+
+  e2e:
+    name: playwright golden journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: wathba
+          POSTGRES_PASSWORD: wathba
+          POSTGRES_DB: wathba
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U wathba" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    env:
+      DATABASE_URL: postgresql://wathba:wathba@localhost:5432/wathba?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: e2e-ci-secret-value-not-a-placeholder-000
+      NEXT_PUBLIC_API_URL: http://localhost:4001
+      API_BASE_URL: http://localhost:4001
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @wathba/api prisma:generate
+      - run: pnpm --filter @wathba/api exec prisma migrate deploy
+      - run: pnpm --filter @wathba/web exec playwright install --with-deps chromium
+      - name: Build API + Web
+        run: pnpm --filter @wathba/api build && pnpm --filter @wathba/web build
+      - name: Boot API + Web, seed, run journeys
+        run: |
+          PORT=4001 node apps/api/dist/main.js & echo $! > /tmp/api.pid
+          npx --yes wait-on http://localhost:4001/v1/health/live -t 60000
+          # minimal seed: an admin/creator the journeys rely on
+          node apps/api/prisma/seed-e2e.mjs || true
+          (cd apps/web && PORT=3123 node .next/standalone/apps/web/server.js) & echo $! > /tmp/web.pid
+          npx --yes wait-on http://localhost:3123/projects -t 60000
+          cd apps/web && E2E_WEB_URL=http://localhost:3123 E2E_API_URL=http://localhost:4001 pnpm exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
