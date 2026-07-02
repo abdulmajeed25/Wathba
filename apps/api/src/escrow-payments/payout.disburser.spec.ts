@@ -2,6 +2,24 @@
 import { PayoutStatus } from '@prisma/client';
 import { PayoutDisburser } from './payout.disburser';
 
+function mockFetchOk(ref: string): jest.SpyInstance {
+  return jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ id: ref }),
+  } as unknown as Response);
+}
+
+function mockFetchErr(status = 402): jest.SpyInstance {
+  return jest.spyOn(globalThis, 'fetch').mockResolvedValue({
+    ok: false,
+    status,
+    json: async () => ({ message: 'insufficient provider balance' }),
+  } as unknown as Response);
+}
+
+afterEach(() => jest.restoreAllMocks());
+
 /**
  * PayoutDisburser — Sprint 1 / P0-301.
  *   - stub mode: PENDING → SENT + sentAt + PAYOUT_SENT ledger row
@@ -24,7 +42,9 @@ function payout(id: string): any {
 }
 
 function cfg(key = ''): any {
-  return { get: jest.fn().mockReturnValue(key) };
+  return {
+    get: jest.fn((k: string) => (k === 'PAYOUT_PROVIDER_KEY' ? key : undefined)),
+  };
 }
 
 function zatcaMock(): any {
@@ -89,7 +109,24 @@ describe('PayoutDisburser.disbursePending', () => {
     expect(await d.disbursePending()).toEqual({ sent: 1, failed: 1 });
   });
 
-  it('configured provider key without integration throws → payout stays PENDING', async () => {
+  it('real provider mode: SENT with the provider transfer ref in the ledger (Sprint 5 / #4)', async () => {
+    mockFetchOk('trf_live_9x');
+    const prisma = makePrisma([payout('z')]);
+    const ledger = ledgerMock();
+    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), cfg('real-key'));
+    expect(await d.disbursePending()).toEqual({ sent: 1, failed: 0 });
+    // idempotency key + endpoint were used
+    const [url, init] = (globalThis.fetch as unknown as jest.Mock).mock.calls[0];
+    expect(String(url)).toContain('/payouts');
+    expect((init.headers as Record<string, string>)['idempotency-key']).toBe('payout-z');
+    // ledger carries the REAL provider ref, not a stub
+    expect(ledger.record).toHaveBeenCalledWith(
+      expect.objectContaining({ entryType: 'PAYOUT_SENT', pspRef: 'trf_live_9x' }),
+    );
+  });
+
+  it('real provider error → payout stays PENDING (never marked SENT unconfirmed)', async () => {
+    mockFetchErr(402);
     const prisma = makePrisma([payout('z')]);
     const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg('real-key'));
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });

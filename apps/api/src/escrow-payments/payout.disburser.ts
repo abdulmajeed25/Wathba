@@ -26,6 +26,7 @@ import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
 export class PayoutDisburser {
   private readonly logger = new Logger(PayoutDisburser.name);
   private readonly providerKey: string;
+  private readonly providerUrl: string;
   private static readonly BATCH = 25;
 
   constructor(
@@ -36,6 +37,8 @@ export class PayoutDisburser {
     cfg: ConfigService,
   ) {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
+    this.providerUrl =
+      cfg.get<string>('PAYOUT_PROVIDER_URL') ?? 'https://api.moyasar.com/v1/payouts';
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES, { name: 'payout-disburse-tick' })
@@ -104,6 +107,17 @@ export class PayoutDisburser {
     }
   }
 
+  /**
+   * Sprint 5 / #4 — real payout provider (Moyasar Payouts-style REST).
+   *
+   * `Idempotency-Key: payout-<id>` makes a retry after an ambiguous timeout
+   * safe: the provider dedups it, so we never double-pay. A non-2xx or a
+   * missing transfer reference throws — the caller keeps the payout PENDING
+   * for the next tick (never marks SENT on an unconfirmed transfer).
+   *
+   * Stub mode (no PAYOUT_PROVIDER_KEY) is unchanged for local/dev so the full
+   * release → payout → disburse → ledger → ZATCA pipeline runs offline.
+   */
   private async sendViaProvider(p: Payout): Promise<string> {
     if (!this.providerKey) {
       this.logger.warn(
@@ -111,8 +125,30 @@ export class PayoutDisburser {
       );
       return `stub-transfer-${p.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
     }
-    // Real provider integration lands in Sprint 2 (bank transfer / Moyasar
-    // Payouts) — MUST use p.id as the idempotency key.
-    throw new Error('real payout provider not yet integrated — unset PAYOUT_PROVIDER_KEY to use stub');
+    const res = await fetch(this.providerUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${this.providerKey}`,
+        'idempotency-key': `payout-${p.id}`,
+      },
+      body: JSON.stringify({
+        amount: Number(p.amountHalalas),
+        currency: 'SAR',
+        destination: p.creatorId,
+        description: `وثبة — صرف دفعة مرحلة ${p.milestoneId}`,
+        metadata: { payoutId: p.id, projectId: p.projectId },
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new Error(`payout provider ${res.status}: ${JSON.stringify(json)}`);
+    }
+    const ref = json['id'] ?? json['transfer_id'] ?? json['reference'];
+    if (typeof ref !== 'string' || ref.length === 0) {
+      throw new Error('payout provider returned no transfer reference');
+    }
+    return ref;
   }
 }
