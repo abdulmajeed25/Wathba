@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { wathbaFooterCols, wathbaSocials } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 
@@ -80,18 +82,21 @@ export function WathbaFooter() {
               {col.title}
             </div>
             {col.items.map((it) => (
-              <div
-                key={it}
+              <Link
+                key={it.label}
+                href={it.href}
                 style={{
+                  display: 'block',
                   fontSize: 13.5,
                   color: 'var(--muted2)',
                   marginBottom: 12,
                   cursor: 'pointer',
                   width: 'fit-content',
+                  textDecoration: 'none',
                 }}
               >
-                {it}
-              </div>
+                {it.label}
+              </Link>
             ))}
           </div>
         ))}

@@ -220,10 +220,41 @@ export const wathbaTickerMessages = [
   '🟢 خالد دعم «صدى» بـ $85',
 ];
 
-export const wathbaFooterCols = [
-  { title: 'المنصة', items: ['استكشف المشاريع', 'ابدأ مشروعاً', 'كيف تعمل', 'رتب الداعمين', 'الأسعار والرسوم'] },
-  { title: 'الموارد', items: ['دليل المبدعين', 'مركز المساعدة', 'قصص نجاح', 'المدونة', 'الأسئلة الشائعة'] },
-  { title: 'الشركة', items: ['من نحن', 'الوظائف', 'الشروط', 'الخصوصية', 'تواصل معنا'] },
+// Sprint 3 / P1-210 — every footer item is a real destination (no orphans).
+export const wathbaFooterCols: Array<{
+  title: string;
+  items: Array<{ label: string; href: string }>;
+}> = [
+  {
+    title: 'المنصة',
+    items: [
+      { label: 'استكشف المشاريع', href: '/projects/discover' },
+      { label: 'ابدأ مشروعاً', href: '/projects/start' },
+      { label: 'كيف تعمل', href: '/projects/how' },
+      { label: 'رتب الداعمين', href: '/projects/ranks' },
+      { label: 'بوابة الموردين', href: '/projects/supplier' },
+    ],
+  },
+  {
+    title: 'حسابك',
+    items: [
+      { label: 'مكفوفاتي', href: '/projects/me/pledges' },
+      { label: 'المدفوعات', href: '/projects/payments' },
+      { label: 'الإشعارات', href: '/projects/notifications' },
+      { label: 'الإعدادات', href: '/projects/settings' },
+      { label: 'مركز المساعدة', href: '/projects/help' },
+    ],
+  },
+  {
+    title: 'الشركة والقانون',
+    items: [
+      { label: 'الشروط والأحكام', href: '/projects/legal/terms' },
+      { label: 'سياسة الخصوصية (PDPL)', href: '/projects/legal/privacy' },
+      { label: 'سياسة الاسترداد', href: '/projects/legal/refund-policy' },
+      { label: 'عقود الدعم', href: '/projects/legal/contracts' },
+      { label: 'تواصل معنا', href: '/projects/help' },
+    ],
+  },
 ];
 
 export const wathbaSocials = ['public', 'alternate_email', 'photo_camera', 'smart_display'];
