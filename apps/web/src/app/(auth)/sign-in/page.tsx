@@ -10,6 +10,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid: 'بيانات الدخول غير صحيحة.',
   network: 'تعذّر الاتصال بالخادم. حاول مرة أخرى.',
   server: 'حدث خطأ ما. حاول مرة أخرى.',
+  reset_ok: 'تم تغيير كلمة المرور بنجاح — سجّل دخولك بكلمتك الجديدة.',
 };
 
 export default async function SignInPage({
@@ -54,6 +55,12 @@ export default async function SignInPage({
             className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
           />
         </label>
+
+        <p className="text-left text-xs">
+          <Link href="/forgot-password" className="text-emerald-700 underline">
+            نسيت كلمة المرور؟
+          </Link>
+        </p>
 
         {error ? (
           <p role="alert" className="text-sm text-red-600">

@@ -778,3 +778,17 @@ model RefreshToken {
 
   @@index([userId, revokedAt])
 }
+
+/// One-time password-reset tokens (Sprint 3 / P1-206). SHA-256 stored,
+/// 30-minute TTL, single use; a successful reset revokes every refresh
+/// token the account holds.
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}

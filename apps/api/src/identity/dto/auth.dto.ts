@@ -56,3 +56,19 @@ export class RefreshDto {
   @IsString() @MinLength(32)
   refreshToken!: string;
 }
+
+export class ForgotPasswordDto {
+  @ApiProperty({ example: 'sara@example.sa' })
+  @IsEmail()
+  email!: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ description: 'the one-time token from the reset link' })
+  @IsString() @MinLength(24)
+  token!: string;
+
+  @ApiProperty({ example: 'NewStrongPass!23' })
+  @IsString() @MinLength(8) @MaxLength(128)
+  password!: string;
+}

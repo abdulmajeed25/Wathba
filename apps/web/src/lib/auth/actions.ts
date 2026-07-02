@@ -211,3 +211,42 @@ export async function signOutAction(): Promise<void> {
   await clearSessionCookie();
   redirect('/sign-in');
 }
+
+/** Sprint 3 / P1-206 — request a password-reset link. Always succeeds UX-wise. */
+export async function forgotPasswordAction(formData: FormData): Promise<void> {
+  const email = String(formData.get('email') ?? '').trim();
+  if (!email) redirect('/forgot-password?err=missing');
+  try {
+    await fetch(`${API_BASE}/v1/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+      cache: 'no-store',
+    });
+  } catch {
+    redirect('/forgot-password?err=network');
+  }
+  redirect('/forgot-password?ok=1');
+}
+
+/** Sprint 3 / P1-206 — consume the one-time token and set a new password. */
+export async function resetPasswordAction(formData: FormData): Promise<void> {
+  const token = String(formData.get('token') ?? '');
+  const password = String(formData.get('password') ?? '');
+  const confirm = String(formData.get('confirm') ?? '');
+  if (!token) redirect('/forgot-password?err=missing');
+  if (password.length < 8) redirect(`/reset-password?token=${encodeURIComponent(token)}&err=short`);
+  if (password !== confirm) redirect(`/reset-password?token=${encodeURIComponent(token)}&err=mismatch`);
+  try {
+    const res = await fetch(`${API_BASE}/v1/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password }),
+      cache: 'no-store',
+    });
+    if (!res.ok) redirect(`/reset-password?token=${encodeURIComponent(token)}&err=invalid`);
+  } catch {
+    redirect(`/reset-password?token=${encodeURIComponent(token)}&err=network`);
+  }
+  redirect('/sign-in?err=reset_ok');
+}

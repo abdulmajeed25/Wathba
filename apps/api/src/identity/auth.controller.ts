@@ -2,7 +2,7 @@ import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, type AuthResponse } from './auth.service';
-import { RefreshDto, SignInDto, SignUpDto } from './dto/auth.dto';
+import { ForgotPasswordDto, RefreshDto, ResetPasswordDto, SignInDto, SignUpDto } from './dto/auth.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -46,6 +46,22 @@ export class AuthController {
   @ApiOperation({ summary: 'Rotate refresh token → new access + refresh pair' })
   async refresh(@Body() dto: RefreshDto): Promise<AuthResponse> {
     return this.auth.refresh(dto.refreshToken);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Request a password-reset link — always 200 (no user enumeration)' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<{ ok: true }> {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'Consume a one-time reset token → set new password + revoke all sessions' })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ ok: true }> {
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 
   @Post('signout')

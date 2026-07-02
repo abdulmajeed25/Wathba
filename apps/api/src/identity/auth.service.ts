@@ -2,6 +2,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
@@ -26,6 +27,7 @@ export interface AuthResponse {
 }
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const RESET_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 /**
  * Per-email login back-off. Hard-coded (no DB / no Redis) for v1: each API
@@ -39,6 +41,7 @@ const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly failedAttempts = new Map<string, { count: number; firstAt: number }>();
 
   constructor(
@@ -176,6 +179,59 @@ export class AuthService {
     const accessToken = await this.jwt.signAsync(payload);
     const refreshToken = await this.mintRefreshToken(user.id, row.id);
     return { accessToken, refreshToken, user: this.users.toPublic(user) };
+  }
+
+  // -- Password recovery (Sprint 3 / P1-206) ----------------------------------
+
+  /**
+   * Always resolves success-shaped — never reveals whether the email exists
+   * (user-enumeration defense). When a mailer is configured (MAILER_API_KEY)
+   * the reset link goes out by email; in dev/stub it is logged.
+   */
+  async forgotPassword(email: string): Promise<{ ok: true }> {
+    const user = await this.users.findByEmail(email.toLowerCase());
+    if (!user) return { ok: true };
+    const raw = randomBytes(32).toString('base64url');
+    await this.prisma.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(raw),
+        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      },
+    });
+    const link = `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/reset-password?token=${raw}`;
+    if (process.env.MAILER_API_KEY) {
+      // Real mailer integration lands with the transactional-email decision;
+      // configured-but-unintegrated must be loud, not silent.
+      this.logger.error(`MAILER_API_KEY configured but mailer not integrated — reset link NOT emailed for ${user.id}`);
+    } else {
+      this.logger.warn(`[STUB] Password-reset link for user=${user.id}: ${link}`);
+    }
+    return { ok: true };
+  }
+
+  /** One-time token → new password; revokes every session on success. */
+  async resetPassword(rawToken: string, newPassword: string): Promise<{ ok: true }> {
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(rawToken) },
+    });
+    if (!row || row.usedAt || row.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('invalid or expired reset token');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: row.userId }, data: { passwordHash } });
+      await tx.passwordResetToken.update({
+        where: { id: row.id },
+        data: { usedAt: new Date() },
+      });
+      // Stolen-session defense: a password reset invalidates every device.
+      await tx.refreshToken.updateMany({
+        where: { userId: row.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    });
+    return { ok: true };
   }
 
   /** Sign-out: revoke this refresh token (idempotent). */
