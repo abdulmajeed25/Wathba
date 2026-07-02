@@ -1,12 +1,64 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
 import { HeartbeatService } from '../common/heartbeat.service';
 import { ZatcaService } from './zatca.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
+
+/** A validated creator bank/wallet beneficiary — required by Moyasar's
+ *  `POST /payouts` `destination` object (Sprint 5 / #4). */
+export interface PayoutBeneficiary {
+  type: 'bank_account' | 'wallet';
+  iban?: string;
+  name?: string;
+  mobile: string;
+  country?: string;
+  city?: string;
+}
+
+/** Moyasar payout `status` values that mean "accepted / in flight". */
+const ACCEPTED_STATUSES = new Set(['queued', 'initiated', 'paid']);
+/** Terminal-failure statuses — the disburser keeps the payout PENDING. */
+const FAILED_STATUSES = new Set(['failed', 'canceled', 'returned']);
+
+/**
+ * Build the Moyasar `POST /payouts` request body per the documented contract
+ * (docs.moyasar.com/api/payouts/04-create-payout). Pure + unit-testable so
+ * the contract shape is verified without live credentials.
+ *
+ * Moyasar has NO idempotency header; `sequence_number` is our stable
+ * reference (deterministic from the payout id) so a retry reuses it and
+ * reconciliation can match on it.
+ */
+export function buildPayoutRequest(input: {
+  sourceId: string;
+  amountHalalas: bigint;
+  purpose: string;
+  payoutId: string;
+  projectId: string;
+  milestoneId: string;
+  destination: PayoutBeneficiary;
+}): Record<string, unknown> {
+  return {
+    source_id: input.sourceId,
+    amount: Number(input.amountHalalas), // Moyasar amount = smallest unit (halalas)
+    currency: 'SAR',
+    purpose: input.purpose,
+    sequence_number: sequenceNumberFor(input.payoutId),
+    destination: input.destination,
+    comment: `Wathba milestone payout ${input.milestoneId}`,
+    metadata: { payoutId: input.payoutId, projectId: input.projectId },
+  };
+}
+
+/** Deterministic 16-digit reference from the payout id. */
+export function sequenceNumberFor(payoutId: string): string {
+  const hex = createHash('sha256').update(payoutId).digest('hex').slice(0, 15);
+  return (BigInt('0x' + hex) % 10_000_000_000_000_000n).toString().padStart(16, '0');
+}
 
 /**
  * Payout disbursement worker (Sprint 1 / P0-301).
@@ -27,6 +79,8 @@ export class PayoutDisburser {
   private readonly logger = new Logger(PayoutDisburser.name);
   private readonly providerKey: string;
   private readonly providerUrl: string;
+  private readonly sourceId: string;
+  private readonly purpose: string;
   private static readonly BATCH = 25;
 
   constructor(
@@ -39,6 +93,9 @@ export class PayoutDisburser {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
     this.providerUrl =
       cfg.get<string>('PAYOUT_PROVIDER_URL') ?? 'https://api.moyasar.com/v1/payouts';
+    // Wathba's Moyasar payout SOURCE account id (created once in the dashboard).
+    this.sourceId = cfg.get<string>('MOYASAR_PAYOUT_SOURCE_ID') ?? '';
+    this.purpose = cfg.get<string>('MOYASAR_PAYOUT_PURPOSE') ?? 'expenses_services';
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES, { name: 'payout-disburse-tick' })
@@ -108,15 +165,21 @@ export class PayoutDisburser {
   }
 
   /**
-   * Sprint 5 / #4 — real payout provider (Moyasar Payouts-style REST).
+   * Sprint 5 / #4 — real Moyasar Payouts integration
+   * (docs.moyasar.com/api/payouts/04-create-payout).
    *
-   * `Idempotency-Key: payout-<id>` makes a retry after an ambiguous timeout
-   * safe: the provider dedups it, so we never double-pay. A non-2xx or a
-   * missing transfer reference throws — the caller keeps the payout PENDING
-   * for the next tick (never marks SENT on an unconfirmed transfer).
+   * Two hard prerequisites gate the real path; when either is absent the
+   * payout stays PENDING (never SENT on an unconfirmed transfer):
+   *   1. MOYASAR_PAYOUT_SOURCE_ID — Wathba's payout source account.
+   *   2. A validated creator beneficiary (IBAN/mobile) — NOT yet captured
+   *      by the platform; `resolveBeneficiary` throws until that lands.
    *
-   * Stub mode (no PAYOUT_PROVIDER_KEY) is unchanged for local/dev so the full
-   * release → payout → disburse → ledger → ZATCA pipeline runs offline.
+   * Idempotency: Moyasar has no idempotency header, so we send a
+   * deterministic `sequence_number` (from the payout id) and rely on our own
+   * "only disburse PENDING" guard + reconciliation to avoid double-pay. A
+   * follow-up payout-status webhook should confirm final `paid`.
+   *
+   * Stub mode (no PAYOUT_PROVIDER_KEY) is unchanged for local/dev.
    */
   private async sendViaProvider(p: Payout): Promise<string> {
     if (!this.providerKey) {
@@ -125,30 +188,58 @@ export class PayoutDisburser {
       );
       return `stub-transfer-${p.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
     }
+    if (!this.sourceId) {
+      throw new Error('MOYASAR_PAYOUT_SOURCE_ID not configured — cannot create a payout');
+    }
+    const destination = await this.resolveBeneficiary(p);
     const res = await fetch(this.providerUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${this.providerKey}`,
-        'idempotency-key': `payout-${p.id}`,
       },
-      body: JSON.stringify({
-        amount: Number(p.amountHalalas),
-        currency: 'SAR',
-        destination: p.creatorId,
-        description: `وثبة — صرف دفعة مرحلة ${p.milestoneId}`,
-        metadata: { payoutId: p.id, projectId: p.projectId },
-      }),
+      body: JSON.stringify(
+        buildPayoutRequest({
+          sourceId: this.sourceId,
+          amountHalalas: p.amountHalalas,
+          purpose: this.purpose,
+          payoutId: p.id,
+          projectId: p.projectId,
+          milestoneId: p.milestoneId,
+          destination,
+        }),
+      ),
       signal: AbortSignal.timeout(15_000),
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
-      throw new Error(`payout provider ${res.status}: ${JSON.stringify(json)}`);
+      throw new Error(`Moyasar payouts ${res.status}: ${JSON.stringify(json)}`);
     }
-    const ref = json['id'] ?? json['transfer_id'] ?? json['reference'];
+    const status = String(json['status'] ?? '');
+    if (FAILED_STATUSES.has(status)) {
+      throw new Error(`payout ${status}: ${String(json['failure_reason'] ?? 'no reason given')}`);
+    }
+    if (!ACCEPTED_STATUSES.has(status) && status !== '') {
+      throw new Error(`payout returned unexpected status "${status}"`);
+    }
+    const ref = json['id'];
     if (typeof ref !== 'string' || ref.length === 0) {
-      throw new Error('payout provider returned no transfer reference');
+      throw new Error('Moyasar payouts returned no payout id');
     }
     return ref;
+  }
+
+  /**
+   * Resolve the creator's payout beneficiary (Moyasar `destination`).
+   *
+   * Wathba does not yet capture creator bank beneficiaries (IBAN / mobile /
+   * name). Until that feature ships, a real payout cannot be constructed —
+   * we refuse rather than send a malformed request, which correctly leaves
+   * the payout PENDING. Tracked on issue #4's checklist.
+   */
+  private async resolveBeneficiary(p: Payout): Promise<PayoutBeneficiary> {
+    throw new Error(
+      `no payout beneficiary on file for creator=${p.creatorId} — creator bank-details capture is a prerequisite (see #4)`,
+    );
   }
 }

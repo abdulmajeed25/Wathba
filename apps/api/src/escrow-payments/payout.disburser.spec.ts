@@ -1,22 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PayoutStatus } from '@prisma/client';
-import { PayoutDisburser } from './payout.disburser';
+import { PayoutDisburser, buildPayoutRequest, sequenceNumberFor } from './payout.disburser';
 
-function mockFetchOk(ref: string): jest.SpyInstance {
-  return jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({ id: ref }),
-  } as unknown as Response);
-}
 
-function mockFetchErr(status = 402): jest.SpyInstance {
-  return jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-    ok: false,
-    status,
-    json: async () => ({ message: 'insufficient provider balance' }),
-  } as unknown as Response);
-}
 
 afterEach(() => jest.restoreAllMocks());
 
@@ -41,9 +27,13 @@ function payout(id: string): any {
   };
 }
 
-function cfg(key = ''): any {
+function cfg(key = '', sourceId = ''): any {
   return {
-    get: jest.fn((k: string) => (k === 'PAYOUT_PROVIDER_KEY' ? key : undefined)),
+    get: jest.fn((k: string) => {
+      if (k === 'PAYOUT_PROVIDER_KEY') return key;
+      if (k === 'MOYASAR_PAYOUT_SOURCE_ID') return sourceId;
+      return undefined;
+    }),
   };
 }
 
@@ -109,27 +99,52 @@ describe('PayoutDisburser.disbursePending', () => {
     expect(await d.disbursePending()).toEqual({ sent: 1, failed: 1 });
   });
 
-  it('real provider mode: SENT with the provider transfer ref in the ledger (Sprint 5 / #4)', async () => {
-    mockFetchOk('trf_live_9x');
+  it('real mode without MOYASAR_PAYOUT_SOURCE_ID → stays PENDING (never SENT)', async () => {
+    const spy = jest.spyOn(globalThis, 'fetch');
     const prisma = makePrisma([payout('z')]);
-    const ledger = ledgerMock();
-    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), cfg('real-key'));
-    expect(await d.disbursePending()).toEqual({ sent: 1, failed: 0 });
-    // idempotency key + endpoint were used
-    const [url, init] = (globalThis.fetch as unknown as jest.Mock).mock.calls[0];
-    expect(String(url)).toContain('/payouts');
-    expect((init.headers as Record<string, string>)['idempotency-key']).toBe('payout-z');
-    // ledger carries the REAL provider ref, not a stub
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'PAYOUT_SENT', pspRef: 'trf_live_9x' }),
-    );
-  });
-
-  it('real provider error → payout stays PENDING (never marked SENT unconfirmed)', async () => {
-    mockFetchErr(402);
-    const prisma = makePrisma([payout('z')]);
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg('real-key'));
+    // provider key set, but no source account configured
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg('real-key', ''));
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
     expect(prisma.payout.update).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled(); // fails before the HTTP call
+  });
+
+  it('real mode with source but no creator beneficiary → stays PENDING (Sprint 5 / #4)', async () => {
+    const spy = jest.spyOn(globalThis, 'fetch');
+    const prisma = makePrisma([payout('z')]);
+    // source configured, but the platform has no beneficiary for the creator yet
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg('real-key', 'src_123'));
+    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
+    expect(prisma.payout.update).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled(); // beneficiary guard trips before HTTP
+  });
+});
+
+describe('buildPayoutRequest — Moyasar POST /payouts contract (Sprint 5 / #4)', () => {
+  const req = buildPayoutRequest({
+    sourceId: 'src_abc',
+    amountHalalas: 54_000n,
+    purpose: 'expenses_services',
+    payoutId: 'po-123',
+    projectId: 'proj-1',
+    milestoneId: 'm-1',
+    destination: { type: 'bank_account', iban: 'SA0380000000608010167519', name: 'سارة', mobile: '0555000000', country: 'SA', city: 'الرياض' },
+  });
+
+  it('matches the documented field names + halalas amount', () => {
+    expect(req.source_id).toBe('src_abc');
+    expect(req.amount).toBe(54_000); // smallest unit
+    expect(req.currency).toBe('SAR');
+    expect(req.purpose).toBe('expenses_services');
+    expect((req.destination as { iban: string }).iban).toBe('SA0380000000608010167519');
+    expect((req.metadata as { payoutId: string }).payoutId).toBe('po-123');
+  });
+
+  it('sends a 16-digit sequence_number (no idempotency header exists)', () => {
+    expect(String(req.sequence_number)).toMatch(/^\d{16}$/);
+    // deterministic: same payout id → same reference (retry-safe reconciliation)
+    expect(req.sequence_number).toBe(sequenceNumberFor('po-123'));
+    expect(sequenceNumberFor('po-123')).toBe(sequenceNumberFor('po-123'));
+    expect(sequenceNumberFor('po-123')).not.toBe(sequenceNumberFor('po-999'));
   });
 });
