@@ -127,11 +127,16 @@ export class FundingService {
 
     // 2) Authorize-only hold against the PSP (outside the DB tx — if it
     //    fails we mark the pledge FAILED and skip counter increments).
+    //    Sprint 2: the hold MUST cover tier + add-ons — before this fix the
+    //    PSP authorized only the tier amount while raisedHalalas credited
+    //    the full contribution (systematic undercharge, surfaced by the
+    //    Sprint-1 ledger).
+    const chargeHalalas = pledge.amountHalalas + addOnsSubtotal;
     let payment: { paymentRef: string; status: 'authorized' | 'failed' };
     try {
       payment = await this.escrow.hold({
         pledgeId: pledge.id,
-        amountHalalas: pledge.amountHalalas,
+        amountHalalas: chargeHalalas,
         source: dto.source,
         description: `وثبة — دعم لمشروع ${project.titleAr}`,
         // 3DS hop returns the shopper's browser to the payment-return screen.
@@ -149,7 +154,7 @@ export class FundingService {
     if (payment.status === 'authorized') {
       await this.ledger.record({
         entryType: 'HOLD_AUTHORIZED',
-        amountHalalas: pledge.amountHalalas,
+        amountHalalas: chargeHalalas,
         pspRef: payment.paymentRef,
         pledgeId: pledge.id,
         projectId: dto.projectId,

@@ -235,6 +235,21 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     expect(prisma.project.update).not.toHaveBeenCalled();
   });
 
+  it('holds tier + add-ons at the PSP (Sprint 2 undercharge regression)', async () => {
+    const { svc, prisma, escrow, ledger } = build({});
+    (prisma as unknown as { addOn: { findMany: jest.Mock } }).addOn.findMany.mockResolvedValue([
+      { id: 'addon-1', projectId: PROJ, titleAr: 'إضافة', amountHalalas: 15_000n, limitQty: null, claimedQty: 0 },
+    ]);
+    await svc.pledge(BACKER, dto({ addOns: [{ addOnId: 'addon-1', qty: 2 }] }));
+    // 60,000 tier + 2 × 15,000 add-on = 90,000 must be authorized
+    expect(escrow.hold).toHaveBeenCalledWith(
+      expect.objectContaining({ amountHalalas: 90_000n }),
+    );
+    expect(ledger.record).toHaveBeenCalledWith(
+      expect.objectContaining({ entryType: 'HOLD_AUTHORIZED', amountHalalas: 90_000n }),
+    );
+  });
+
   it('happy path: HELD pledge + atomic counters + ledger + live tick', async () => {
     const { svc, prisma, gateway, ledger } = build({});
     const out = (await svc.pledge(BACKER, dto())) as unknown as { paymentRef: string };

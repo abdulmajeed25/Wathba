@@ -39,7 +39,7 @@ function makePrisma(over: Record<string, any> = {}): any {
 }
 
 function pledge(status: PledgeStatus): any {
-  return { id: 'pl-1', paymentRef: REF, status };
+  return { id: 'pl-1', paymentRef: REF, status, amountHalalas: 10_000n, addOnsHalalas: 2_000n };
 }
 
 function payload(type: string, extra: Record<string, unknown> = {}): any {

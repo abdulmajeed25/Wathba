@@ -116,7 +116,8 @@ export class EscrowService {
       });
       await this.ledger.record({
         entryType: LedgerEntryType.CAPTURE,
-        amountHalalas: p.amountHalalas,
+        // Full held amount = tier + add-ons (Sprint 2 undercharge fix).
+        amountHalalas: p.amountHalalas + p.addOnsHalalas,
         pspRef: p.paymentRef,
         pledgeId: p.id,
         projectId: p.projectId,
@@ -141,7 +142,7 @@ export class EscrowService {
       });
       await this.ledger.record({
         entryType: LedgerEntryType.VOID,
-        amountHalalas: p.amountHalalas,
+        amountHalalas: p.amountHalalas + p.addOnsHalalas,
         pspRef: p.paymentRef,
         pledgeId: p.id,
         projectId: p.projectId,

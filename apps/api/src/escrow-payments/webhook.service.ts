@@ -127,7 +127,7 @@ export class WebhookService {
         });
         await this.ledger.record({
           entryType: LedgerEntryType.CAPTURE,
-          amountHalalas: pledge.amountHalalas,
+          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
           pspRef,
           pledgeId: pledge.id,
           projectId: pledge.projectId,
@@ -155,7 +155,7 @@ export class WebhookService {
         });
         await this.ledger.record({
           entryType: LedgerEntryType.VOID,
-          amountHalalas: pledge.amountHalalas,
+          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
           pspRef,
           pledgeId: pledge.id,
           projectId: pledge.projectId,
@@ -173,7 +173,7 @@ export class WebhookService {
         });
         await this.ledger.record({
           entryType: LedgerEntryType.REFUND,
-          amountHalalas: pledge.amountHalalas,
+          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
           pspRef,
           pledgeId: pledge.id,
           projectId: pledge.projectId,
