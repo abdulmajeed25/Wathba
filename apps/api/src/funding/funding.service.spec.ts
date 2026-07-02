@@ -105,3 +105,165 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     expect(escrow.refundAllHeld).toHaveBeenCalled();
   });
 });
+
+describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', () => {
+  const PROJ = 'proj-1';
+  const TIER = 'tier-1';
+  const BACKER = 'backer-1';
+
+  const liveProject = (over: Partial<Record<string, unknown>> = {}) => ({
+    id: PROJ,
+    status: ProjectStatus.LIVE,
+    deadline: new Date(Date.now() + 86_400_000),
+    titleAr: 'مشروع اختبار',
+    ...over,
+  });
+
+  const tier = (over: Partial<Record<string, unknown>> = {}) => ({
+    id: TIER,
+    projectId: PROJ,
+    amountHalalas: 50_000n,
+    limitQty: null,
+    claimedQty: 0,
+    requiresShipping: false,
+    includesPhysicalProduct: false,
+    ...over,
+  });
+
+  const dto = (over: Partial<Record<string, unknown>> = {}) =>
+    ({ projectId: PROJ, tierId: TIER, amountHalalas: 60_000, source: 'tok_x', ...over }) as never;
+
+  function build(opts: {
+    project?: Record<string, unknown> | null;
+    tierRow?: Record<string, unknown> | null;
+    holdResult?: { paymentRef: string; status: 'authorized' | 'failed' };
+    holdThrows?: boolean;
+  }) {
+    const prisma: Record<string, unknown> = {
+      project: {
+        findUnique: jest.fn().mockResolvedValue(opts.project === undefined ? liveProject() : opts.project),
+        update: jest.fn().mockResolvedValue({ raisedHalalas: 60_000n, backersCount: 1 }),
+      },
+      rewardTier: {
+        findUnique: jest.fn().mockResolvedValue(opts.tierRow === undefined ? tier() : opts.tierRow),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      addOn: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+      pledge: {
+        aggregate: jest.fn().mockResolvedValue({ _max: { backerNo: 4 } }),
+        create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ id: 'pl-1', ...data })),
+        update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ id: 'pl-1', ...data })),
+      },
+      user: { update: jest.fn().mockResolvedValue({}) },
+    };
+    (prisma as { $transaction?: unknown }).$transaction = jest.fn(
+      async (fn: (tx: unknown) => unknown) => fn(prisma),
+    );
+    const escrow = {
+      hold: opts.holdThrows
+        ? jest.fn().mockRejectedValue(new Error('psp down'))
+        : jest.fn().mockResolvedValue(opts.holdResult ?? { paymentRef: 'pay_ok', status: 'authorized' }),
+      captureAllHeld: jest.fn(),
+      refundAllHeld: jest.fn(),
+    };
+    const contracts = { inferType: jest.fn().mockReturnValue('DONATION') };
+    const gateway = { emitTick: jest.fn() };
+    const community = { materializeFromPledge: jest.fn().mockResolvedValue(undefined) };
+    const ledger = { record: jest.fn().mockResolvedValue(undefined) };
+    const svc = new FundingService(
+      prisma as never, escrow as never, contracts as never,
+      gateway as never, community as never, ledger as never,
+    );
+    type MockedTables = {
+      project: { findUnique: jest.Mock; update: jest.Mock };
+      rewardTier: { findUnique: jest.Mock; update: jest.Mock };
+      pledge: { aggregate: jest.Mock; create: jest.Mock; update: jest.Mock };
+      user: { update: jest.Mock };
+    };
+    return { svc, prisma: prisma as never as MockedTables, escrow, gateway, ledger };
+  }
+
+  it('rejects a non-LIVE project', async () => {
+    const { svc } = build({ project: liveProject({ status: ProjectStatus.DRAFT }) });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/not LIVE/);
+  });
+
+  it('rejects past-deadline projects', async () => {
+    const { svc } = build({ project: liveProject({ deadline: new Date(Date.now() - 1000) }) });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/deadline/);
+  });
+
+  it('rejects a tier belonging to another project', async () => {
+    const { svc } = build({ tierRow: tier({ projectId: 'someone-else' }) });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/invalid tier/);
+  });
+
+  it('rejects an amount below the tier minimum', async () => {
+    const { svc } = build({});
+    await expect(svc.pledge(BACKER, dto({ amountHalalas: 49_999 }))).rejects.toThrow(/below the tier minimum/);
+  });
+
+  it('rejects a sold-out tier', async () => {
+    const { svc } = build({ tierRow: tier({ limitQty: 10, claimedQty: 10 }) });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/sold out/);
+  });
+
+  it('rejects a shipping tier without a shipping address', async () => {
+    const { svc } = build({ tierRow: tier({ requiresShipping: true }) });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/shipping address is required/);
+  });
+
+  it('marks the pledge FAILED and throws 400 when the PSP hold throws — counters untouched', async () => {
+    const { svc, prisma, ledger } = build({ holdThrows: true });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/authorization failed/);
+    expect(prisma.pledge.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+    );
+    expect(prisma.project.update).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(ledger.record).not.toHaveBeenCalled();
+  });
+
+  it('marks the pledge FAILED when the PSP declines the hold', async () => {
+    const { svc, prisma } = build({ holdResult: { paymentRef: 'pay_declined', status: 'failed' } });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/not authorized/);
+    expect(prisma.pledge.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+    );
+    expect(prisma.project.update).not.toHaveBeenCalled();
+  });
+
+  it('happy path: HELD pledge + atomic counters + ledger + live tick', async () => {
+    const { svc, prisma, gateway, ledger } = build({});
+    const out = (await svc.pledge(BACKER, dto())) as unknown as { paymentRef: string };
+    expect(out.paymentRef).toBe('pay_ok');
+    // pledge row created HELD with backerNo = max+1
+    expect(prisma.pledge.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'HELD', backerNo: 5 }) }),
+    );
+    // counters bumped in the tx
+    expect(prisma.project.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          raisedHalalas: { increment: 60_000n },
+          backersCount: { increment: 1 },
+        }),
+      }),
+    );
+    expect(prisma.rewardTier.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { claimedQty: { increment: 1 } } }),
+    );
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { totalPledgedHalalas: { increment: 60_000n } },
+      }),
+    );
+    // money journal + realtime tick
+    expect(ledger.record).toHaveBeenCalledWith(
+      expect.objectContaining({ entryType: 'HOLD_AUTHORIZED', pspRef: 'pay_ok' }),
+    );
+    expect(gateway.emitTick).toHaveBeenCalled();
+  });
+});
