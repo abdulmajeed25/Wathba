@@ -12,6 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "target": "ES2022",
     "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "strictNullChecks": true,
     "noImplicitAny": true,
     "strictBindCallApply": true,
