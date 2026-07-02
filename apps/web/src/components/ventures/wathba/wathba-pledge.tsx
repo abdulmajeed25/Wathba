@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
 
 import {
   deriveProject,
@@ -10,27 +11,146 @@ import {
   wathbaTiers,
 } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
+import { createCardToken } from '@/lib/payments/moyasar-client';
+import type { ApiRewardTier } from '@/lib/api/wathba';
 
 /**
- * Pledge wizard — literal 1:1 port of WATBHوثبة.dc.html lines 716–833.
- * 4 steps: tier → info → payment → success. Sticky order summary on the right.
+ * Pledge wizard — 4 steps: tier → info → payment → success.
+ * Sticky order summary on the right.
+ *
+ * Sprint 1 (P0-305/P0-201): when the server passes live tiers, the confirm
+ * button tokenizes the card client-side (Moyasar Tokens API — raw card data
+ * never touches Wathba, SAQ-A) and POSTs the pledge through /api/pledges.
+ * Fixture projects (p1…p8) keep the demo behaviour with no network call.
  */
+
+interface DisplayTier {
+  id: string;
+  price: number; // SAR
+  title: string;
+  backers: number;
+  desc: string;
+  rank: string;
+  requiresShipping: boolean;
+}
 
 export function WathbaPledge({
   projectId,
   initialTier = 't2',
+  liveTiers = null,
+  liveTitleAr = null,
 }: {
   projectId: string;
   initialTier?: string;
+  liveTiers?: ApiRewardTier[] | null;
+  liveTitleAr?: string | null;
 }) {
+  const router = useRouter();
   const project =
     wathbaProjects.find((p) => p.id === projectId) ?? wathbaProjects[0]!;
   const active = deriveProject(project);
-  const [step, setStep] = useState(1);
-  const [tier, setTier] = useState(initialTier);
+  const isLive = Boolean(liveTiers && liveTiers.length > 0);
+  const tiers: DisplayTier[] = useMemo(() => {
+    if (!isLive) {
+      return wathbaTiers.map((t) => ({ ...t, requiresShipping: false }));
+    }
+    return liveTiers!.map((t) => ({
+      id: t.id,
+      price: Math.round(t.amountHalalas / 100),
+      title: t.titleAr,
+      backers: t.claimedQty,
+      desc: t.descAr,
+      rank: 'داعم مؤسس',
+      requiresShipping: t.requiresShipping,
+    }));
+  }, [isLive, liveTiers]);
 
-  const selTier = wathbaTiers.find((t) => t.id === tier) ?? wathbaTiers[1]!;
+  const [step, setStep] = useState(1);
+  const [tier, setTier] = useState(() =>
+    tiers.some((t) => t.id === initialTier) ? initialTier : tiers[0]!.id,
+  );
+
+  // Payment + shipping form state (controlled — Sprint 1).
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExp, setCardExp] = useState('');
+  const [cardCvc, setCardCvc] = useState('');
+  const [shipName, setShipName] = useState('');
+  const [shipAddress, setShipAddress] = useState('');
+  const [shipCity, setShipCity] = useState('');
+  const [shipPostal, setShipPostal] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  const selTier = tiers.find((t) => t.id === tier) ?? tiers[0]!;
   const total = selTier.price + 8; // + shipping
+
+  async function confirmPledge(): Promise<void> {
+    if (!isLive) {
+      // Demo fixture — keep the original in-page success step.
+      setStep(4);
+      return;
+    }
+    setPayError(null);
+    const [expMonth = '', expYear = ''] = cardExp.split('/').map((s) => s.trim());
+    if (!cardName || cardNumber.replace(/\D/g, '').length < 12 || !expMonth || !expYear || cardCvc.length < 3) {
+      setPayError('أكمل بيانات البطاقة (الاسم، الرقم، تاريخ الانتهاء MM/YY، CVC).');
+      return;
+    }
+    if (selTier.requiresShipping && (!shipName || !shipAddress || !shipCity || !/^\d{4,10}$/.test(shipPostal))) {
+      setPayError('هذا المستوى يتطلب عنوان شحن كامل (الاسم، العنوان، المدينة، رمز بريدي 4–10 أرقام).');
+      setStep(2);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const tok = await createCardToken({
+        name: cardName,
+        number: cardNumber,
+        month: expMonth,
+        year: expYear,
+        cvc: cardCvc,
+      });
+      if ('error' in tok) {
+        setPayError(tok.error);
+        return;
+      }
+      const res = await fetch('/api/pledges', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          projectId,
+          tierId: selTier.id,
+          amountHalalas: Math.round(total * 100),
+          source: tok.token,
+          ...(selTier.requiresShipping
+            ? {
+                shipping: {
+                  name: shipName,
+                  address: shipAddress,
+                  city: shipCity,
+                  country: 'SA',
+                  postal: shipPostal,
+                },
+              }
+            : {}),
+        }),
+      });
+      const json = (await res.json()) as { paymentRef?: string; message?: string | string[] };
+      if (!res.ok) {
+        const msg = Array.isArray(json.message) ? json.message.join('، ') : json.message;
+        setPayError(msg ?? 'تعذّر إتمام الدفع');
+        return;
+      }
+      router.push(
+        `/projects/${projectId}/back/success${json.paymentRef ? `?ref=${encodeURIComponent(json.paymentRef)}` : ''}`,
+      );
+    } catch {
+      setPayError('خطأ في الاتصال — أعد المحاولة.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="wathba-fade">
@@ -62,7 +182,7 @@ export function WathbaPledge({
             marginBottom: 6,
           }}
         >
-          ادعم: {active.titleAr}
+          ادعم: {liveTitleAr ?? active.titleAr}
         </h1>
         <p
           style={{
@@ -187,7 +307,7 @@ export function WathbaPledge({
               >
                 اختر مستوى الدعم
               </h2>
-              {wathbaTiers.map((t) => {
+              {tiers.map((t) => {
                 const selected = tier === t.id;
                 return (
                   <div
@@ -275,6 +395,8 @@ export function WathbaPledge({
                 <PledgeField
                   label="الاسم الكامل"
                   placeholder="مثال: سارة العامري"
+                  value={shipName}
+                  onChange={setShipName}
                 />
                 <PledgeField
                   label="البريد الإلكتروني"
@@ -285,6 +407,8 @@ export function WathbaPledge({
                 <PledgeField
                   label="العنوان"
                   placeholder="الشارع، المبنى، الشقة"
+                  value={shipAddress}
+                  onChange={setShipAddress}
                 />
               </div>
               <div
@@ -294,9 +418,14 @@ export function WathbaPledge({
                   gap: 14,
                 }}
               >
-                <PledgeField label="المدينة" />
-                <PledgeField label="الدولة" defaultValue="الإمارات" />
-                <PledgeField label="الرمز البريدي" />
+                <PledgeField label="المدينة" value={shipCity} onChange={setShipCity} />
+                <PledgeField label="الدولة" defaultValue="السعودية" />
+                <PledgeField
+                  label="الرمز البريدي"
+                  value={shipPostal}
+                  onChange={setShipPostal}
+                  mono
+                />
               </div>
             </div>
           )}
@@ -379,7 +508,12 @@ export function WathbaPledge({
                   }}
                 >
                   <input
-                    defaultValue="4242 4242 4242 4242"
+                    value={cardNumber}
+                    onChange={(e) => setCardNumber(e.target.value)}
+                    placeholder="4111 1111 1111 1111"
+                    inputMode="numeric"
+                    autoComplete="cc-number"
+                    aria-label="رقم البطاقة"
                     style={{
                       flex: 1,
                       background: 'transparent',
@@ -393,6 +527,15 @@ export function WathbaPledge({
                   <Icon name="lock" size={20} color="var(--accent)" />
                 </div>
               </div>
+              <div style={{ marginBottom: 14 }}>
+                <PledgeField
+                  label="الاسم على البطاقة"
+                  placeholder="SARA ALAMRI"
+                  value={cardName}
+                  onChange={setCardName}
+                  mono
+                />
+              </div>
               <div
                 style={{
                   display: 'grid',
@@ -402,11 +545,35 @@ export function WathbaPledge({
               >
                 <PledgeField
                   label="تاريخ الانتهاء"
-                  defaultValue="08 / 28"
+                  placeholder="MM/YY"
+                  value={cardExp}
+                  onChange={setCardExp}
                   mono
                 />
-                <PledgeField label="CVC" defaultValue="•••" />
+                <PledgeField
+                  label="CVC"
+                  placeholder="123"
+                  value={cardCvc}
+                  onChange={setCardCvc}
+                  mono
+                />
               </div>
+              {payError && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 16,
+                    fontSize: 13,
+                    color: '#ef4444',
+                    background: 'rgba(239,68,68,.07)',
+                    border: '1px solid rgba(239,68,68,.25)',
+                    borderRadius: 11,
+                    padding: '12px 14px',
+                  }}
+                >
+                  {payError}
+                </div>
+              )}
               <div
                 style={{
                   marginTop: 18,
@@ -461,7 +628,7 @@ export function WathbaPledge({
                   margin: '0 auto 22px',
                 }}
               >
-                أصبحت الآن داعماً لـ«{active.titleAr}». سنوافيك بكل التحديثات
+                أصبحت الآن داعماً لـ«{liveTitleAr ?? active.titleAr}». سنوافيك بكل التحديثات
                 على بريدك.
               </p>
               <div
@@ -564,11 +731,16 @@ export function WathbaPledge({
               )}
               <button
                 type="button"
-                onClick={() => setStep((s) => Math.min(4, s + 1))}
+                disabled={submitting}
+                onClick={() => {
+                  if (step === 3) void confirmPledge();
+                  else setStep((s) => Math.min(4, s + 1));
+                }}
                 style={{
                   flex: 1,
                   border: 'none',
-                  cursor: 'pointer',
+                  cursor: submitting ? 'wait' : 'pointer',
+                  opacity: submitting ? 0.6 : 1,
                   background: 'var(--grad)',
                   color: 'var(--on-accent)',
                   fontWeight: 700,
@@ -578,7 +750,7 @@ export function WathbaPledge({
                   fontFamily: 'inherit',
                 }}
               >
-                {step === 3 ? 'تأكيد الدعم' : 'متابعة'}
+                {step === 3 ? (submitting ? 'جارٍ تأكيد الدعم…' : 'تأكيد الدعم') : 'متابعة'}
               </button>
             </div>
           )}
@@ -627,7 +799,7 @@ export function WathbaPledge({
             </div>
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-            {active.titleAr}
+            {liveTitleAr ?? active.titleAr}
           </div>
           <div
             style={{
@@ -712,11 +884,15 @@ function PledgeField({
   label,
   placeholder,
   defaultValue,
+  value,
+  onChange,
   mono = false,
 }: {
   label: string;
   placeholder?: string;
   defaultValue?: string;
+  value?: string;
+  onChange?: (v: string) => void;
   mono?: boolean;
 }) {
   return (
@@ -734,6 +910,9 @@ function PledgeField({
       <input
         placeholder={placeholder}
         defaultValue={defaultValue}
+        {...(onChange
+          ? { value: value ?? '', onChange: (e) => onChange(e.target.value) }
+          : {})}
         style={{
           width: '100%',
           background: 'rgba(var(--ink-rgb),.04)',
