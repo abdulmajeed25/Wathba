@@ -693,3 +693,33 @@ model WebhookEvent {
   @@index([pspRef])
   @@index([createdAt])
 }
+
+enum LedgerEntryType {
+  HOLD_AUTHORIZED
+  CAPTURE
+  VOID
+  REFUND
+  PAYOUT_SENT
+}
+
+/// Append-only money journal (Sprint 1 / P1-602). One row per PSP-side
+/// money movement, written in the same code path that performs it. This is
+/// the reconciliation source of truth: every row maps to a real PSP event
+/// via `pspRef`. Never UPDATE or DELETE rows here.
+model LedgerEntry {
+  id            String          @id @default(uuid()) @db.Uuid
+  entryType     LedgerEntryType
+  amountHalalas BigInt
+  pspRef        String
+  pledgeId      String?         @db.Uuid
+  payoutId      String?         @db.Uuid
+  projectId     String?         @db.Uuid
+  /// origin of the write: sync-path | webhook | disburser
+  source        String          @default("sync-path")
+  createdAt     DateTime        @default(now())
+
+  @@index([pspRef])
+  @@index([projectId, createdAt])
+  @@index([pledgeId])
+  @@index([entryType, createdAt])
+}

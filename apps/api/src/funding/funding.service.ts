@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
+import { LedgerService } from '../escrow-payments/ledger.service';
 import { ContractsService } from '../contracts/contracts.service';
 import { FundingGateway } from './funding.gateway';
 import { CommunityService } from '../community/community.service';
@@ -31,6 +32,7 @@ export class FundingService {
     private readonly contracts: ContractsService,
     private readonly gateway: FundingGateway,
     private readonly community: CommunityService,
+    private readonly ledger: LedgerService,
   ) {}
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
@@ -142,6 +144,16 @@ export class FundingService {
         data: { status: PledgeStatus.FAILED, paymentRef: `failed-${pledge.id}` },
       });
       throw new BadRequestException('payment authorization failed');
+    }
+
+    if (payment.status === 'authorized') {
+      await this.ledger.record({
+        entryType: 'HOLD_AUTHORIZED',
+        amountHalalas: pledge.amountHalalas,
+        pspRef: payment.paymentRef,
+        pledgeId: pledge.id,
+        projectId: dto.projectId,
+      });
     }
 
     if (payment.status !== 'authorized') {

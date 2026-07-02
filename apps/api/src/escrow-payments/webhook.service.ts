@@ -2,7 +2,8 @@ import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException 
 import { ConfigService } from '@nestjs/config';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { PledgeStatus, Prisma } from '@prisma/client';
+import { LedgerService } from './ledger.service';
+import { LedgerEntryType, PledgeStatus, Prisma } from '@prisma/client';
 
 /**
  * Moyasar webhook processor (Sprint 1 / P0-003).
@@ -42,6 +43,7 @@ export class WebhookService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly ledger: LedgerService,
     cfg: ConfigService,
   ) {
     this.secret = cfg.get<string>('MOYASAR_WEBHOOK_SECRET') ?? '';
@@ -123,6 +125,14 @@ export class WebhookService {
           where: { id: pledge.id },
           data: { status: PledgeStatus.CAPTURED, capturedAt: new Date() },
         });
+        await this.ledger.record({
+          entryType: LedgerEntryType.CAPTURE,
+          amountHalalas: pledge.amountHalalas,
+          pspRef,
+          pledgeId: pledge.id,
+          projectId: pledge.projectId,
+          source: 'webhook',
+        });
         return 'applied';
       }
 
@@ -143,6 +153,14 @@ export class WebhookService {
           where: { id: pledge.id },
           data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
         });
+        await this.ledger.record({
+          entryType: LedgerEntryType.VOID,
+          amountHalalas: pledge.amountHalalas,
+          pspRef,
+          pledgeId: pledge.id,
+          projectId: pledge.projectId,
+          source: 'webhook',
+        });
         return 'applied';
       }
 
@@ -152,6 +170,14 @@ export class WebhookService {
         await this.prisma.pledge.update({
           where: { id: pledge.id },
           data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
+        });
+        await this.ledger.record({
+          entryType: LedgerEntryType.REFUND,
+          amountHalalas: pledge.amountHalalas,
+          pspRef,
+          pledgeId: pledge.id,
+          projectId: pledge.projectId,
+          source: 'webhook',
         });
         return 'applied';
       }

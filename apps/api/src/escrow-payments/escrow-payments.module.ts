@@ -4,11 +4,12 @@ import { EscrowService } from './escrow.service';
 import { PayoutsController } from './payouts.controller';
 import { WebhookController } from './webhook.controller';
 import { WebhookService } from './webhook.service';
+import { LedgerService } from './ledger.service';
 
 @Global()
 @Module({
   controllers: [PayoutsController, WebhookController],
-  providers: [MoyasarAdapter, EscrowService, WebhookService],
-  exports: [EscrowService, MoyasarAdapter],
+  providers: [MoyasarAdapter, EscrowService, WebhookService, LedgerService],
+  exports: [EscrowService, MoyasarAdapter, LedgerService],
 })
 export class EscrowPaymentsModule {}

@@ -37,7 +37,7 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     const community = {
       materializeFromPledge: jest.fn().mockResolvedValue(undefined),
     } as unknown as import('../community/community.service').CommunityService;
-    return { svc: new FundingService(prisma, escrow, contracts, gateway, community), prisma, escrow };
+    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any), prisma, escrow };
   };
 
   it('captures when raised exactly meets the 80% threshold', async () => {

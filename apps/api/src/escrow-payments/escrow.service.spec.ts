@@ -2,6 +2,10 @@
 import { PledgeStatus } from '@prisma/client';
 import { EscrowService } from './escrow.service';
 
+function ledgerMock(): any {
+  return { record: jest.fn().mockResolvedValue(undefined) };
+}
+
 /**
  * EscrowService.captureAllHeld / refundAllHeld — Tier 3.9 covers the
  * bounded-concurrency batch runner introduced in Tier 1.4.
@@ -38,7 +42,7 @@ describe('EscrowService.captureAllHeld', () => {
   it('returns 0/0 when there are no HELD pledges', async () => {
     const prisma = makePrisma([]);
     const moyasar = { capture: jest.fn(), void: jest.fn(), hold: jest.fn() } as any;
-    const svc = new EscrowService(prisma, moyasar);
+    const svc = new EscrowService(prisma, moyasar, ledgerMock());
     const r = await svc.captureAllHeld('proj');
     expect(r).toEqual({ captured: 0, failed: 0 });
     expect(moyasar.capture).not.toHaveBeenCalled();
@@ -57,7 +61,7 @@ describe('EscrowService.captureAllHeld', () => {
       void: jest.fn(),
       hold: jest.fn(),
     } as any;
-    const svc = new EscrowService(prisma, moyasar);
+    const svc = new EscrowService(prisma, moyasar, ledgerMock());
     const r = await svc.captureAllHeld('proj');
     expect(r).toEqual({ captured: 2, failed: 2 });
     // pledge.update fires only for the 2 successful captures
@@ -71,7 +75,7 @@ describe('EscrowService.captureAllHeld', () => {
       capture: jest.fn().mockResolvedValue({ ok: true }),
       void: jest.fn(), hold: jest.fn(),
     } as any;
-    const svc = new EscrowService(prisma, moyasar);
+    const svc = new EscrowService(prisma, moyasar, ledgerMock());
     const r = await svc.captureAllHeld('proj');
     expect(r).toEqual({ captured: 50, failed: 0 });
     expect(moyasar.capture).toHaveBeenCalledTimes(50);
@@ -92,7 +96,7 @@ describe('EscrowService.refundAllHeld', () => {
         .mockResolvedValueOnce({ ok: true }),
       hold: jest.fn(),
     } as any;
-    const svc = new EscrowService(prisma, moyasar);
+    const svc = new EscrowService(prisma, moyasar, ledgerMock());
     const r = await svc.refundAllHeld('proj');
     expect(r).toEqual({ refunded: 2, failed: 1 });
     expect(prisma.pledge.update).toHaveBeenCalledTimes(2);

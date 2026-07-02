@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MoyasarAdapter } from './moyasar.adapter';
-import { PledgeStatus, type Pledge } from '@prisma/client';
+import { LedgerService } from './ledger.service';
+import { LedgerEntryType, PledgeStatus, type Pledge } from '@prisma/client';
 
 /**
  * Escrow facade — internal-only. The funding context calls these from
@@ -14,6 +15,7 @@ export class EscrowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly moyasar: MoyasarAdapter,
+    private readonly ledger: LedgerService,
   ) {}
 
   async hold(input: {
@@ -91,6 +93,13 @@ export class EscrowService {
         where: { id: p.id },
         data: { status: PledgeStatus.CAPTURED, capturedAt: new Date() },
       });
+      await this.ledger.record({
+        entryType: LedgerEntryType.CAPTURE,
+        amountHalalas: p.amountHalalas,
+        pspRef: p.paymentRef,
+        pledgeId: p.id,
+        projectId: p.projectId,
+      });
       return true;
     } catch (err) {
       this.logger.error(`capture failed for pledge=${p.id}`, err as Error);
@@ -106,6 +115,13 @@ export class EscrowService {
       await this.prisma.pledge.update({
         where: { id: p.id },
         data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
+      });
+      await this.ledger.record({
+        entryType: LedgerEntryType.VOID,
+        amountHalalas: p.amountHalalas,
+        pspRef: p.paymentRef,
+        pledgeId: p.id,
+        projectId: p.projectId,
       });
       return true;
     } catch (err) {

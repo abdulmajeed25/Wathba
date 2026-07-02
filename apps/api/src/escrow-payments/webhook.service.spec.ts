@@ -3,6 +3,10 @@ import { UnauthorizedException } from '@nestjs/common';
 import { PledgeStatus, Prisma } from '@prisma/client';
 import { WebhookService } from './webhook.service';
 
+function ledgerMock(): any {
+  return { record: jest.fn().mockResolvedValue(undefined) };
+}
+
 /**
  * WebhookService — Sprint 1 / P0-003 branch coverage:
  *   secret verification (good / bad / unset-dev)
@@ -44,12 +48,12 @@ function payload(type: string, extra: Record<string, unknown> = {}): any {
 
 describe('WebhookService.verify', () => {
   it('accepts a matching secret_token', () => {
-    const svc = new WebhookService(makePrisma(), cfg());
+    const svc = new WebhookService(makePrisma(), ledgerMock(), cfg());
     expect(() => svc.verify(payload('payment_paid'))).not.toThrow();
   });
 
   it('rejects a wrong secret_token with 401', () => {
-    const svc = new WebhookService(makePrisma(), cfg());
+    const svc = new WebhookService(makePrisma(), ledgerMock(), cfg());
     expect(() => svc.verify({ ...payload('payment_paid'), secret_token: 'wrong' })).toThrow(
       UnauthorizedException,
     );
@@ -65,7 +69,7 @@ describe('WebhookService.process — dedup', () => {
     const prisma = makePrisma({
       webhookEvent: { create: jest.fn().mockRejectedValue(p2002), update: jest.fn() },
     });
-    const svc = new WebhookService(prisma, cfg());
+    const svc = new WebhookService(prisma, ledgerMock(), cfg());
     const r = await svc.process(payload('payment_paid'));
     expect(r.outcome).toBe('duplicate');
     expect(prisma.pledge.findFirst).not.toHaveBeenCalled();
@@ -85,7 +89,7 @@ describe('WebhookService.process — event branches', () => {
         update: jest.fn().mockResolvedValue({}),
       },
     });
-    const svc = new WebhookService(prisma, cfg());
+    const svc = new WebhookService(prisma, ledgerMock(), cfg());
     const r = await svc.process(payload(type));
     expect(r.outcome).toBe('applied');
     expect(prisma.pledge.update).toHaveBeenCalledWith(
@@ -104,7 +108,7 @@ describe('WebhookService.process — event branches', () => {
         update: jest.fn(),
       },
     });
-    const svc = new WebhookService(prisma, cfg());
+    const svc = new WebhookService(prisma, ledgerMock(), cfg());
     const r = await svc.process(payload('payment_paid'));
     expect(r.outcome).toBe('ignored');
     expect(prisma.pledge.update).not.toHaveBeenCalled();
@@ -117,7 +121,7 @@ describe('WebhookService.process — event branches', () => {
         update: jest.fn(),
       },
     });
-    const svc = new WebhookService(prisma, cfg());
+    const svc = new WebhookService(prisma, ledgerMock(), cfg());
     const r = await svc.process(payload('payment_refunded'));
     expect(r.outcome).toBe('mismatch');
   });
@@ -126,7 +130,7 @@ describe('WebhookService.process — event branches', () => {
     const prisma = makePrisma({
       pledge: { findFirst: jest.fn().mockResolvedValue(null), update: jest.fn() },
     });
-    const svc = new WebhookService(prisma, cfg());
+    const svc = new WebhookService(prisma, ledgerMock(), cfg());
     const r = await svc.process(payload('payment_paid'));
     expect(r.outcome).toBe('mismatch');
   });
@@ -138,7 +142,7 @@ describe('WebhookService.process — event branches', () => {
         update: jest.fn(),
       },
     });
-    const svc = new WebhookService(prisma, cfg());
+    const svc = new WebhookService(prisma, ledgerMock(), cfg());
     const r = await svc.process(payload('payment_disputed'));
     expect(r.outcome).toBe('ignored');
     expect(prisma.pledge.update).not.toHaveBeenCalled();
