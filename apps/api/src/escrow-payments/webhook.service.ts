@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
+import { AuditService } from '../identity/audit.service';
 import { LedgerEntryType, PledgeStatus, Prisma } from '@prisma/client';
 
 /**
@@ -44,6 +45,7 @@ export class WebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly audit: AuditService,
     cfg: ConfigService,
   ) {
     this.secret = cfg.get<string>('MOYASAR_WEBHOOK_SECRET') ?? '';
@@ -179,6 +181,37 @@ export class WebhookService {
           projectId: pledge.projectId,
           source: 'webhook',
         });
+        return 'applied';
+      }
+
+      case 'payment_disputed':
+      case 'chargeback': {
+        // Sprint 5 / #5: a chargeback claws back a captured pledge. Record
+        // a reversing DISPUTE ledger entry so the journal reconciles to PSP
+        // truth, flip the pledge to DISPUTED, and raise an audit + alert.
+        if (pledge.status === PledgeStatus.DISPUTED) return 'ignored';
+        if (pledge.status !== PledgeStatus.CAPTURED) return 'mismatch';
+        await this.prisma.pledge.update({
+          where: { id: pledge.id },
+          data: { status: PledgeStatus.DISPUTED },
+        });
+        await this.ledger.record({
+          entryType: LedgerEntryType.DISPUTE,
+          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
+          pspRef,
+          pledgeId: pledge.id,
+          projectId: pledge.projectId,
+          source: 'webhook',
+        });
+        await this.audit.log({
+          action: 'pledge.disputed',
+          entity: 'Pledge',
+          entityId: pledge.id,
+          detail: { pspRef, projectId: pledge.projectId },
+        });
+        this.logger.error(
+          `DISPUTE ALERT pledge=${pledge.id} pspRef=${pspRef} — chargeback clawed back a CAPTURED pledge; funds reconciliation required`,
+        );
         return 'applied';
       }
 

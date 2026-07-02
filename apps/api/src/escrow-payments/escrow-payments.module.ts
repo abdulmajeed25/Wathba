@@ -1,4 +1,5 @@
 import { Global, Module } from '@nestjs/common';
+import { IdentityModule } from '../identity/identity.module';
 import { MoyasarAdapter } from './moyasar.adapter';
 import { EscrowService } from './escrow.service';
 import { PayoutsController } from './payouts.controller';
@@ -10,6 +11,7 @@ import { ZatcaService } from './zatca.service';
 
 @Global()
 @Module({
+  imports: [IdentityModule],
   controllers: [PayoutsController, WebhookController],
   providers: [MoyasarAdapter, EscrowService, WebhookService, LedgerService, PayoutDisburser, ZatcaService],
   exports: [EscrowService, MoyasarAdapter, LedgerService, PayoutDisburser],

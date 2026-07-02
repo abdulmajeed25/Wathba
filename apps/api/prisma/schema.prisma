@@ -61,6 +61,7 @@ enum PledgeStatus {
   CAPTURED
   REFUNDED
   FAILED
+  DISPUTED
 }
 
 enum ContractType {
@@ -703,6 +704,7 @@ enum LedgerEntryType {
   VOID
   REFUND
   PAYOUT_SENT
+  DISPUTE
 }
 
 /// Append-only money journal (Sprint 1 / P1-602). One row per PSP-side
