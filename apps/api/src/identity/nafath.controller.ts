@@ -33,7 +33,7 @@ export class NafathController {
   }
 
   @Post('confirm')
-  @ApiOperation({ summary: 'Confirm Nafath transaction (stub auto-approves)' })
+  @ApiOperation({ summary: 'Poll/confirm Nafath transaction — {outcome: verified|pending|rejected|expired}' })
   async confirm(@CurrentUser() jwt: JwtPayload, @Body() dto: ConfirmNafathDto) {
     return this.nafath.confirm(jwt.sub, dto.transactionId);
   }

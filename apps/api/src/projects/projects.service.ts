@@ -77,6 +77,15 @@ export class ProjectsService {
 
   async submitForReview(creatorId: string, projectId: string): Promise<Project> {
     const proj = await this.requireOwned(creatorId, projectId);
+    // Sprint 2 / P0-501: creators must be Nafath-verified before anything
+    // they authored can go to review (KSA identity posture — money will
+    // eventually flow to this person).
+    const creator = await this.prisma.user.findUnique({ where: { id: creatorId } });
+    if (!creator?.nafathVerified) {
+      throw new ForbiddenException(
+        'KYC required — verify your identity via Nafath before submitting a project',
+      );
+    }
     if (proj.status !== ProjectStatus.DRAFT) {
       throw new BadRequestException(`only DRAFT projects can be submitted (was ${proj.status})`);
     }
