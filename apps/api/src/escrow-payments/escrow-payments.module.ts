@@ -6,11 +6,12 @@ import { WebhookController } from './webhook.controller';
 import { WebhookService } from './webhook.service';
 import { LedgerService } from './ledger.service';
 import { PayoutDisburser } from './payout.disburser';
+import { ZatcaService } from './zatca.service';
 
 @Global()
 @Module({
   controllers: [PayoutsController, WebhookController],
-  providers: [MoyasarAdapter, EscrowService, WebhookService, LedgerService, PayoutDisburser],
+  providers: [MoyasarAdapter, EscrowService, WebhookService, LedgerService, PayoutDisburser, ZatcaService],
   exports: [EscrowService, MoyasarAdapter, LedgerService, PayoutDisburser],
 })
 export class EscrowPaymentsModule {}

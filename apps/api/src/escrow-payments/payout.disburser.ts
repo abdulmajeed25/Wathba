@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
+import { ZatcaService } from './zatca.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
 
 /**
@@ -29,6 +30,7 @@ export class PayoutDisburser {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly zatca: ZatcaService,
     cfg: ConfigService,
   ) {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
@@ -82,6 +84,15 @@ export class PayoutDisburser {
       this.logger.log(
         `Payout SENT id=${p.id} creator=${p.creatorId} amount=${p.amountHalalas} ref=${transferRef}`,
       );
+      // ZATCA (Sprint 2 / P0-701): each disbursed tranche carries the
+      // platform-commission tax invoice. Failure must not undo the payout —
+      // log loudly; generateForPayout is idempotent so the next tick heals.
+      try {
+        const inv = await this.zatca.generateForPayout(p);
+        this.logger.log(`ZATCA invoice ${inv.invoiceNumber} issued for payout=${p.id}`);
+      } catch (err) {
+        this.logger.error(`ZATCA invoice FAILED for payout=${p.id} — backfill required`, err as Error);
+      }
       return true;
     } catch (err) {
       // Stays PENDING — retried next tick; repeated failures surface in logs.

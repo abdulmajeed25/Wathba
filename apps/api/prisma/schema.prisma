@@ -726,3 +726,23 @@ model LedgerEntry {
   @@index([pledgeId])
   @@index([entryType, createdAt])
 }
+
+/// ZATCA Phase-2 e-invoice on the platform commission (Sprint 2 / P0-701).
+/// One simplified tax invoice per payout tranche: Wathba invoices the
+/// creator 5% commission + 15% VAT, with the Phase-1 TLV QR embedded and a
+/// Phase-2 reporting timestamp once cleared.
+model ZatcaInvoice {
+  id                 String    @id @default(uuid()) @db.Uuid
+  invoiceNumber      String    @unique
+  payoutId           String    @unique @db.Uuid
+  creatorId          String    @db.Uuid
+  commissionHalalas  BigInt
+  vatHalalas         BigInt
+  totalHalalas       BigInt
+  qrTlv              String
+  payload            Json
+  issuedAt           DateTime  @default(now())
+  reportedAt         DateTime?
+
+  @@index([creatorId, issuedAt])
+}
