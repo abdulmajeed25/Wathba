@@ -40,6 +40,7 @@ function makePrisma(over: Record<string, any> = {}): any {
     supplierBid: { findMany: jest.fn().mockResolvedValue([]) },
     creatorFollow: { findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() },
     faqQuestion: { findMany: jest.fn().mockResolvedValue([]) },
+    payoutBeneficiary: { findUnique: jest.fn().mockResolvedValue(null), deleteMany: jest.fn() },
     address: { deleteMany: jest.fn() },
     ...over,
   };

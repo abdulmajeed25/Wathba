@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
 import { HeartbeatService } from '../common/heartbeat.service';
 import { ZatcaService } from './zatca.service';
+import { PayoutBeneficiaryService } from './payout-beneficiary.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
 
 /** A validated creator bank/wallet beneficiary — required by Moyasar's
@@ -88,6 +89,7 @@ export class PayoutDisburser {
     private readonly ledger: LedgerService,
     private readonly zatca: ZatcaService,
     private readonly heartbeat: HeartbeatService,
+    private readonly beneficiaries: PayoutBeneficiaryService,
     cfg: ConfigService,
   ) {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
@@ -238,8 +240,14 @@ export class PayoutDisburser {
    * the payout PENDING. Tracked on issue #4's checklist.
    */
   private async resolveBeneficiary(p: Payout): Promise<PayoutBeneficiary> {
-    throw new Error(
-      `no payout beneficiary on file for creator=${p.creatorId} — creator bank-details capture is a prerequisite (see #4)`,
-    );
+    const dest = await this.beneficiaries.resolveDestination(p.creatorId);
+    if (!dest) {
+      // Correct behaviour: refuse to pay a creator with no beneficiary on
+      // file — the payout stays PENDING until they add bank details (#7).
+      throw new Error(
+        `no payout beneficiary on file for creator=${p.creatorId} — creator must add bank details (see #7)`,
+      );
+    }
+    return dest;
   }
 }

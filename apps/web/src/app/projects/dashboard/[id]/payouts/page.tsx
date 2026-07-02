@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 
-import { listMyPayouts, listProjectMilestones } from '@/lib/api/wathba';
+import { getMyBeneficiary, listMyPayouts, listProjectMilestones } from '@/lib/api/wathba';
 import { WathbaDashboardPayouts } from '@/components/ventures/wathba/dashboard/wathba-dashboard-payouts';
+import { WathbaBeneficiaryForm } from '@/components/ventures/wathba/dashboard/wathba-beneficiary-form';
 
 export const metadata: Metadata = { title: 'الدفعات والضمان · وثبة' };
 export const dynamic = 'force-dynamic';
@@ -16,16 +17,20 @@ export default async function DashboardPayoutsPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [payouts, milestones] = await Promise.all([
+  const [payouts, milestones, beneficiary] = await Promise.all([
     listMyPayouts(),
     listProjectMilestones(id),
+    getMyBeneficiary(),
   ]);
   const rows = (payouts?.items ?? []).filter((p) => p.projectId === id);
   return (
-    <WathbaDashboardPayouts
-      projectId={id}
-      payouts={rows}
-      milestones={milestones ?? []}
-    />
+    <>
+      <WathbaBeneficiaryForm current={beneficiary} />
+      <WathbaDashboardPayouts
+        projectId={id}
+        payouts={rows}
+        milestones={milestones ?? []}
+      />
+    </>
   );
 }

@@ -384,6 +384,22 @@ export interface ApiPayoutsPayload {
   items: ApiPayoutRow[];
 }
 
+export interface ApiBeneficiary {
+  type: 'BANK_ACCOUNT' | 'WALLET';
+  name: string;
+  ibanMasked: string | null;
+  mobile: string;
+  city: string | null;
+  registered: boolean;
+  updatedAt: string;
+}
+
+export async function getMyBeneficiary(token?: string | null): Promise<ApiBeneficiary | null> {
+  const bearer = token ?? (await readSessionToken());
+  const d = await fetchJson<{ beneficiary: ApiBeneficiary | null }>('/v1/payouts/beneficiary', 30, bearer);
+  return d?.beneficiary ?? null;
+}
+
 export async function listMyPayouts(token?: string | null): Promise<ApiPayoutsPayload | null> {
   const bearer = token ?? (await readSessionToken());
   return fetchJson<ApiPayoutsPayload>(`/v1/payouts/me`, 30, bearer);

@@ -164,6 +164,7 @@ model User {
   creatorProfile      CreatorProfile?
   follows             CreatorFollow[] @relation("Follower")
   updateLikes         UpdateLike[]
+  payoutBeneficiary   PayoutBeneficiary?
 
   @@index([reputationTier])
   @@index([email])
@@ -793,4 +794,29 @@ model PasswordResetToken {
   createdAt DateTime  @default(now())
 
   @@index([userId])
+}
+
+enum BeneficiaryType {
+  BANK_ACCOUNT
+  WALLET
+}
+
+/// Creator payout beneficiary (Sprint 5 / #7) — the Moyasar `destination`
+/// for real payouts. One per creator; PDPL-relevant PII. `moyasarAccountId`
+/// is set once the beneficiary is registered as a Moyasar payout account
+/// (credential-gated). A payout cannot be disbursed without a row here.
+model PayoutBeneficiary {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @unique @db.Uuid
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type            BeneficiaryType @default(BANK_ACCOUNT)
+  iban            String?
+  name            String
+  mobile          String
+  country         String          @default("SA")
+  city            String?
+  moyasarAccountId String?
+  verifiedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 }

@@ -49,6 +49,9 @@ export class PdplService {
         this.prisma.creatorFollow.findMany({ where: { followerId: userId } }),
         this.prisma.faqQuestion.findMany({ where: { askerId: userId } }),
       ]);
+    const payoutBeneficiary = await this.prisma.payoutBeneficiary.findUnique({
+      where: { userId },
+    });
 
     const { passwordHash: _drop, ...profile } = user;
     return serializeBigints({
@@ -64,6 +67,7 @@ export class PdplService {
       supplierBids: bids,
       follows,
       faqQuestions,
+      payoutBeneficiary,
     });
   }
 
@@ -117,6 +121,7 @@ export class PdplService {
       });
       // Drop PII satellites outright.
       await tx.address.deleteMany({ where: { userId } });
+      await tx.payoutBeneficiary.deleteMany({ where: { userId } });
       await tx.notification.deleteMany({ where: { userId } });
       await tx.creatorFollow.deleteMany({ where: { followerId: userId } });
     });
