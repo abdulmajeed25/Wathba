@@ -2,7 +2,7 @@ import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MilestoneStatus, ProjectStatus, type Milestone, type SpendLog } from '@prisma/client';
+import { MilestoneStatus, PayoutStatus, ProjectStatus, type Milestone, type SpendLog } from '@prisma/client';
 import { CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto } from './dto/milestone.dto';
 
 /**
@@ -123,6 +123,18 @@ export class MilestonesService {
           releasedHalalas: amountHalalas,
         },
       });
+      // Sprint 1 / P0-601: the release IS a payable event — record the
+      // PENDING payout in the same tx so disbursement (PayoutDisburser)
+      // can never miss a released milestone.
+      await tx.payout.create({
+        data: {
+          projectId,
+          creatorId: project.createdById,
+          milestoneId,
+          amountHalalas,
+          status: PayoutStatus.PENDING,
+        },
+      });
       if (project.status === ProjectStatus.FUNDED) {
         await tx.project.update({
           where: { id: projectId },
@@ -131,7 +143,9 @@ export class MilestonesService {
       }
       return row;
     });
-    this.logger.log(`Released milestone=${milestoneId} amount=${amountHalalas} halalas`);
+    this.logger.log(
+      `Released milestone=${milestoneId} amount=${amountHalalas} halalas — payout queued (PENDING)`,
+    );
     return { milestone: updated, amountHalalas };
   }
 

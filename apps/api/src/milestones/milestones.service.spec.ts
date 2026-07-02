@@ -8,6 +8,7 @@ type MockedPrisma = PrismaService & {
     findUnique: jest.Mock; update: jest.Mock; findMany: jest.Mock;
     deleteMany: jest.Mock; create: jest.Mock;
   };
+  payout: { create: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -36,10 +37,11 @@ const buildSvc = (
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       create: jest.fn(),
     },
+    payout: { create: jest.fn().mockResolvedValue({ id: 'po-1' }) },
     $transaction: jest.fn(),
   } as unknown as MockedPrisma;
   prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
-  return new MilestonesService(prisma);
+  return Object.assign(new MilestonesService(prisma), { __prisma: prisma });
 };
 
 describe('MilestonesService.release', () => {
@@ -50,6 +52,17 @@ describe('MilestonesService.release', () => {
     );
     const { amountHalalas } = await svc.release('p', 'm');
     expect(amountHalalas).toBe(30_000_000n); // 300,000 SAR
+    // Sprint 1 / P0-601 — the release must queue a PENDING payout in-tx.
+    const prisma = (svc as unknown as { __prisma: MockedPrisma }).__prisma;
+    expect(prisma.payout.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: 'p',
+        creatorId: 'u1',
+        milestoneId: 'm',
+        amountHalalas: 30_000_000n,
+        status: 'PENDING',
+      }),
+    });
   });
 
   it('rejects release when project not FUNDED/IN_PRODUCTION', async () => {
