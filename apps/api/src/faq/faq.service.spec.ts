@@ -42,16 +42,12 @@ function makePrisma(over: Record<string, any> = {}): any {
   return prisma;
 }
 
-function makeNotifications(): { create: jest.Mock } {
-  return { create: jest.fn() };
-}
-
 describe('FaqService.createItem', () => {
   it('rejects non-owner with 403', async () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     await expect(
       svc.createItem('not-creator', PROJ, { questionAr: 'q', answerAr: 'a' } as any),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -63,7 +59,7 @@ describe('FaqService.createItem', () => {
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
       faqItem: { create },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     await svc.createItem(CREATOR, PROJ, { questionAr: 'q', answerAr: 'a' } as any);
     expect(create.mock.calls[0][0].data).toEqual(
       expect.objectContaining({ projectId: PROJ, questionAr: 'q', answerAr: 'a', sortOrder: 0 }),
@@ -78,7 +74,7 @@ describe('FaqService.ask', () => {
       project: { findUnique: jest.fn().mockResolvedValue({ id: PROJ }) },
       faqQuestion: { create },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     await svc.ask(ASKER, PROJ, { bodyAr: 'متى التسليم؟' } as any);
     expect(create.mock.calls[0][0].data).toEqual({
       projectId: PROJ,
@@ -92,7 +88,7 @@ describe('FaqService.ask', () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue(null) },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     await expect(svc.ask(ASKER, PROJ, { bodyAr: 'q' } as any)).rejects.toBeInstanceOf(
       NotFoundException,
     );
@@ -123,7 +119,7 @@ describe('FaqService.answer', () => {
       faqItem: { findFirst: jest.fn().mockResolvedValue(null), create: createItem },
       notification: { create: notifCreate },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     const out = await svc.answer(CREATOR, PROJ, QID, { answerAr: 'الإصدار في رمضان', publish: true } as any);
     expect(createItem).toHaveBeenCalled();
     expect(updateQ).toHaveBeenCalledWith(
@@ -152,7 +148,7 @@ describe('FaqService.answer', () => {
       },
       faqItem: { create: createItem },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     const out = await svc.answer(CREATOR, PROJ, QID, { answerAr: 'ok', publish: false } as any);
     expect(createItem).not.toHaveBeenCalled();
     expect(out.item).toBeNull();
@@ -165,7 +161,7 @@ describe('FaqService.answer', () => {
         findUnique: jest.fn().mockResolvedValue({ ...basePending, status: 'HIDDEN' }),
       },
     });
-    const svc = new FaqService(prisma, makeNotifications() as any);
+    const svc = new FaqService(prisma);
     await expect(
       svc.answer(CREATOR, PROJ, QID, { answerAr: 'ok' } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
