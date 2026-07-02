@@ -673,3 +673,23 @@ model Notification {
   @@index([userId, createdAt])
 }
 
+
+/// Inbound PSP webhook deliveries — idempotency ledger for async payment
+/// truth (Sprint 1 / P0-003). One row per unique delivery; `dedupKey`
+/// makes replays and Moyasar's at-least-once retries harmless.
+model WebhookEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  provider    String    @default("moyasar")
+  eventType   String
+  pspRef      String
+  dedupKey    String    @unique
+  payload     Json
+  processedAt DateTime?
+  /// applied | ignored | duplicate | mismatch
+  outcome     String?
+  createdAt   DateTime  @default(now())
+
+  // (pspRef) → reconciliation lookups by payment id
+  @@index([pspRef])
+  @@index([createdAt])
+}
