@@ -21,12 +21,14 @@ export class EscrowService {
     amountHalalas: bigint;
     source: string;
     description: string;
+    callbackUrl?: string;
   }): Promise<{ paymentRef: string; status: 'authorized' | 'failed' }> {
     return this.moyasar.hold({
       pledgeId: input.pledgeId,
       amountHalalas: Number(input.amountHalalas),
       source: input.source,
       description: input.description,
+      callbackUrl: input.callbackUrl,
     });
   }
 

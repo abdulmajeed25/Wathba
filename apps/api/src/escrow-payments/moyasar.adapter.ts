@@ -14,6 +14,8 @@ export interface HoldRequest {
   description: string;
   source: string;
   pledgeId: string;
+  /** Browser return URL for 3-D Secure hops (Moyasar `callback_url`). */
+  callbackUrl?: string;
 }
 
 export interface HoldResponse {
@@ -53,6 +55,7 @@ export class MoyasarAdapter {
       source: { type: 'token', token: req.source },
       capture: false,
       metadata: { pledgeId: req.pledgeId },
+      ...(req.callbackUrl ? { callback_url: req.callbackUrl } : {}),
     };
     const res = await this.req('POST', '/payments', body);
     return {

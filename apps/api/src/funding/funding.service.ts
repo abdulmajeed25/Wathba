@@ -132,6 +132,8 @@ export class FundingService {
         amountHalalas: pledge.amountHalalas,
         source: dto.source,
         description: `وثبة — دعم لمشروع ${project.titleAr}`,
+        // 3DS hop returns the shopper's browser to the payment-return screen.
+        callbackUrl: `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/projects/${dto.projectId}/back/success`,
       });
     } catch (err) {
       this.logger.error(`hold failed for pledge=${pledge.id}`, err as Error);
