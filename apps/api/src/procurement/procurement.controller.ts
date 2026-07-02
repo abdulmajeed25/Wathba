@@ -2,6 +2,7 @@ import {
   Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
@@ -38,6 +39,7 @@ export class ProcurementController {
   }
 
   @Post('rfqs/:rfqId/bids')
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPPLIER')
   @ApiBearerAuth()

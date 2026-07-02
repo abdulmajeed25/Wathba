@@ -31,6 +31,10 @@ function zatcaMock(): any {
   return { generateForPayout: jest.fn().mockResolvedValue({ invoiceNumber: 'WTB-2026-000001' }) };
 }
 
+function heartbeatMock(): any {
+  return { beat: jest.fn() };
+}
+
 function ledgerMock(): any {
   return { record: jest.fn().mockResolvedValue(undefined) };
 }
@@ -47,7 +51,7 @@ function makePrisma(pending: any[]): any {
 describe('PayoutDisburser.disbursePending', () => {
   it('returns 0/0 on an empty queue', async () => {
     const prisma = makePrisma([]);
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), cfg());
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg());
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 0 });
     expect(prisma.payout.update).not.toHaveBeenCalled();
   });
@@ -55,7 +59,7 @@ describe('PayoutDisburser.disbursePending', () => {
   it('stub mode sends each PENDING payout and journals PAYOUT_SENT', async () => {
     const prisma = makePrisma([payout('a'), payout('b')]);
     const ledger = ledgerMock();
-    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), cfg());
+    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), cfg());
     expect(await d.disbursePending()).toEqual({ sent: 2, failed: 0 });
     expect(prisma.payout.update).toHaveBeenCalledTimes(2);
     expect(prisma.payout.update).toHaveBeenCalledWith(
@@ -81,13 +85,13 @@ describe('PayoutDisburser.disbursePending', () => {
       .fn()
       .mockRejectedValueOnce(new Error('db down'))
       .mockResolvedValueOnce({});
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), cfg());
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg());
     expect(await d.disbursePending()).toEqual({ sent: 1, failed: 1 });
   });
 
   it('configured provider key without integration throws → payout stays PENDING', async () => {
     const prisma = makePrisma([payout('z')]);
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), cfg('real-key'));
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), cfg('real-key'));
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
     expect(prisma.payout.update).not.toHaveBeenCalled();
   });

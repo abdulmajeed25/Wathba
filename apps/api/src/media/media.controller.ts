@@ -1,4 +1,5 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsInt, IsString, Matches, Max, Min } from 'class-validator';
 
@@ -25,6 +26,7 @@ export class MediaController {
   constructor(private readonly media: MediaService) {}
 
   @Post('upload-url')
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({

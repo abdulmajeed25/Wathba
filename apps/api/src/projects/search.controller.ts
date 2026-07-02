@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -17,6 +18,7 @@ export class SearchController {
   constructor(private readonly search: SearchService) {}
 
   @Get()
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @ApiOperation({ summary: 'Full-text + trigram fuzzy search over projects' })
   async query(
     @Query('q') q = '',

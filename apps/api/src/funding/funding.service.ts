@@ -220,11 +220,19 @@ export class FundingService {
     return updated;
   }
 
-  async listMine(backerId: string): Promise<Pledge[]> {
-    return this.prisma.pledge.findMany({
+  async listMine(
+    backerId: string,
+    opts: { take?: number; cursor?: string } = {},
+  ): Promise<{ items: Pledge[]; nextCursor: string | null }> {
+    const take = Math.min(50, Math.max(1, opts.take ?? 20));
+    const items = await this.prisma.pledge.findMany({
       where: { backerId },
       orderBy: { createdAt: 'desc' },
+      take: take + 1,
+      ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
     });
+    const nextCursor = items.length > take ? items[take]!.id : null;
+    return { items: items.slice(0, take), nextCursor };
   }
 
   toPublic(p: Pledge): Record<string, unknown> {

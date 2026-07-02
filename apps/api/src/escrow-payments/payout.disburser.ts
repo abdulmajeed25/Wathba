@@ -4,6 +4,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
+import { HeartbeatService } from '../common/heartbeat.service';
 import { ZatcaService } from './zatca.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
 
@@ -31,6 +32,7 @@ export class PayoutDisburser {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly zatca: ZatcaService,
+    private readonly heartbeat: HeartbeatService,
     cfg: ConfigService,
   ) {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
@@ -38,6 +40,7 @@ export class PayoutDisburser {
 
   @Cron(CronExpression.EVERY_5_MINUTES, { name: 'payout-disburse-tick' })
   async tick(): Promise<void> {
+    this.heartbeat.beat('payout-tick');
     if (process.env.PAYOUT_TICK_DISABLED === 'true') {
       this.logger.warn('payout tick SKIPPED — PAYOUT_TICK_DISABLED=true (unset this after maintenance!)');
       return;
