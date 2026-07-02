@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { ProjectsService } from './projects.service';
+import { FundingService } from '../funding/funding.service';
 import { TabCountsService } from './tab-counts.service';
 import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
 
@@ -15,6 +16,7 @@ export class ProjectsController {
   constructor(
     private readonly projects: ProjectsService,
     private readonly tabCounts: TabCountsService,
+    private readonly funding: FundingService,
   ) {}
 
   @Get()
@@ -66,6 +68,17 @@ export class ProjectsController {
   async submit(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
     const p = await this.projects.submitForReview(jwt.sub, id);
     return this.projects.toPublic(p);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Creator cancels their campaign — DRAFT deletes, UNDER_REVIEW withdraws, LIVE refunds all holds (refund policy §5)',
+  })
+  async cancel(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.funding.cancelCampaign(jwt.sub, id);
   }
 
   @Post(':id/deliver')

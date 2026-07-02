@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Injectable, Logger, NotFoundException,
+  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
@@ -340,6 +340,68 @@ export class FundingService {
     }
     throw new BadRequestException(
       `project is ${project.status} — residue sweep only applies after settlement`,
+    );
+  }
+
+  /**
+   * Creator-initiated cancellation (Sprint 3 / P1-209) — refund policy §5:
+   *   DRAFT        → hard delete (nothing public, no money).
+   *   UNDER_REVIEW → withdraw back to DRAFT.
+   *   LIVE         → atomic claim to FAILED, void every HELD hold, → REFUNDED.
+   * Anything post-settlement cannot be cancelled by the creator.
+   */
+  async cancelCampaign(
+    creatorId: string,
+    projectId: string,
+  ): Promise<{ projectId: string; outcome: 'deleted' | 'withdrawn' | 'refunded' }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('project not found');
+    if (project.createdById !== creatorId) {
+      throw new ForbiddenException('not your project');
+    }
+
+    if (project.status === ProjectStatus.DRAFT) {
+      await this.prisma.project.delete({ where: { id: projectId } });
+      return { projectId, outcome: 'deleted' };
+    }
+
+    if (project.status === ProjectStatus.UNDER_REVIEW) {
+      await this.prisma.project.update({
+        where: { id: projectId },
+        data: { status: ProjectStatus.DRAFT },
+      });
+      return { projectId, outcome: 'withdrawn' };
+    }
+
+    if (project.status === ProjectStatus.LIVE) {
+      // Same atomic-claim discipline as settlement (P1-306) — a concurrent
+      // deadline settle and a cancel can't both win.
+      const claimed = await this.prisma.project.updateMany({
+        where: { id: projectId, status: ProjectStatus.LIVE },
+        data: { status: ProjectStatus.FAILED },
+      });
+      if (claimed.count === 0) {
+        throw new BadRequestException('project is being settled — cancellation unavailable');
+      }
+      await this.escrow.refundAllHeld(projectId);
+      const straggler = await this.escrow.refundAllHeld(projectId);
+      const residue = await this.countHeld(projectId);
+      if (straggler.failed > 0 || residue > 0) {
+        this.logger.error(
+          `CANCEL ALERT project=${projectId}: ${residue} pledge(s) still HELD after cancel-refund — ` +
+            `retry via POST /v1/admin/projects/${projectId}/settle`,
+        );
+      }
+      await this.prisma.project.update({
+        where: { id: projectId },
+        data: { status: ProjectStatus.REFUNDED },
+      });
+      this.logger.log(`Creator cancelled LIVE project=${projectId} — all holds voided`);
+      return { projectId, outcome: 'refunded' };
+    }
+
+    throw new BadRequestException(
+      `cannot cancel a ${project.status} campaign — funds already settled`,
     );
   }
 

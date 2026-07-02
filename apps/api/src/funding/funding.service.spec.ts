@@ -282,3 +282,74 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     expect(gateway.emitTick).toHaveBeenCalled();
   });
 });
+
+describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
+  function build(status: ProjectStatus, createdById = 'creator-1') {
+    const prisma: Record<string, unknown> = {
+      project: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'p1', status, createdById }),
+        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        delete: jest.fn().mockResolvedValue({}),
+      },
+      pledge: { count: jest.fn().mockResolvedValue(0) },
+    };
+    const escrow = {
+      refundAllHeld: jest.fn().mockResolvedValue({ refunded: 0, failed: 0 }),
+      captureAllHeld: jest.fn(),
+      hold: jest.fn(),
+    };
+    const svc = new FundingService(
+      prisma as never,
+      escrow as never,
+      {} as never,
+      { emitTick: jest.fn() } as never,
+      { materializeFromPledge: jest.fn() } as never,
+      { record: jest.fn() } as never,
+    );
+    return { svc, prisma: prisma as never as Record<string, Record<string, jest.Mock>>, escrow };
+  }
+
+  it('DRAFT → hard delete', async () => {
+    const { svc, prisma } = build(ProjectStatus.DRAFT);
+    const r = await svc.cancelCampaign('creator-1', 'p1');
+    expect(r.outcome).toBe('deleted');
+    expect(prisma.project!.delete).toHaveBeenCalled();
+  });
+
+  it('UNDER_REVIEW → withdrawn back to DRAFT', async () => {
+    const { svc, prisma } = build(ProjectStatus.UNDER_REVIEW);
+    const r = await svc.cancelCampaign('creator-1', 'p1');
+    expect(r.outcome).toBe('withdrawn');
+    expect(prisma.project!.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: ProjectStatus.DRAFT } }),
+    );
+  });
+
+  it('LIVE → refunds every hold and lands on REFUNDED', async () => {
+    const { svc, prisma, escrow } = build(ProjectStatus.LIVE);
+    const r = await svc.cancelCampaign('creator-1', 'p1');
+    expect(r.outcome).toBe('refunded');
+    expect(escrow.refundAllHeld).toHaveBeenCalledWith('p1');
+    expect(prisma.project!.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: ProjectStatus.REFUNDED } }),
+    );
+  });
+
+  it('LIVE cancel racing a settle claim → 400, nothing refunded', async () => {
+    const { svc, prisma, escrow } = build(ProjectStatus.LIVE);
+    prisma.project!.updateMany!.mockResolvedValue({ count: 0 });
+    await expect(svc.cancelCampaign('creator-1', 'p1')).rejects.toThrow(/being settled/);
+    expect(escrow.refundAllHeld).not.toHaveBeenCalled();
+  });
+
+  it('FUNDED → 400 (settled money cannot be creator-cancelled)', async () => {
+    const { svc } = build(ProjectStatus.FUNDED);
+    await expect(svc.cancelCampaign('creator-1', 'p1')).rejects.toThrow(/cannot cancel/);
+  });
+
+  it('non-owner → 403', async () => {
+    const { svc } = build(ProjectStatus.LIVE);
+    await expect(svc.cancelCampaign('intruder', 'p1')).rejects.toThrow(/not your project/);
+  });
+});

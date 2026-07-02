@@ -379,18 +379,148 @@ export function DashboardSettings({
         )}
       </Card>
 
-      {/* ── Danger zone ───────────────────────────────────────────────── */}
+      {/* ── Danger zone (Sprint 3 / P1-209) ─────────────────────────────── */}
       <Card title="منطقة الخطر" tone="danger">
-        <Hint>حذف الحملة نهائياً — غير متوفّر حالياً. تواصل مع الدعم لطلب الحذف.</Hint>
-        <div
-          title="حذف الحملة غير مدعوم من واجهة الخادم حالياً"
-          style={{ display: 'inline-block' }}
+        <CancelCampaign projectId={project.id} status={project.status} />
+      </Card>
+    </>
+  );
+}
+
+/* ─────── Cancel campaign (Sprint 3 / P1-209) ───────────────────────────────── */
+
+const CANCEL_COPY: Record<string, { hint: string; button: string; confirm: string }> = {
+  DRAFT: {
+    hint: 'حذف المسودّة نهائياً — لا يمكن التراجع.',
+    button: 'حذف المسودّة',
+    confirm: 'تأكيد الحذف النهائي',
+  },
+  UNDER_REVIEW: {
+    hint: 'سحب المشروع من المراجعة وإعادته مسودّة قابلة للتعديل.',
+    button: 'سحب من المراجعة',
+    confirm: 'تأكيد السحب',
+  },
+  LIVE: {
+    hint:
+      'إلغاء الحملة أثناء التمويل يُلغي جميع الحجوزات ويعيد كامل المبالغ للداعمين تلقائياً (سياسة الاسترداد §5). لا يمكن التراجع.',
+    button: 'إلغاء الحملة وإرجاع المبالغ',
+    confirm: 'تأكيد الإلغاء وإرجاع كل المبالغ',
+  },
+};
+
+function CancelCampaign({
+  projectId,
+  status,
+}: {
+  projectId: string;
+  status: string;
+}): React.ReactElement {
+  const router = useRouter();
+  const [arming, setArming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const copy = CANCEL_COPY[status];
+
+  if (!copy) {
+    return (
+      <>
+        <Hint>
+          لا يمكن إلغاء حملة بحالة «{status}» — الأموال سُوّيت بالفعل. تواصل مع الدعم
+          للحالات الاستثنائية.
+        </Hint>
+        <button type="button" disabled style={dangerBtnDisabledStyle}>
+          الإلغاء غير متاح
+        </button>
+      </>
+    );
+  }
+
+  async function doCancel(): Promise<void> {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/cancel`, { method: 'POST' });
+      const j = (await res.json()) as { outcome?: string; message?: string };
+      if (!res.ok) {
+        setErr(j.message ?? 'تعذّر الإلغاء');
+        return;
+      }
+      if (j.outcome === 'deleted') router.push('/projects/dashboard');
+      else router.refresh();
+    } catch {
+      setErr('خطأ في الاتصال — أعد المحاولة.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Hint>{copy.hint}</Hint>
+      {err && (
+        <p role="alert" style={{ fontSize: 13, color: '#ef4444', margin: '6px 0' }}>
+          {err}
+        </p>
+      )}
+      {!arming ? (
+        <button
+          type="button"
+          onClick={() => setArming(true)}
+          style={{
+            padding: '10px 18px',
+            background: 'rgba(239,68,68,.08)',
+            color: '#ef4444',
+            border: '1px solid rgba(239,68,68,.35)',
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
         >
-          <button type="button" disabled style={dangerBtnDisabledStyle}>
-            حذف الحملة
+          {copy.button}
+        </button>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void doCancel()}
+            style={{
+              padding: '10px 18px',
+              background: '#ef4444',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: busy ? 'wait' : 'pointer',
+              fontFamily: 'inherit',
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            {busy ? 'جارٍ التنفيذ…' : copy.confirm}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setArming(false)}
+            style={{
+              padding: '10px 18px',
+              background: 'transparent',
+              color: 'var(--muted, #667)',
+              border: '1px solid rgba(0,0,0,.15)',
+              borderRadius: 10,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            تراجع
           </button>
         </div>
-      </Card>
+      )}
     </>
   );
 }
