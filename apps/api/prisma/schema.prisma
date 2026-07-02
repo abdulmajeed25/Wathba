@@ -746,3 +746,19 @@ model ZatcaInvoice {
 
   @@index([creatorId, issuedAt])
 }
+
+/// Immutable audit trail for privileged + money-critical actions
+/// (Sprint 2 / P1-503). Append-only; never UPDATE or DELETE.
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String?  @db.Uuid
+  action    String
+  entity    String
+  entityId  String?
+  detail    Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}

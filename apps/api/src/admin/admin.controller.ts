@@ -1,4 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../identity/current-user.decorator';
+import type { JwtPayload } from '../identity/auth.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { Roles, RolesGuard } from '../identity/roles.guard';
@@ -6,6 +8,7 @@ import { ProjectsService } from '../projects/projects.service';
 import { FundingService } from '../funding/funding.service';
 import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { AdminService } from './admin.service';
+import { AuditService } from '../identity/audit.service';
 import { ReviewProjectDto, SetPlatformPartnerDto } from './dto/admin.dto';
 
 @ApiTags('admin')
@@ -19,6 +22,7 @@ export class AdminController {
     private readonly projects: ProjectsService,
     private readonly funding: FundingService,
     private readonly disburser: PayoutDisburser,
+    private readonly audit: AuditService,
   ) {}
 
   @Post('projects/:id/settle')
@@ -27,7 +31,8 @@ export class AdminController {
       'Manual settlement trigger (Sprint 1 / P0-304) — settles a past-deadline LIVE project, ' +
       'or sweeps HELD residue on an already-settled one',
   })
-  async settle(@Param('id', new ParseUUIDPipe()) id: string) {
+  async settle(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    await this.audit.log({ actorId: jwt.sub, action: 'admin.settle', entity: 'Project', entityId: id });
     const result = await this.funding.settleProject(id);
     if (result.transition !== 'noop') return result;
     // Already settled (or not due) — attempt a residue sweep for stuck HELD pledges.
@@ -40,7 +45,8 @@ export class AdminController {
 
   @Post('payouts/disburse')
   @ApiOperation({ summary: 'Manual payout-disbursement tick (Sprint 1 / P0-301)' })
-  async disburse() {
+  async disburse(@CurrentUser() jwt: JwtPayload) {
+    await this.audit.log({ actorId: jwt.sub, action: 'admin.disburse', entity: 'Payout' });
     return this.disburser.disbursePending();
   }
 
@@ -54,9 +60,17 @@ export class AdminController {
   @Post('projects/:id/review')
   @ApiOperation({ summary: 'Approve or reject a project under review' })
   async review(
+    @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ReviewProjectDto,
   ) {
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: `admin.review.${dto.decision}`,
+      entity: 'Project',
+      entityId: id,
+      detail: dto.reason ? { reason: dto.reason } : undefined,
+    });
     const updated = dto.decision === 'approve'
       ? await this.admin.approve(id)
       : await this.admin.reject(id, dto.reason);
@@ -66,9 +80,11 @@ export class AdminController {
   @Put('projects/:id/platform-partner')
   @ApiOperation({ summary: '§7 — set/clear Wathba-venture marker (mandatory disclosureAr)' })
   async setPartner(
+    @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: SetPlatformPartnerDto,
   ) {
+    await this.audit.log({ actorId: jwt.sub, action: 'admin.platform-partner', entity: 'Project', entityId: id });
     const updated = await this.admin.setPlatformPartner(id, dto.platformPartner);
     return this.projects.toPublic(updated);
   }
@@ -81,7 +97,8 @@ export class AdminController {
 
   @Post('users/:id/force-verify')
   @ApiOperation({ summary: 'Admin override — mark a user Nafath-verified' })
-  async forceVerify(@Param('id', new ParseUUIDPipe()) id: string) {
+  async forceVerify(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    await this.audit.log({ actorId: jwt.sub, action: 'admin.kyc.force-verify', entity: 'User', entityId: id });
     return this.admin.forceVerifyKyc(id);
   }
 }

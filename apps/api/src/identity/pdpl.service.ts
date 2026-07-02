@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from './audit.service';
 import { PledgeStatus, ProjectStatus } from '@prisma/client';
 
 /**
@@ -22,7 +23,10 @@ import { PledgeStatus, ProjectStatus } from '@prisma/client';
 export class PdplService {
   private readonly logger = new Logger(PdplService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async exportData(userId: string): Promise<Record<string, unknown>> {
     const user = await this.prisma.user.findUnique({
@@ -117,6 +121,7 @@ export class PdplService {
       await tx.creatorFollow.deleteMany({ where: { followerId: userId } });
     });
 
+    await this.audit.log({ actorId: userId, action: 'pdpl.erase', entity: 'User', entityId: userId });
     this.logger.log(`PDPL erasure completed user=${userId} (anonymized, financial rows retained)`);
     return { erased: true };
   }

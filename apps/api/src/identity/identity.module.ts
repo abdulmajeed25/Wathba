@@ -10,6 +10,7 @@ import { NafathController } from './nafath.controller';
 import { NafathService } from './nafath.service';
 import { PdplService } from './pdpl.service';
 import { JwtStrategy } from './jwt.strategy';
+import { AuditService } from './audit.service';
 
 @Module({
   imports: [
@@ -44,7 +45,7 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController, UsersController, NafathController],
-  providers: [AuthService, UsersService, NafathService, PdplService, JwtStrategy],
-  exports: [AuthService, UsersService, JwtStrategy, PassportModule, JwtModule],
+  providers: [AuthService, UsersService, NafathService, PdplService, AuditService, JwtStrategy],
+  exports: [AuthService, UsersService, AuditService, JwtStrategy, PassportModule, JwtModule],
 })
 export class IdentityModule {}

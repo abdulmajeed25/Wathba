@@ -2,6 +2,10 @@
 import { ConflictException } from '@nestjs/common';
 import { PdplService } from './pdpl.service';
 
+function auditMock(): any {
+  return { log: jest.fn().mockResolvedValue(undefined) };
+}
+
 /**
  * PdplService — Sprint 2 / P0-702.
  *   export: aggregates every table, drops passwordHash, stringifies BigInt
@@ -45,7 +49,7 @@ function makePrisma(over: Record<string, any> = {}): any {
 
 describe('PdplService.exportData', () => {
   it('exports all sections, drops passwordHash, stringifies BigInt money', async () => {
-    const svc = new PdplService(makePrisma());
+    const svc = new PdplService(makePrisma(), auditMock());
     const out = (await svc.exportData('user-1')) as any;
     expect(out.profile.email).toBe('s@x.sa');
     expect(out.profile.passwordHash).toBeUndefined();
@@ -61,7 +65,7 @@ describe('PdplService.eraseAccount', () => {
     const prisma = makePrisma({
       pledge: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(2) },
     });
-    const svc = new PdplService(prisma);
+    const svc = new PdplService(prisma, auditMock());
     await expect(svc.eraseAccount('user-1')).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
@@ -70,13 +74,13 @@ describe('PdplService.eraseAccount', () => {
     const prisma = makePrisma({
       project: { findMany: jest.fn(), count: jest.fn().mockResolvedValue(1) },
     });
-    const svc = new PdplService(prisma);
+    const svc = new PdplService(prisma, auditMock());
     await expect(svc.eraseAccount('user-1')).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('anonymizes PII, disables login, deletes satellites, keeps financial rows', async () => {
     const prisma = makePrisma();
-    const svc = new PdplService(prisma);
+    const svc = new PdplService(prisma, auditMock());
     const r = await svc.eraseAccount('user-1');
     expect(r).toEqual({ erased: true });
     const data = prisma.user.update.mock.calls[0][0].data;

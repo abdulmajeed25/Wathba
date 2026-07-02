@@ -7,6 +7,7 @@ import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { MilestonesService } from './milestones.service';
+import { AuditService } from '../identity/audit.service';
 import {
   CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto,
 } from './dto/milestone.dto';
@@ -14,7 +15,10 @@ import {
 @ApiTags('milestones')
 @Controller('projects/:projectId')
 export class MilestonesController {
-  constructor(private readonly svc: MilestonesService) {}
+  constructor(
+    private readonly svc: MilestonesService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get('milestones')
   @ApiOperation({ summary: 'List milestones for a project (public)' })
@@ -56,9 +60,11 @@ export class MilestonesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Approve a submitted milestone (admin)' })
   async approve(
+    @CurrentUser() jwt: JwtPayload,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Param('milestoneId', new ParseUUIDPipe()) milestoneId: string,
   ) {
+    await this.audit.log({ actorId: jwt.sub, action: 'milestone.approve', entity: 'Milestone', entityId: milestoneId });
     const m = await this.svc.approve(projectId, milestoneId);
     return this.svc.toPublic(m);
   }
@@ -69,9 +75,11 @@ export class MilestonesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Release escrow tranche for an approved milestone (admin)' })
   async release(
+    @CurrentUser() jwt: JwtPayload,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Param('milestoneId', new ParseUUIDPipe()) milestoneId: string,
   ) {
+    await this.audit.log({ actorId: jwt.sub, action: 'milestone.release', entity: 'Milestone', entityId: milestoneId });
     const { milestone, amountHalalas } = await this.svc.release(projectId, milestoneId);
     return { milestone: this.svc.toPublic(milestone), amountHalalas: Number(amountHalalas) };
   }
