@@ -1,5 +1,5 @@
 import {
-  IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength,
+  Equals, IsBoolean, IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -20,6 +20,11 @@ export class SignUpDto {
   @IsOptional() @IsString()
   @Matches(/^\+?\d{8,15}$/, { message: 'phone must be E.164-ish' })
   phone?: string;
+
+  /** PDPL (Sprint 2 / P0-702): explicit consent is mandatory at signup. */
+  @ApiProperty({ example: true, description: 'must be true — consent to Terms + Privacy (PDPL)' })
+  @IsBoolean() @Equals(true, { message: 'you must accept the terms and privacy policy' })
+  acceptTerms!: boolean;
 }
 
 export class SignInDto {

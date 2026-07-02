@@ -142,6 +142,9 @@ model User {
   roles               UserRole[]      @default([BACKER])
   nafathVerified      Boolean         @default(false)
   nafathVerifiedAt    DateTime?
+  /// PDPL (Sprint 2 / P0-702): which consent text version the user accepted, and when.
+  consentVersion      String?
+  consentAt           DateTime?
   reputationTier      ReputationTier  @default(NEWCOMER)
   totalPledgedHalalas BigInt          @default(0)
   locale              String          @default("ar")

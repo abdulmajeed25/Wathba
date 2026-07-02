@@ -7,6 +7,7 @@ export const metadata: Metadata = { title: 'إنشاء حساب · وثبة' };
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing: 'يرجى إدخال الاسم والبريد الإلكتروني وكلمة المرور.',
+  consent: 'يجب الموافقة على الشروط وسياسة الخصوصية للمتابعة.',
   invalid: 'البيانات غير صحيحة. تحقق من البريد الإلكتروني وطول كلمة المرور.',
   taken: 'هذا البريد الإلكتروني مسجّل بالفعل.',
   network: 'تعذّر الاتصال بالخادم. حاول مرة أخرى.',
@@ -68,6 +69,26 @@ export default async function SignUpPage({
             className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
           />
           <span className="text-xs text-neutral-500">٨ أحرف على الأقل.</span>
+        </label>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="acceptTerms"
+            required
+            className="mt-1 h-4 w-4 accent-emerald-600"
+          />
+          <span className="text-neutral-600">
+            أوافق على{' '}
+            <a href="/projects/legal/terms" className="text-emerald-700 underline">
+              الشروط والأحكام
+            </a>{' '}
+            و{' '}
+            <a href="/projects/legal/privacy" className="text-emerald-700 underline">
+              سياسة الخصوصية (PDPL)
+            </a>
+            .
+          </span>
         </label>
 
         {error ? (

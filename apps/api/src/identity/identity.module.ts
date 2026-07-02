@@ -8,6 +8,7 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { NafathController } from './nafath.controller';
 import { NafathService } from './nafath.service';
+import { PdplService } from './pdpl.service';
 import { JwtStrategy } from './jwt.strategy';
 
 @Module({
@@ -43,7 +44,7 @@ import { JwtStrategy } from './jwt.strategy';
     }),
   ],
   controllers: [AuthController, UsersController, NafathController],
-  providers: [AuthService, UsersService, NafathService, JwtStrategy],
+  providers: [AuthService, UsersService, NafathService, PdplService, JwtStrategy],
   exports: [AuthService, UsersService, JwtStrategy, PassportModule, JwtModule],
 })
 export class IdentityModule {}

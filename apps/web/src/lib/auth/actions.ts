@@ -82,15 +82,18 @@ export async function signUpAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
+  const acceptTerms = formData.get('acceptTerms') === 'on';
   const next = safeNext(formData.get('next'));
   if (!name || !email || !password) redirect(`/sign-up?err=missing&next=${encodeURIComponent(next)}`);
+  // PDPL: explicit consent required (also enforced server-side by the API DTO).
+  if (!acceptTerms) redirect(`/sign-up?err=consent&next=${encodeURIComponent(next)}`);
 
   let body: AuthResponse | null = null;
   try {
     const res = await fetch(`${API_BASE}/v1/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({ name, email, password, acceptTerms }),
       cache: 'no-store',
     });
     if (!res.ok) {

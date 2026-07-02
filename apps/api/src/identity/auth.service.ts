@@ -59,6 +59,10 @@ export class AuthService {
         passwordHash,
         phone: input.phone,
         roles: ['BACKER'],
+        // PDPL: consent version is stamped server-side; the DTO already
+        // rejected any signup without acceptTerms=true.
+        consentVersion: process.env.CONSENT_VERSION ?? '2026-06-28',
+        consentAt: new Date(),
       },
     });
     return this.issue(user.id, email, user.roles);
