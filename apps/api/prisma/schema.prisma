@@ -47,7 +47,9 @@ enum ProjectCategory {
 enum ProjectStatus {
   DRAFT
   UNDER_REVIEW
+  SCHEDULED
   LIVE
+  PAUSED
   SUCCESSFUL
   FAILED
   FUNDED
@@ -62,6 +64,16 @@ enum PledgeStatus {
   REFUNDED
   FAILED
   DISPUTED
+}
+
+/// Creator-editable fulfillment bookkeeping on a pledge (Creator-CC / CC-02).
+/// PURELY informational — has NO money effect and never gates refunds or
+/// payouts. Lets a creator track which rewards have shipped (KS "Status"
+/// column parity).
+enum RewardFulfillmentStatus {
+  PENDING
+  IN_PROGRESS
+  SENT
 }
 
 enum ContractType {
@@ -109,6 +121,7 @@ enum NotificationKind {
   CONTEST_ANNOUNCED
   FAQ_ANSWERED
   COMMENT_REPLY
+  PROJECT_REVIEWED
 }
 
 enum ContestStatus {
@@ -128,6 +141,13 @@ enum CommunityStatScope {
   CITY
   COUNTRY
   TOTALS
+}
+
+/// Project-update audience (Creator-CC / CC-12). BACKERS_ONLY updates are only
+/// visible to users with a CAPTURED pledge on the project (policy §9).
+enum UpdateVisibility {
+  PUBLIC
+  BACKERS_ONLY
 }
 
 // ============================================================================
@@ -213,6 +233,27 @@ model Project {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   publishedAt          DateTime?
+  /// Admin review feedback surfaced to the creator on reject (Creator-CC /
+  /// CC-04). Previously the reject reason was discarded; now it is persisted
+  /// and shown in the dashboard so the creator can fix and resubmit.
+  reviewFeedback       String?         @db.Text
+  reviewedAt           DateTime?
+  /// Pause/unpause (Creator-CC / CC-14). `pausedAt` is set while status=PAUSED;
+  /// `pausedMsAccrued` accumulates total paused time across pause periods and is
+  /// capped at 7 days per campaign. The deadline clock keeps running while paused
+  /// (policy §5), so pausing only freezes NEW pledges — it never extends the
+  /// deadline.
+  pausedAt             DateTime?
+  pausedMsAccrued      BigInt          @default(0)
+  /// CC-22 — SEO/social. slug is a human URL alias (unique); ogImage + meta feed
+  /// the public page's OpenGraph/description tags.
+  slug                 String?         @unique
+  ogImage              String?
+  metaDescription      String?
+  /// CC-20 — scheduled go-live. When an admin approves a project that has this
+  /// set in the future, it enters SCHEDULED and the launch scheduler flips it
+  /// LIVE at this time (setting publishedAt + deadline).
+  scheduledLaunchAt    DateTime?
 
   rewardTiers          RewardTier[]
   addOns               AddOn[]
@@ -227,6 +268,8 @@ model Project {
   faqItems             FaqItem[]
   faqQuestions         FaqQuestion[]
   communityStats       CommunityStat[]
+  changeLogs           ProjectChangeLog[]
+  collaborators        ProjectCollaborator[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -257,6 +300,12 @@ model RewardTier {
   claimedQty              Int        @default(0)
   popular                 Boolean    @default(false)
   featured                Boolean    @default(false)
+  /// CC-13 — a closed tier is hidden from new pledges (existing backers keep it).
+  isActive                Boolean    @default(true)
+  /// CC-13 — time-boxed early-bird price: while now < earlyBirdUntil and stock
+  /// remains, the effective minimum pledge is earlyBirdAmountHalalas.
+  earlyBirdAmountHalalas  BigInt?
+  earlyBirdUntil          DateTime?
   /// [{nameAr, qty, thumbnailUrl}] — the "ما يتضمنه" line items.
   includedItems           Json       @default("[]")
   /// ISO 3166-1 alpha-2 country codes the creator ships physical rewards to.
@@ -323,6 +372,9 @@ model Pledge {
   /// Sum of add-on amounts (sub-total) — convenience cache, recomputed on add-on change.
   addOnsHalalas BigInt       @default(0)
   status        PledgeStatus @default(HELD)
+  /// Creator-editable fulfillment bookkeeping (Creator-CC / CC-02). No money
+  /// effect — never read by any capture/refund/payout path.
+  rewardStatus  RewardFulfillmentStatus @default(PENDING)
   shipping      Json?
   contractType  ContractType @default(DONATION)
   paymentRef    String       @unique
@@ -342,10 +394,12 @@ model Pledge {
   // (backerId, createdAt)    → /v1/pledges/me chronological list
   // (backerId, status)       → "my held / captured / refunded" filters
   // (projectId, backerNo)    → look up backer by # for contest announcements
+  // (projectId, rewardStatus)→ backer-roster fulfillment filter (CC-02)
   @@unique([projectId, backerNo])
   @@index([projectId, status])
   @@index([backerId, createdAt])
   @@index([backerId, status])
+  @@index([projectId, rewardStatus])
 }
 
 // ============================================================================
@@ -469,11 +523,22 @@ model ProjectUpdate {
   likeCount     Int      @default(0)
   commentCount  Int      @default(0)
   date          DateTime @default(now())
+  /// CC-12 — creator-pinned update floats to the top of the list.
+  pinned        Boolean  @default(false)
+  pinnedAt      DateTime?
+  /// CC-12 — PUBLIC or BACKERS_ONLY (CAPTURED backers, policy §9).
+  visibility    UpdateVisibility @default(PUBLIC)
+  /// CC-12 — scheduled publish time. The public list hides updates until
+  /// publishAt <= now; the fan-out notification fires when it becomes due.
+  publishAt     DateTime @default(now())
+  /// Set once the CC-01 fan-out has run for this update (guards scheduled fan-out).
+  notifiedAt    DateTime?
 
   likes         UpdateLike[]
 
   @@index([projectId, date])
   @@index([projectId, orderNum])
+  @@index([projectId, pinned, publishAt])
 }
 
 /// Per-user like join — kills the double-like exploit on /v1/updates/:id/like.
@@ -516,7 +581,11 @@ model Comment {
   /// Moderator hidden — shown as "removed" placeholder, body suppressed.
   hidden    Boolean  @default(false)
   likeCount Int      @default(0)
+  /// CC-23 — materialised count of user reports (dedup via CommentReport).
+  reportCount Int    @default(0)
   date      DateTime @default(now())
+
+  reports   CommentReport[]
 
   // (projectId, parentId, date) → cursor pagination of top-level vs replies
   // (userId, date)              → user activity feed
@@ -525,6 +594,38 @@ model Comment {
   @@index([projectId, date])
   @@index([userId, date])
   @@index([projectId, pinned, date])
+}
+
+/// CC-23 — a user's report/flag on a comment. Unique per (comment, reporter)
+/// so one user can't inflate the count; the materialised Comment.reportCount
+/// surfaces flagged comments to the creator's moderation queue.
+model CommentReport {
+  id         String   @id @default(uuid()) @db.Uuid
+  commentId  String   @db.Uuid
+  comment    Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporterId String   @db.Uuid
+  reasonAr   String?
+  createdAt  DateTime @default(now())
+
+  @@unique([commentId, reporterId])
+  @@index([commentId])
+}
+
+/// CC-24 — per-project collaborator with REAL (content-scoped) access. Unlike
+/// the decorative CreatorProfile.collaborators list, this grants an existing
+/// user edit access to the project's CONTENT (updates + FAQ). Money & lifecycle
+/// controls remain owner-only (CREATOR-NO-MONEY). Managed by the owner.
+model ProjectCollaborator {
+  id         String   @id @default(uuid()) @db.Uuid
+  projectId  String   @db.Uuid
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String   @db.Uuid
+  /// v1: single EDITOR role (content access). Kept as a column for future roles.
+  role       String   @default("EDITOR")
+  createdAt  DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
 
 // ============================================================================
@@ -628,6 +729,24 @@ model CommunityStat {
   @@index([projectId, scope, backers])
 }
 
+/// Public transparency change-log (Creator-CC / CC-11 + CC-13). One row per
+/// post-launch content change the creator makes to a LIVE campaign (story edit,
+/// reward-tier copy fix). Publicly visible so backers can see what changed after
+/// they pledged. Append-only.
+model ProjectChangeLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actorId   String?  @db.Uuid
+  /// 'story' | 'reward-tier' | 'media' …
+  field     String
+  /// Human-readable Arabic summary shown to backers.
+  summaryAr String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
 // ============================================================================
 // CREATOR PROFILE — public, denormalised over User. One row per creator.
 // ============================================================================
@@ -669,6 +788,11 @@ model Notification {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind      NotificationKind
   payload   Json
+  /// Optional idempotency guard (Creator-CC / CC-01). For fan-out kinds
+  /// (e.g. UPDATE_POSTED) set to `update:{updateId}:{userId}` so a re-publish
+  /// or retry can't double-notify. Null for one-off notifications (Postgres
+  /// allows many NULLs under a UNIQUE constraint).
+  dedupKey  String?          @unique
   readAt    DateTime?
   createdAt DateTime         @default(now())
 

@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
 
 import { DashboardStoryEditor } from '@/components/ventures/wathba/dashboard/wathba-dashboard-story-editor';
-import { getProjectDetail } from '@/lib/api/wathba';
+import { getProjectDetail, getProjectChangelog } from '@/lib/api/wathba';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * Creator dashboard → Story.
@@ -18,10 +20,18 @@ export default async function StoryPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
-  const project = await getProjectDetail(id);
+  const [project, changeLog] = await Promise.all([
+    getProjectDetail(id),
+    getProjectChangelog(id),
+  ]);
   if (!project) notFound();
 
   return (
-    <DashboardStoryEditor projectId={project.id} initialStoryAr={project.storyAr ?? ''} />
+    <DashboardStoryEditor
+      projectId={project.id}
+      initialStoryAr={project.storyAr ?? ''}
+      projectStatus={project.status}
+      changeLog={(changeLog ?? []).filter((c) => c.field === 'story')}
+    />
   );
 }

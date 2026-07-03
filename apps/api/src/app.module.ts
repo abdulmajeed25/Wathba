@@ -24,6 +24,11 @@ import { ContestsModule } from './contests/contests.module';
 import { FaqModule } from './faq/faq.module';
 import { CommunityModule } from './community/community.module';
 import { CreatorsModule } from './creators/creators.module';
+import { BackersModule } from './backers/backers.module';
+import { AuditViewModule } from './audit-view/audit-view.module';
+import { ChangelogModule } from './changelog/changelog.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { CollaboratorsModule } from './collaborators/collaborators.module';
 
 @Module({
   imports: [
@@ -50,6 +55,11 @@ import { CreatorsModule } from './creators/creators.module';
     FaqModule,
     CommunityModule,
     CreatorsModule,
+    BackersModule,
+    AuditViewModule,
+    ChangelogModule,
+    AnalyticsModule,
+    CollaboratorsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

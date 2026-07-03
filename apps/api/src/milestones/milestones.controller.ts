@@ -51,6 +51,15 @@ export class MilestonesController {
     @Body() dto: SubmitEvidenceDto,
   ) {
     const m = await this.svc.submitEvidence(jwt.sub, projectId, milestoneId, dto);
+    // CC-06 — audit the creator's evidence submission (project-scoped detail so
+    // it surfaces in the creator's self-audit timeline).
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: 'creator.milestone.evidence',
+      entity: 'Milestone',
+      entityId: milestoneId,
+      detail: { projectId, milestoneId },
+    });
     return this.svc.toPublic(m);
   }
 

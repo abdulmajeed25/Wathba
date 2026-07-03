@@ -1,10 +1,25 @@
 import {
   IsArray, IsDateString, IsEnum, IsInt, IsNotEmpty, IsObject, IsOptional,
-  IsString, Max, MaxLength, Min, MinLength, ValidateNested,
+  IsString, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ProjectCategory } from '@prisma/client';
+
+/** CC-11 — post-launch story/media edit (writes a public change-log entry). */
+export class UpdateStoryDto {
+  @ApiProperty({ example: 'قصة المشروع المحدّثة…' })
+  @IsString() @MinLength(200) @MaxLength(20000)
+  storyAr!: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional() @IsArray() @IsString({ each: true })
+  mediaUrls?: string[];
+
+  @ApiProperty({ required: false, description: 'Optional creator note describing what changed (shown to backers).' })
+  @IsOptional() @IsString() @MaxLength(280)
+  changeNote?: string;
+}
 
 export class PlatformStakeDto {
   @ApiProperty({ default: true })
@@ -78,6 +93,13 @@ export class UpdateProjectDto {
   @IsOptional() @IsInt() @Min(7) @Max(90) durationDays?: number;
   @IsOptional() @IsString() productSpecAr?: string;
   @IsOptional() @IsDateString() expectedDeliveryDate?: string;
+
+  // CC-22 — SEO/social. slug is a-z0-9 + hyphens; ogImage a URL; meta a summary.
+  @IsOptional() @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, { message: 'slug: أحرف إنجليزية صغيرة وأرقام وشرطات فقط' }) @MinLength(3) @MaxLength(80) slug?: string;
+  @IsOptional() @IsString() @MaxLength(500) ogImage?: string;
+  @IsOptional() @IsString() @MaxLength(300) metaDescription?: string;
+  // CC-20 — proposed go-live time (applied by admin approval).
+  @IsOptional() @IsDateString() scheduledLaunchAt?: string | null;
 
   @IsOptional() @IsObject() @ValidateNested()
   @Type(() => PlatformStakeDto)

@@ -33,6 +33,11 @@ export class RewardsService {
         includedItems: (dto.includedItems ?? []) as unknown as Prisma.InputJsonValue,
         shipsTo: dto.shipsTo ?? [],
         sortOrder: dto.sortOrder ?? 0,
+        // CC-13 — optional early-bird pricing (must be below the tier price).
+        ...(dto.earlyBirdAmountHalalas !== undefined && {
+          earlyBirdAmountHalalas: BigInt(dto.earlyBirdAmountHalalas),
+        }),
+        ...(dto.earlyBirdUntil !== undefined && { earlyBirdUntil: new Date(dto.earlyBirdUntil) }),
       },
     });
   }
@@ -44,12 +49,64 @@ export class RewardsService {
     dto: UpdateRewardTierDto,
   ): Promise<RewardTier> {
     const proj = await this.requireOwned(userId, projectId);
-    if (proj.status !== ProjectStatus.DRAFT && proj.status !== ProjectStatus.UNDER_REVIEW) {
+    // CC-13 — tier edits are now allowed post-launch (LIVE/PAUSED), not just
+    // pre-launch; only settled/terminal states are frozen.
+    const EDITABLE: ProjectStatus[] = [
+      ProjectStatus.DRAFT,
+      ProjectStatus.UNDER_REVIEW,
+      ProjectStatus.LIVE,
+      ProjectStatus.PAUSED,
+    ];
+    if (!EDITABLE.includes(proj.status)) {
       throw new BadRequestException(`cannot edit tiers in status ${proj.status}`);
     }
     const tier = await this.prisma.rewardTier.findUnique({ where: { id: tierId } });
     if (!tier || tier.projectId !== projectId) throw new NotFoundException('tier not found');
-    return this.prisma.rewardTier.update({
+
+    const hasBackers = tier.claimedQty > 0;
+
+    // Policy §3 — a tier WITH backers is locked to protect the deal they bought:
+    // only a limit INCREASE, copy (title/desc) fixes, and close/reopen are
+    // allowed. Price, contents, delivery and early-bird are frozen.
+    if (hasBackers) {
+      if (dto.amountHalalas !== undefined && BigInt(dto.amountHalalas) !== tier.amountHalalas) {
+        throw new BadRequestException('لا يمكن تغيير سعر مكافأة لها داعمون');
+      }
+      if (dto.earlyBirdAmountHalalas !== undefined || dto.earlyBirdUntil !== undefined) {
+        throw new BadRequestException('لا يمكن تعديل التسعير المبكر لمكافأة لها داعمون');
+      }
+      if (
+        dto.estDeliveryDate !== undefined ||
+        dto.includedItems !== undefined ||
+        dto.includesPhysicalProduct !== undefined ||
+        dto.requiresShipping !== undefined
+      ) {
+        throw new BadRequestException('لا يمكن تغيير محتوى أو تسليم مكافأة لها داعمون');
+      }
+      if (
+        dto.limitQty !== undefined &&
+        (dto.limitQty === null
+          ? tier.limitQty !== null
+          : tier.limitQty !== null && dto.limitQty < tier.limitQty)
+      ) {
+        throw new BadRequestException('يمكن فقط زيادة حدّ الكمية لمكافأة لها داعمون');
+      }
+    }
+
+    // Early-bird sanity: the early-bird price must be below the tier price.
+    const targetAmount =
+      dto.amountHalalas !== undefined ? BigInt(dto.amountHalalas) : tier.amountHalalas;
+    const targetEarly =
+      dto.earlyBirdAmountHalalas === undefined
+        ? tier.earlyBirdAmountHalalas
+        : dto.earlyBirdAmountHalalas === null
+          ? null
+          : BigInt(dto.earlyBirdAmountHalalas);
+    if (targetEarly !== null && targetEarly >= targetAmount) {
+      throw new BadRequestException('سعر التسعير المبكر يجب أن يكون أقلّ من سعر المكافأة');
+    }
+
+    const updated = await this.prisma.rewardTier.update({
       where: { id: tierId },
       data: {
         ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
@@ -70,8 +127,33 @@ export class RewardsService {
         }),
         ...(dto.shipsTo !== undefined && { shipsTo: dto.shipsTo }),
         ...(dto.sortOrder !== undefined && { sortOrder: dto.sortOrder }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.earlyBirdAmountHalalas !== undefined && {
+          earlyBirdAmountHalalas:
+            dto.earlyBirdAmountHalalas === null ? null : BigInt(dto.earlyBirdAmountHalalas),
+        }),
+        ...(dto.earlyBirdUntil !== undefined && {
+          earlyBirdUntil: dto.earlyBirdUntil ? new Date(dto.earlyBirdUntil) : null,
+        }),
       },
     });
+
+    // Post-launch copy fix on a backed tier → public change-log (policy §3).
+    const postLaunch = proj.status === ProjectStatus.LIVE || proj.status === ProjectStatus.PAUSED;
+    const copyChanged =
+      (dto.titleAr !== undefined && dto.titleAr !== tier.titleAr) ||
+      (dto.descAr !== undefined && dto.descAr !== tier.descAr);
+    if (postLaunch && hasBackers && copyChanged) {
+      await this.prisma.projectChangeLog.create({
+        data: {
+          projectId,
+          actorId: userId,
+          field: 'reward-tier',
+          summaryAr: `عُدّل وصف مكافأة «${updated.titleAr}»`,
+        },
+      });
+    }
+    return updated;
   }
 
   async remove(userId: string, projectId: string, tierId: string): Promise<{ deleted: true }> {
@@ -94,6 +176,14 @@ export class RewardsService {
   }
 
   toPublic(t: RewardTier): Record<string, unknown> {
+    // CC-13 — early-bird is active while its deadline hasn't passed and stock
+    // remains; the effective minimum pledge drops to the early-bird price.
+    const earlyBirdActive =
+      t.earlyBirdAmountHalalas !== null &&
+      t.earlyBirdUntil !== null &&
+      t.earlyBirdUntil.getTime() > Date.now() &&
+      (t.limitQty === null || t.claimedQty < t.limitQty);
+    const effective = earlyBirdActive ? t.earlyBirdAmountHalalas! : t.amountHalalas;
     return {
       id: t.id,
       projectId: t.projectId,
@@ -110,6 +200,12 @@ export class RewardsService {
       includedItems: t.includedItems,
       shipsTo: t.shipsTo,
       sortOrder: t.sortOrder,
+      // CC-13
+      isActive: t.isActive,
+      earlyBirdAmountHalalas: t.earlyBirdAmountHalalas === null ? null : Number(t.earlyBirdAmountHalalas),
+      earlyBirdUntil: t.earlyBirdUntil?.toISOString() ?? null,
+      earlyBirdActive,
+      effectiveAmountHalalas: Number(effective),
     };
   }
 

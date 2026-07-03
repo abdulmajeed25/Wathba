@@ -67,6 +67,18 @@ export class CommentsController {
     return this.comments.toggleHide(jwt.sub, commentId);
   }
 
+  @Post(':commentId/report')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Report/flag a comment (any logged-in user; CC-23)' })
+  async report(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('projectId', new ParseUUIDPipe()) _projectId: string,
+    @Param('commentId', new ParseUUIDPipe()) commentId: string,
+  ) {
+    return this.comments.report(jwt.sub, commentId);
+  }
+
   @Delete(':commentId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

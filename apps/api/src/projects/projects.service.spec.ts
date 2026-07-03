@@ -44,7 +44,7 @@ describe('ProjectsService.completeDelivery', () => {
       },
       milestone: { count: jest.fn().mockResolvedValue(0) },
     });
-    const svc = new ProjectsService(prisma);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
     const out = await svc.completeDelivery(CREATOR, PROJ);
     expect(out.status).toBe(ProjectStatus.DELIVERED);
     expect(update).toHaveBeenCalledWith({
@@ -61,7 +61,7 @@ describe('ProjectsService.completeDelivery', () => {
       },
       milestone: { count: jest.fn().mockResolvedValue(2) },
     });
-    const svc = new ProjectsService(prisma);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
     await expect(svc.completeDelivery(CREATOR, PROJ)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -75,7 +75,7 @@ describe('ProjectsService.completeDelivery', () => {
         update: jest.fn(),
       },
     });
-    const svc = new ProjectsService(prisma);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
     await expect(svc.completeDelivery(CREATOR, PROJ)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -88,7 +88,7 @@ describe('ProjectsService.completeDelivery', () => {
         update: jest.fn(),
       },
     });
-    const svc = new ProjectsService(prisma);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
     await expect(svc.completeDelivery('not-the-creator', PROJ)).rejects.toBeInstanceOf(
       ForbiddenException,
     );

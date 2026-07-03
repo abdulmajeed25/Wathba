@@ -33,6 +33,37 @@ import {
 export class CreatorsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * CC-17 — follower roster for the creator's own dashboard (owner-gated in the
+   * controller). Returns the total plus a cursor page of who follows them.
+   */
+  async listFollowers(
+    userId: string,
+    opts: { take?: number; cursor?: string } = {},
+  ): Promise<{ total: number; items: Array<Record<string, unknown>>; nextCursor: string | null }> {
+    const profile = await this.prisma.creatorProfile.findUnique({
+      where: { userId },
+      select: { id: true, followersCount: true },
+    });
+    if (!profile) return { total: 0, items: [], nextCursor: null };
+
+    const take = Math.min(50, Math.max(1, opts.take ?? 20));
+    const rows = await this.prisma.creatorFollow.findMany({
+      where: { creatorProfileId: profile.id },
+      orderBy: { createdAt: 'desc' },
+      take: take + 1,
+      ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
+      include: { follower: { select: { name: true } } },
+    });
+    const nextCursor = rows.length > take ? rows[take]!.id : null;
+    const items = rows.slice(0, take).map((r) => ({
+      followerId: r.followerId,
+      name: r.follower.name,
+      followedAt: r.createdAt.toISOString(),
+    }));
+    return { total: profile.followersCount, items, nextCursor };
+  }
+
   // --------------------------------------------------------------------------
   // GET /v1/creators/:userId
   // --------------------------------------------------------------------------

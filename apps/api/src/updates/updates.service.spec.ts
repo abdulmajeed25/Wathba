@@ -30,6 +30,13 @@ function makePrisma(over: Record<string, any> = {}): any {
       create: jest.fn(),
       delete: jest.fn(),
     },
+    // CC-01 fan-out defaults (empty audience) so create() tests don't warn on
+    // the fire-and-forget dispatch; the fan-out tests override these.
+    pledge: { findMany: jest.fn().mockResolvedValue([]) },
+    creatorFollow: { findMany: jest.fn().mockResolvedValue([]) },
+    notification: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    // CC-24 — collaborator access check (default: not a collaborator).
+    projectCollaborator: { findUnique: jest.fn().mockResolvedValue(null) },
     ...over,
   };
   prisma.$transaction = jest.fn(
@@ -49,6 +56,10 @@ describe('UpdatesService.create', () => {
       likeCount: 0,
       commentCount: 0,
       date: new Date(),
+      pinned: false,
+      visibility: 'PUBLIC',
+      publishAt: new Date(),
+      notifiedAt: new Date(),
     });
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
@@ -74,6 +85,10 @@ describe('UpdatesService.create', () => {
       likeCount: 0,
       commentCount: 0,
       date: new Date(),
+      pinned: false,
+      visibility: 'PUBLIC',
+      publishAt: new Date(),
+      notifiedAt: new Date(),
     });
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
@@ -98,6 +113,62 @@ describe('UpdatesService.create', () => {
   });
 });
 
+describe('UpdatesService.fanOutUpdatePosted (CC-01)', () => {
+  const FOLLOWER = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+
+  it('dedupes backers ∪ followers, excludes the creator, one batched createMany', async () => {
+    const createMany = jest.fn().mockResolvedValue({ count: 2 });
+    const prisma = makePrisma({
+      project: {
+        findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع', createdById: CREATOR }),
+      },
+      pledge: {
+        // BACKER appears twice + is also a follower → must collapse to one.
+        findMany: jest.fn().mockResolvedValue([{ backerId: BACKER }]),
+      },
+      creatorFollow: {
+        findMany: jest.fn().mockResolvedValue([
+          { followerId: BACKER }, // same as a backer → dedupe
+          { followerId: FOLLOWER },
+          { followerId: CREATOR }, // creator follows own project → excluded
+        ]),
+      },
+      notification: { createMany },
+    });
+    const svc = new UpdatesService(prisma);
+    const res = await svc.fanOutUpdatePosted(PROJ, { id: UPD, titleAr: 't' } as any);
+
+    expect(createMany).toHaveBeenCalledTimes(1);
+    const arg = createMany.mock.calls[0][0];
+    expect(arg.skipDuplicates).toBe(true);
+    const userIds = arg.data.map((d: any) => d.userId).sort();
+    expect(userIds).toEqual([BACKER, FOLLOWER].sort()); // creator excluded, backer deduped
+    // idempotency key present and correctly shaped per recipient
+    for (const row of arg.data) {
+      expect(row.dedupKey).toBe(`update:${UPD}:${row.userId}`);
+      expect(row.kind).toBe('UPDATE_POSTED');
+      expect(row.payload.deepLink).toBe(`/projects/${PROJ}/updates/${UPD}`);
+    }
+    expect(res.notified).toBe(2);
+  });
+
+  it('no recipients → no createMany call', async () => {
+    const createMany = jest.fn();
+    const prisma = makePrisma({
+      project: {
+        findUnique: jest.fn().mockResolvedValue({ titleAr: 'م', createdById: CREATOR }),
+      },
+      pledge: { findMany: jest.fn().mockResolvedValue([]) },
+      creatorFollow: { findMany: jest.fn().mockResolvedValue([]) },
+      notification: { createMany },
+    });
+    const svc = new UpdatesService(prisma);
+    const res = await svc.fanOutUpdatePosted(PROJ, { id: UPD, titleAr: 't' } as any);
+    expect(createMany).not.toHaveBeenCalled();
+    expect(res.notified).toBe(0);
+  });
+});
+
 describe('UpdatesService.like (toggle)', () => {
   const baseRow = {
     id: UPD,
@@ -108,6 +179,10 @@ describe('UpdatesService.like (toggle)', () => {
     likeCount: 5,
     commentCount: 0,
     date: new Date(),
+    pinned: false,
+    visibility: 'PUBLIC',
+    publishAt: new Date(),
+    notifiedAt: new Date(),
   };
 
   it('first call inserts join row + likeCount++ and returns liked:true', async () => {

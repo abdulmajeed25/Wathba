@@ -2,7 +2,13 @@ import {
   BadRequestException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
+import { AuditService } from '../identity/audit.service';
+import {
+  CreateProjectDto,
+  ListProjectsQueryDto,
+  UpdateProjectDto,
+  UpdateStoryDto,
+} from './dto/project.dto';
 import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/client';
 
 /**
@@ -12,7 +18,10 @@ import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/cl
  */
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
     // Provisional deadline; admin sets the real one on publish.
@@ -71,8 +80,142 @@ export class ProjectsService {
               ? Prisma.JsonNull
               : (dto.platformPartner as unknown as Prisma.InputJsonValue),
         }),
+        // CC-22 SEO + CC-20 scheduled launch.
+        ...(dto.slug !== undefined && { slug: dto.slug || null }),
+        ...(dto.ogImage !== undefined && { ogImage: dto.ogImage || null }),
+        ...(dto.metaDescription !== undefined && { metaDescription: dto.metaDescription || null }),
+        ...(dto.scheduledLaunchAt !== undefined && {
+          scheduledLaunchAt: dto.scheduledLaunchAt ? new Date(dto.scheduledLaunchAt) : null,
+        }),
+      },
+    }).catch((e: unknown) => {
+      // Unique slug clash → friendly 400 instead of a 500.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new BadRequestException('هذا المُعرّف (slug) مستخدَم بالفعل — اختر غيره');
+      }
+      throw e;
+    });
+  }
+
+  /**
+   * CC-21 — duplicate a project into a fresh DRAFT owned by the same creator,
+   * copying content + reward tiers (not pledges/updates/money). Lets a creator
+   * relaunch a finished campaign or fork a template.
+   */
+  async duplicate(creatorId: string, projectId: string): Promise<Project> {
+    const src = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { rewardTiers: true },
+    });
+    if (!src) throw new NotFoundException('project not found');
+    if (src.createdById !== creatorId) throw new ForbiddenException('not your project');
+
+    const deadline = new Date(Date.now() + src.durationDays * 86_400_000);
+    return this.prisma.project.create({
+      data: {
+        titleAr: `${src.titleAr} (نسخة)`,
+        shortDescAr: src.shortDescAr,
+        category: src.category,
+        storyAr: src.storyAr,
+        mediaUrls: src.mediaUrls,
+        fundingGoalHalalas: src.fundingGoalHalalas,
+        releaseThresholdPct: src.releaseThresholdPct,
+        durationDays: src.durationDays,
+        deadline,
+        productSpecAr: src.productSpecAr,
+        expectedDeliveryDate: src.expectedDeliveryDate,
+        createdById: creatorId,
+        status: ProjectStatus.DRAFT,
+        // slug is unique → never copied.
+        rewardTiers: {
+          create: src.rewardTiers.map((t) => ({
+            titleAr: t.titleAr,
+            amountHalalas: t.amountHalalas,
+            descAr: t.descAr,
+            includesPhysicalProduct: t.includesPhysicalProduct,
+            requiresShipping: t.requiresShipping,
+            estDeliveryDate: t.estDeliveryDate,
+            limitQty: t.limitQty,
+            popular: t.popular,
+            featured: t.featured,
+            includedItems: t.includedItems as unknown as Prisma.InputJsonValue,
+            shipsTo: t.shipsTo,
+            sortOrder: t.sortOrder,
+          })),
+        },
       },
     });
+  }
+
+  /**
+   * CC-20 — flip SCHEDULED projects whose launch time has arrived to LIVE
+   * (stamping publishedAt + a fresh deadline). Called by the launch scheduler.
+   */
+  async launchDueScheduled(): Promise<{ launched: number }> {
+    const due = await this.prisma.project.findMany({
+      where: { status: ProjectStatus.SCHEDULED, scheduledLaunchAt: { lte: new Date() } },
+      select: { id: true, durationDays: true },
+    });
+    let launched = 0;
+    for (const p of due) {
+      const now = new Date();
+      const deadline = new Date(now.getTime() + p.durationDays * 86_400_000);
+      const claimed = await this.prisma.project.updateMany({
+        where: { id: p.id, status: ProjectStatus.SCHEDULED },
+        data: { status: ProjectStatus.LIVE, publishedAt: now, deadline, scheduledLaunchAt: null },
+      });
+      if (claimed.count > 0) launched++;
+    }
+    return { launched };
+  }
+
+  /**
+   * CC-11 — edit the story/media. Unlike the general update() (locked to
+   * DRAFT/UNDER_REVIEW), story edits are allowed while LIVE/PAUSED per policy §2,
+   * but every post-launch edit writes a PUBLIC change-log entry so backers can
+   * see the campaign changed after they pledged. Blocked once settled.
+   */
+  async updateStory(creatorId: string, projectId: string, dto: UpdateStoryDto): Promise<Project> {
+    const proj = await this.requireOwned(creatorId, projectId);
+    const editable: ProjectStatus[] = [
+      ProjectStatus.DRAFT,
+      ProjectStatus.UNDER_REVIEW,
+      ProjectStatus.LIVE,
+      ProjectStatus.PAUSED,
+    ];
+    if (!editable.includes(proj.status)) {
+      throw new BadRequestException(`cannot edit the story in status ${proj.status}`);
+    }
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: {
+        storyAr: dto.storyAr,
+        ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
+      },
+    });
+
+    const postLaunch = proj.status === ProjectStatus.LIVE || proj.status === ProjectStatus.PAUSED;
+    if (postLaunch) {
+      const note = dto.changeNote?.trim();
+      await this.prisma.projectChangeLog.create({
+        data: {
+          projectId,
+          actorId: creatorId,
+          field: 'story',
+          summaryAr: note
+            ? `حدّث صاحب المشروع نص القصة: ${note}`
+            : 'حدّث صاحب المشروع نص القصة',
+        },
+      });
+      await this.audit.log({
+        actorId: creatorId,
+        action: 'creator.project.story-edit',
+        entity: 'Project',
+        entityId: projectId,
+        detail: { projectId, changeNote: note ?? null },
+      });
+    }
+    return updated;
   }
 
   async submitForReview(creatorId: string, projectId: string): Promise<Project> {
@@ -95,10 +238,21 @@ export class ProjectsService {
     if (proj.fundingGoalHalalas <= 0n) {
       throw new BadRequestException('fundingGoal must be positive');
     }
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: { id: projectId },
-      data: { status: ProjectStatus.UNDER_REVIEW },
+      // Clear stale rejection feedback on resubmit (CC-04) so the creator
+      // doesn't see the previous round's note while UNDER_REVIEW.
+      data: { status: ProjectStatus.UNDER_REVIEW, reviewFeedback: null },
     });
+    // CC-06 — audit the creator's submit-for-review decision.
+    await this.audit.log({
+      actorId: creatorId,
+      action: 'creator.project.submit',
+      entity: 'Project',
+      entityId: projectId,
+      detail: { projectId, titleAr: updated.titleAr },
+    });
+    return updated;
   }
 
   /**
@@ -120,10 +274,19 @@ export class ProjectsService {
         `${unreleased} milestone(s) not yet RELEASED — deliver after the full escrow plan completes`,
       );
     }
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: { id: projectId },
       data: { status: ProjectStatus.DELIVERED },
     });
+    // CC-09 — audit the creator's delivery close-out.
+    await this.audit.log({
+      actorId: creatorId,
+      action: 'creator.project.deliver',
+      entity: 'Project',
+      entityId: projectId,
+      detail: { projectId, titleAr: updated.titleAr },
+    });
+    return updated;
   }
 
   /** Admin: approves a project and starts the funding clock. */
@@ -206,6 +369,17 @@ export class ProjectsService {
       platformPartner: p.platformPartner,
       createdAt: p.createdAt.toISOString(),
       publishedAt: p.publishedAt?.toISOString() ?? null,
+      // CC-04 — admin review feedback surfaced to the creator.
+      reviewFeedback: p.reviewFeedback ?? null,
+      reviewedAt: p.reviewedAt?.toISOString() ?? null,
+      // CC-14 — pause state + cumulative paused time (7-day cap).
+      pausedAt: p.pausedAt?.toISOString() ?? null,
+      pausedMsAccrued: Number(p.pausedMsAccrued),
+      // CC-22 SEO + CC-20 scheduled launch.
+      slug: p.slug ?? null,
+      ogImage: p.ogImage ?? null,
+      metaDescription: p.metaDescription ?? null,
+      scheduledLaunchAt: p.scheduledLaunchAt?.toISOString() ?? null,
       rewardTiers: p.rewardTiers?.map((r) =>
         Object.fromEntries(
           Object.entries(r).map(([k, v]) => [

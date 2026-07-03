@@ -5,9 +5,10 @@ import { FundingGateway } from './funding.gateway';
 import { DeadlineScheduler } from './deadline.scheduler';
 import { ContractsModule } from '../contracts/contracts.module';
 import { CommunityModule } from '../community/community.module';
+import { IdentityModule } from '../identity/identity.module';
 
 @Module({
-  imports: [ContractsModule, CommunityModule],
+  imports: [ContractsModule, CommunityModule, IdentityModule],
   controllers: [FundingController],
   providers: [FundingService, FundingGateway, DeadlineScheduler],
   exports: [FundingService],

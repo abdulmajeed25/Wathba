@@ -29,10 +29,13 @@ function navFor(projectId: string): NavItem[] {
     { href: `${base}/contests`, labelAr: 'علّق واربح', icon: 'celebration' },
     { href: `${base}/rfqs`, labelAr: 'طلبات التوريد', icon: 'gavel' },
     { href: `${base}/payouts`, labelAr: 'الدفعات والضمان', icon: 'account_balance' },
+    { href: `${base}/backers`, labelAr: 'الداعمون', icon: 'group' },
     { href: `${base}/comments`, labelAr: 'التعليقات', icon: 'forum' },
     { href: `${base}/faq`, labelAr: 'الأسئلة', icon: 'help' },
     { href: `${base}/community`, labelAr: 'المجتمع', icon: 'groups' },
     { href: `${base}/creator`, labelAr: 'ملفي كمبدع', icon: 'person' },
+    { href: `${base}/analytics`, labelAr: 'التحليلات', icon: 'query_stats' },
+    { href: `${base}/activity`, labelAr: 'سجل النشاط', icon: 'history' },
     { href: `${base}/settings`, labelAr: 'الإعدادات', icon: 'settings' },
   ];
 }
@@ -41,6 +44,7 @@ const STATUS_AR: Record<string, string> = {
   DRAFT: 'مسودة',
   UNDER_REVIEW: 'قيد المراجعة',
   LIVE: 'منشور',
+  PAUSED: 'موقوفة مؤقتاً',
   SUCCESSFUL: 'ناجح',
   FUNDED: 'تم تمويله',
   IN_PRODUCTION: 'قيد الإنتاج',
@@ -53,6 +57,7 @@ const STATUS_COLOR: Record<string, string> = {
   DRAFT: '#9ca3af',
   UNDER_REVIEW: '#f59e0b',
   LIVE: '#10b981',
+  PAUSED: '#f59e0b',
   SUCCESSFUL: '#10b981',
   FUNDED: '#10b981',
   IN_PRODUCTION: '#6366f1',
@@ -102,7 +107,11 @@ export function DashboardShell({
         }}
       >
         <Link
-          href={`/projects/${projectId}`}
+          href={
+            projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW'
+              ? `/projects/dashboard/${projectId}/preview`
+              : `/projects/${projectId}`
+          }
           style={{
             display: 'block',
             padding: '8px 12px 16px',
@@ -132,7 +141,7 @@ export function DashboardShell({
               {STATUS_AR[projectStatus] ?? projectStatus}
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-primary, #05a661)' }}>
-              عرض الحملة ←
+              {projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW' ? 'معاينة كزائر ←' : 'عرض الحملة ←'}
             </span>
           </div>
         </Link>

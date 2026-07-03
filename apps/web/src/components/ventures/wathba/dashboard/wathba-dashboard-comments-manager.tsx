@@ -17,6 +17,39 @@ export function DashboardCommentsManager({
   initial: ApiCommentRow[];
 }): React.ReactElement {
   const [rows, setRows] = useState<ApiCommentRow[]>(initial);
+  // CC-07 — creator replies, keyed by parent comment id. Optimistic: a temp
+  // row appears immediately, then is replaced by the server row or rolled back.
+  const [replies, setReplies] = useState<Record<string, ApiCommentRow[]>>({});
+
+  const onReply = async (parentId: string, body: string): Promise<boolean> => {
+    const tempId = `temp-${parentId}-${body.length}`;
+    const temp: ApiCommentRow = {
+      id: tempId, userId: 'me', userName: 'أنت', isCreator: true,
+      pinned: false, hidden: false, likeCount: 0, bodyAr: body,
+      parentId, date: new Date().toISOString(),
+    };
+    setReplies((prev) => ({ ...prev, [parentId]: [...(prev[parentId] ?? []), temp] }));
+    try {
+      const res = await fetch(`/api/comments/${projectId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bodyAr: body, parentId }),
+      });
+      if (!res.ok) {
+        setReplies((prev) => ({ ...prev, [parentId]: (prev[parentId] ?? []).filter((r) => r.id !== tempId) }));
+        return false;
+      }
+      const created = (await res.json()) as ApiCommentRow;
+      setReplies((prev) => ({
+        ...prev,
+        [parentId]: (prev[parentId] ?? []).map((r) => (r.id === tempId ? created : r)),
+      }));
+      return true;
+    } catch {
+      setReplies((prev) => ({ ...prev, [parentId]: (prev[parentId] ?? []).filter((r) => r.id !== tempId) }));
+      return false;
+    }
+  };
 
   const onPin = async (id: string): Promise<void> => {
     const snapshot = rows;
@@ -105,6 +138,8 @@ export function DashboardCommentsManager({
             <CommentManagerRow
               key={c.id}
               row={c}
+              replies={replies[c.id] ?? []}
+              onReply={(body) => onReply(c.id, body)}
               onPin={() => {
                 void onPin(c.id);
               }}
@@ -124,17 +159,40 @@ export function DashboardCommentsManager({
 
 function CommentManagerRow({
   row,
+  replies,
+  onReply,
   onPin,
   onHide,
   onDelete,
 }: {
   row: ApiCommentRow;
+  replies: ApiCommentRow[];
+  onReply: (body: string) => Promise<boolean>;
   onPin: () => void;
   onHide: () => void;
   onDelete: () => void;
 }): React.ReactElement {
   const [pending, startTransition] = useTransition();
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState('');
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [replyError, setReplyError] = useState(false);
   const dateAr = formatDateAr(row.date);
+
+  const submitReply = async (): Promise<void> => {
+    const body = replyText.trim();
+    if (!body) return;
+    setReplyBusy(true);
+    setReplyError(false);
+    const ok = await onReply(body);
+    setReplyBusy(false);
+    if (ok) {
+      setReplyText('');
+      setReplyOpen(false);
+    } else {
+      setReplyError(true);
+    }
+  };
 
   return (
     <article
@@ -170,7 +228,7 @@ function CommentManagerRow({
               background: 'rgba(5,166,97,0.08)',
             }}
           >
-            الـمبدع
+            صاحب المشروع
           </span>
         )}
         {row.pinned && (
@@ -201,6 +259,20 @@ function CommentManagerRow({
             مخفي
           </span>
         )}
+        {(row.reportCount ?? 0) > 0 && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '2px 9px',
+              borderRadius: 20,
+              color: '#ef4444',
+              background: 'rgba(239,68,68,0.10)',
+            }}
+          >
+            🚩 مُبلَّغ ({row.reportCount})
+          </span>
+        )}
         <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>
           {dateAr}
         </span>
@@ -226,6 +298,11 @@ function CommentManagerRow({
           label={row.hidden ? 'إظهار' : 'إخفاء'}
         />
         <ManagerButton
+          onClick={() => setReplyOpen((v) => !v)}
+          active={replyOpen}
+          label="رد"
+        />
+        <ManagerButton
           onClick={() => {
             startTransition(onDelete);
           }}
@@ -233,6 +310,70 @@ function CommentManagerRow({
           label="حذف"
         />
       </div>
+
+      {/* CC-07 — creator replies rendered inline, each with the owner badge. */}
+      {replies.length > 0 && (
+        <div
+          style={{
+            display: 'flex', flexDirection: 'column', gap: 8,
+            marginInlineStart: 16, paddingInlineStart: 12,
+            borderInlineStart: '2px solid rgba(5,166,97,0.25)',
+          }}
+        >
+          {replies.map((r) => (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', opacity: r.id.startsWith('temp-') ? 0.6 : 1 }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>{r.userName}</span>
+              <span
+                style={{
+                  fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 20,
+                  color: 'var(--brand-primary, #05a661)', border: '1px solid rgba(5,166,97,0.5)',
+                  background: 'rgba(5,166,97,0.08)',
+                }}
+              >
+                صاحب المشروع
+              </span>
+              <span style={{ fontSize: 13.5, color: 'var(--text-primary, #16201b)', lineHeight: 1.6 }}>{r.bodyAr}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {replyOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            placeholder="اكتب ردك كصاحب المشروع…"
+            aria-label="نص الرد"
+            rows={2}
+            style={{
+              width: '100%', resize: 'vertical', fontFamily: 'inherit', fontSize: 13.5,
+              padding: '9px 11px', borderRadius: 10,
+              border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',
+              background: 'var(--bg-base, #f8faf6)', color: 'var(--text-primary, #16201b)',
+            }}
+          />
+          {replyError && (
+            <span role="alert" style={{ fontSize: 12.5, color: '#ef4444' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => void submitReply()}
+              disabled={replyBusy || !replyText.trim()}
+              style={{
+                fontSize: 12.5, fontWeight: 700, padding: '7px 16px', borderRadius: 10,
+                cursor: replyBusy ? 'wait' : 'pointer', border: 'none',
+                background: 'var(--brand-primary, #05a661)', color: '#fff',
+                opacity: replyBusy || !replyText.trim() ? 0.6 : 1, fontFamily: 'inherit',
+              }}
+            >
+              {replyBusy ? 'جارٍ الإرسال…' : 'إرسال الرد'}
+            </button>
+            <ManagerButton onClick={() => { setReplyOpen(false); setReplyError(false); }} label="إلغاء" />
+          </div>
+        </div>
+      )}
     </article>
   );
 }

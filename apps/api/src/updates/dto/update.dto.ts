@@ -1,6 +1,9 @@
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
+import { UpdateVisibility } from '@prisma/client';
 
 export class ListUpdatesQueryDto {
   @ApiProperty({ required: false, default: 20, minimum: 1, maximum: 100 })
@@ -24,6 +27,14 @@ export class CreateUpdateDto {
   @MinLength(1)
   @MaxLength(20_000)
   bodyAr!: string;
+
+  @ApiProperty({ required: false, enum: UpdateVisibility, default: 'PUBLIC' })
+  @IsOptional() @IsEnum(UpdateVisibility)
+  visibility?: UpdateVisibility;
+
+  @ApiProperty({ required: false, description: 'Schedule the update for a future time (ISO). Omit to publish now.' })
+  @IsOptional() @IsDateString()
+  publishAt?: string;
 }
 
 export class UpdateUpdateDto {
@@ -40,4 +51,8 @@ export class UpdateUpdateDto {
   @MinLength(1)
   @MaxLength(20_000)
   bodyAr?: string;
+
+  @ApiProperty({ required: false, enum: UpdateVisibility })
+  @IsOptional() @IsEnum(UpdateVisibility)
+  visibility?: UpdateVisibility;
 }

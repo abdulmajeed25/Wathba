@@ -33,6 +33,7 @@ export interface ApiCommentRow {
   pinned: boolean;
   hidden: boolean;
   likeCount: number;
+  reportCount?: number;
   bodyAr: string | null;
   parentId: string | null;
   date: string;
@@ -125,7 +126,7 @@ function ApiCommentsList({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
         {ordered.map((c) => (
-          <ApiCommentRow key={c.id} comment={c} />
+          <ApiCommentRow key={c.id} comment={c} projectId={projectId} isAuthenticated={isAuthenticated} />
         ))}
       </div>
 
@@ -211,9 +212,26 @@ function EligibilityBanner({ projectId }: { projectId: string }) {
   );
 }
 
-function ApiCommentRow({ comment: c }: { comment: ApiCommentRow }) {
+function ApiCommentRow({
+  comment: c,
+  projectId,
+  isAuthenticated,
+}: {
+  comment: ApiCommentRow;
+  projectId: string;
+  isAuthenticated: boolean;
+}) {
   const initial = c.userName?.trim().charAt(0).toUpperCase() || '·';
   const dateAr = formatDateAr(c.date);
+  const [reported, setReported] = useState(false);
+  const report = async (): Promise<void> => {
+    setReported(true); // optimistic
+    try {
+      await fetch(`/api/comments/${projectId}/${c.id}/report`, { method: 'POST' });
+    } catch {
+      /* keep the reported state; the API dedups anyway */
+    }
+  };
 
   return (
     <article style={{ display: 'flex', gap: 12 }}>
@@ -249,7 +267,7 @@ function ApiCommentRow({ comment: c }: { comment: ApiCommentRow }) {
                 background: 'rgba(var(--accent-rgb),.08)',
               }}
             >
-              الـمبدع
+              صاحب المشروع
             </span>
           )}
           {c.pinned && (
@@ -283,6 +301,21 @@ function ApiCommentRow({ comment: c }: { comment: ApiCommentRow }) {
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <Icon name="favorite_border" size={14} /> <Num>{c.likeCount}</Num>
           </span>
+          {/* CC-23 — report/flag a comment (logged-in, non-creator, not own). */}
+          {isAuthenticated && !c.isCreator && !c.hidden && (
+            <button
+              type="button"
+              onClick={() => void report()}
+              disabled={reported}
+              style={{
+                background: 'transparent', border: 'none', cursor: reported ? 'default' : 'pointer',
+                fontFamily: 'inherit', fontSize: 12.5, color: reported ? 'var(--muted2)' : 'inherit',
+                padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              🚩 {reported ? 'تم الإبلاغ' : 'إبلاغ'}
+            </button>
+          )}
         </div>
       </div>
     </article>
@@ -434,6 +467,19 @@ function CommentRow({ comment: c, depth = 0 }: { comment: RichComment; depth?: n
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 14, fontWeight: 700 }}>{c.authorName}</span>
+          {c.isCreatorReply && (
+            <span
+              style={{
+                fontSize: 11, fontWeight: 700,
+                padding: '2px 9px', borderRadius: 20,
+                color: 'var(--accent)',
+                border: '1px solid rgba(var(--accent-rgb),.5)',
+                background: 'rgba(var(--accent-rgb),.08)',
+              }}
+            >
+              صاحب المشروع
+            </span>
+          )}
           <span
             style={{
               fontSize: 11, fontWeight: 700,

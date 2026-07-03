@@ -294,6 +294,17 @@ export interface ApiProjectDetail {
   platformPartner: Record<string, unknown> | null;
   publishedAt: string | null;
   createdAt: string;
+  /** CC-04 — admin review feedback surfaced to the creator. */
+  reviewFeedback?: string | null;
+  reviewedAt?: string | null;
+  /** CC-14 — pause state + cumulative paused time (7-day cap). */
+  pausedAt?: string | null;
+  pausedMsAccrued?: number;
+  /** CC-22 SEO + CC-20 scheduled launch. */
+  slug?: string | null;
+  ogImage?: string | null;
+  metaDescription?: string | null;
+  scheduledLaunchAt?: string | null;
   rewardTiers?: Array<Record<string, unknown>>;
 }
 
@@ -301,6 +312,66 @@ export async function getProjectDetail(
   projectId: string,
 ): Promise<ApiProjectDetail | null> {
   return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`);
+}
+
+
+export interface ApiChangeLogEntry {
+  id: string;
+  field: string;
+  summaryAr: string;
+  createdAt: string;
+}
+
+export interface ApiAnalytics {
+  totals: {
+    raisedHalalas: number;
+    goalHalalas: number;
+    backersCount: number;
+    percentFunded: number;
+    avgPledgeHalalas: number;
+    capturedCount: number;
+    heldCount: number;
+    refundedCount: number;
+  };
+  pledgesOverTime: Array<{ date: string; count: number; amountHalalas: number }>;
+  tierPerformance: Array<{ tierId: string; titleAr: string; backers: number; amountHalalas: number }>;
+  updateEngagement: { updates: number; likes: number; comments: number };
+  notTracked: string[];
+}
+
+/** CC-16 — owner-gated analytics (derived from pledges). */
+export async function getProjectAnalytics(projectId: string): Promise<ApiAnalytics | null> {
+  const token = await readSessionToken();
+  return fetchJson<ApiAnalytics>(`/v1/projects/${projectId}/analytics`, 15, token);
+}
+
+export interface ApiFollowerRow {
+  followerId: string;
+  name: string;
+  followedAt: string;
+}
+
+/** CC-17 — owner-gated follower roster. */
+export async function getCreatorFollowers(
+  userId: string,
+): Promise<{ total: number; items: ApiFollowerRow[] } | null> {
+  const token = await readSessionToken();
+  return fetchJson<{ total: number; items: ApiFollowerRow[]; nextCursor: string | null }>(
+    `/v1/creators/${userId}/followers`,
+    15,
+    token,
+  );
+}
+
+/** CC-11 — public content change-log for a project (newest first). */
+export async function getProjectChangelog(
+  projectId: string,
+): Promise<ApiChangeLogEntry[] | null> {
+  const data = await fetchJson<{ items: ApiChangeLogEntry[] }>(
+    `/v1/projects/${projectId}/changelog`,
+    15,
+  );
+  return data?.items ?? null;
 }
 
 export async function listProjectMilestones(
@@ -434,6 +505,12 @@ export interface ApiRewardTier {
   includedItems: Array<{ nameAr: string; qty?: number; thumbnailUrl?: string }>;
   shipsTo: string[];
   sortOrder: number;
+  // CC-13 — close/early-bird controls.
+  isActive?: boolean;
+  earlyBirdAmountHalalas?: number | null;
+  earlyBirdUntil?: string | null;
+  earlyBirdActive?: boolean;
+  effectiveAmountHalalas?: number;
 }
 
 export interface ApiAddOn {
@@ -539,10 +616,13 @@ export interface ApiUpdatePublic {
   projectId: string;
   orderNum: number;
   titleAr: string;
-  bodyAr: string;
+  bodyAr: string | null;
   likeCount: number;
   commentCount: number;
   date: string;
+  // CC-12 — backer-only bodies are withheld from non-backers.
+  visibility?: 'PUBLIC' | 'BACKERS_ONLY';
+  locked?: boolean;
 }
 
 /**
