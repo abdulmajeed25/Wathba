@@ -316,6 +316,47 @@ export interface ApiChangeLogEntry {
   createdAt: string;
 }
 
+export interface ApiAnalytics {
+  totals: {
+    raisedHalalas: number;
+    goalHalalas: number;
+    backersCount: number;
+    percentFunded: number;
+    avgPledgeHalalas: number;
+    capturedCount: number;
+    heldCount: number;
+    refundedCount: number;
+  };
+  pledgesOverTime: Array<{ date: string; count: number; amountHalalas: number }>;
+  tierPerformance: Array<{ tierId: string; titleAr: string; backers: number; amountHalalas: number }>;
+  updateEngagement: { updates: number; likes: number; comments: number };
+  notTracked: string[];
+}
+
+/** CC-16 — owner-gated analytics (derived from pledges). */
+export async function getProjectAnalytics(projectId: string): Promise<ApiAnalytics | null> {
+  const token = await readSessionToken();
+  return fetchJson<ApiAnalytics>(`/v1/projects/${projectId}/analytics`, 15, token);
+}
+
+export interface ApiFollowerRow {
+  followerId: string;
+  name: string;
+  followedAt: string;
+}
+
+/** CC-17 — owner-gated follower roster. */
+export async function getCreatorFollowers(
+  userId: string,
+): Promise<{ total: number; items: ApiFollowerRow[] } | null> {
+  const token = await readSessionToken();
+  return fetchJson<{ total: number; items: ApiFollowerRow[]; nextCursor: string | null }>(
+    `/v1/creators/${userId}/followers`,
+    15,
+    token,
+  );
+}
+
 /** CC-11 — public content change-log for a project (newest first). */
 export async function getProjectChangelog(
   projectId: string,

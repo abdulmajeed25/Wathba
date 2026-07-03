@@ -27,6 +27,7 @@ import { CreatorsModule } from './creators/creators.module';
 import { BackersModule } from './backers/backers.module';
 import { AuditViewModule } from './audit-view/audit-view.module';
 import { ChangelogModule } from './changelog/changelog.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { ChangelogModule } from './changelog/changelog.module';
     BackersModule,
     AuditViewModule,
     ChangelogModule,
+    AnalyticsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

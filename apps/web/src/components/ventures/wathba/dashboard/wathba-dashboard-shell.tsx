@@ -34,6 +34,7 @@ function navFor(projectId: string): NavItem[] {
     { href: `${base}/faq`, labelAr: 'الأسئلة', icon: 'help' },
     { href: `${base}/community`, labelAr: 'المجتمع', icon: 'groups' },
     { href: `${base}/creator`, labelAr: 'ملفي كمبدع', icon: 'person' },
+    { href: `${base}/analytics`, labelAr: 'التحليلات', icon: 'query_stats' },
     { href: `${base}/activity`, labelAr: 'سجل النشاط', icon: 'history' },
     { href: `${base}/settings`, labelAr: 'الإعدادات', icon: 'settings' },
   ];
@@ -106,7 +107,11 @@ export function DashboardShell({
         }}
       >
         <Link
-          href={`/projects/${projectId}`}
+          href={
+            projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW'
+              ? `/projects/dashboard/${projectId}/preview`
+              : `/projects/${projectId}`
+          }
           style={{
             display: 'block',
             padding: '8px 12px 16px',
@@ -136,7 +141,7 @@ export function DashboardShell({
               {STATUS_AR[projectStatus] ?? projectStatus}
             </span>
             <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-primary, #05a661)' }}>
-              عرض الحملة ←
+              {projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW' ? 'معاينة كزائر ←' : 'عرض الحملة ←'}
             </span>
           </div>
         </Link>

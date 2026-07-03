@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -20,6 +21,7 @@ import { Throttle } from '@nestjs/throttler';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
+import { CursorQueryDto } from '../common/cursor-query.dto';
 import { CreatorsService } from './creators.service';
 import {
   CreatorProfileResponseDto,
@@ -46,6 +48,21 @@ export class CreatorsController {
     @Param('userId', new ParseUUIDPipe()) userId: string,
   ): Promise<CreatorProfileResponseDto> {
     return this.creators.getProfile(userId);
+  }
+
+  @Get(':userId/followers')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Follower roster for the creator dashboard (owner only) — CC-17' })
+  async followers(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('userId', new ParseUUIDPipe()) userId: string,
+    @Query() q: CursorQueryDto,
+  ) {
+    if (jwt.sub !== userId) {
+      throw new ForbiddenException('can only view your own followers');
+    }
+    return this.creators.listFollowers(userId, { take: q.take, cursor: q.cursor });
   }
 
   @Patch(':userId')
