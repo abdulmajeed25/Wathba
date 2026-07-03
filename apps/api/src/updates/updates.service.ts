@@ -1,9 +1,10 @@
 import {
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { type ProjectUpdate } from '@prisma/client';
+import { NotificationKind, PledgeStatus, type ProjectUpdate } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateUpdateDto,
@@ -29,6 +30,8 @@ export interface PublicUpdate {
 
 @Injectable()
 export class UpdatesService {
+  private readonly logger = new Logger(UpdatesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async list(
@@ -81,7 +84,76 @@ export class UpdatesService {
         orderNum,
       },
     });
+
+    // CC-01 — notify backers + followers. Fire-and-forget (same discipline as
+    // community.materializeFromPledge): publishing must never block on the
+    // fan-out, and a notification glitch must never fail the creator's post.
+    this.fanOutUpdatePosted(projectId, created).catch((err) =>
+      this.logger.warn(`update fan-out failed for update=${created.id}: ${String(err)}`),
+    );
+
     return this.toPublic(created);
+  }
+
+  /**
+   * CC-01 — fan out an UPDATE_POSTED notification to every backer with a
+   * CAPTURED or HELD pledge on the project plus every follower of the creator,
+   * deduplicated (a user who is both gets one). The creator themselves is
+   * excluded. Idempotent per (updateId, userId) via the `dedupKey` unique
+   * index + `skipDuplicates`, so a re-publish or retry can't double-notify.
+   * One batched `createMany` — never N round-trips.
+   */
+  async fanOutUpdatePosted(
+    projectId: string,
+    update: Pick<ProjectUpdate, 'id' | 'titleAr'>,
+  ): Promise<{ notified: number }> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { titleAr: true, createdById: true },
+    });
+    if (!project) return { notified: 0 };
+
+    const [backers, followers] = await Promise.all([
+      this.prisma.pledge.findMany({
+        where: {
+          projectId,
+          status: { in: [PledgeStatus.CAPTURED, PledgeStatus.HELD] },
+        },
+        select: { backerId: true },
+        distinct: ['backerId'],
+      }),
+      this.prisma.creatorFollow.findMany({
+        where: { creatorProfile: { userId: project.createdById } },
+        select: { followerId: true },
+      }),
+    ]);
+
+    const recipients = new Set<string>();
+    for (const b of backers) recipients.add(b.backerId);
+    for (const f of followers) recipients.add(f.followerId);
+    recipients.delete(project.createdById); // don't notify yourself
+    if (recipients.size === 0) return { notified: 0 };
+
+    const deepLink = `/projects/${projectId}/updates/${update.id}`;
+    const data = [...recipients].map((userId) => ({
+      userId,
+      kind: NotificationKind.UPDATE_POSTED,
+      payload: {
+        projectId,
+        projectTitleAr: project.titleAr,
+        updateId: update.id,
+        updateTitleAr: update.titleAr,
+        deepLink,
+      },
+      dedupKey: `update:${update.id}:${userId}`,
+    }));
+
+    const { count } = await this.prisma.notification.createMany({
+      data,
+      skipDuplicates: true,
+    });
+    this.logger.log(`update=${update.id} fan-out notified=${count} recipients=${recipients.size}`);
+    return { notified: count };
   }
 
   async update(

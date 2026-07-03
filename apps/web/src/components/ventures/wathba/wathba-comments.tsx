@@ -249,7 +249,7 @@ function ApiCommentRow({ comment: c }: { comment: ApiCommentRow }) {
                 background: 'rgba(var(--accent-rgb),.08)',
               }}
             >
-              الـمبدع
+              صاحب المشروع
             </span>
           )}
           {c.pinned && (
@@ -434,6 +434,19 @@ function CommentRow({ comment: c, depth = 0 }: { comment: RichComment; depth?: n
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 14, fontWeight: 700 }}>{c.authorName}</span>
+          {c.isCreatorReply && (
+            <span
+              style={{
+                fontSize: 11, fontWeight: 700,
+                padding: '2px 9px', borderRadius: 20,
+                color: 'var(--accent)',
+                border: '1px solid rgba(var(--accent-rgb),.5)',
+                background: 'rgba(var(--accent-rgb),.08)',
+              }}
+            >
+              صاحب المشروع
+            </span>
+          )}
           <span
             style={{
               fontSize: 11, fontWeight: 700,

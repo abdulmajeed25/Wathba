@@ -55,6 +55,7 @@ import {
   TrendingUp,
   UploadCloud,
   User,
+  Users,
   Utensils,
   Zap,
 } from 'lucide-react';
@@ -99,6 +100,7 @@ const ICON_MAP: Record<string, LucideIconCmp> = {
   share: Share2,
   bookmark: Bookmark,
   person: User,
+  group: Users,
   category: LayoutGrid,
 
   /* tabs / states */

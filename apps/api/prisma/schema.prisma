@@ -64,6 +64,16 @@ enum PledgeStatus {
   DISPUTED
 }
 
+/// Creator-editable fulfillment bookkeeping on a pledge (Creator-CC / CC-02).
+/// PURELY informational — has NO money effect and never gates refunds or
+/// payouts. Lets a creator track which rewards have shipped (KS "Status"
+/// column parity).
+enum RewardFulfillmentStatus {
+  PENDING
+  IN_PROGRESS
+  SENT
+}
+
 enum ContractType {
   DONATION
   ISTISNA
@@ -213,6 +223,11 @@ model Project {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   publishedAt          DateTime?
+  /// Admin review feedback surfaced to the creator on reject (Creator-CC /
+  /// CC-04). Previously the reject reason was discarded; now it is persisted
+  /// and shown in the dashboard so the creator can fix and resubmit.
+  reviewFeedback       String?         @db.Text
+  reviewedAt           DateTime?
 
   rewardTiers          RewardTier[]
   addOns               AddOn[]
@@ -323,6 +338,9 @@ model Pledge {
   /// Sum of add-on amounts (sub-total) — convenience cache, recomputed on add-on change.
   addOnsHalalas BigInt       @default(0)
   status        PledgeStatus @default(HELD)
+  /// Creator-editable fulfillment bookkeeping (Creator-CC / CC-02). No money
+  /// effect — never read by any capture/refund/payout path.
+  rewardStatus  RewardFulfillmentStatus @default(PENDING)
   shipping      Json?
   contractType  ContractType @default(DONATION)
   paymentRef    String       @unique
@@ -342,10 +360,12 @@ model Pledge {
   // (backerId, createdAt)    → /v1/pledges/me chronological list
   // (backerId, status)       → "my held / captured / refunded" filters
   // (projectId, backerNo)    → look up backer by # for contest announcements
+  // (projectId, rewardStatus)→ backer-roster fulfillment filter (CC-02)
   @@unique([projectId, backerNo])
   @@index([projectId, status])
   @@index([backerId, createdAt])
   @@index([backerId, status])
+  @@index([projectId, rewardStatus])
 }
 
 // ============================================================================
@@ -669,6 +689,11 @@ model Notification {
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   kind      NotificationKind
   payload   Json
+  /// Optional idempotency guard (Creator-CC / CC-01). For fan-out kinds
+  /// (e.g. UPDATE_POSTED) set to `update:{updateId}:{userId}` so a re-publish
+  /// or retry can't double-notify. Null for one-off notifications (Postgres
+  /// allows many NULLs under a UNIQUE constraint).
+  dedupKey  String?          @unique
   readAt    DateTime?
   createdAt DateTime         @default(now())
 

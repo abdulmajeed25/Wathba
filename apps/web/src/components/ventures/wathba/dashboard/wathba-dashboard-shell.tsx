@@ -29,6 +29,7 @@ function navFor(projectId: string): NavItem[] {
     { href: `${base}/contests`, labelAr: 'علّق واربح', icon: 'celebration' },
     { href: `${base}/rfqs`, labelAr: 'طلبات التوريد', icon: 'gavel' },
     { href: `${base}/payouts`, labelAr: 'الدفعات والضمان', icon: 'account_balance' },
+    { href: `${base}/backers`, labelAr: 'الداعمون', icon: 'group' },
     { href: `${base}/comments`, labelAr: 'التعليقات', icon: 'forum' },
     { href: `${base}/faq`, labelAr: 'الأسئلة', icon: 'help' },
     { href: `${base}/community`, labelAr: 'المجتمع', icon: 'groups' },
