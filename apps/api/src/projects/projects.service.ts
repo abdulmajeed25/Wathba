@@ -135,10 +135,19 @@ export class ProjectsService {
         `${unreleased} milestone(s) not yet RELEASED — deliver after the full escrow plan completes`,
       );
     }
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: { id: projectId },
       data: { status: ProjectStatus.DELIVERED },
     });
+    // CC-09 — audit the creator's delivery close-out.
+    await this.audit.log({
+      actorId: creatorId,
+      action: 'creator.project.deliver',
+      entity: 'Project',
+      entityId: projectId,
+      detail: { projectId, titleAr: updated.titleAr },
+    });
+    return updated;
   }
 
   /** Admin: approves a project and starts the funding clock. */
@@ -224,6 +233,9 @@ export class ProjectsService {
       // CC-04 — admin review feedback surfaced to the creator.
       reviewFeedback: p.reviewFeedback ?? null,
       reviewedAt: p.reviewedAt?.toISOString() ?? null,
+      // CC-14 — pause state + cumulative paused time (7-day cap).
+      pausedAt: p.pausedAt?.toISOString() ?? null,
+      pausedMsAccrued: Number(p.pausedMsAccrued),
       rewardTiers: p.rewardTiers?.map((r) =>
         Object.fromEntries(
           Object.entries(r).map(([k, v]) => [

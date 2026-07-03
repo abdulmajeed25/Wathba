@@ -26,6 +26,7 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
   DRAFT: 'مسوّدة',
   UNDER_REVIEW: 'قيد المراجعة',
   LIVE: 'منشور',
+  PAUSED: 'موقوفة مؤقتاً',
   SUCCESSFUL: 'ناجح',
   FAILED: 'متعثّر',
   FUNDED: 'مموَّل',
@@ -38,6 +39,7 @@ const STATUS_COLORS: Readonly<Record<string, string>> = {
   DRAFT: '#6b7280',
   UNDER_REVIEW: '#f59e0b',
   LIVE: '#05a661',
+  PAUSED: '#f59e0b',
   SUCCESSFUL: '#05a661',
   FUNDED: '#05a661',
   IN_PRODUCTION: '#6366f1',
@@ -68,6 +70,37 @@ export function DashboardSettings({
   // ── Funding form ─────────────────────────────────────────────────────────
   const [goalSAR, setGoalSAR] = useState((project.fundingGoalHalalas / 100).toString());
   const [threshold, setThreshold] = useState(project.releaseThresholdPct);
+  // CC-15 — duration is editable pre-launch only; the deadline is derived from
+  // it at publish and locked afterwards (policy §1: no post-launch extension).
+  const [durationDays, setDurationDays] = useState(project.durationDays);
+
+  // ── Lifecycle actions (CC-14 pause/unpause, CC-09 deliver) ───────────────
+  const [actionBusy, setActionBusy] = useState<'pause' | 'unpause' | 'deliver' | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const doAction = async (
+    kind: 'pause' | 'unpause' | 'deliver',
+    okText: string,
+  ): Promise<void> => {
+    setActionBusy(kind);
+    setActionMsg(null);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/${kind}`, { method: 'POST' });
+      const j = (await res.json().catch(() => ({}))) as { message?: string | string[] };
+      if (!res.ok) {
+        setActionMsg({
+          kind: 'err',
+          text: Array.isArray(j.message) ? j.message.join('، ') : (j.message ?? 'تعذّر التنفيذ'),
+        });
+        return;
+      }
+      setActionMsg({ kind: 'ok', text: okText });
+      router.refresh();
+    } catch {
+      setActionMsg({ kind: 'err', text: 'خطأ في الاتصال — أعد المحاولة.' });
+    } finally {
+      setActionBusy(null);
+    }
+  };
 
   // ── UX state ─────────────────────────────────────────────────────────────
   const [busySection, setBusySection] = useState<
@@ -136,6 +169,8 @@ export function DashboardSettings({
     return patch('funding', {
       fundingGoalHalalas: goalHalalas,
       releaseThresholdPct: threshold,
+      // CC-15 — duration editable only pre-launch (server also gates this).
+      ...(editable ? { durationDays } : {}),
     });
   };
 
@@ -287,9 +322,29 @@ export function DashboardSettings({
           </Hint>
         </Field>
 
-        <ReadOnlyRow label="مدّة الحملة" value={`${project.durationDays} يوماً`} />
-        <ReadOnlyRow label="الموعد النهائي" value={deadlineFmt} />
-        <Hint>المدّة والموعد النهائي يُحدَّدان عند الإنشاء ولا يمكن تعديلهما هنا.</Hint>
+        {editable ? (
+          <Field label="مدّة الحملة (أيام)">
+            <input
+              type="number"
+              min={7}
+              max={90}
+              value={durationDays}
+              onChange={(e) => setDurationDays(Number(e.target.value))}
+              disabled={!editable}
+              style={inputStyle(editable)}
+            />
+            <Hint>
+              بين ٧ و٩٠ يوماً. يُحتسب الموعد النهائي تلقائياً من المدّة عند نشر الحملة.
+              بعد النشر يُقفل الموعد ولا يمكن تمديده (سياسة §١).
+            </Hint>
+          </Field>
+        ) : (
+          <>
+            <ReadOnlyRow label="مدّة الحملة" value={`${project.durationDays} يوماً`} />
+            <ReadOnlyRow label="الموعد النهائي" value={deadlineFmt} />
+            <Hint>الموعد النهائي مقفل بعد النشر — لا يمكن تمديده (سياسة §١).</Hint>
+          </>
+        )}
 
         <SectionFooter
           status={sectionMsg.funding}
@@ -406,10 +461,70 @@ export function DashboardSettings({
         )}
 
         {project.status === 'LIVE' && (
-          <Hint>
-            الحملة منشورة ومفعّلة. إيقاف النشر يتطلب تواصلاً مع فريق الدعم (لا يتوفّر
-            إجراء إلغاء نشر ذاتي).
-          </Hint>
+          <>
+            <Hint>
+              الحملة منشورة ومفعّلة. يمكنك إيقافها مؤقتاً لتجميد الدعم الجديد — دون
+              تمديد الموعد النهائي (العدّاد يستمر).
+            </Hint>
+            <button
+              type="button"
+              disabled={actionBusy !== null}
+              onClick={() => void doAction('pause', 'تم إيقاف الحملة مؤقتاً')}
+              style={lifecycleBtn('#f59e0b', actionBusy === null)}
+            >
+              {actionBusy === 'pause' ? 'جارٍ الإيقاف…' : 'إيقاف مؤقت للحملة'}
+            </button>
+          </>
+        )}
+
+        {project.status === 'PAUSED' && (
+          <>
+            <div
+              style={{
+                padding: '12px 14px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.8,
+                border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.08)',
+                color: 'var(--text-primary, #16201b)', marginBottom: 10,
+              }}
+            >
+              الحملة موقوفة مؤقتاً — الدعم الجديد متوقف، لكن العدّ التنازلي للموعد النهائي
+              <b> مستمر</b> (لا يُمدَّد). الحدّ الأقصى للإيقاف ٧ أيام تراكمياً — المُستخدَم حتى الآن:{' '}
+              <b>{Math.floor((project.pausedMsAccrued ?? 0) / 3_600_000)}</b> ساعة.
+            </div>
+            <button
+              type="button"
+              disabled={actionBusy !== null}
+              onClick={() => void doAction('unpause', 'تم استئناف الحملة')}
+              style={lifecycleBtn('#05a661', actionBusy === null)}
+            >
+              {actionBusy === 'unpause' ? 'جارٍ الاستئناف…' : 'استئناف الحملة'}
+            </button>
+          </>
+        )}
+
+        {project.status === 'IN_PRODUCTION' && (
+          <>
+            <Hint>
+              اكتمل تمويل الحملة وهي قيد التنفيذ. عند إتمام صرف جميع المراحل يمكنك وسمها
+              كمُسلَّمة لإغلاقها.
+            </Hint>
+            <button
+              type="button"
+              disabled={actionBusy !== null}
+              onClick={() => void doAction('deliver', 'تم وسم الحملة كمُسلَّمة')}
+              style={lifecycleBtn('#05a661', actionBusy === null)}
+            >
+              {actionBusy === 'deliver' ? 'جارٍ…' : 'وسم الحملة كمُسلَّمة'}
+            </button>
+          </>
+        )}
+
+        {actionMsg && (
+          <p
+            role="alert"
+            style={{ fontSize: 13, marginTop: 8, color: actionMsg.kind === 'ok' ? '#05a661' : '#ef4444' }}
+          >
+            {actionMsg.text}
+          </p>
         )}
       </Card>
 
@@ -861,3 +976,17 @@ const dangerBtnDisabledStyle: React.CSSProperties = {
   cursor: 'not-allowed',
   fontFamily: 'inherit',
 };
+
+/** Lifecycle-action button (CC-14 pause/unpause, CC-09 deliver). */
+const lifecycleBtn = (color: string, enabled: boolean): React.CSSProperties => ({
+  padding: '10px 18px',
+  background: enabled ? color : 'rgba(0,0,0,0.12)',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 10,
+  fontWeight: 700,
+  fontSize: 14,
+  cursor: enabled ? 'pointer' : 'not-allowed',
+  fontFamily: 'inherit',
+  opacity: enabled ? 1 : 0.7,
+});

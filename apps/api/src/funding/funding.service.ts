@@ -27,6 +27,8 @@ import { CreatePledgeDto } from './dto/pledge.dto';
 @Injectable()
 export class FundingService {
   private readonly logger = new Logger(FundingService.name);
+  /** CC-14 — cumulative pause cap per campaign (policy §5 amendment: 7 days). */
+  private static readonly PAUSE_CAP_MS = 7 * 24 * 60 * 60 * 1000;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -269,7 +271,11 @@ export class FundingService {
   }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('project not found');
-    if (project.status !== ProjectStatus.LIVE) return { projectId, transition: 'noop' };
+    // CC-14 — a PAUSED campaign still settles at its deadline: the clock keeps
+    // running while paused (policy §5), pausing only freezes new pledges.
+    if (project.status !== ProjectStatus.LIVE && project.status !== ProjectStatus.PAUSED) {
+      return { projectId, transition: 'noop' };
+    }
     if (project.deadline.getTime() > Date.now()) return { projectId, transition: 'noop' };
 
     const goal = project.fundingGoalHalalas;
@@ -283,7 +289,7 @@ export class FundingService {
     // Sprint 1 / P1-306: atomic claim — only the updateMany that still sees
     // LIVE wins; a concurrent settler (double cron / manual trigger) no-ops.
     const claimed = await this.prisma.project.updateMany({
-      where: { id: projectId, status: ProjectStatus.LIVE },
+      where: { id: projectId, status: { in: [ProjectStatus.LIVE, ProjectStatus.PAUSED] } },
       data: { status: successful ? ProjectStatus.SUCCESSFUL : ProjectStatus.FAILED },
     });
     if (claimed.count === 0) return { projectId, transition: 'noop' };
@@ -399,11 +405,12 @@ export class FundingService {
       return { projectId, outcome: 'withdrawn' };
     }
 
-    if (project.status === ProjectStatus.LIVE) {
+    if (project.status === ProjectStatus.LIVE || project.status === ProjectStatus.PAUSED) {
       // Same atomic-claim discipline as settlement (P1-306) — a concurrent
-      // deadline settle and a cancel can't both win.
+      // deadline settle and a cancel can't both win. A PAUSED campaign is
+      // cancellable exactly like a LIVE one (CC-14).
       const claimed = await this.prisma.project.updateMany({
-        where: { id: projectId, status: ProjectStatus.LIVE },
+        where: { id: projectId, status: { in: [ProjectStatus.LIVE, ProjectStatus.PAUSED] } },
         data: { status: ProjectStatus.FAILED },
       });
       if (claimed.count === 0) {
@@ -460,10 +467,93 @@ export class FundingService {
     );
   }
 
+  /**
+   * CC-14 — pause a LIVE campaign. Freezes NEW pledges (the pledge guard
+   * rejects any non-LIVE status) WITHOUT extending the deadline: the funding
+   * clock keeps running while paused (policy §5). Cumulative paused time is
+   * capped at 7 days per campaign. The creator holds no money control here.
+   */
+  async pauseCampaign(
+    creatorId: string,
+    projectId: string,
+  ): Promise<{ projectId: string; pausedMsAccrued: number; capMs: number }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('project not found');
+    if (project.createdById !== creatorId) throw new ForbiddenException('not your project');
+    if (project.status !== ProjectStatus.LIVE) {
+      throw new BadRequestException(`only a LIVE campaign can be paused (was ${project.status})`);
+    }
+    if (project.deadline.getTime() <= Date.now()) {
+      throw new BadRequestException('the campaign has reached its deadline — pausing is unavailable');
+    }
+    if (project.pausedMsAccrued >= BigInt(FundingService.PAUSE_CAP_MS)) {
+      throw new BadRequestException('pause limit reached (7 days cumulative per campaign)');
+    }
+    // Atomic claim: a concurrent settle (LIVE→FAILED) must not be overwritten.
+    const claimed = await this.prisma.project.updateMany({
+      where: { id: projectId, status: ProjectStatus.LIVE },
+      data: { status: ProjectStatus.PAUSED, pausedAt: new Date() },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException('campaign is no longer LIVE — pause unavailable');
+    }
+    await this.audit.log({
+      actorId: creatorId,
+      action: 'creator.project.pause',
+      entity: 'Project',
+      entityId: projectId,
+      detail: { projectId, pausedMsAccrued: project.pausedMsAccrued.toString() },
+    });
+    return {
+      projectId,
+      pausedMsAccrued: Number(project.pausedMsAccrued),
+      capMs: FundingService.PAUSE_CAP_MS,
+    };
+  }
+
+  /**
+   * CC-14 — resume a PAUSED campaign back to LIVE, accruing the elapsed paused
+   * time toward the 7-day cap. If the deadline passed while paused, the next
+   * settlement tick settles it (the clock never stopped).
+   */
+  async unpauseCampaign(
+    creatorId: string,
+    projectId: string,
+  ): Promise<{ projectId: string; pausedMsAccrued: number }> {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!project) throw new NotFoundException('project not found');
+    if (project.createdById !== creatorId) throw new ForbiddenException('not your project');
+    if (project.status !== ProjectStatus.PAUSED) {
+      throw new BadRequestException(`only a PAUSED campaign can be resumed (was ${project.status})`);
+    }
+    const pausedFor = project.pausedAt
+      ? BigInt(Math.max(0, Date.now() - project.pausedAt.getTime()))
+      : 0n;
+    const accrued = project.pausedMsAccrued + pausedFor;
+    const claimed = await this.prisma.project.updateMany({
+      where: { id: projectId, status: ProjectStatus.PAUSED },
+      data: { status: ProjectStatus.LIVE, pausedAt: null, pausedMsAccrued: accrued },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException('campaign is no longer PAUSED — resume unavailable');
+    }
+    await this.audit.log({
+      actorId: creatorId,
+      action: 'creator.project.unpause',
+      entity: 'Project',
+      entityId: projectId,
+      detail: { projectId, pausedMsAccrued: accrued.toString() },
+    });
+    return { projectId, pausedMsAccrued: Number(accrued) };
+  }
+
   /** Settle every project whose deadline has passed (called by deadline cron). */
   async settleDueProjects(): Promise<{ scanned: number; settled: number }> {
     const due = await this.prisma.project.findMany({
-      where: { status: ProjectStatus.LIVE, deadline: { lte: new Date() } },
+      where: {
+        status: { in: [ProjectStatus.LIVE, ProjectStatus.PAUSED] },
+        deadline: { lte: new Date() },
+      },
       select: { id: true },
     });
     let settled = 0;

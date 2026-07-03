@@ -48,6 +48,7 @@ enum ProjectStatus {
   DRAFT
   UNDER_REVIEW
   LIVE
+  PAUSED
   SUCCESSFUL
   FAILED
   FUNDED
@@ -229,6 +230,13 @@ model Project {
   /// and shown in the dashboard so the creator can fix and resubmit.
   reviewFeedback       String?         @db.Text
   reviewedAt           DateTime?
+  /// Pause/unpause (Creator-CC / CC-14). `pausedAt` is set while status=PAUSED;
+  /// `pausedMsAccrued` accumulates total paused time across pause periods and is
+  /// capped at 7 days per campaign. The deadline clock keeps running while paused
+  /// (policy §5), so pausing only freezes NEW pledges — it never extends the
+  /// deadline.
+  pausedAt             DateTime?
+  pausedMsAccrued      BigInt          @default(0)
 
   rewardTiers          RewardTier[]
   addOns               AddOn[]

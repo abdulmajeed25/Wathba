@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { CommunityStatScope } from '@prisma/client';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { CommunityStatScope, PledgeStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface CommunityRow {
@@ -47,6 +47,33 @@ export class CommunityService {
         total: get('TOTAL'),
       },
     };
+  }
+
+  /**
+   * CC-08 — owner-triggered full rebuild of the community aggregates from the
+   * pledge ledger. Clears the materialised counters + idempotency guards, then
+   * re-runs the per-pledge materialiser over every non-FAILED pledge (the same
+   * set the live path materialises). Fixes the previously dead "rebuild" button.
+   */
+  async rebuild(creatorId: string, projectId: string): Promise<{ rebuilt: number }> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { createdById: true },
+    });
+    if (!project) throw new NotFoundException('project not found');
+    if (project.createdById !== creatorId) throw new ForbiddenException('not your project');
+
+    // Clear the idempotency guards first (relation filter), then the counters.
+    await this.prisma.communityMaterialised.deleteMany({ where: { pledge: { projectId } } });
+    await this.prisma.communityStat.deleteMany({ where: { projectId } });
+
+    const pledges = await this.prisma.pledge.findMany({
+      where: { projectId, status: { not: PledgeStatus.FAILED } },
+      select: { id: true },
+      orderBy: { backerNo: 'asc' },
+    });
+    for (const p of pledges) await this.materializeFromPledge(p.id);
+    return { rebuilt: pledges.length };
   }
 
   /**

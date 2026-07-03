@@ -81,6 +81,22 @@ export class ProjectsController {
     return this.funding.cancelCampaign(jwt.sub, id);
   }
 
+  @Post(':id/pause')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Pause a LIVE campaign — freezes new pledges, clock keeps running (owner; CC-14)' })
+  async pause(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.funding.pauseCampaign(jwt.sub, id);
+  }
+
+  @Post(':id/unpause')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Resume a PAUSED campaign back to LIVE (owner; CC-14)' })
+  async unpause(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.funding.unpauseCampaign(jwt.sub, id);
+  }
+
   @Post(':id/deliver')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

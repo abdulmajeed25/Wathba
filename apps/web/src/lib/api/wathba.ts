@@ -297,6 +297,9 @@ export interface ApiProjectDetail {
   /** CC-04 — admin review feedback surfaced to the creator. */
   reviewFeedback?: string | null;
   reviewedAt?: string | null;
+  /** CC-14 — pause state + cumulative paused time (7-day cap). */
+  pausedAt?: string | null;
+  pausedMsAccrued?: number;
   rewardTiers?: Array<Record<string, unknown>>;
 }
 
