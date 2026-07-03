@@ -8,7 +8,12 @@ import type { JwtPayload } from '../identity/auth.service';
 import { ProjectsService } from './projects.service';
 import { FundingService } from '../funding/funding.service';
 import { TabCountsService } from './tab-counts.service';
-import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
+import {
+  CreateProjectDto,
+  ListProjectsQueryDto,
+  UpdateProjectDto,
+  UpdateStoryDto,
+} from './dto/project.dto';
 
 @ApiTags('projects')
 @Controller('projects')
@@ -79,6 +84,19 @@ export class ProjectsController {
   })
   async cancel(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.funding.cancelCampaign(jwt.sub, id);
+  }
+
+  @Patch(':id/story')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Edit story/media — allowed post-launch with a public change-log (CC-11)' })
+  async updateStory(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateStoryDto,
+  ) {
+    const p = await this.projects.updateStory(jwt.sub, id, dto);
+    return this.projects.toPublic(p);
   }
 
   @Post(':id/pause')

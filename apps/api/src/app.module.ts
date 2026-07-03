@@ -26,6 +26,7 @@ import { CommunityModule } from './community/community.module';
 import { CreatorsModule } from './creators/creators.module';
 import { BackersModule } from './backers/backers.module';
 import { AuditViewModule } from './audit-view/audit-view.module';
+import { ChangelogModule } from './changelog/changelog.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AuditViewModule } from './audit-view/audit-view.module';
     CreatorsModule,
     BackersModule,
     AuditViewModule,
+    ChangelogModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

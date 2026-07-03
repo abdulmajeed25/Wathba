@@ -3,7 +3,12 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
-import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
+import {
+  CreateProjectDto,
+  ListProjectsQueryDto,
+  UpdateProjectDto,
+  UpdateStoryDto,
+} from './dto/project.dto';
 import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/client';
 
 /**
@@ -77,6 +82,55 @@ export class ProjectsService {
         }),
       },
     });
+  }
+
+  /**
+   * CC-11 — edit the story/media. Unlike the general update() (locked to
+   * DRAFT/UNDER_REVIEW), story edits are allowed while LIVE/PAUSED per policy §2,
+   * but every post-launch edit writes a PUBLIC change-log entry so backers can
+   * see the campaign changed after they pledged. Blocked once settled.
+   */
+  async updateStory(creatorId: string, projectId: string, dto: UpdateStoryDto): Promise<Project> {
+    const proj = await this.requireOwned(creatorId, projectId);
+    const editable: ProjectStatus[] = [
+      ProjectStatus.DRAFT,
+      ProjectStatus.UNDER_REVIEW,
+      ProjectStatus.LIVE,
+      ProjectStatus.PAUSED,
+    ];
+    if (!editable.includes(proj.status)) {
+      throw new BadRequestException(`cannot edit the story in status ${proj.status}`);
+    }
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: {
+        storyAr: dto.storyAr,
+        ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
+      },
+    });
+
+    const postLaunch = proj.status === ProjectStatus.LIVE || proj.status === ProjectStatus.PAUSED;
+    if (postLaunch) {
+      const note = dto.changeNote?.trim();
+      await this.prisma.projectChangeLog.create({
+        data: {
+          projectId,
+          actorId: creatorId,
+          field: 'story',
+          summaryAr: note
+            ? `حدّث صاحب المشروع نص القصة: ${note}`
+            : 'حدّث صاحب المشروع نص القصة',
+        },
+      });
+      await this.audit.log({
+        actorId: creatorId,
+        action: 'creator.project.story-edit',
+        entity: 'Project',
+        entityId: projectId,
+        detail: { projectId, changeNote: note ?? null },
+      });
+    }
+    return updated;
   }
 
   async submitForReview(creatorId: string, projectId: string): Promise<Project> {

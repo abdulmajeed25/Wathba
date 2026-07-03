@@ -54,6 +54,10 @@ describe('UpdatesService.create', () => {
       likeCount: 0,
       commentCount: 0,
       date: new Date(),
+      pinned: false,
+      visibility: 'PUBLIC',
+      publishAt: new Date(),
+      notifiedAt: new Date(),
     });
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
@@ -79,6 +83,10 @@ describe('UpdatesService.create', () => {
       likeCount: 0,
       commentCount: 0,
       date: new Date(),
+      pinned: false,
+      visibility: 'PUBLIC',
+      publishAt: new Date(),
+      notifiedAt: new Date(),
     });
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
@@ -169,6 +177,10 @@ describe('UpdatesService.like (toggle)', () => {
     likeCount: 5,
     commentCount: 0,
     date: new Date(),
+    pinned: false,
+    visibility: 'PUBLIC',
+    publishAt: new Date(),
+    notifiedAt: new Date(),
   };
 
   it('first call inserts join row + likeCount++ and returns liked:true', async () => {

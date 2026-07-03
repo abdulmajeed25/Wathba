@@ -142,6 +142,13 @@ enum CommunityStatScope {
   TOTALS
 }
 
+/// Project-update audience (Creator-CC / CC-12). BACKERS_ONLY updates are only
+/// visible to users with a CAPTURED pledge on the project (policy §9).
+enum UpdateVisibility {
+  PUBLIC
+  BACKERS_ONLY
+}
+
 // ============================================================================
 // IDENTITY
 // ============================================================================
@@ -251,6 +258,7 @@ model Project {
   faqItems             FaqItem[]
   faqQuestions         FaqQuestion[]
   communityStats       CommunityStat[]
+  changeLogs           ProjectChangeLog[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -281,6 +289,12 @@ model RewardTier {
   claimedQty              Int        @default(0)
   popular                 Boolean    @default(false)
   featured                Boolean    @default(false)
+  /// CC-13 — a closed tier is hidden from new pledges (existing backers keep it).
+  isActive                Boolean    @default(true)
+  /// CC-13 — time-boxed early-bird price: while now < earlyBirdUntil and stock
+  /// remains, the effective minimum pledge is earlyBirdAmountHalalas.
+  earlyBirdAmountHalalas  BigInt?
+  earlyBirdUntil          DateTime?
   /// [{nameAr, qty, thumbnailUrl}] — the "ما يتضمنه" line items.
   includedItems           Json       @default("[]")
   /// ISO 3166-1 alpha-2 country codes the creator ships physical rewards to.
@@ -498,11 +512,22 @@ model ProjectUpdate {
   likeCount     Int      @default(0)
   commentCount  Int      @default(0)
   date          DateTime @default(now())
+  /// CC-12 — creator-pinned update floats to the top of the list.
+  pinned        Boolean  @default(false)
+  pinnedAt      DateTime?
+  /// CC-12 — PUBLIC or BACKERS_ONLY (CAPTURED backers, policy §9).
+  visibility    UpdateVisibility @default(PUBLIC)
+  /// CC-12 — scheduled publish time. The public list hides updates until
+  /// publishAt <= now; the fan-out notification fires when it becomes due.
+  publishAt     DateTime @default(now())
+  /// Set once the CC-01 fan-out has run for this update (guards scheduled fan-out).
+  notifiedAt    DateTime?
 
   likes         UpdateLike[]
 
   @@index([projectId, date])
   @@index([projectId, orderNum])
+  @@index([projectId, pinned, publishAt])
 }
 
 /// Per-user like join — kills the double-like exploit on /v1/updates/:id/like.
@@ -655,6 +680,24 @@ model CommunityStat {
 
   @@unique([projectId, scope, key])
   @@index([projectId, scope, backers])
+}
+
+/// Public transparency change-log (Creator-CC / CC-11 + CC-13). One row per
+/// post-launch content change the creator makes to a LIVE campaign (story edit,
+/// reward-tier copy fix). Publicly visible so backers can see what changed after
+/// they pledged. Append-only.
+model ProjectChangeLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actorId   String?  @db.Uuid
+  /// 'story' | 'reward-tier' | 'media' …
+  field     String
+  /// Human-readable Arabic summary shown to backers.
+  summaryAr String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([projectId, createdAt])
 }
 
 // ============================================================================

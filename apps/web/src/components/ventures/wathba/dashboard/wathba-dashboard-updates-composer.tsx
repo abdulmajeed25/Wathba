@@ -19,12 +19,16 @@ export function DashboardUpdatesComposer({
   const [rows, setRows] = useState<ApiUpdateRow[]>(initial);
   const [titleAr, setTitleAr] = useState('');
   const [bodyAr, setBodyAr] = useState('');
+  const [visibility, setVisibility] = useState<'PUBLIC' | 'BACKERS_ONLY'>('PUBLIC');
+  const [publishAt, setPublishAt] = useState(''); // datetime-local; empty = now
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const reset = (): void => {
     setTitleAr('');
     setBodyAr('');
+    setVisibility('PUBLIC');
+    setPublishAt('');
     setError(null);
   };
 
@@ -40,7 +44,12 @@ export function DashboardUpdatesComposer({
       const res = await fetch(`/api/updates/${projectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titleAr: titleAr.trim(), bodyAr: bodyAr.trim() }),
+        body: JSON.stringify({
+          titleAr: titleAr.trim(),
+          bodyAr: bodyAr.trim(),
+          visibility,
+          ...(publishAt ? { publishAt: new Date(publishAt).toISOString() } : {}),
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
@@ -71,6 +80,22 @@ export function DashboardUpdatesComposer({
     }
   };
 
+  const onPin = async (id: string): Promise<void> => {
+    const snapshot = rows;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r)));
+    try {
+      const res = await fetch(`/api/updates/${projectId}/${id}/pin`, { method: 'PATCH' });
+      if (!res.ok) {
+        setRows(snapshot);
+      } else {
+        const next = (await res.json()) as ApiUpdateRow;
+        setRows((prev) => prev.map((r) => (r.id === id ? next : r)));
+      }
+    } catch {
+      setRows(snapshot);
+    }
+  };
+
   return (
     <>
       <div style={{ marginBottom: 24 }}>
@@ -78,7 +103,8 @@ export function DashboardUpdatesComposer({
           التحديثات
         </h1>
         <p style={{ fontSize: 14, color: 'var(--text-secondary, #3b4942)', margin: 0 }}>
-          انشر تحديثات مرقّمة لداعميك (#1، #2 …) — ستظهر فوراً في صفحة الحملة.
+          انشر تحديثات مرقّمة لداعميك (#1، #2 …). اجعلها عامة أو للداعمين فقط، وانشرها الآن
+          أو جدولها لوقت لاحق. ثبّت الأهم ليظهر في الأعلى.
         </p>
       </div>
 
@@ -117,6 +143,30 @@ export function DashboardUpdatesComposer({
           disabled={submitting}
           style={{ ...inputStyle, resize: 'vertical', minHeight: 140, fontFamily: 'inherit' }}
         />
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <label style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            من يرى التحديث؟
+            <select
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as 'PUBLIC' | 'BACKERS_ONLY')}
+              disabled={submitting}
+              style={{ ...inputStyle, padding: '8px 10px' }}
+            >
+              <option value="PUBLIC">الجميع (عام)</option>
+              <option value="BACKERS_ONLY">الداعمون فقط</option>
+            </select>
+          </label>
+          <label style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            جدولة النشر (اختياري)
+            <input
+              type="datetime-local"
+              value={publishAt}
+              onChange={(e) => setPublishAt(e.target.value)}
+              disabled={submitting}
+              style={{ ...inputStyle, padding: '8px 10px' }}
+            />
+          </label>
+        </div>
         {error && (
           <div
             style={{
@@ -178,6 +228,9 @@ export function DashboardUpdatesComposer({
               onDelete={() => {
                 void onDelete(u.id);
               }}
+              onPin={() => {
+                void onPin(u.id);
+              }}
             />
           ))}
         </div>
@@ -199,9 +252,11 @@ const inputStyle: React.CSSProperties = {
 function UpdateAdminRow({
   row,
   onDelete,
+  onPin,
 }: {
   row: ApiUpdateRow;
   onDelete: () => void;
+  onPin: () => void;
 }): React.ReactElement {
   const dateAr = formatDateAr(row.date);
   return (
@@ -233,6 +288,9 @@ function UpdateAdminRow({
           #{row.orderNum}
         </span>
         <h3 style={{ fontSize: 15.5, fontWeight: 700, margin: 0 }}>{row.titleAr}</h3>
+        {row.pinned && <Badge tone="brand">📌 مثبَّت</Badge>}
+        {row.visibility === 'BACKERS_ONLY' && <Badge tone="amber">🔒 للداعمين فقط</Badge>}
+        {row.scheduled && <Badge tone="indigo">⏰ مجدول {formatDateAr(row.publishAt ?? row.date)}</Badge>}
         <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>
           {dateAr}
         </span>
@@ -262,9 +320,22 @@ function UpdateAdminRow({
         <span>💬 {row.commentCount.toLocaleString('en-US')}</span>
         <button
           type="button"
-          onClick={onDelete}
+          onClick={onPin}
           style={{
             marginInlineStart: 'auto',
+            fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8,
+            color: row.pinned ? 'var(--brand-primary, #05a661)' : 'var(--text-primary, #16201b)',
+            background: row.pinned ? 'rgba(5,166,97,0.10)' : 'transparent',
+            border: `1px solid ${row.pinned ? 'rgba(5,166,97,0.4)' : 'rgba(18,33,26,0.16)'}`,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          {row.pinned ? 'إلغاء التثبيت' : 'تثبيت'}
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          style={{
             fontSize: 12,
             fontWeight: 600,
             padding: '5px 12px',
@@ -280,6 +351,19 @@ function UpdateAdminRow({
         </button>
       </div>
     </article>
+  );
+}
+
+function Badge({ tone, children }: { tone: 'brand' | 'amber' | 'indigo'; children: React.ReactNode }): React.ReactElement {
+  const palette = {
+    brand: { fg: 'var(--brand-primary, #05a661)', bg: 'rgba(5,166,97,0.10)' },
+    amber: { fg: '#a96400', bg: 'rgba(245,158,11,0.12)' },
+    indigo: { fg: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
+  }[tone];
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: palette.fg, background: palette.bg }}>
+      {children}
+    </span>
   );
 }
 

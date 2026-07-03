@@ -18,6 +18,9 @@ interface TierFormState {
   requiresShipping: boolean;
   shipsTo: string;
   includedItems: Array<{ nameAr: string; qty: string }>;
+  // CC-13 — optional time-boxed early-bird price.
+  earlyBirdSAR: string;
+  earlyBirdUntil: string;
 }
 
 const emptyTierForm: TierFormState = {
@@ -31,6 +34,8 @@ const emptyTierForm: TierFormState = {
   requiresShipping: false,
   shipsTo: 'SA',
   includedItems: [{ nameAr: '', qty: '1' }],
+  earlyBirdSAR: '',
+  earlyBirdUntil: '',
 };
 
 interface AddOnFormState {
@@ -86,6 +91,11 @@ export function DashboardRewardsManager({
           .map((it) => ({ nameAr: it.nameAr, qty: Number(it.qty) || 1 })),
       };
       if (tierForm.limitQty) data.limitQty = Number(tierForm.limitQty);
+      // CC-13 — early-bird price + deadline (both required together).
+      if (tierForm.earlyBirdSAR && tierForm.earlyBirdUntil) {
+        data.earlyBirdAmountHalalas = Math.round(Number(tierForm.earlyBirdSAR) * 100);
+        data.earlyBirdUntil = new Date(tierForm.earlyBirdUntil).toISOString();
+      }
       const res = await fetch('/api/rewards', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -96,6 +106,28 @@ export function DashboardRewardsManager({
         throw new Error(`فشل الحفظ (${res.status}): ${body.slice(0, 120)}`);
       }
       setTierForm(emptyTierForm);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // CC-13 — close/reopen a tier for new pledges.
+  const toggleActive = async (tierId: string, next: boolean): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/rewards', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op: 'update', projectId, tierId, data: { isActive: next } }),
+      });
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`تعذّر التحديث (${res.status}): ${body.slice(0, 120)}`);
+      }
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -215,7 +247,12 @@ export function DashboardRewardsManager({
               <EmptyState message="لا توجد باقات بعد — أضف أوّل باقة من النموذج بجانبك." />
             )}
             {initialTiers.map((t) => (
-              <TierCard key={t.id} tier={t} onDelete={() => deleteTier(t.id)} />
+              <TierCard
+                key={t.id}
+                tier={t}
+                onDelete={() => deleteTier(t.id)}
+                onToggleActive={() => void toggleActive(t.id, !(t.isActive ?? true))}
+              />
             ))}
           </div>
           <FormCard title="باقة جديدة">
@@ -258,6 +295,24 @@ export function DashboardRewardsManager({
                 min={1}
                 value={tierForm.limitQty}
                 onChange={(e) => setTierForm({ ...tierForm, limitQty: e.target.value })}
+                style={inputStyle}
+              />
+            </Field>
+            <Field label="سعر مبكر (ر.س، اختياري)">
+              <input
+                type="number"
+                min={1}
+                value={tierForm.earlyBirdSAR}
+                onChange={(e) => setTierForm({ ...tierForm, earlyBirdSAR: e.target.value })}
+                style={inputStyle}
+                placeholder="أقل من السعر الأساسي"
+              />
+            </Field>
+            <Field label="ينتهي السعر المبكر (اختياري)">
+              <input
+                type="datetime-local"
+                value={tierForm.earlyBirdUntil}
+                onChange={(e) => setTierForm({ ...tierForm, earlyBirdUntil: e.target.value })}
                 style={inputStyle}
               />
             </Field>
@@ -560,11 +615,16 @@ function EmptyState({ message }: { message: string }): React.ReactElement {
 function TierCard({
   tier,
   onDelete,
+  onToggleActive,
 }: {
   tier: ApiRewardTier;
   onDelete: () => void;
+  onToggleActive: () => void;
 }): React.ReactElement {
   const soldOut = tier.limitQty !== null && tier.claimedQty >= tier.limitQty;
+  const closed = tier.isActive === false;
+  const hasBackers = tier.claimedQty > 0;
+  const earlyBird = tier.earlyBirdActive === true;
   return (
     <div
       style={{
@@ -579,6 +639,9 @@ function TierCard({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{tier.titleAr}</div>
           {tier.featured && <Pill label="مميّزة" color="#f59e0b" />}
+          {closed && <Pill label="مغلقة" color="#ef4444" />}
+          {earlyBird && <Pill label="سعر مبكر" color="#05a661" />}
+          {hasBackers && <Pill label="لها داعمون — مقفلة جزئياً" color="#6366f1" />}
           {tier.limitQty !== null && (
             <Pill
               label={
@@ -590,8 +653,17 @@ function TierCard({
             />
           )}
         </div>
-        <div style={{ fontWeight: 700, color: 'var(--brand-primary, #05a661)' }}>
-          {fmtSAR(tier.amountHalalas)}
+        <div style={{ fontWeight: 700, color: 'var(--brand-primary, #05a661)', textAlign: 'end' }}>
+          {earlyBird && tier.earlyBirdAmountHalalas != null ? (
+            <>
+              {fmtSAR(tier.earlyBirdAmountHalalas)}
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-tertiary, #5d6b62)', textDecoration: 'line-through', marginInlineStart: 6 }}>
+                {fmtSAR(tier.amountHalalas)}
+              </span>
+            </>
+          ) : (
+            fmtSAR(tier.amountHalalas)
+          )}
         </div>
       </div>
       <div style={{ fontSize: 13, color: 'var(--text-secondary, #3b4942)', marginTop: 6 }}>
@@ -607,11 +679,18 @@ function TierCard({
           ))}
         </ul>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
         <span>الداعمون: {tier.claimedQty.toLocaleString('en-US')}</span>
-        <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: '#b91c1c' }}>
-          حذف
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" onClick={onToggleActive} style={{ ...ghostBtnStyle, color: closed ? 'var(--brand-primary, #05a661)' : '#a96400' }}>
+            {closed ? 'إعادة فتح' : 'إغلاق للدعم'}
+          </button>
+          {!hasBackers && (
+            <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: '#b91c1c' }}>
+              حذف
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

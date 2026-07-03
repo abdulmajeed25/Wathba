@@ -127,6 +127,10 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     claimedQty: 0,
     requiresShipping: false,
     includesPhysicalProduct: false,
+    // CC-13 — pledge guard reads these; default to an open tier, no early-bird.
+    isActive: true,
+    earlyBirdAmountHalalas: null,
+    earlyBirdUntil: null,
     ...over,
   });
 

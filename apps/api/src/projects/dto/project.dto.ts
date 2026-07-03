@@ -6,6 +6,21 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ProjectCategory } from '@prisma/client';
 
+/** CC-11 — post-launch story/media edit (writes a public change-log entry). */
+export class UpdateStoryDto {
+  @ApiProperty({ example: 'قصة المشروع المحدّثة…' })
+  @IsString() @MinLength(200) @MaxLength(20000)
+  storyAr!: string;
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsOptional() @IsArray() @IsString({ each: true })
+  mediaUrls?: string[];
+
+  @ApiProperty({ required: false, description: 'Optional creator note describing what changed (shown to backers).' })
+  @IsOptional() @IsString() @MaxLength(280)
+  changeNote?: string;
+}
+
 export class PlatformStakeDto {
   @ApiProperty({ default: true })
   @IsOptional()

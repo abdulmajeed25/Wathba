@@ -54,9 +54,21 @@ export class FundingService {
     if (!tier || tier.projectId !== dto.projectId) {
       throw new BadRequestException('invalid tier for this project');
     }
-    if (Number(tier.amountHalalas) > dto.amountHalalas) {
+    // CC-13 — a closed tier accepts no new pledges.
+    if (!tier.isActive) {
+      throw new BadRequestException('this reward tier is closed');
+    }
+    // CC-13 — while early-bird is active (before its deadline + stock remains),
+    // the effective minimum pledge drops to the early-bird price.
+    const earlyBirdActive =
+      tier.earlyBirdAmountHalalas !== null &&
+      tier.earlyBirdUntil !== null &&
+      tier.earlyBirdUntil.getTime() > Date.now() &&
+      (tier.limitQty === null || tier.claimedQty < tier.limitQty);
+    const minHalalas = earlyBirdActive ? tier.earlyBirdAmountHalalas! : tier.amountHalalas;
+    if (Number(minHalalas) > dto.amountHalalas) {
       throw new BadRequestException(
-        `amount ${dto.amountHalalas} is below the tier minimum ${Number(tier.amountHalalas)}`,
+        `amount ${dto.amountHalalas} is below the tier minimum ${Number(minHalalas)}`,
       );
     }
     if (tier.limitQty !== null && tier.claimedQty >= tier.limitQty) {

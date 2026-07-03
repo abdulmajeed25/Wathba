@@ -23,12 +23,22 @@ import { useUpload } from '@/lib/hooks/use-upload';
  * preview pane on the side shows how it'll look on the public campaign
  * page. The TOC sidebar mirrors what the public Story tab renders.
  */
+interface StoryChangeLogEntry {
+  id: string;
+  summaryAr: string;
+  createdAt: string;
+}
+
 export function DashboardStoryEditor({
   projectId,
   initialStoryAr,
+  projectStatus = 'DRAFT',
+  changeLog = [],
 }: {
   projectId: string;
   initialStoryAr: string;
+  projectStatus?: string;
+  changeLog?: StoryChangeLogEntry[];
 }): React.ReactElement {
   const router = useRouter();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -39,6 +49,10 @@ export function DashboardStoryEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  // CC-11 — post-launch story edits are allowed but recorded in a public
+  // change-log; the creator can attach a short note describing what changed.
+  const postLaunch = projectStatus === 'LIVE' || projectStatus === 'PAUSED';
+  const [changeNote, setChangeNote] = useState('');
 
   const dirty = storyAr !== initialStoryAr;
   const charCount = storyAr.length;
@@ -101,23 +115,29 @@ export function DashboardStoryEditor({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
+      // CC-11 — dedicated story endpoint allows post-launch edits (with a
+      // public change-log entry); the general PATCH is locked once LIVE.
+      const res = await fetch(`/api/projects/${projectId}/story`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ storyAr }),
+        body: JSON.stringify({
+          storyAr,
+          ...(postLaunch && changeNote.trim() ? { changeNote: changeNote.trim() } : {}),
+        }),
       });
       if (!res.ok) {
         const body = await res.text();
         throw new Error(`فشل الحفظ (${res.status}): ${body.slice(0, 160)}`);
       }
       setSavedAt(Date.now());
+      setChangeNote('');
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
-  }, [projectId, router, storyAr]);
+  }, [projectId, router, storyAr, postLaunch, changeNote]);
 
   const reset = useCallback((): void => {
     if (!dirty) return;
@@ -182,6 +202,48 @@ export function DashboardStoryEditor({
           )}
         </div>
       </div>
+
+      {/* CC-11 — post-launch edits are public. Offer a change note + show log. */}
+      {postLaunch && (
+        <div
+          style={{
+            marginBottom: 16, padding: '12px 14px', borderRadius: 10,
+            border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.06)',
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#a96400', marginBottom: 6 }}>
+            الحملة منشورة — أي تعديل على القصة يُسجَّل علناً للداعمين
+          </div>
+          <input
+            value={changeNote}
+            onChange={(e) => setChangeNote(e.target.value)}
+            placeholder="ملاحظة اختيارية: ما الذي تغيّر؟ (تظهر في سجل التعديلات)"
+            aria-label="ملاحظة التغيير"
+            maxLength={280}
+            style={{
+              width: '100%', padding: '9px 11px', borderRadius: 9, fontSize: 13.5, fontFamily: 'inherit',
+              border: '1px solid rgba(18,33,26,0.16)', background: 'var(--bg-base, #fff)', color: 'var(--text-primary, #16201b)',
+            }}
+          />
+          {changeLog.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #3b4942)', marginBottom: 4 }}>
+                سجل تعديلات القصة
+              </div>
+              <ul style={{ margin: 0, paddingInlineStart: 18, fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', lineHeight: 1.7 }}>
+                {changeLog.slice(0, 5).map((c) => (
+                  <li key={c.id}>
+                    {c.summaryAr}{' '}
+                    <span style={{ color: 'var(--text-tertiary, #5d6b62)' }}>
+                      — {new Date(c.createdAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div

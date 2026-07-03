@@ -309,6 +309,24 @@ export async function getProjectDetail(
   return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`);
 }
 
+export interface ApiChangeLogEntry {
+  id: string;
+  field: string;
+  summaryAr: string;
+  createdAt: string;
+}
+
+/** CC-11 — public content change-log for a project (newest first). */
+export async function getProjectChangelog(
+  projectId: string,
+): Promise<ApiChangeLogEntry[] | null> {
+  const data = await fetchJson<{ items: ApiChangeLogEntry[] }>(
+    `/v1/projects/${projectId}/changelog`,
+    15,
+  );
+  return data?.items ?? null;
+}
+
 export async function listProjectMilestones(
   projectId: string,
 ): Promise<ApiMilestonePublic[] | null> {
@@ -440,6 +458,12 @@ export interface ApiRewardTier {
   includedItems: Array<{ nameAr: string; qty?: number; thumbnailUrl?: string }>;
   shipsTo: string[];
   sortOrder: number;
+  // CC-13 — close/early-bird controls.
+  isActive?: boolean;
+  earlyBirdAmountHalalas?: number | null;
+  earlyBirdUntil?: string | null;
+  earlyBirdActive?: boolean;
+  effectiveAmountHalalas?: number;
 }
 
 export interface ApiAddOn {

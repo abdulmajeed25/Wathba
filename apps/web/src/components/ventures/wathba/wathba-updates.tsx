@@ -19,10 +19,16 @@ export interface ApiUpdateRow {
   projectId: string;
   orderNum: number;
   titleAr: string;
-  bodyAr: string;
+  bodyAr: string | null;
   likeCount: number;
   commentCount: number;
   date: string;
+  // CC-12 — creator controls.
+  pinned?: boolean;
+  visibility?: 'PUBLIC' | 'BACKERS_ONLY';
+  publishAt?: string;
+  scheduled?: boolean;
+  locked?: boolean;
 }
 
 export function WathbaUpdates({

@@ -60,6 +60,13 @@ export class CreateRewardTierDto {
 
   @ApiProperty({ default: 0 })
   @IsOptional() @IsInt() sortOrder?: number;
+
+  // CC-13 — time-boxed early-bird price (lower than amountHalalas until the date).
+  @ApiProperty({ required: false, description: 'Early-bird price in halalas (must be < amountHalalas).' })
+  @IsOptional() @IsInt() @Min(100) earlyBirdAmountHalalas?: number;
+
+  @ApiProperty({ required: false, description: 'Early-bird deadline (ISO date-time).' })
+  @IsOptional() @IsDateString() earlyBirdUntil?: string;
 }
 
 export class UpdateRewardTierDto {
@@ -79,4 +86,9 @@ export class UpdateRewardTierDto {
   @IsString({ each: true }) @Length(2, 2, { each: true })
   shipsTo?: string[];
   @IsOptional() @IsInt() sortOrder?: number;
+  // CC-13 — close/reopen a tier for new pledges.
+  @IsOptional() @IsBoolean() isActive?: boolean;
+  // CC-13 — early-bird pricing (set null to clear).
+  @IsOptional() @IsInt() @Min(100) earlyBirdAmountHalalas?: number | null;
+  @IsOptional() @IsDateString() earlyBirdUntil?: string | null;
 }
