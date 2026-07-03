@@ -6,7 +6,7 @@ import {
 } from '@/components/ventures/wathba/wathba-data';
 import { WathbaCampaign } from '@/components/ventures/wathba/wathba-campaign';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { listVentures } from '@/lib/api/wathba';
+import { getProjectDetail, listVentures } from '@/lib/api/wathba';
 
 /**
  * Project / campaign page — full Kickstarter-style surface (rich header +
@@ -25,11 +25,24 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const fixture = wathbaProjects.find((p) => p.id === id);
-  const title = fixture ? `${fixture.titleAr} · وثبة` : `مشروع ${id} · وثبة`;
+  // CC-22 — prefer the project's real title + creator-set SEO fields.
+  const live = await getProjectDetail(id).catch(() => null);
+  const title = live?.titleAr
+    ? `${live.titleAr} · وثبة`
+    : fixture
+      ? `${fixture.titleAr} · وثبة`
+      : `مشروع ${id} · وثبة`;
+  const description = live?.metaDescription ?? live?.shortDescAr ?? fixture?.desc;
+  const ogImage = live?.ogImage ?? undefined;
   return {
     title,
-    description: fixture?.desc,
-    openGraph: { title, description: fixture?.desc, type: 'article' },
+    description,
+    openGraph: {
+      title,
+      description,
+      type: 'article',
+      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+    },
   };
 }
 
@@ -47,9 +60,24 @@ export default async function ProjectDetailPage({
   const apiRow = live?.find((v) => v.slug.toLowerCase() === id.toLowerCase());
   const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
   const fallback = wathbaProjects.find((p) => p.id === id);
+  // CC-14 — surface a PAUSED banner without touching the fixture-bound campaign.
+  const detail = await getProjectDetail(id).catch(() => null);
+  const paused = detail?.status === 'PAUSED';
 
   return (
     <WathbaShell>
+      {paused && (
+        <div
+          dir="rtl"
+          style={{
+            maxWidth: 1120, margin: '0 auto 4px', padding: '10px 18px', borderRadius: 12,
+            background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.4)',
+            color: '#a96400', fontSize: 13.5, fontWeight: 700, textAlign: 'center',
+          }}
+        >
+          ⏸ هذه الحملة موقوفة مؤقتاً — الدعم الجديد متوقف حالياً.
+        </div>
+      )}
       <WathbaCampaign id={id} project={liveProject ?? fallback ?? undefined} />
     </WathbaShell>
   );

@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationKind, PledgeStatus, type Comment } from '@prisma/client';
+import { NotificationKind, PledgeStatus, Prisma, type Comment } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateCommentDto, ListCommentsQueryDto } from './dto/comment.dto';
@@ -25,6 +25,7 @@ export interface PublicComment {
   pinned: boolean;
   hidden: boolean;
   likeCount: number;
+  reportCount: number;
   bodyAr: string | null;
   parentId: string | null;
   date: string;
@@ -159,6 +160,40 @@ export class CommentsService {
     return this.toPublic(created);
   }
 
+  /**
+   * CC-23 — a user flags a comment. Unique per (comment, reporter) so the count
+   * can't be inflated; the materialised reportCount surfaces flagged comments to
+   * the creator's moderation queue. Idempotent (re-report is a no-op).
+   */
+  async report(
+    userId: string,
+    commentId: string,
+    reasonAr?: string,
+  ): Promise<{ reported: true; alreadyReported?: boolean }> {
+    const c = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true },
+    });
+    if (!c) throw new NotFoundException('comment not found');
+    try {
+      await this.prisma.$transaction([
+        this.prisma.commentReport.create({
+          data: { commentId, reporterId: userId, reasonAr: reasonAr ?? null },
+        }),
+        this.prisma.comment.update({
+          where: { id: commentId },
+          data: { reportCount: { increment: 1 } },
+        }),
+      ]);
+      return { reported: true };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return { reported: true, alreadyReported: true };
+      }
+      throw e;
+    }
+  }
+
   async togglePin(creatorId: string, commentId: string): Promise<PublicComment> {
     const c = await this.requireCreatorComment(creatorId, commentId);
     const updated = await this.prisma.comment.update({
@@ -229,6 +264,7 @@ export class CommentsService {
       pinned: c.pinned,
       hidden: c.hidden,
       likeCount: c.likeCount,
+      reportCount: c.reportCount,
       bodyAr: c.hidden ? null : c.bodyAr,
       parentId: c.parentId,
       date: c.date.toISOString(),

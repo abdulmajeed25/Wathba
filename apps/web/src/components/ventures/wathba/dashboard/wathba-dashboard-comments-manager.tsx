@@ -259,6 +259,20 @@ function CommentManagerRow({
             مخفي
           </span>
         )}
+        {(row.reportCount ?? 0) > 0 && (
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '2px 9px',
+              borderRadius: 20,
+              color: '#ef4444',
+              background: 'rgba(239,68,68,0.10)',
+            }}
+          >
+            🚩 مُبلَّغ ({row.reportCount})
+          </span>
+        )}
         <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>
           {dateAr}
         </span>

@@ -27,17 +27,22 @@ export class AdminService {
   async approve(projectId: string): Promise<Project> {
     const proj = await this.requireUnderReview(projectId);
     const now = new Date();
+    // CC-20 — if the creator set a future launch time, enter SCHEDULED and let
+    // the launch scheduler flip it LIVE at that time; otherwise go LIVE now.
+    const scheduled = proj.scheduledLaunchAt && proj.scheduledLaunchAt.getTime() > now.getTime();
     const deadline = new Date(now.getTime() + proj.durationDays * 86_400_000);
     const updated = await this.prisma.project.update({
       where: { id: projectId },
       // Clear any prior rejection feedback; stamp the review time (CC-04).
-      data: {
-        status: ProjectStatus.LIVE,
-        publishedAt: now,
-        deadline,
-        reviewFeedback: null,
-        reviewedAt: now,
-      },
+      data: scheduled
+        ? { status: ProjectStatus.SCHEDULED, reviewFeedback: null, reviewedAt: now }
+        : {
+            status: ProjectStatus.LIVE,
+            publishedAt: now,
+            deadline,
+            reviewFeedback: null,
+            reviewedAt: now,
+          },
     });
     await this.notifyReviewed(updated.createdById, projectId, 'approve', null);
     return updated;

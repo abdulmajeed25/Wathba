@@ -300,6 +300,11 @@ export interface ApiProjectDetail {
   /** CC-14 — pause state + cumulative paused time (7-day cap). */
   pausedAt?: string | null;
   pausedMsAccrued?: number;
+  /** CC-22 SEO + CC-20 scheduled launch. */
+  slug?: string | null;
+  ogImage?: string | null;
+  metaDescription?: string | null;
+  scheduledLaunchAt?: string | null;
   rewardTiers?: Array<Record<string, unknown>>;
 }
 
@@ -308,6 +313,7 @@ export async function getProjectDetail(
 ): Promise<ApiProjectDetail | null> {
   return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`);
 }
+
 
 export interface ApiChangeLogEntry {
   id: string;
@@ -610,10 +616,13 @@ export interface ApiUpdatePublic {
   projectId: string;
   orderNum: number;
   titleAr: string;
-  bodyAr: string;
+  bodyAr: string | null;
   likeCount: number;
   commentCount: number;
   date: string;
+  // CC-12 — backer-only bodies are withheld from non-backers.
+  visibility?: 'PUBLIC' | 'BACKERS_ONLY';
+  locked?: boolean;
 }
 
 /**

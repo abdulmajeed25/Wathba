@@ -331,9 +331,13 @@ export class UpdatesService {
       select: { createdById: true },
     });
     if (!project) throw new NotFoundException('project not found');
-    if (project.createdById !== creatorId) {
-      throw new ForbiddenException('not your project');
-    }
+    if (project.createdById === creatorId) return;
+    // CC-24 — a project collaborator also gets content access to updates.
+    const collab = await this.prisma.projectCollaborator.findUnique({
+      where: { projectId_userId: { projectId, userId: creatorId } },
+      select: { id: true },
+    });
+    if (!collab) throw new ForbiddenException('not your project');
   }
 
   private toPublic(

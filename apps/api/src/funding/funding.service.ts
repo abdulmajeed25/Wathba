@@ -402,17 +402,22 @@ export class FundingService {
       return { projectId, outcome: 'deleted' };
     }
 
-    if (project.status === ProjectStatus.UNDER_REVIEW) {
+    if (
+      project.status === ProjectStatus.UNDER_REVIEW ||
+      project.status === ProjectStatus.SCHEDULED
+    ) {
+      // CC-20 — a SCHEDULED (approved, not-yet-live) project withdraws to DRAFT
+      // exactly like an under-review one; no money has moved.
       await this.prisma.project.update({
         where: { id: projectId },
-        data: { status: ProjectStatus.DRAFT },
+        data: { status: ProjectStatus.DRAFT, scheduledLaunchAt: null },
       });
       await this.audit.log({
         actorId: creatorId,
         action: 'creator.project.cancel',
         entity: 'Project',
         entityId: projectId,
-        detail: { projectId, outcome: 'withdrawn' },
+        detail: { projectId, outcome: 'withdrawn', from: project.status },
       });
       return { projectId, outcome: 'withdrawn' };
     }

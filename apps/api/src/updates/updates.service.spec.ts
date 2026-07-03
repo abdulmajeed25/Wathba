@@ -35,6 +35,8 @@ function makePrisma(over: Record<string, any> = {}): any {
     pledge: { findMany: jest.fn().mockResolvedValue([]) },
     creatorFollow: { findMany: jest.fn().mockResolvedValue([]) },
     notification: { createMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    // CC-24 — collaborator access check (default: not a collaborator).
+    projectCollaborator: { findUnique: jest.fn().mockResolvedValue(null) },
     ...over,
   };
   prisma.$transaction = jest.fn(

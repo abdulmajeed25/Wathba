@@ -80,8 +80,93 @@ export class ProjectsService {
               ? Prisma.JsonNull
               : (dto.platformPartner as unknown as Prisma.InputJsonValue),
         }),
+        // CC-22 SEO + CC-20 scheduled launch.
+        ...(dto.slug !== undefined && { slug: dto.slug || null }),
+        ...(dto.ogImage !== undefined && { ogImage: dto.ogImage || null }),
+        ...(dto.metaDescription !== undefined && { metaDescription: dto.metaDescription || null }),
+        ...(dto.scheduledLaunchAt !== undefined && {
+          scheduledLaunchAt: dto.scheduledLaunchAt ? new Date(dto.scheduledLaunchAt) : null,
+        }),
+      },
+    }).catch((e: unknown) => {
+      // Unique slug clash → friendly 400 instead of a 500.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new BadRequestException('هذا المُعرّف (slug) مستخدَم بالفعل — اختر غيره');
+      }
+      throw e;
+    });
+  }
+
+  /**
+   * CC-21 — duplicate a project into a fresh DRAFT owned by the same creator,
+   * copying content + reward tiers (not pledges/updates/money). Lets a creator
+   * relaunch a finished campaign or fork a template.
+   */
+  async duplicate(creatorId: string, projectId: string): Promise<Project> {
+    const src = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { rewardTiers: true },
+    });
+    if (!src) throw new NotFoundException('project not found');
+    if (src.createdById !== creatorId) throw new ForbiddenException('not your project');
+
+    const deadline = new Date(Date.now() + src.durationDays * 86_400_000);
+    return this.prisma.project.create({
+      data: {
+        titleAr: `${src.titleAr} (نسخة)`,
+        shortDescAr: src.shortDescAr,
+        category: src.category,
+        storyAr: src.storyAr,
+        mediaUrls: src.mediaUrls,
+        fundingGoalHalalas: src.fundingGoalHalalas,
+        releaseThresholdPct: src.releaseThresholdPct,
+        durationDays: src.durationDays,
+        deadline,
+        productSpecAr: src.productSpecAr,
+        expectedDeliveryDate: src.expectedDeliveryDate,
+        createdById: creatorId,
+        status: ProjectStatus.DRAFT,
+        // slug is unique → never copied.
+        rewardTiers: {
+          create: src.rewardTiers.map((t) => ({
+            titleAr: t.titleAr,
+            amountHalalas: t.amountHalalas,
+            descAr: t.descAr,
+            includesPhysicalProduct: t.includesPhysicalProduct,
+            requiresShipping: t.requiresShipping,
+            estDeliveryDate: t.estDeliveryDate,
+            limitQty: t.limitQty,
+            popular: t.popular,
+            featured: t.featured,
+            includedItems: t.includedItems as unknown as Prisma.InputJsonValue,
+            shipsTo: t.shipsTo,
+            sortOrder: t.sortOrder,
+          })),
+        },
       },
     });
+  }
+
+  /**
+   * CC-20 — flip SCHEDULED projects whose launch time has arrived to LIVE
+   * (stamping publishedAt + a fresh deadline). Called by the launch scheduler.
+   */
+  async launchDueScheduled(): Promise<{ launched: number }> {
+    const due = await this.prisma.project.findMany({
+      where: { status: ProjectStatus.SCHEDULED, scheduledLaunchAt: { lte: new Date() } },
+      select: { id: true, durationDays: true },
+    });
+    let launched = 0;
+    for (const p of due) {
+      const now = new Date();
+      const deadline = new Date(now.getTime() + p.durationDays * 86_400_000);
+      const claimed = await this.prisma.project.updateMany({
+        where: { id: p.id, status: ProjectStatus.SCHEDULED },
+        data: { status: ProjectStatus.LIVE, publishedAt: now, deadline, scheduledLaunchAt: null },
+      });
+      if (claimed.count > 0) launched++;
+    }
+    return { launched };
   }
 
   /**
@@ -290,6 +375,11 @@ export class ProjectsService {
       // CC-14 — pause state + cumulative paused time (7-day cap).
       pausedAt: p.pausedAt?.toISOString() ?? null,
       pausedMsAccrued: Number(p.pausedMsAccrued),
+      // CC-22 SEO + CC-20 scheduled launch.
+      slug: p.slug ?? null,
+      ogImage: p.ogImage ?? null,
+      metaDescription: p.metaDescription ?? null,
+      scheduledLaunchAt: p.scheduledLaunchAt?.toISOString() ?? null,
       rewardTiers: p.rewardTiers?.map((r) =>
         Object.fromEntries(
           Object.entries(r).map(([k, v]) => [

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ApiProjectDetail } from '@/lib/api/wathba';
+import { WathbaDashboardCollaborators } from './wathba-dashboard-collaborators';
 
 /* ─────── Static enums + labels ──────────────────────────────────────────────
  * Kept colocated so we don't drag the @prisma/client enum into the browser
@@ -73,6 +74,58 @@ export function DashboardSettings({
   // CC-15 — duration is editable pre-launch only; the deadline is derived from
   // it at publish and locked afterwards (policy §1: no post-launch extension).
   const [durationDays, setDurationDays] = useState(project.durationDays);
+
+  // ── CC-22 SEO + CC-20 scheduled launch (pre-launch only) ─────────────────
+  const [slug, setSlug] = useState(project.slug ?? '');
+  const [ogImage, setOgImage] = useState(project.ogImage ?? '');
+  const [metaDescription, setMetaDescription] = useState(project.metaDescription ?? '');
+  const [scheduledLaunchAt, setScheduledLaunchAt] = useState(
+    project.scheduledLaunchAt ? project.scheduledLaunchAt.slice(0, 16) : '',
+  );
+  const [seoBusy, setSeoBusy] = useState(false);
+  const [seoMsg, setSeoMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const saveSeo = async (): Promise<void> => {
+    setSeoBusy(true);
+    setSeoMsg(null);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          slug: slug.trim() || null,
+          ogImage: ogImage.trim() || null,
+          metaDescription: metaDescription.trim() || null,
+          scheduledLaunchAt: scheduledLaunchAt ? new Date(scheduledLaunchAt).toISOString() : null,
+        }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { message?: string | string[] };
+      if (!res.ok) {
+        setSeoMsg({ kind: 'err', text: Array.isArray(j.message) ? j.message.join('، ') : (j.message ?? 'تعذّر الحفظ') });
+        return;
+      }
+      setSeoMsg({ kind: 'ok', text: 'تم الحفظ' });
+      router.refresh();
+    } catch {
+      setSeoMsg({ kind: 'err', text: 'خطأ في الاتصال' });
+    } finally {
+      setSeoBusy(false);
+    }
+  };
+
+  // ── CC-21 duplicate ──────────────────────────────────────────────────────
+  const [dupBusy, setDupBusy] = useState(false);
+  const duplicate = async (): Promise<void> => {
+    setDupBusy(true);
+    try {
+      const res = await fetch(`/api/projects/${project.id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const j = (await res.json()) as { id: string };
+        router.push(`/projects/dashboard/${j.id}/settings`);
+      }
+    } finally {
+      setDupBusy(false);
+    }
+  };
 
   // ── Lifecycle actions (CC-14 pause/unpause, CC-09 deliver) ───────────────
   const [actionBusy, setActionBusy] = useState<'pause' | 'unpause' | 'deliver' | null>(null);
@@ -526,6 +579,55 @@ export function DashboardSettings({
             {actionMsg.text}
           </p>
         )}
+      </Card>
+
+      {/* ── CC-22 SEO + CC-20 scheduled launch ──────────────────────────── */}
+      <Card title="التحسين والجدولة (SEO)">
+        {!editable ? (
+          <Hint>تُضبط هذه الحقول قبل النشر فقط.</Hint>
+        ) : (
+          <>
+            <Field label="المُعرّف في الرابط (slug)">
+              <input
+                value={slug}
+                onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                placeholder="my-campaign"
+                style={inputStyle(true)}
+              />
+            </Field>
+            <Field label="صورة المشاركة (OG image URL)">
+              <input value={ogImage} onChange={(e) => setOgImage(e.target.value)} placeholder="https://…" style={inputStyle(true)} />
+            </Field>
+            <Field label="وصف الميتا (SEO)">
+              <input value={metaDescription} onChange={(e) => setMetaDescription(e.target.value)} maxLength={300} style={inputStyle(true)} />
+            </Field>
+            <Field label="جدولة الإطلاق (يبدأ بعد اعتماد الإدارة)">
+              <input type="datetime-local" value={scheduledLaunchAt} onChange={(e) => setScheduledLaunchAt(e.target.value)} style={inputStyle(true)} />
+              <Hint>عند اعتماد الإدارة، إن كان الوقت مستقبلياً تدخل الحملة وضع «مجدولة» وتُنشَر تلقائياً في موعدها.</Hint>
+            </Field>
+            <SectionFooter
+              status={seoMsg ?? undefined}
+              action={
+                <button type="button" disabled={seoBusy} onClick={() => void saveSeo()} style={primaryBtnStyle(!seoBusy)}>
+                  {seoBusy ? 'جارٍ الحفظ…' : 'حفظ'}
+                </button>
+              }
+            />
+          </>
+        )}
+      </Card>
+
+      {/* ── CC-24 collaborators ──────────────────────────────────────────── */}
+      <Card title="فريق المشروع">
+        <WathbaDashboardCollaborators projectId={project.id} />
+      </Card>
+
+      {/* ── CC-21 duplicate ──────────────────────────────────────────────── */}
+      <Card title="أدوات">
+        <Hint>أنشئ نسخة (مسودّة جديدة) من هذا المشروع بمكافآته — لإعادة الإطلاق أو كقالب.</Hint>
+        <button type="button" disabled={dupBusy} onClick={() => void duplicate()} style={{ ...primaryBtnStyle(!dupBusy), background: dupBusy ? 'rgba(0,0,0,0.12)' : '#6366f1' }}>
+          {dupBusy ? 'جارٍ الإنشاء…' : 'نسخ المشروع'}
+        </button>
       </Card>
 
       {/* ── Danger zone (Sprint 3 / P1-209) ─────────────────────────────── */}

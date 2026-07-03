@@ -330,7 +330,7 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
     const r = await svc.cancelCampaign('creator-1', 'p1');
     expect(r.outcome).toBe('withdrawn');
     expect(prisma.project!.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: ProjectStatus.DRAFT } }),
+      expect.objectContaining({ data: { status: ProjectStatus.DRAFT, scheduledLaunchAt: null } }),
     );
   });
 

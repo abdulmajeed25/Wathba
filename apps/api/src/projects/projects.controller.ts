@@ -99,6 +99,15 @@ export class ProjectsController {
     return this.projects.toPublic(p);
   }
 
+  @Post(':id/duplicate')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Duplicate a project into a fresh DRAFT with its tiers (owner; CC-21)' })
+  async duplicate(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    const p = await this.projects.duplicate(jwt.sub, id);
+    return this.projects.toPublic(p);
+  }
+
   @Post(':id/pause')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

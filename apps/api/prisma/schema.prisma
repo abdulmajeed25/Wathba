@@ -47,6 +47,7 @@ enum ProjectCategory {
 enum ProjectStatus {
   DRAFT
   UNDER_REVIEW
+  SCHEDULED
   LIVE
   PAUSED
   SUCCESSFUL
@@ -244,6 +245,15 @@ model Project {
   /// deadline.
   pausedAt             DateTime?
   pausedMsAccrued      BigInt          @default(0)
+  /// CC-22 — SEO/social. slug is a human URL alias (unique); ogImage + meta feed
+  /// the public page's OpenGraph/description tags.
+  slug                 String?         @unique
+  ogImage              String?
+  metaDescription      String?
+  /// CC-20 — scheduled go-live. When an admin approves a project that has this
+  /// set in the future, it enters SCHEDULED and the launch scheduler flips it
+  /// LIVE at this time (setting publishedAt + deadline).
+  scheduledLaunchAt    DateTime?
 
   rewardTiers          RewardTier[]
   addOns               AddOn[]
@@ -259,6 +269,7 @@ model Project {
   faqQuestions         FaqQuestion[]
   communityStats       CommunityStat[]
   changeLogs           ProjectChangeLog[]
+  collaborators        ProjectCollaborator[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -570,7 +581,11 @@ model Comment {
   /// Moderator hidden — shown as "removed" placeholder, body suppressed.
   hidden    Boolean  @default(false)
   likeCount Int      @default(0)
+  /// CC-23 — materialised count of user reports (dedup via CommentReport).
+  reportCount Int    @default(0)
   date      DateTime @default(now())
+
+  reports   CommentReport[]
 
   // (projectId, parentId, date) → cursor pagination of top-level vs replies
   // (userId, date)              → user activity feed
@@ -579,6 +594,38 @@ model Comment {
   @@index([projectId, date])
   @@index([userId, date])
   @@index([projectId, pinned, date])
+}
+
+/// CC-23 — a user's report/flag on a comment. Unique per (comment, reporter)
+/// so one user can't inflate the count; the materialised Comment.reportCount
+/// surfaces flagged comments to the creator's moderation queue.
+model CommentReport {
+  id         String   @id @default(uuid()) @db.Uuid
+  commentId  String   @db.Uuid
+  comment    Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporterId String   @db.Uuid
+  reasonAr   String?
+  createdAt  DateTime @default(now())
+
+  @@unique([commentId, reporterId])
+  @@index([commentId])
+}
+
+/// CC-24 — per-project collaborator with REAL (content-scoped) access. Unlike
+/// the decorative CreatorProfile.collaborators list, this grants an existing
+/// user edit access to the project's CONTENT (updates + FAQ). Money & lifecycle
+/// controls remain owner-only (CREATOR-NO-MONEY). Managed by the owner.
+model ProjectCollaborator {
+  id         String   @id @default(uuid()) @db.Uuid
+  projectId  String   @db.Uuid
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId     String   @db.Uuid
+  /// v1: single EDITOR role (content access). Kept as a column for future roles.
+  role       String   @default("EDITOR")
+  createdAt  DateTime @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
 }
 
 // ============================================================================
