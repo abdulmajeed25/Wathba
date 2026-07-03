@@ -2,6 +2,7 @@ import {
   BadRequestException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../identity/audit.service';
 import { CreateProjectDto, ListProjectsQueryDto, UpdateProjectDto } from './dto/project.dto';
 import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/client';
 
@@ -12,7 +13,10 @@ import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/cl
  */
 @Injectable()
 export class ProjectsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
     // Provisional deadline; admin sets the real one on publish.
@@ -95,10 +99,21 @@ export class ProjectsService {
     if (proj.fundingGoalHalalas <= 0n) {
       throw new BadRequestException('fundingGoal must be positive');
     }
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: { id: projectId },
-      data: { status: ProjectStatus.UNDER_REVIEW },
+      // Clear stale rejection feedback on resubmit (CC-04) so the creator
+      // doesn't see the previous round's note while UNDER_REVIEW.
+      data: { status: ProjectStatus.UNDER_REVIEW, reviewFeedback: null },
     });
+    // CC-06 — audit the creator's submit-for-review decision.
+    await this.audit.log({
+      actorId: creatorId,
+      action: 'creator.project.submit',
+      entity: 'Project',
+      entityId: projectId,
+      detail: { projectId, titleAr: updated.titleAr },
+    });
+    return updated;
   }
 
   /**
@@ -206,6 +221,9 @@ export class ProjectsService {
       platformPartner: p.platformPartner,
       createdAt: p.createdAt.toISOString(),
       publishedAt: p.publishedAt?.toISOString() ?? null,
+      // CC-04 — admin review feedback surfaced to the creator.
+      reviewFeedback: p.reviewFeedback ?? null,
+      reviewedAt: p.reviewedAt?.toISOString() ?? null,
       rewardTiers: p.rewardTiers?.map((r) =>
         Object.fromEntries(
           Object.entries(r).map(([k, v]) => [

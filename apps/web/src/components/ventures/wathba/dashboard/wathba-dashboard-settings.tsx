@@ -334,6 +334,40 @@ export function DashboardSettings({
           }
         />
 
+        {/* CC-04 — admin rejection feedback, surfaced after a review sends the
+            project back to DRAFT with a note. */}
+        {project.status === 'DRAFT' && project.reviewFeedback && (
+          <div
+            style={{
+              margin: '12px 0 4px',
+              padding: '14px 16px',
+              borderRadius: 12,
+              border: '1px solid rgba(245,158,11,0.45)',
+              background: 'rgba(245,158,11,0.08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>📝</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#a96400' }}>
+                طلب تعديلات من فريق المراجعة
+              </span>
+            </div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-primary, #16201b)', margin: '0 0 12px', whiteSpace: 'pre-wrap' }}>
+              {project.reviewFeedback}
+            </p>
+            <a
+              href={`/projects/dashboard/${project.id}/story`}
+              style={{
+                display: 'inline-block', fontSize: 13, fontWeight: 700,
+                padding: '8px 16px', borderRadius: 10, textDecoration: 'none',
+                color: '#fff', background: 'var(--brand-primary, #05a661)',
+              }}
+            >
+              عدّل وأعد الإرسال ←
+            </a>
+          </div>
+        )}
+
         {project.status === 'DRAFT' && (
           <>
             <Hint>
@@ -381,7 +415,7 @@ export function DashboardSettings({
 
       {/* ── Danger zone (Sprint 3 / P1-209) ─────────────────────────────── */}
       <Card title="منطقة الخطر" tone="danger">
-        <CancelCampaign projectId={project.id} status={project.status} />
+        <CancelCampaign project={project} />
       </Card>
     </>
   );
@@ -409,17 +443,24 @@ const CANCEL_COPY: Record<string, { hint: string; button: string; confirm: strin
 };
 
 function CancelCampaign({
-  projectId,
-  status,
+  project,
 }: {
-  projectId: string;
-  status: string;
+  project: ApiProjectDetail;
 }): React.ReactElement {
   const router = useRouter();
+  const projectId = project.id;
+  const status = project.status;
   const [arming, setArming] = useState(false);
+  const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const copy = CANCEL_COPY[status];
+  // CC-05 — typed-confirmation gate for IRREVERSIBLE actions: DRAFT hard-delete
+  // and LIVE cancel-with-full-refund. UNDER_REVIEW withdraw is reversible so it
+  // keeps the lighter arm→confirm. Server FSM stays the real enforcement point.
+  const requiresTyped = status === 'DRAFT' || status === 'LIVE';
+  const titleMatches = typed.trim().toLowerCase() === project.titleAr.trim().toLowerCase();
+  const canConfirm = !busy && (!requiresTyped || titleMatches);
 
   if (!copy) {
     return (
@@ -465,7 +506,10 @@ function CancelCampaign({
       {!arming ? (
         <button
           type="button"
-          onClick={() => setArming(true)}
+          onClick={() => {
+            setArming(true);
+            setTyped('');
+          }}
           style={{
             padding: '10px 18px',
             background: 'rgba(239,68,68,.08)',
@@ -481,44 +525,111 @@ function CancelCampaign({
           {copy.button}
         </button>
       ) : (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void doCancel()}
-            style={{
-              padding: '10px 18px',
-              background: '#ef4444',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: busy ? 'wait' : 'pointer',
-              fontFamily: 'inherit',
-              opacity: busy ? 0.6 : 1,
-            }}
-          >
-            {busy ? 'جارٍ التنفيذ…' : copy.confirm}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setArming(false)}
-            style={{
-              padding: '10px 18px',
-              background: 'transparent',
-              color: 'var(--muted, #667)',
-              border: '1px solid rgba(0,0,0,.15)',
-              borderRadius: 10,
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-            }}
-          >
-            تراجع
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* CC-05 — live impact numbers so the creator sees exactly what the
+              decision affects before confirming. */}
+          {status === 'LIVE' && (
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 10,
+                border: '1px solid rgba(239,68,68,.30)',
+                background: 'rgba(239,68,68,.06)',
+                fontSize: 13.5,
+                lineHeight: 1.8,
+                color: 'var(--text-primary, #16201b)',
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 4, color: '#ef4444' }}>
+                إجراء لا يمكن التراجع عنه
+              </div>
+              سيقوم النظام تلقائياً بإرجاع كامل المبالغ إلى{' '}
+              <b>{project.backersCount.toLocaleString('ar-SA')}</b> داعم — بإجمالي{' '}
+              <b>{fmtSAR(project.raisedHalalas)}</b>، وتنتقل الحملة نهائياً إلى حالة «متعثّر».
+              <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary, #3b4942)' }}>
+                أنت لا تحرّك الأموال بنفسك — الاسترداد نتيجة نظامية تلقائية للإلغاء.
+              </div>
+            </div>
+          )}
+          {status === 'DRAFT' && (
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 10,
+                border: '1px solid rgba(239,68,68,.30)',
+                background: 'rgba(239,68,68,.06)',
+                fontSize: 13.5,
+                color: 'var(--text-primary, #16201b)',
+              }}
+            >
+              سيتم حذف هذه المسودّة وكل بياناتها نهائياً — لا يمكن استرجاعها.
+            </div>
+          )}
+          {requiresTyped && (
+            <label style={{ fontSize: 13, color: 'var(--text-secondary, #3b4942)', display: 'block' }}>
+              للتأكيد، اكتب اسم الحملة: <b style={{ color: 'var(--text-primary, #16201b)' }}>{project.titleAr}</b>
+              <input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={project.titleAr}
+                aria-label="اكتب اسم الحملة للتأكيد"
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  marginTop: 6,
+                  padding: '9px 11px',
+                  borderRadius: 10,
+                  border: `1px solid ${titleMatches ? 'rgba(5,166,97,.5)' : 'rgba(239,68,68,.35)'}`,
+                  background: 'var(--bg-base, #fff)',
+                  color: 'var(--text-primary, #16201b)',
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                }}
+              />
+            </label>
+          )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              disabled={!canConfirm}
+              onClick={() => void doCancel()}
+              style={{
+                padding: '10px 18px',
+                background: '#ef4444',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: canConfirm ? (busy ? 'wait' : 'pointer') : 'not-allowed',
+                fontFamily: 'inherit',
+                opacity: canConfirm ? 1 : 0.5,
+              }}
+            >
+              {busy ? 'جارٍ التنفيذ…' : copy.confirm}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setArming(false);
+                setTyped('');
+              }}
+              style={{
+                padding: '10px 18px',
+                background: 'transparent',
+                color: 'var(--muted, #667)',
+                border: '1px solid rgba(0,0,0,.15)',
+                borderRadius: 10,
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              تراجع
+            </button>
+          </div>
         </div>
       )}
     </>

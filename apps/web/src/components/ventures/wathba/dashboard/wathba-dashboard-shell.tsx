@@ -34,6 +34,7 @@ function navFor(projectId: string): NavItem[] {
     { href: `${base}/faq`, labelAr: 'الأسئلة', icon: 'help' },
     { href: `${base}/community`, labelAr: 'المجتمع', icon: 'groups' },
     { href: `${base}/creator`, labelAr: 'ملفي كمبدع', icon: 'person' },
+    { href: `${base}/activity`, labelAr: 'سجل النشاط', icon: 'history' },
     { href: `${base}/settings`, labelAr: 'الإعدادات', icon: 'settings' },
   ];
 }

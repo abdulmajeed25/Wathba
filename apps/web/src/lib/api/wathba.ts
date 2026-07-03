@@ -294,6 +294,9 @@ export interface ApiProjectDetail {
   platformPartner: Record<string, unknown> | null;
   publishedAt: string | null;
   createdAt: string;
+  /** CC-04 — admin review feedback surfaced to the creator. */
+  reviewFeedback?: string | null;
+  reviewedAt?: string | null;
   rewardTiers?: Array<Record<string, unknown>>;
 }
 

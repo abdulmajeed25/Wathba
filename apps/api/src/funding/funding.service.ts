@@ -1,10 +1,12 @@
 import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { LedgerService } from '../escrow-payments/ledger.service';
 import { ContractsService } from '../contracts/contracts.service';
+import { AuditService } from '../identity/audit.service';
 import { FundingGateway } from './funding.gateway';
 import { CommunityService } from '../community/community.service';
 import { Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
@@ -33,6 +35,7 @@ export class FundingService {
     private readonly gateway: FundingGateway,
     private readonly community: CommunityService,
     private readonly ledger: LedgerService,
+    private readonly audit: AuditService,
   ) {}
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
@@ -369,6 +372,14 @@ export class FundingService {
     }
 
     if (project.status === ProjectStatus.DRAFT) {
+      // CC-06: audit the creator's delete decision BEFORE the row disappears.
+      await this.audit.log({
+        actorId: creatorId,
+        action: 'creator.project.delete-draft',
+        entity: 'Project',
+        entityId: projectId,
+        detail: { projectId, outcome: 'deleted', titleAr: project.titleAr },
+      });
       await this.prisma.project.delete({ where: { id: projectId } });
       return { projectId, outcome: 'deleted' };
     }
@@ -377,6 +388,13 @@ export class FundingService {
       await this.prisma.project.update({
         where: { id: projectId },
         data: { status: ProjectStatus.DRAFT },
+      });
+      await this.audit.log({
+        actorId: creatorId,
+        action: 'creator.project.cancel',
+        entity: 'Project',
+        entityId: projectId,
+        detail: { projectId, outcome: 'withdrawn' },
       });
       return { projectId, outcome: 'withdrawn' };
     }
@@ -391,8 +409,29 @@ export class FundingService {
       if (claimed.count === 0) {
         throw new BadRequestException('project is being settled — cancellation unavailable');
       }
-      await this.escrow.refundAllHeld(projectId);
+
+      // CC-06 — two distinct actor types (CREATOR-NO-MONEY invariant):
+      // (1) the creator DECIDED to cancel; (2) the SYSTEM executed the refunds
+      // as an automatic consequence. Correlate them so the audit view can show
+      // "your cancel → N system refunds".
+      const correlationId = randomUUID();
+      await this.audit.log({
+        actorId: creatorId,
+        action: 'creator.project.cancel',
+        entity: 'Project',
+        entityId: projectId,
+        detail: {
+          projectId,
+          outcome: 'refunded',
+          correlationId,
+          backersCount: project.backersCount,
+          raisedHalalas: project.raisedHalalas.toString(),
+        },
+      });
+
+      const first = await this.escrow.refundAllHeld(projectId);
       const straggler = await this.escrow.refundAllHeld(projectId);
+      const refundedCount = first.refunded + straggler.refunded;
       const residue = await this.countHeld(projectId);
       if (straggler.failed > 0 || residue > 0) {
         this.logger.error(
@@ -403,6 +442,14 @@ export class FundingService {
       await this.prisma.project.update({
         where: { id: projectId },
         data: { status: ProjectStatus.REFUNDED },
+      });
+      // System-executed refunds — actorId null = النظام in the audit view.
+      await this.audit.log({
+        actorId: null,
+        action: 'system.refund.cancel',
+        entity: 'Project',
+        entityId: projectId,
+        detail: { projectId, correlationId, refundedCount, residueHeld: residue },
       });
       this.logger.log(`Creator cancelled LIVE project=${projectId} — all holds voided`);
       return { projectId, outcome: 'refunded' };

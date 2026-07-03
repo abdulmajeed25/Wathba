@@ -42,7 +42,7 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     const community = {
       materializeFromPledge: jest.fn().mockResolvedValue(undefined),
     } as unknown as import('../community/community.service').CommunityService;
-    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any), prisma, escrow };
+    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any, { log: jest.fn() } as any), prisma, escrow };
   };
 
   it('no-ops when another settler already claimed the transition (P1-306 race)', async () => {
@@ -175,6 +175,7 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     const svc = new FundingService(
       prisma as never, escrow as never, contracts as never,
       gateway as never, community as never, ledger as never,
+      { log: jest.fn() } as never,
     );
     type MockedTables = {
       project: { findUnique: jest.Mock; update: jest.Mock };
@@ -287,7 +288,9 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
   function build(status: ProjectStatus, createdById = 'creator-1') {
     const prisma: Record<string, unknown> = {
       project: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'p1', status, createdById }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'p1', status, createdById, titleAr: 'مشروع', raisedHalalas: 0n, backersCount: 0,
+        }),
         update: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         delete: jest.fn().mockResolvedValue({}),
@@ -306,6 +309,7 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
       { emitTick: jest.fn() } as never,
       { materializeFromPledge: jest.fn() } as never,
       { record: jest.fn() } as never,
+      { log: jest.fn() } as never,
     );
     return { svc, prisma: prisma as never as Record<string, Record<string, jest.Mock>>, escrow };
   }

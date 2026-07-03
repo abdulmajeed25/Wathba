@@ -119,6 +119,7 @@ enum NotificationKind {
   CONTEST_ANNOUNCED
   FAQ_ANSWERED
   COMMENT_REPLY
+  PROJECT_REVIEWED
 }
 
 enum ContestStatus {

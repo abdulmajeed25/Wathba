@@ -1,10 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma, ProjectStatus, type Project, type UserRole } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  NotificationKind,
+  Prisma,
+  ProjectStatus,
+  type Project,
+  type UserRole,
+} from '@prisma/client';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /** Review queue — projects awaiting admin sign-off. */
   async reviewQueue(): Promise<Project[]> {
@@ -18,18 +28,62 @@ export class AdminService {
     const proj = await this.requireUnderReview(projectId);
     const now = new Date();
     const deadline = new Date(now.getTime() + proj.durationDays * 86_400_000);
-    return this.prisma.project.update({
+    const updated = await this.prisma.project.update({
       where: { id: projectId },
-      data: { status: ProjectStatus.LIVE, publishedAt: now, deadline },
+      // Clear any prior rejection feedback; stamp the review time (CC-04).
+      data: {
+        status: ProjectStatus.LIVE,
+        publishedAt: now,
+        deadline,
+        reviewFeedback: null,
+        reviewedAt: now,
+      },
     });
+    await this.notifyReviewed(updated.createdById, projectId, 'approve', null);
+    return updated;
   }
 
-  async reject(projectId: string, _reason: string | undefined): Promise<Project> {
+  /**
+   * CC-04: persist the rejection reason (previously discarded) so the creator
+   * can read it in the dashboard, then notify them. Status returns to DRAFT so
+   * they can edit and resubmit.
+   */
+  async reject(projectId: string, reason: string | undefined): Promise<Project> {
     const proj = await this.requireUnderReview(projectId);
-    return this.prisma.project.update({
+    const feedback = reason?.trim() ? reason.trim() : null;
+    const updated = await this.prisma.project.update({
       where: { id: proj.id },
-      data: { status: ProjectStatus.DRAFT },
+      data: {
+        status: ProjectStatus.DRAFT,
+        reviewFeedback: feedback,
+        reviewedAt: new Date(),
+      },
     });
+    await this.notifyReviewed(updated.createdById, projectId, 'reject', feedback);
+    return updated;
+  }
+
+  /** DB-backed notification to the creator on approve/reject (CC-04). */
+  private async notifyReviewed(
+    creatorId: string,
+    projectId: string,
+    decision: 'approve' | 'reject',
+    reviewFeedback: string | null,
+  ): Promise<void> {
+    try {
+      await this.notifications.create({
+        userId: creatorId,
+        kind: NotificationKind.PROJECT_REVIEWED,
+        payload: {
+          projectId,
+          decision,
+          reviewFeedback,
+          deepLink: `/projects/dashboard/${projectId}/settings`,
+        },
+      });
+    } catch {
+      /* never fail the review on a notification glitch */
+    }
   }
 
   /**
