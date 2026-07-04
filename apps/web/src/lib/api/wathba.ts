@@ -903,6 +903,80 @@ export interface DiscoverParams {
   cursor?: string;
 }
 
+/* ---------- Batch DISC — advanced discover page --------------------------- */
+
+export interface ApiDiscoverCard {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  categoryId: string | null;
+  region: string | null;
+  isStaffPick: boolean;
+  status: string;
+  fundingGoalHalalas: number;
+  raisedHalalas: number;
+  backersCount: number;
+  deadline: string;
+  publishedAt: string | null;
+  mediaUrls: string[];
+  slug: string | null;
+  saved: boolean;
+}
+
+export interface ApiDiscoverAllResult {
+  items: ApiDiscoverCard[];
+  total: number;
+  page: number;
+  take: number;
+  hasMore: boolean;
+}
+
+export interface ApiDiscoverFacets {
+  statuses: { live: number; funded: number; ended: number };
+  categories: Array<{ slug: string; nameAr: string; parentSlug: string | null; count: number }>;
+  regions: Record<string, number>;
+  pct: Record<string, number>;
+  goals: Record<string, number>;
+  raised: Record<string, number>;
+  staff: number;
+  collections: Array<{ slug: string; nameAr: string; count: number }>;
+}
+
+/** Build the discover query string from a flat searchParams-like record. */
+export function discoverQS(params: Record<string, string | undefined>): string {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
+/** GET /v1/discover — the advanced list (SSR passes the session token for `saved`). */
+export async function listDiscoverAll(
+  params: Record<string, string | undefined>,
+  token?: string | null,
+): Promise<ApiDiscoverAllResult | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<ApiDiscoverAllResult>(`/v1/discover${discoverQS(params)}`, 30, bearer);
+}
+
+/** GET /v1/discover/facets — live counts respecting the other filters. */
+export async function getDiscoverFacets(
+  params: Record<string, string | undefined>,
+  token?: string | null,
+): Promise<ApiDiscoverFacets | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<ApiDiscoverFacets>(`/v1/discover/facets${discoverQS(params)}`, 30, bearer);
+}
+
+export async function listActiveCollections(): Promise<Array<{
+  slug: string;
+  nameAr: string;
+  descriptionAr: string;
+  showInMenu: boolean;
+}> | null> {
+  return fetchJson('/v1/collections', 120);
+}
+
 /** GET /v1/projects with the Batch CAT category + discovery filters. */
 export async function listDiscover(params: DiscoverParams): Promise<ApiDiscoverResult | null> {
   const qs = new URLSearchParams();

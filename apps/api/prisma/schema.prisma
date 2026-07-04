@@ -209,6 +209,7 @@ model User {
   follows             CreatorFollow[] @relation("Follower")
   updateLikes         UpdateLike[]
   payoutBeneficiary   PayoutBeneficiary?
+  savedProjects       SavedProject[]
 
   @@index([reputationTier])
   @@index([email])
@@ -307,6 +308,8 @@ model Project {
   communityStats       CommunityStat[]
   changeLogs           ProjectChangeLog[]
   collaborators        ProjectCollaborator[]
+  collections          ProjectCollection[]
+  savedBy              SavedProject[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -1017,4 +1020,51 @@ model Category {
   @@unique([parentId, slug])
   @@index([parentId, sortOrder])
   @@index([slug])
+}
+
+// ============================================================================
+// COLLECTIONS + BOOKMARKS (Batch DISC)
+// ============================================================================
+
+/// "حملات وثبة" — admin-curated project collections (halal replacement for the
+/// reference's "Open Calls"). ADMIN-only CRUD; seeded INACTIVE. `showInMenu`
+/// surfaces the collection in the Discover mega-menu's "تحت الأضواء" zone.
+model Collection {
+  id            String              @id @default(uuid()) @db.Uuid
+  slug          String              @unique
+  nameAr        String
+  descriptionAr String              @db.Text
+  isActive      Boolean             @default(false)
+  showInMenu    Boolean             @default(false)
+  sortOrder     Int                 @default(0)
+  projects      ProjectCollection[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+/// Many-to-many: which projects belong to a collection.
+model ProjectCollection {
+  collectionId String     @db.Uuid
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  projectId    String     @db.Uuid
+  project      Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([collectionId, projectId])
+  @@index([projectId])
+}
+
+/// "المشاريع المحفوظة" — a backer's bookmarked projects (Batch DISC). Auth-gated.
+model SavedProject {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@index([userId, createdAt])
 }

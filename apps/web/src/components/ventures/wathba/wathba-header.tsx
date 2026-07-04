@@ -88,6 +88,20 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           <Link href="/projects/ranks" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
             رتب الداعمين
           </Link>
+          {/* Batch DISC — the power discover page, set apart from the rest. */}
+          <Link
+            href="/projects/discover-all"
+            style={{
+              cursor: 'pointer',
+              color: 'var(--accent)',
+              fontWeight: 700,
+              textDecoration: 'none',
+              paddingInlineStart: 16,
+              borderInlineStart: '1px solid rgba(var(--ink-rgb),.12)',
+            }}
+          >
+            اكتشف
+          </Link>
         </nav>
 
         <Link
