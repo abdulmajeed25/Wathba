@@ -16,6 +16,19 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   }
 
+  /**
+   * STAKES/B2 — `/me` view enriched with the count of projects this user has
+   * created. The web uses it to decide creator-dashboard access (0 created ⇒
+   * not yet a creator) and post-login routing, without an extra round-trip.
+   */
+  async meView(id: string): Promise<Record<string, unknown>> {
+    const u = await this.findById(id);
+    const createdProjectsCount = await this.prisma.project.count({
+      where: { createdById: id },
+    });
+    return { ...this.toPublic(u), createdProjectsCount };
+  }
+
   /** Strip server-only fields and convert BigInt for JSON. */
   toPublic(u: User): Record<string, unknown> {
     return {

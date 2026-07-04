@@ -112,8 +112,63 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     url.searchParams.set('next', pathname + (search || ''));
     return NextResponse.redirect(url);
   }
+
+  // STAKES/B2+B5+B6 — role/ownership gate, enforced HERE (not only in the page)
+  // because a Server-Component `redirect()` in dynamic SSR is emitted as a soft
+  // client redirect that a non-browser sees as 200. Middleware issues a real
+  // 307 that can't be swallowed by an error boundary or bypassed by a script.
+  if (session) {
+    const gate = ROLE_GATES.find((g) => pathname === g.prefix || pathname.startsWith(`${g.prefix}/`));
+    if (gate) {
+      try {
+        const meRes = await fetch(`${API_BASE}/v1/users/me`, {
+          headers: { Authorization: `Bearer ${session}` },
+          cache: 'no-store',
+        });
+        if (!meRes.ok) {
+          // Token dead/invalid → force re-auth.
+          const url = req.nextUrl.clone();
+          url.pathname = '/sign-in';
+          url.searchParams.set('next', pathname + (search || ''));
+          const res = NextResponse.redirect(url);
+          res.cookies.delete('wathba_session');
+          res.cookies.delete('wathba_refresh');
+          return res;
+        }
+        const me = (await meRes.json()) as { roles: string[]; createdProjectsCount?: number };
+        if (!gate.check(me)) {
+          const url = req.nextUrl.clone();
+          url.pathname = gate.deny;
+          url.search = '';
+          return NextResponse.redirect(url);
+        }
+      } catch {
+        /* API unreachable — fall through; the page-level guard is the backstop. */
+      }
+    }
+  }
+
   return NextResponse.next();
 }
+
+/**
+ * STAKES/B1-family — role gates. A plain BACKER hitting the creator dashboard
+ * is sent to the explicit "start a project" flow; wrong-role admin/supplier
+ * access bounces home. (Per-project ownership is enforced in the [id] layout.)
+ */
+const ROLE_GATES: Array<{
+  prefix: string;
+  check: (me: { roles: string[]; createdProjectsCount?: number }) => boolean;
+  deny: string;
+}> = [
+  { prefix: '/projects/admin', check: (me) => me.roles.includes('ADMIN'), deny: '/projects' },
+  { prefix: '/projects/supplier', check: (me) => me.roles.includes('SUPPLIER'), deny: '/projects' },
+  {
+    prefix: '/projects/dashboard',
+    check: (me) => me.roles.includes('CREATOR') || (me.createdProjectsCount ?? 0) > 0,
+    deny: '/projects/start',
+  },
+];
 
 export const config = {
   matcher: ['/((?!_next/|api/|favicon\\.ico|robots\\.txt|sitemap\\.xml).*)'],

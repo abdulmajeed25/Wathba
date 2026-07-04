@@ -20,8 +20,7 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Current user profile' })
   async me(@CurrentUser() jwt: JwtPayload): Promise<Record<string, unknown>> {
-    const u = await this.users.findById(jwt.sub);
-    return this.users.toPublic(u);
+    return this.users.meView(jwt.sub);
   }
 
   @Get('me/export')

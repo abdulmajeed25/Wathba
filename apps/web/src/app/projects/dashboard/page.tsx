@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { WathbaDashboard } from '@/components/ventures/wathba/wathba-dashboard';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { listMyApplications, listMyBackings } from '@/lib/api/wathba';
+import { requireCreator } from '@/lib/auth/guard';
 
 export const metadata: Metadata = { title: 'لوحة التحكم · وثبة' };
 
@@ -16,6 +17,8 @@ export const dynamic = 'force-dynamic';
  * design fixture so the surface always renders.
  */
 export default async function DashboardPage() {
+  // STAKES/B2 — reject users who aren't creators (0 projects → /projects/start).
+  await requireCreator();
   const [backings, applications] = await Promise.all([listMyBackings(), listMyApplications()]);
   return (
     <WathbaShell>

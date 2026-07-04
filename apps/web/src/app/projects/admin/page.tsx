@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { WathbaAdmin } from '@/components/ventures/wathba/wathba-admin';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { listKycQueue, listReviewQueue } from '@/lib/api/wathba';
+import { requireRole } from '@/lib/auth/guard';
 
 export const metadata: Metadata = { title: 'الإدارة · وثبة' };
 
@@ -10,9 +11,9 @@ export const metadata: Metadata = { title: 'الإدارة · وثبة' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage(): Promise<React.ReactElement> {
-  // Middleware bounces anon callers to /sign-in. If the cookie holder isn't
-  // an ADMIN, the API returns 403 and our SDK helpers return null; the UI
-  // renders empty queues + the admin can't do anything (no broken state).
+  // STAKES/B5 — ADMIN only, enforced server-side (was: any authed user rendered
+  // the empty admin shell because API 403s degraded to null fixtures).
+  await requireRole('ADMIN');
   const [review, kyc] = await Promise.all([listReviewQueue(), listKycQueue()]);
   return (
     <WathbaShell>

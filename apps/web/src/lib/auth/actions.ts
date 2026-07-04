@@ -3,6 +3,9 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { getMe } from '@/lib/api/wathba';
+import { destinationFor } from '@/lib/auth/guard';
+
 /**
  * Server actions for the auth surface.  Talk straight to Wathba's NestJS API
  * (`/auth/signin`, `/auth/signup`) and stash the returned bearer in an
@@ -103,7 +106,20 @@ export async function signInAction(formData: FormData): Promise<void> {
 
   if (!body?.accessToken) redirect(`/sign-in?err=server&next=${encodeURIComponent(next)}`);
   await setSessionCookie(body.accessToken, body.refreshToken);
-  redirect(next);
+
+  // STAKES/B1 — route by role & state. An explicit deep-link `next` wins;
+  // otherwise ADMIN → admin, creator → dashboard, everyone else → discover home
+  // (this replaces the old blanket redirect that dropped every user, including
+  // plain backers, onto the creator dashboard).
+  const rawNext = formData.get('next');
+  const explicit =
+    typeof rawNext === 'string' &&
+    rawNext.startsWith('/') &&
+    !rawNext.startsWith('//') &&
+    rawNext !== '/projects';
+  if (explicit) redirect(next);
+  const me = await getMe(body.accessToken);
+  redirect(me ? destinationFor(me) : '/projects');
 }
 
 export async function signUpAction(formData: FormData): Promise<void> {

@@ -487,6 +487,8 @@ export interface ApiUserMe {
   totalPledgedHalalas: number;
   locale: string;
   createdAt: string;
+  /** STAKES/B2 — projects this user has created (0 ⇒ not yet a creator). */
+  createdProjectsCount?: number;
 }
 
 export interface ApiRewardTier {
