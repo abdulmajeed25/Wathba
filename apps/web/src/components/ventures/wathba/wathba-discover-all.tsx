@@ -188,9 +188,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Row({
-  label, count, active, onClick, kind = 'checkbox',
+  label, count, active, onClick, kind = 'checkbox', testId,
 }: {
-  label: string; count?: number; active: boolean; onClick: () => void; kind?: 'checkbox' | 'radio';
+  label: string; count?: number; active: boolean; onClick: () => void; kind?: 'checkbox' | 'radio'; testId?: string;
 }) {
   return (
     <button
@@ -198,6 +198,7 @@ function Row({
       onClick={onClick}
       role={kind === 'radio' ? 'radio' : 'checkbox'}
       aria-checked={active}
+      data-testid={testId}
       style={{
         display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'start',
         padding: '6px 6px', borderRadius: 8, border: 'none', background: 'transparent',
@@ -251,6 +252,7 @@ function CategorySection({ facets, has, toggleCsv }: {
               count={r.count}
               active={has('cat', r.slug)}
               onClick={() => toggleCsv('cat', r.slug)}
+              testId={`cat-${r.slug}`}
             />
           </div>
         ))}
@@ -337,6 +339,7 @@ function PctSection({ facets, sp, navigate }: { facets: ApiDiscoverFacets | null
           active={cur === o.key}
           kind="radio"
           onClick={() => navigate({ pct: cur === o.key ? undefined : o.key })}
+          testId={`pct-${o.key}`}
         />
       ))}
     </Section>
@@ -348,9 +351,9 @@ function ShowOnlySection({ facets, has, toggleCsv, signedIn }: {
 }) {
   return (
     <Section title="عرض فقط">
-      <Row label="مختارات وثبة" count={facets?.staff} active={has('only', 'staff')} onClick={() => toggleCsv('only', 'staff')} />
-      {signedIn && <Row label="موصى بها لك" active={has('only', 'recommended')} onClick={() => toggleCsv('only', 'recommended')} />}
-      {signedIn && <Row label="المشاريع المحفوظة" active={has('only', 'saved')} onClick={() => toggleCsv('only', 'saved')} />}
+      <Row label="مختارات وثبة" count={facets?.staff} active={has('only', 'staff')} onClick={() => toggleCsv('only', 'staff')} testId="only-staff" />
+      {signedIn && <Row label="موصى بها لك" active={has('only', 'recommended')} onClick={() => toggleCsv('only', 'recommended')} testId="only-recommended" />}
+      {signedIn && <Row label="المشاريع المحفوظة" active={has('only', 'saved')} onClick={() => toggleCsv('only', 'saved')} testId="only-saved" />}
     </Section>
   );
 }
