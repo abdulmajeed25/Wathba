@@ -39,3 +39,10 @@ export class GrantRoleDto {
   @IsIn(['CREATOR', 'BACKER', 'SUPPLIER'])
   role!: 'CREATOR' | 'BACKER' | 'SUPPLIER';
 }
+
+/** Batch CAT — toggle the "مختارات وثبة" editorial pick. */
+export class SetStaffPickDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  isStaffPick!: boolean;
+}

@@ -249,6 +249,9 @@ model Project {
   categoryRef          Category?       @relation("ProjectCategoryRef", fields: [categoryId], references: [id], onDelete: SetNull)
   /// Saudi administrative region (Batch CAT — "near you" filter + location facet).
   region               ProjectRegion?
+  /// "مختارات وثبة" (Projects We Love) — editorial pick. ADMIN-only toggle,
+  /// audited. Surfaced by the `staff_pick` discovery filter (Batch CAT).
+  isStaffPick          Boolean         @default(false)
   storyAr              String          @db.Text
   mediaUrls            String[]        @default([])
   fundingGoalHalalas   BigInt
@@ -322,6 +325,8 @@ model Project {
   //  - (region, status)          → Batch CAT "near you" filter
   @@index([categoryId, status])
   @@index([region, status])
+  //  - (isStaffPick, status)     → Batch CAT "staff pick" filter
+  @@index([isStaffPick, status])
 }
 
 model RewardTier {

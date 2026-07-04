@@ -116,6 +116,16 @@ export class AdminService {
     });
   }
 
+  /** Batch CAT — toggle the editorial "Projects We Love" flag (مختارات وثبة). */
+  async setStaffPick(projectId: string, value: boolean): Promise<Project> {
+    const proj = await this.prisma.project.findUnique({ where: { id: projectId } });
+    if (!proj) throw new NotFoundException('project not found');
+    return this.prisma.project.update({
+      where: { id: projectId },
+      data: { isStaffPick: value },
+    });
+  }
+
   async kycQueue(): Promise<Array<Record<string, unknown>>> {
     const users = await this.prisma.user.findMany({
       where: { nafathVerified: false },
