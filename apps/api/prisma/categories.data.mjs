@@ -175,7 +175,7 @@ export const TREE = [
   {
     slug: 'heritage-culture', nameEn: 'Heritage & Culture', nameAr: 'التراث والثقافة',
     children: [
-      c('Traditional Crafts', 'الحِرف التراثية — السدو والخوص والفخار'),
+      c('Traditional Crafts', 'الحِرف التراثية'),
       c('Arabic Calligraphy & Islamic Arts', 'الخط العربي والفنون الإسلامية'),
       c('Museums & Heritage Sites', 'المتاحف والمواقع التراثية'),
       c('Folklore & Oral History', 'الموروث الشعبي والتاريخ الشفهي'),
@@ -208,7 +208,7 @@ export const TREE = [
   {
     slug: 'environment-sustainability', nameEn: 'Environment & Sustainability', nameAr: 'البيئة والاستدامة',
     children: [
-      c('Greening & Afforestation', 'التشجير والتخضير — السعودية الخضراء'),
+      c('Greening & Afforestation', 'التشجير والتخضير'),
       c('Renewable Energy', 'الطاقة المتجددة'),
       c('Recycling & Circular Economy', 'إعادة التدوير والاقتصاد الدائري'),
       c('Water Conservation', 'ترشيد المياه'),
