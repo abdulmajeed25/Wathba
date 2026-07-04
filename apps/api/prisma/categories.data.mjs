@@ -109,7 +109,7 @@ export const TREE = [
     slug: 'food', nameEn: 'Food', nameAr: 'الغذاء',
     children: [
       c('Community Gardens', 'الحدائق المجتمعية'), c('Cookbooks', 'كتب الطبخ'),
-      c('Drinks', 'المشروبات (غير كحولية)'), c('Events', 'الفعاليات'),
+      c('Drinks', 'المشروبات'), c('Events', 'الفعاليات'),
       c("Farmer's Markets", 'أسواق المزارعين'), c('Farms', 'المزارع'),
       c('Food Trucks', 'عربات الطعام'), c('Restaurants', 'المطاعم'),
       c('Small Batch', 'الإنتاج المحدود'), c('Spaces', 'المساحات'), c('Vegan', 'نباتي'),
