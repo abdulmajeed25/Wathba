@@ -19,9 +19,11 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--avatar': 'linear-gradient(135deg,#e9ede7,#d9e0d8)',
     '--text': '#16201b',
     '--text-soft': '#3b4942',
-    '--muted': '#5d6b62',
-    '--muted2': '#8a958c',
-    '--ph-label': '#9aa7a0',
+    // STAKES/S-2 — darkened to clear WCAG 2.2 AA (4.5:1) on the white card
+    // ground; the old #5d6b62 / #8a958c failed (axe: color-contrast).
+    '--muted': '#4d574f',
+    '--muted2': '#646f68',
+    '--ph-label': '#6f7a73',
     '--ink-rgb': '18,33,26',
     '--accent': '#05a661',
     '--accent-rgb': '5,166,97',
@@ -58,8 +60,9 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--avatar': 'linear-gradient(135deg,#1d3251,#0c1c2f)',
     '--text': '#eaf1fb',
     '--text-soft': '#c3d3e8',
-    '--muted': '#9fb3cf',
-    '--muted2': '#7f95b3',
+    // STAKES/S-2 — lightened muted2 to clear AA on the dark card ground.
+    '--muted': '#a6b9d4',
+    '--muted2': '#94a8c6',
     '--ph-label': '#3d5876',
     '--ink-rgb': '255,255,255',
     '--accent': '#22d3ee',

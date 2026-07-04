@@ -193,7 +193,7 @@ export function Num({
     <span
       className={className}
       style={{
-        fontFamily: '"Space Grotesk", sans-serif',
+        fontFamily: 'var(--font-space-grotesk), "Space Grotesk", sans-serif',
         fontFeatureSettings: '"tnum"',
         ...style,
       }}

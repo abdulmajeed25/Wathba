@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Reem_Kufi, Tajawal, IBM_Plex_Sans_Arabic } from 'next/font/google';
+import { Reem_Kufi, Tajawal, IBM_Plex_Sans_Arabic, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import './globals.css';
@@ -25,6 +25,15 @@ const ibmPlexArabic = IBM_Plex_Sans_Arabic({
   display: 'swap',
 });
 
+// STAKES/S-2/M6 — the numeric face (`.num` / <Num/>) was referenced by CSS name
+// only and silently fell back to sans-serif app-wide. Load it for real.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  weight: ['500', '600', '700'],
+  variable: '--font-space-grotesk',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: { default: 'وثبة', template: '%s' },
   description: 'وثبة — منصة دعم المشاريع الإبداعية بضمان التنفيذ',
@@ -35,7 +44,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="ar"
       dir="rtl"
-      className={`${reemKufi.variable} ${tajawal.variable} ${ibmPlexArabic.variable}`}
+      className={`${reemKufi.variable} ${tajawal.variable} ${ibmPlexArabic.variable} ${spaceGrotesk.variable}`}
     >
       <body>{children}</body>
     </html>

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { ApiDiscoverAllResult, ApiDiscoverCard, ApiDiscoverFacets } from '@/lib/api/wathba';
 import { Icon } from './wathba-icons';
+import { useIsMobile } from '@/lib/use-is-mobile';
 import { WathbaDiscoverAllCard } from './wathba-discover-all-card';
 import {
   MONEY_BRACKETS, PCT_OPTS, QUICK_REGIONS, REGIONS, SORTS, arabicCount, toArabicDigits,
@@ -82,16 +83,32 @@ export function WathbaDiscoverAll({
     }
   };
 
+  const isMobile = useIsMobile();
   const total = initial.total;
   const sorts = useMemo(() => SORTS.filter((s) => s.key !== 'near_me' || sp.region), [sp.region]);
   const curSort = sp.sort ?? 'relevance';
 
   return (
-    <div style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 26px 70px' }}>
-      <div style={{ display: 'flex', flexDirection: 'row-reverse', gap: 28, alignItems: 'flex-start' }}>
-        {/* SIDEBAR (right in RTL) */}
+    <div style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 18px 70px' }}>
+      <div
+        style={{
+          display: 'flex',
+          // STAKES/S-2/M5 — stack the 288px sidebar above results on mobile so
+          // the row no longer forces a horizontal scroll at 360px.
+          flexDirection: isMobile ? 'column' : 'row-reverse',
+          gap: isMobile ? 16 : 28,
+          alignItems: isMobile ? 'stretch' : 'flex-start',
+        }}
+      >
+        {/* SIDEBAR (right in RTL; full-width on top when stacked) */}
         <aside
-          style={{ width: 288, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 4 }}
+          style={{
+            width: isMobile ? '100%' : 288,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
           aria-label="عوامل التصفية"
         >
           <StatusSection facets={facets} has={has} sp={sp} toggleCsv={toggleCsv} navigate={navigate} />
