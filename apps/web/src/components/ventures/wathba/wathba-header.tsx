@@ -7,6 +7,7 @@ import type { WathbaTheme } from './wathba-tokens';
 import { WathbaNotificationBell } from './wathba-notification-bell';
 import { WathbaCategoryNav } from './wathba-category-nav';
 import { WathbaDiscoverMenu } from './wathba-discover-menu';
+import { WathbaAccountMenu } from './wathba-account-menu';
 
 export interface WathbaHeaderProps {
   theme: WathbaTheme;
@@ -134,35 +135,8 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
             <Icon name={theme === 'dark' ? 'light_mode' : 'dark_mode'} size={21} color="var(--muted)" />
           </button>
           <WathbaNotificationBell />
-          <Link
-            href="/projects/dashboard"
-            style={{
-              cursor: 'pointer',
-              fontSize: 14.5,
-              color: 'var(--muted)',
-              fontWeight: 500,
-              textDecoration: 'none',
-            }}
-          >
-            تسجيل الدخول
-          </Link>
-          <Link
-            href="/projects/start"
-            style={{
-              border: 'none',
-              cursor: 'pointer',
-              background: 'var(--grad)',
-              color: 'var(--on-accent)',
-              fontWeight: 700,
-              fontSize: 14,
-              padding: '11px 19px',
-              borderRadius: 13,
-              textDecoration: 'none',
-              display: 'inline-block',
-            }}
-          >
-            ابدأ مشروعك
-          </Link>
+          {/* STAKES/D2 — signed-in avatar menu (with logout) or signed-out CTAs. */}
+          <WathbaAccountMenu />
         </div>
       </div>
 
