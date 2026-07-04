@@ -6,6 +6,7 @@ import { Icon, Num } from './wathba-icons';
 import type { WathbaTheme } from './wathba-tokens';
 import { WathbaNotificationBell } from './wathba-notification-bell';
 import { WathbaCategoryNav } from './wathba-category-nav';
+import { WathbaDiscoverMenu } from './wathba-discover-menu';
 
 export interface WathbaHeaderProps {
   theme: WathbaTheme;
@@ -88,6 +89,8 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           <Link href="/projects/ranks" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
             رتب الداعمين
           </Link>
+          {/* Batch DISC — the power discover page + its three-zone mega-menu. */}
+          <WathbaDiscoverMenu />
         </nav>
 
         <Link

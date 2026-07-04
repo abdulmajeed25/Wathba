@@ -3,6 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { seedCategories } from './seed-categories.mjs';
+import { seedCollections } from './seed-collections.mjs';
 
 const prisma = new PrismaClient();
 const EMAIL = 'smoke-s1@test.wathba.sa';
@@ -10,6 +11,8 @@ const EMAIL = 'smoke-s1@test.wathba.sa';
 async function main() {
   // Batch CAT — the mega-menu / discover journeys need the full tree present.
   await seedCategories(prisma);
+  // Batch DISC — the 5 example collections (inactive placeholders).
+  await seedCollections(prisma);
 
   const passwordHash = await bcrypt.hash('Str0ngPass!x', 12);
   await prisma.user.upsert({
