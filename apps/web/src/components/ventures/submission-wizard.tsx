@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { submitProjectAction } from '@/lib/projects/submit-action';
+import { WathbaCategoryPicker } from '@/components/ventures/wathba/wathba-category-picker';
 
 /**
  * Submit-project wizard (Tier 2.8 rewrite).
@@ -17,19 +18,6 @@ import { submitProjectAction } from '@/lib/projects/submit-action';
  * without losing input; only the final step submits.
  */
 
-const CATEGORIES: Array<{ value: string; labelAr: string }> = [
-  { value: 'TECH', labelAr: 'تقنية' },
-  { value: 'DESIGN', labelAr: 'تصميم' },
-  { value: 'FILM', labelAr: 'فيلم' },
-  { value: 'MUSIC', labelAr: 'موسيقى' },
-  { value: 'FOOD', labelAr: 'طعام' },
-  { value: 'GAMES', labelAr: 'ألعاب' },
-  { value: 'PUBLISHING', labelAr: 'نشر' },
-  { value: 'FASHION', labelAr: 'أزياء' },
-  { value: 'ART', labelAr: 'فنون' },
-  { value: 'SOCIAL', labelAr: 'مبادرات اجتماعية' },
-];
-
 const STEPS = [
   { id: 'basics', label: 'الأساسيات' },
   { id: 'story', label: 'القصة' },
@@ -43,7 +31,9 @@ type StepId = (typeof STEPS)[number]['id'];
 interface Draft {
   titleAr: string;
   shortDescAr: string;
-  category: string;
+  // Batch CAT — canonical taxonomy node id + a display label for the review.
+  categoryId: string;
+  categoryLabel: string;
   storyAr: string;
   fundingGoalSar: string;
   releaseThresholdPct: string;
@@ -55,7 +45,8 @@ interface Draft {
 const EMPTY: Draft = {
   titleAr: '',
   shortDescAr: '',
-  category: 'TECH',
+  categoryId: '',
+  categoryLabel: '',
   storyAr: '',
   fundingGoalSar: '',
   releaseThresholdPct: '80',
@@ -70,7 +61,7 @@ function stepValid(s: StepId, d: Draft): boolean {
       return (
         d.titleAr.trim().length >= 4 &&
         d.shortDescAr.trim().length >= 8 &&
-        d.category.length > 0
+        d.categoryId.length > 0
       );
     case 'story':
       // Create accepts ≥50 but /submit requires ≥200; gate the wizard at
@@ -153,19 +144,15 @@ export function SubmissionWizard({
               placeholder="جملة أو اثنتين تشد القارئ من أول لحظة."
             />
           </Field>
-          <Field label="الفئة">
-            <select
-              name="category"
-              value={d.category}
-              onChange={(e) => set('category', e.target.value)}
-              style={inputStyle}
-            >
-              {CATEGORIES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.labelAr}
-                </option>
-              ))}
-            </select>
+          <Field label="الفئة (اختر فئة رئيسية ثم فرعية)">
+            <input type="hidden" name="categoryId" value={d.categoryId} />
+            <WathbaCategoryPicker
+              value={d.categoryId}
+              onSelect={(id, label) => {
+                set('categoryId', id);
+                set('categoryLabel', label);
+              }}
+            />
           </Field>
         </div>
 
@@ -354,7 +341,7 @@ function ErrorBanner({ message }: { message: string }): React.ReactElement {
 }
 
 function ReviewCard({ d }: { d: Draft }): React.ReactElement {
-  const cat = CATEGORIES.find((c) => c.value === d.category)?.labelAr ?? d.category;
+  const cat = d.categoryLabel || '—';
   return (
     <div
       style={{

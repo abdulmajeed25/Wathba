@@ -9,7 +9,7 @@ import {
   UpdateProjectDto,
   UpdateStoryDto,
 } from './dto/project.dto';
-import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/client';
+import { MilestoneStatus, Prisma, ProjectStatus, type Project, type ProjectCategory } from '@prisma/client';
 
 /**
  * Projects bounded context. Owns the project lifecycle.
@@ -35,6 +35,12 @@ export class ProjectsService {
     FOOD: 'food', GAMES: 'games', PUBLISHING: 'publishing', FASHION: 'fashion',
     ART: 'art', SOCIAL: 'social-impact',
   };
+  // Reverse — top-level slug → legacy enum (null for the new Saudi categories).
+  private static readonly REVERSE_LEGACY: Record<string, ProjectCategory> = {
+    technology: 'TECH', design: 'DESIGN', 'film-video': 'FILM', food: 'FOOD',
+    games: 'GAMES', publishing: 'PUBLISHING', fashion: 'FASHION', art: 'ART',
+    'social-impact': 'SOCIAL',
+  };
 
   private async categoryIdForLegacy(cat: string | null | undefined): Promise<string | null> {
     if (!cat) return null;
@@ -55,16 +61,43 @@ export class ProjectsService {
     return top.id;
   }
 
+  /**
+   * Batch CAT — resolve the canonical categoryId + legacy enum from whichever
+   * the caller supplied. `categoryId` (two-level wizard) wins and derives the
+   * legacy enum from its top-level (null for the new Saudi categories); a bare
+   * legacy enum still resolves a categoryId. `required` guards create.
+   */
+  private async resolveCategory(
+    categoryId: string | undefined,
+    legacy: ProjectCategory | undefined,
+    required: boolean,
+  ): Promise<{ categoryId: string | null; category: ProjectCategory | null }> {
+    if (categoryId) {
+      const node = await this.prisma.category.findUnique({
+        where: { id: categoryId },
+        select: { id: true, slug: true, parentId: true, parent: { select: { slug: true } } },
+      });
+      if (!node) throw new BadRequestException('الفئة غير موجودة');
+      const topSlug = node.parentId ? node.parent!.slug : node.slug;
+      return { categoryId: node.id, category: ProjectsService.REVERSE_LEGACY[topSlug] ?? null };
+    }
+    if (legacy) {
+      return { categoryId: await this.categoryIdForLegacy(legacy), category: legacy };
+    }
+    if (required) throw new BadRequestException('اختر فئة للمشروع');
+    return { categoryId: null, category: null };
+  }
+
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
     // Provisional deadline; admin sets the real one on publish.
     const deadline = new Date(Date.now() + dto.durationDays * 86_400_000);
-    const categoryId = await this.categoryIdForLegacy(dto.category);
+    const cat = await this.resolveCategory(dto.categoryId, dto.category, true);
     return this.prisma.project.create({
       data: {
         titleAr: dto.titleAr,
         shortDescAr: dto.shortDescAr,
-        category: dto.category,
-        categoryId,
+        category: cat.category,
+        categoryId: cat.categoryId,
         storyAr: dto.storyAr,
         mediaUrls: dto.mediaUrls ?? [],
         fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
@@ -87,15 +120,18 @@ export class ProjectsService {
     if (proj.status !== ProjectStatus.DRAFT && proj.status !== ProjectStatus.UNDER_REVIEW) {
       throw new BadRequestException(`cannot edit project in status ${proj.status}`);
     }
-    // Batch CAT — keep categoryId in lock-step with the legacy enum on edit.
-    const categoryId =
-      dto.category !== undefined ? await this.categoryIdForLegacy(dto.category) : undefined;
+    // Batch CAT — keep categoryId + legacy enum in lock-step on edit (either
+    // input drives both).
+    const catTouched = dto.categoryId !== undefined || dto.category !== undefined;
+    const cat = catTouched
+      ? await this.resolveCategory(dto.categoryId, dto.category, false)
+      : null;
     return this.prisma.project.update({
       where: { id: projectId },
       data: {
         ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
         ...(dto.shortDescAr !== undefined && { shortDescAr: dto.shortDescAr }),
-        ...(dto.category !== undefined && { category: dto.category, categoryId }),
+        ...(cat && { category: cat.category, categoryId: cat.categoryId }),
         ...(dto.storyAr !== undefined && { storyAr: dto.storyAr }),
         ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
         ...(dto.fundingGoalHalalas !== undefined && {

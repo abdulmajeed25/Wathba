@@ -9,6 +9,10 @@ test('creator: signup → wizard → review card → submit → dashboard', asyn
   const title = `مشروع إي٢إي ${Date.now()}`;
   await page.locator('input[name="titleAr"]').fill(title);
   await page.locator('textarea[name="shortDescAr"]').fill('وصف قصير لمشروع الاختبار الآلي عبر بلايرايت');
+  // Batch CAT — two-level category picker: pick Technology → Apps.
+  await page.locator('button[role="option"][data-cat-slug="technology"]').click();
+  await page.locator('button[role="option"][data-sub-slug="apps"]').click();
+  await expect(page.getByTestId('picker-selected')).toBeVisible();
   await page.getByRole('button', { name: 'التالي →' }).click();
   await page.locator('textarea[name="storyAr"]').fill('قصة المشروع للاختبار الآلي. '.repeat(12));
   await page.getByRole('button', { name: 'التالي →' }).click();

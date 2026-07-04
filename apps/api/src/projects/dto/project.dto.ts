@@ -56,9 +56,16 @@ export class CreateProjectDto {
   @IsString() @MinLength(8) @MaxLength(240)
   shortDescAr!: string;
 
-  @ApiProperty({ enum: ProjectCategory })
-  @IsEnum(ProjectCategory)
-  category!: ProjectCategory;
+  /** LEGACY flat enum — still accepted for back-compat. Prefer categoryId. */
+  @ApiProperty({ enum: ProjectCategory, required: false })
+  @IsOptional() @IsEnum(ProjectCategory)
+  category?: ProjectCategory;
+
+  /** Batch CAT — canonical taxonomy node (top-level or subcategory). The
+   *  two-level wizard sends this; the service derives the legacy enum from it. */
+  @ApiProperty({ required: false, description: 'Category node id (top-level or subcategory).' })
+  @IsOptional() @IsString()
+  categoryId?: string;
 
   @ApiProperty()
   @IsString() @MinLength(50)
@@ -98,6 +105,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() @MinLength(4) @MaxLength(120) titleAr?: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(240) shortDescAr?: string;
   @IsOptional() @IsEnum(ProjectCategory) category?: ProjectCategory;
+  @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() @MinLength(50) storyAr?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) mediaUrls?: string[];
   @IsOptional() @IsInt() @Min(10_000) fundingGoalHalalas?: number;

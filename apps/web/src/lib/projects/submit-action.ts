@@ -43,7 +43,9 @@ export async function submitProjectAction(formData: FormData): Promise<void> {
   const body = {
     titleAr: get('titleAr'),
     shortDescAr: get('shortDescAr'),
-    category: get('category'),
+    // Batch CAT — the two-level wizard sends categoryId; legacy enum optional.
+    categoryId: get('categoryId') || undefined,
+    category: get('category') || undefined,
     storyAr: get('storyAr'),
     fundingGoalHalalas: Math.round(num('fundingGoalSar') * 100),
     releaseThresholdPct: num('releaseThresholdPct') || 80,
