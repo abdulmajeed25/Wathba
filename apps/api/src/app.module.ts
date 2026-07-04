@@ -29,6 +29,7 @@ import { AuditViewModule } from './audit-view/audit-view.module';
 import { ChangelogModule } from './changelog/changelog.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CollaboratorsModule } from './collaborators/collaborators.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { CollaboratorsModule } from './collaborators/collaborators.module';
     ChangelogModule,
     AnalyticsModule,
     CollaboratorsModule,
+    CategoriesModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

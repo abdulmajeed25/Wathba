@@ -23,14 +23,48 @@ export class ProjectsService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Batch CAT — legacy ProjectCategory enum → the matching top-level Category
+   * node id, so every new/edited project also carries the canonical
+   * `categoryId`. MUSIC was removed from the tree; its projects resolve to
+   * Film & Video → Music Videos (amendment). Returns null if the tree is not
+   * seeded (fresh DB) so writes never hard-fail on taxonomy.
+   */
+  private static readonly LEGACY_SLUG: Record<string, string> = {
+    TECH: 'technology', DESIGN: 'design', FILM: 'film-video', MUSIC: 'film-video',
+    FOOD: 'food', GAMES: 'games', PUBLISHING: 'publishing', FASHION: 'fashion',
+    ART: 'art', SOCIAL: 'social-impact',
+  };
+
+  private async categoryIdForLegacy(cat: string | null | undefined): Promise<string | null> {
+    if (!cat) return null;
+    const slug = ProjectsService.LEGACY_SLUG[cat];
+    if (!slug) return null;
+    const top = await this.prisma.category.findFirst({
+      where: { slug, parentId: null },
+      select: { id: true },
+    });
+    if (!top) return null;
+    if (cat === 'MUSIC') {
+      const mv = await this.prisma.category.findFirst({
+        where: { slug: 'music-videos', parentId: top.id },
+        select: { id: true },
+      });
+      return mv?.id ?? top.id;
+    }
+    return top.id;
+  }
+
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
     // Provisional deadline; admin sets the real one on publish.
     const deadline = new Date(Date.now() + dto.durationDays * 86_400_000);
+    const categoryId = await this.categoryIdForLegacy(dto.category);
     return this.prisma.project.create({
       data: {
         titleAr: dto.titleAr,
         shortDescAr: dto.shortDescAr,
         category: dto.category,
+        categoryId,
         storyAr: dto.storyAr,
         mediaUrls: dto.mediaUrls ?? [],
         fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
@@ -53,12 +87,15 @@ export class ProjectsService {
     if (proj.status !== ProjectStatus.DRAFT && proj.status !== ProjectStatus.UNDER_REVIEW) {
       throw new BadRequestException(`cannot edit project in status ${proj.status}`);
     }
+    // Batch CAT — keep categoryId in lock-step with the legacy enum on edit.
+    const categoryId =
+      dto.category !== undefined ? await this.categoryIdForLegacy(dto.category) : undefined;
     return this.prisma.project.update({
       where: { id: projectId },
       data: {
         ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
         ...(dto.shortDescAr !== undefined && { shortDescAr: dto.shortDescAr }),
-        ...(dto.category !== undefined && { category: dto.category }),
+        ...(dto.category !== undefined && { category: dto.category, categoryId }),
         ...(dto.storyAr !== undefined && { storyAr: dto.storyAr }),
         ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
         ...(dto.fundingGoalHalalas !== undefined && {
@@ -116,6 +153,7 @@ export class ProjectsService {
         titleAr: `${src.titleAr} (نسخة)`,
         shortDescAr: src.shortDescAr,
         category: src.category,
+        categoryId: src.categoryId,
         storyAr: src.storyAr,
         mediaUrls: src.mediaUrls,
         fundingGoalHalalas: src.fundingGoalHalalas,
