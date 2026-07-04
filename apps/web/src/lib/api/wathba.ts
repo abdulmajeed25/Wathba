@@ -839,3 +839,80 @@ export async function getCreatorProfile(
 ): Promise<ApiCreatorProfile | null> {
   return fetchJson<ApiCreatorProfile>(`/v1/creators/${userId}`);
 }
+
+/* ---------- Batch CAT — taxonomy + discovery ------------------------------ */
+
+export interface ApiCategoryNode {
+  id: string;
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  sortOrder: number;
+  liveCount: number;
+  children: ApiCategoryNode[];
+}
+
+/** Full two-level tree (top-level → subcategories) with rolled-up LIVE counts. */
+export async function listCategories(): Promise<ApiCategoryNode[] | null> {
+  return fetchJson<ApiCategoryNode[]>('/v1/categories', 300);
+}
+
+/** One top-level node + its children + counts (discover landing header). */
+export async function getCategoryBySlug(slug: string): Promise<ApiCategoryNode | null> {
+  return fetchJson<ApiCategoryNode>(`/v1/categories/${encodeURIComponent(slug)}`, 300);
+}
+
+/** Public project card shape as toPublic() emits it (Batch CAT fields included). */
+export interface ApiDiscoverProject {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  category: string | null;
+  categoryId: string | null;
+  region: string | null;
+  isStaffPick: boolean;
+  status: string;
+  fundingGoalHalalas: number;
+  raisedHalalas: number;
+  backersCount: number;
+  deadline: string;
+  publishedAt: string | null;
+  mediaUrls: string[];
+  slug: string | null;
+}
+
+export interface ApiDiscoverResult {
+  items: ApiDiscoverProject[];
+  nextCursor: string | null;
+}
+
+export type DiscoveryFilter =
+  | 'trending'
+  | 'nearly_funded'
+  | 'just_launched'
+  | 'near_you'
+  | 'staff_pick';
+
+export interface DiscoverParams {
+  categorySlug?: string;
+  subSlug?: string;
+  filter?: DiscoveryFilter;
+  region?: string;
+  sort?: 'new' | 'ending_soon' | 'most_funded';
+  take?: number;
+  cursor?: string;
+}
+
+/** GET /v1/projects with the Batch CAT category + discovery filters. */
+export async function listDiscover(params: DiscoverParams): Promise<ApiDiscoverResult | null> {
+  const qs = new URLSearchParams();
+  if (params.categorySlug) qs.set('categorySlug', params.categorySlug);
+  if (params.subSlug) qs.set('subSlug', params.subSlug);
+  if (params.filter) qs.set('filter', params.filter);
+  if (params.region) qs.set('region', params.region);
+  if (params.sort) qs.set('sort', params.sort);
+  if (params.take) qs.set('take', String(params.take));
+  if (params.cursor) qs.set('cursor', params.cursor);
+  const q = qs.toString();
+  return fetchJson<ApiDiscoverResult>(`/v1/projects${q ? `?${q}` : ''}`, 60);
+}

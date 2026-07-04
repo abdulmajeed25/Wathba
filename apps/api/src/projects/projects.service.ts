@@ -9,7 +9,7 @@ import {
   UpdateProjectDto,
   UpdateStoryDto,
 } from './dto/project.dto';
-import { MilestoneStatus, Prisma, ProjectStatus, type Project } from '@prisma/client';
+import { MilestoneStatus, Prisma, ProjectStatus, type Project, type ProjectCategory } from '@prisma/client';
 
 /**
  * Projects bounded context. Owns the project lifecycle.
@@ -23,14 +23,81 @@ export class ProjectsService {
     private readonly audit: AuditService,
   ) {}
 
+  /**
+   * Batch CAT — legacy ProjectCategory enum → the matching top-level Category
+   * node id, so every new/edited project also carries the canonical
+   * `categoryId`. MUSIC was removed from the tree; its projects resolve to
+   * Film & Video → Music Videos (amendment). Returns null if the tree is not
+   * seeded (fresh DB) so writes never hard-fail on taxonomy.
+   */
+  private static readonly LEGACY_SLUG: Record<string, string> = {
+    TECH: 'technology', DESIGN: 'design', FILM: 'film-video', MUSIC: 'film-video',
+    FOOD: 'food', GAMES: 'games', PUBLISHING: 'publishing', FASHION: 'fashion',
+    ART: 'art', SOCIAL: 'social-impact',
+  };
+  // Reverse — top-level slug → legacy enum (null for the new Saudi categories).
+  private static readonly REVERSE_LEGACY: Record<string, ProjectCategory> = {
+    technology: 'TECH', design: 'DESIGN', 'film-video': 'FILM', food: 'FOOD',
+    games: 'GAMES', publishing: 'PUBLISHING', fashion: 'FASHION', art: 'ART',
+    'social-impact': 'SOCIAL',
+  };
+
+  private async categoryIdForLegacy(cat: string | null | undefined): Promise<string | null> {
+    if (!cat) return null;
+    const slug = ProjectsService.LEGACY_SLUG[cat];
+    if (!slug) return null;
+    const top = await this.prisma.category.findFirst({
+      where: { slug, parentId: null },
+      select: { id: true },
+    });
+    if (!top) return null;
+    if (cat === 'MUSIC') {
+      const mv = await this.prisma.category.findFirst({
+        where: { slug: 'music-videos', parentId: top.id },
+        select: { id: true },
+      });
+      return mv?.id ?? top.id;
+    }
+    return top.id;
+  }
+
+  /**
+   * Batch CAT — resolve the canonical categoryId + legacy enum from whichever
+   * the caller supplied. `categoryId` (two-level wizard) wins and derives the
+   * legacy enum from its top-level (null for the new Saudi categories); a bare
+   * legacy enum still resolves a categoryId. `required` guards create.
+   */
+  private async resolveCategory(
+    categoryId: string | undefined,
+    legacy: ProjectCategory | undefined,
+    required: boolean,
+  ): Promise<{ categoryId: string | null; category: ProjectCategory | null }> {
+    if (categoryId) {
+      const node = await this.prisma.category.findUnique({
+        where: { id: categoryId },
+        select: { id: true, slug: true, parentId: true, parent: { select: { slug: true } } },
+      });
+      if (!node) throw new BadRequestException('الفئة غير موجودة');
+      const topSlug = node.parentId ? node.parent!.slug : node.slug;
+      return { categoryId: node.id, category: ProjectsService.REVERSE_LEGACY[topSlug] ?? null };
+    }
+    if (legacy) {
+      return { categoryId: await this.categoryIdForLegacy(legacy), category: legacy };
+    }
+    if (required) throw new BadRequestException('اختر فئة للمشروع');
+    return { categoryId: null, category: null };
+  }
+
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
     // Provisional deadline; admin sets the real one on publish.
     const deadline = new Date(Date.now() + dto.durationDays * 86_400_000);
+    const cat = await this.resolveCategory(dto.categoryId, dto.category, true);
     return this.prisma.project.create({
       data: {
         titleAr: dto.titleAr,
         shortDescAr: dto.shortDescAr,
-        category: dto.category,
+        category: cat.category,
+        categoryId: cat.categoryId,
         storyAr: dto.storyAr,
         mediaUrls: dto.mediaUrls ?? [],
         fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
@@ -53,12 +120,18 @@ export class ProjectsService {
     if (proj.status !== ProjectStatus.DRAFT && proj.status !== ProjectStatus.UNDER_REVIEW) {
       throw new BadRequestException(`cannot edit project in status ${proj.status}`);
     }
+    // Batch CAT — keep categoryId + legacy enum in lock-step on edit (either
+    // input drives both).
+    const catTouched = dto.categoryId !== undefined || dto.category !== undefined;
+    const cat = catTouched
+      ? await this.resolveCategory(dto.categoryId, dto.category, false)
+      : null;
     return this.prisma.project.update({
       where: { id: projectId },
       data: {
         ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
         ...(dto.shortDescAr !== undefined && { shortDescAr: dto.shortDescAr }),
-        ...(dto.category !== undefined && { category: dto.category }),
+        ...(cat && { category: cat.category, categoryId: cat.categoryId }),
         ...(dto.storyAr !== undefined && { storyAr: dto.storyAr }),
         ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
         ...(dto.fundingGoalHalalas !== undefined && {
@@ -116,6 +189,7 @@ export class ProjectsService {
         titleAr: `${src.titleAr} (نسخة)`,
         shortDescAr: src.shortDescAr,
         category: src.category,
+        categoryId: src.categoryId,
         storyAr: src.storyAr,
         mediaUrls: src.mediaUrls,
         fundingGoalHalalas: src.fundingGoalHalalas,
@@ -312,12 +386,58 @@ export class ProjectsService {
     return proj;
   }
 
+  // Batch CAT — discovery-filter windows.
+  private static readonly TREND_WINDOW_MS = 72 * 3_600_000; // pledge velocity look-back
+  private static readonly NEARLY_MIN_PCT = 75; // "قاربت على التمويل" threshold
+  private static readonly NEARLY_DEADLINE_MS = 48 * 3_600_000; // still ≥ this much time left
+  private static readonly JUST_LAUNCHED_MS = 7 * 86_400_000; // went live within this window
+
+  /**
+   * Batch CAT — resolve a catSlug (+ optional subSlug) to the set of categoryIds
+   * to match. A top-level includes all its subcategories (OR); a subSlug narrows
+   * to that single node. Unknown slug → empty set (no results, never a crash).
+   */
+  private async resolveCategoryIds(
+    categorySlug?: string,
+    subSlug?: string,
+  ): Promise<string[] | null> {
+    if (!categorySlug) return null;
+    const top = await this.prisma.category.findFirst({
+      where: { slug: categorySlug, parentId: null },
+      select: { id: true },
+    });
+    if (!top) return [];
+    if (subSlug) {
+      const sub = await this.prisma.category.findFirst({
+        where: { slug: subSlug, parentId: top.id },
+        select: { id: true },
+      });
+      return sub ? [sub.id] : [];
+    }
+    const kids = await this.prisma.category.findMany({
+      where: { parentId: top.id },
+      select: { id: true },
+    });
+    return [top.id, ...kids.map((k) => k.id)];
+  }
+
   async list(q: ListProjectsQueryDto): Promise<{ items: Project[]; nextCursor: string | null }> {
     const take = q.take ?? 20;
     const where: Prisma.ProjectWhereInput = {};
 
-    if (q.category) where.category = q.category;
-    if (q.status === 'live') where.status = ProjectStatus.LIVE;
+    // Canonical taxonomy filter (categorySlug/subSlug) takes precedence over the
+    // legacy enum, which stays for back-compat.
+    const catIds = await this.resolveCategoryIds(q.categorySlug, q.subSlug);
+    if (catIds) where.categoryId = { in: catIds };
+    else if (q.category) where.category = q.category;
+
+    if (q.includePartnered === false) where.platformPartner = { equals: Prisma.JsonNull };
+
+    // A discovery filter forces the LIVE-and-fundable universe; otherwise honour
+    // the explicit status param (default = discoverable set).
+    if (q.filter) {
+      where.status = ProjectStatus.LIVE;
+    } else if (q.status === 'live') where.status = ProjectStatus.LIVE;
     else if (q.status === 'successful') where.status = ProjectStatus.SUCCESSFUL;
     else if (q.status === 'funded') where.status = ProjectStatus.FUNDED;
     else
@@ -325,16 +445,34 @@ export class ProjectsService {
         in: [ProjectStatus.LIVE, ProjectStatus.SUCCESSFUL, ProjectStatus.FUNDED],
       };
 
-    if (q.includePartnered === false) where.platformPartner = { equals: Prisma.JsonNull };
+    // Computed filters (need cross-row aggregation) go through their own path.
+    if (q.filter === 'trending' || q.filter === 'nearly_funded') {
+      return this.listComputed(q.filter, where, take, q.cursor);
+    }
+
+    // Native-WHERE filters compose cleanly with keyset pagination.
+    const now = Date.now();
+    if (q.filter === 'just_launched') {
+      where.publishedAt = { gte: new Date(now - ProjectsService.JUST_LAUNCHED_MS) };
+    } else if (q.filter === 'near_you') {
+      // "matches user's region" — the region is supplied explicitly (profile /
+      // picker). Without one the filter can't resolve → empty result.
+      if (!q.region) return { items: [], nextCursor: null };
+      where.region = q.region;
+    } else if (q.filter === 'staff_pick') {
+      where.isStaffPick = true;
+    }
 
     const orderBy: Prisma.ProjectOrderByWithRelationInput[] =
-      q.sort === 'new'
-        ? [{ publishedAt: 'desc' }, { createdAt: 'desc' }]
-        : q.sort === 'ending_soon'
-          ? [{ deadline: 'asc' }]
-          : q.sort === 'most_funded'
-            ? [{ raisedHalalas: 'desc' }]
-            : [{ backersCount: 'desc' }, { raisedHalalas: 'desc' }];
+      q.filter === 'just_launched'
+        ? [{ publishedAt: 'desc' }, { id: 'desc' }]
+        : q.sort === 'new'
+          ? [{ publishedAt: 'desc' }, { createdAt: 'desc' }]
+          : q.sort === 'ending_soon'
+            ? [{ deadline: 'asc' }]
+            : q.sort === 'most_funded'
+              ? [{ raisedHalalas: 'desc' }]
+              : [{ backersCount: 'desc' }, { raisedHalalas: 'desc' }];
 
     const items = await this.prisma.project.findMany({
       where,
@@ -346,6 +484,77 @@ export class ProjectsService {
     return { items: items.slice(0, take), nextCursor };
   }
 
+  /**
+   * Batch CAT — filters that rank/narrow by cross-row aggregation:
+   *  - trending: LIVE projects ordered by 72h pledge velocity (zero-velocity
+   *    projects sort last so the page is never empty), then backers/raised.
+   *  - nearly_funded: LIVE, ≥75% funded, ≥48h left; ordered by funded% desc.
+   * Ordering is computed in memory and paged by opaque id cursor. DISC replaces
+   * this with an indexed keyset + the <300ms EXPLAIN gate.
+   */
+  private async listComputed(
+    filter: 'trending' | 'nearly_funded',
+    baseWhere: Prisma.ProjectWhereInput,
+    take: number,
+    cursor?: string,
+  ): Promise<{ items: Project[]; nextCursor: string | null }> {
+    const now = Date.now();
+    const where: Prisma.ProjectWhereInput = { ...baseWhere };
+    if (filter === 'nearly_funded') {
+      where.deadline = { gte: new Date(now + ProjectsService.NEARLY_DEADLINE_MS) };
+    }
+
+    const rows = await this.prisma.project.findMany({
+      where,
+      select: { id: true, fundingGoalHalalas: true, raisedHalalas: true, backersCount: true },
+    });
+
+    let orderedIds: string[];
+    if (filter === 'nearly_funded') {
+      orderedIds = rows
+        .map((r) => ({
+          id: r.id,
+          pct: Number(r.fundingGoalHalalas) > 0
+            ? (Number(r.raisedHalalas) * 100) / Number(r.fundingGoalHalalas)
+            : 0,
+        }))
+        .filter((r) => r.pct >= ProjectsService.NEARLY_MIN_PCT)
+        .sort((a, b) => b.pct - a.pct)
+        .map((r) => r.id);
+    } else {
+      const since = new Date(now - ProjectsService.TREND_WINDOW_MS);
+      const vel = rows.length
+        ? await this.prisma.pledge.groupBy({
+            by: ['projectId'],
+            where: {
+              projectId: { in: rows.map((r) => r.id) },
+              createdAt: { gte: since },
+              status: { in: ['HELD', 'CAPTURED'] },
+            },
+            _count: { _all: true },
+          })
+        : [];
+      const velMap = new Map(vel.map((v) => [v.projectId, v._count._all]));
+      orderedIds = rows
+        .map((r) => ({ id: r.id, v: velMap.get(r.id) ?? 0, b: r.backersCount }))
+        .sort((a, b) => b.v - a.v || b.b - a.b)
+        .map((r) => r.id);
+    }
+
+    const start = cursor ? orderedIds.indexOf(cursor) + 1 : 0;
+    const pageIds = orderedIds.slice(start, start + take);
+    const nextCursor =
+      start + take < orderedIds.length && pageIds.length > 0
+        ? pageIds[pageIds.length - 1]!
+        : null;
+
+    if (pageIds.length === 0) return { items: [], nextCursor: null };
+    const items = await this.prisma.project.findMany({ where: { id: { in: pageIds } } });
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const ordered = pageIds.map((id) => byId.get(id)).filter((p): p is Project => Boolean(p));
+    return { items: ordered, nextCursor };
+  }
+
   toPublic(
     p: Project & { rewardTiers?: Array<Record<string, unknown>> },
   ): Record<string, unknown> {
@@ -354,6 +563,10 @@ export class ProjectsService {
       titleAr: p.titleAr,
       shortDescAr: p.shortDescAr,
       category: p.category,
+      // Batch CAT — canonical taxonomy + region + editorial pick.
+      categoryId: p.categoryId ?? null,
+      region: p.region ?? null,
+      isStaffPick: p.isStaffPick,
       storyAr: p.storyAr,
       mediaUrls: p.mediaUrls,
       fundingGoalHalalas: Number(p.fundingGoalHalalas),

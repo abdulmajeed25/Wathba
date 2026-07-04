@@ -31,6 +31,11 @@ enum ReputationTier {
   FOUNDER
 }
 
+/// LEGACY flat taxonomy (pre-Batch-CAT). Retained as a nullable alias on
+/// Project so search/procurement back-compat keeps working; the canonical
+/// taxonomy is now the self-referential `Category` tree (Project.categoryId).
+/// New top-level categories (heritage, tourism, …) have no legacy equivalent,
+/// hence the column is nullable.
 enum ProjectCategory {
   TECH
   DESIGN
@@ -42,6 +47,25 @@ enum ProjectCategory {
   FASHION
   ART
   SOCIAL
+}
+
+/// Saudi Arabia's 13 administrative regions (Batch CAT — "near you" filter +
+/// discover location facet). Set in the create wizard; nullable for legacy
+/// projects that predate the field.
+enum ProjectRegion {
+  RIYADH
+  MAKKAH
+  MADINAH
+  QASSIM
+  EASTERN
+  ASIR
+  TABUK
+  HAIL
+  NORTHERN_BORDERS
+  JAZAN
+  NAJRAN
+  BAHAH
+  JAWF
 }
 
 enum ProjectStatus {
@@ -214,7 +238,20 @@ model Project {
   id                   String          @id @default(uuid()) @db.Uuid
   titleAr              String
   shortDescAr          String
-  category             ProjectCategory
+  /// LEGACY alias — kept nullable for back-compat (search/procurement). The
+  /// canonical taxonomy is `categoryId` → Category. Batch CAT derives one from
+  /// the other on write.
+  category             ProjectCategory?
+  /// Canonical taxonomy (Batch CAT). May point at a top-level OR a subcategory
+  /// node; the parent is derivable via Category.parentId. Nullable only until
+  /// the create/edit wizard requires it.
+  categoryId           String?         @db.Uuid
+  categoryRef          Category?       @relation("ProjectCategoryRef", fields: [categoryId], references: [id], onDelete: SetNull)
+  /// Saudi administrative region (Batch CAT — "near you" filter + location facet).
+  region               ProjectRegion?
+  /// "مختارات وثبة" (Projects We Love) — editorial pick. ADMIN-only toggle,
+  /// audited. Surfaced by the `staff_pick` discovery filter (Batch CAT).
+  isStaffPick          Boolean         @default(false)
   storyAr              String          @db.Text
   mediaUrls            String[]        @default([])
   fundingGoalHalalas   BigInt
@@ -284,6 +321,12 @@ model Project {
   @@index([status, raisedHalalas])
   @@index([status, backersCount])
   @@index([createdById])
+  //  - (categoryId, status)      → Batch CAT category/subcategory discover filter
+  //  - (region, status)          → Batch CAT "near you" filter
+  @@index([categoryId, status])
+  @@index([region, status])
+  //  - (isStaffPick, status)     → Batch CAT "staff pick" filter
+  @@index([isStaffPick, status])
 }
 
 model RewardTier {
@@ -943,4 +986,35 @@ model PayoutBeneficiary {
   verifiedAt      DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
+}
+
+// ============================================================================
+// TAXONOMY (Batch CAT)
+// ============================================================================
+
+/// Two-level category tree (Batch CAT). `parentId == null` ⇒ a top-level
+/// category; otherwise a subcategory. Slug is unique WITHIN a parent (composite
+/// unique below); top-level slug uniqueness is enforced by a partial unique
+/// index applied in the migration (`WHERE "parentId" IS NULL`). nameAr is the
+/// primary UI label (Arabic-first); nameEn drives the English slug/URL.
+model Category {
+  id        String     @id @default(uuid()) @db.Uuid
+  slug      String
+  nameAr    String
+  nameEn    String
+  parentId  String?    @db.Uuid
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Category[] @relation("CategoryTree")
+  sortOrder Int        @default(0)
+  isActive  Boolean    @default(true)
+  projects  Project[]  @relation("ProjectCategoryRef")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Slug unique within a parent; the /[catSlug]/[subSlug] route resolves a
+  // child by (parent, slug). Top-level global uniqueness is a partial index
+  // (migration) since NULL parentIds compare distinct.
+  @@unique([parentId, slug])
+  @@index([parentId, sortOrder])
+  @@index([slug])
 }

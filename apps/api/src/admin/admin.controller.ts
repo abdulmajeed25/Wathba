@@ -9,7 +9,7 @@ import { FundingService } from '../funding/funding.service';
 import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { AdminService } from './admin.service';
 import { AuditService } from '../identity/audit.service';
-import { GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto } from './dto/admin.dto';
+import { GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto } from './dto/admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -86,6 +86,24 @@ export class AdminController {
   ) {
     await this.audit.log({ actorId: jwt.sub, action: 'admin.platform-partner', entity: 'Project', entityId: id });
     const updated = await this.admin.setPlatformPartner(id, dto.platformPartner);
+    return this.projects.toPublic(updated);
+  }
+
+  @Put('projects/:id/staff-pick')
+  @ApiOperation({ summary: 'Batch CAT — toggle "مختارات وثبة" editorial pick (audited)' })
+  async setStaffPick(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: SetStaffPickDto,
+  ) {
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: `admin.staff-pick.${dto.isStaffPick ? 'set' : 'clear'}`,
+      entity: 'Project',
+      entityId: id,
+      detail: { isStaffPick: dto.isStaffPick },
+    });
+    const updated = await this.admin.setStaffPick(id, dto.isStaffPick);
     return this.projects.toPublic(updated);
   }
 

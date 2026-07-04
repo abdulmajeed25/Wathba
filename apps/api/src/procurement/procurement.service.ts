@@ -35,7 +35,7 @@ export class ProcurementService {
   }
 
   async list(q: ListRFQsQueryDto): Promise<
-    Array<RFQ & { project: { titleAr: string; category: string }; _count: { bids: number } }>
+    Array<RFQ & { project: { titleAr: string; category: string | null }; _count: { bids: number } }>
   > {
     const where: Prisma.RFQWhereInput = {};
     if (q.projectId) where.projectId = q.projectId;
@@ -141,7 +141,7 @@ export class ProcurementService {
   toPublicRFQ(
     r: RFQ & {
       bids?: SupplierBid[];
-      project?: { titleAr: string; category?: string };
+      project?: { titleAr: string; category?: string | null };
       _count?: { bids: number };
     },
   ): Record<string, unknown> {

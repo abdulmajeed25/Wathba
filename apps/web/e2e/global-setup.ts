@@ -11,13 +11,20 @@ export default async function globalSetup(): Promise<void> {
   const token = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
   const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
 
+  // Batch CAT — attach the seeded project to technology → apps (a subcategory)
+  // so the category-discovery journey has a result on the subcategory page.
+  const tech = (await fetch(`${API}/v1/categories/technology`).then((r) => r.json())) as {
+    children: Array<{ id: string; slug: string }>;
+  };
+  const appsId = tech.children.find((c) => c.slug === 'apps')?.id;
+
   const proj = (await fetch(`${API}/v1/projects`, {
     method: 'POST',
     headers: auth,
     body: JSON.stringify({
       titleAr: `مشروع E2E ${Date.now()}`,
       shortDescAr: 'هدف اختبار آلي للرحلة الذهبية للداعم',
-      category: 'TECH',
+      ...(appsId ? { categoryId: appsId } : { category: 'TECH' }),
       storyAr: 'قصة اختبار آلي طويلة بما يكفي لتجاوز حد المئتي حرف. '.repeat(6),
       fundingGoalHalalas: 100000,
       durationDays: 30,
