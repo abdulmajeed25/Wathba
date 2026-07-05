@@ -538,7 +538,7 @@ function TrustCol({ icon, title, body }: { icon: string; title: string; body: st
         style={{
           width: 36, height: 36, borderRadius: 11,
           background: 'rgba(var(--accent-rgb),.10)',
-          color: 'var(--accent)',
+          color: 'var(--accent-ink)',
           display: 'grid', placeItems: 'center', flexShrink: 0,
         }}
       >
@@ -689,7 +689,7 @@ function UpdatesTab({ updates }: { updates: ReturnType<typeof getRichCampaign>['
                 style={{
                   width: 32, height: 32, borderRadius: 10,
                   background: 'rgba(var(--accent-rgb),.12)',
-                  color: 'var(--accent)',
+                  color: 'var(--accent-ink)',
                   display: 'inline-grid', placeItems: 'center',
                   fontSize: 13, fontWeight: 700,
                 }}
@@ -697,7 +697,7 @@ function UpdatesTab({ updates }: { updates: ReturnType<typeof getRichCampaign>['
                 #{u.n}
               </Num>
               <span style={{
-                fontSize: 11, fontWeight: 700, color: 'var(--accent)',
+                fontSize: 11, fontWeight: 700, color: 'var(--accent-ink)',
                 background: 'rgba(var(--accent-rgb),.08)',
                 border: '1px solid rgba(var(--accent-rgb),.20)',
                 padding: '3px 10px', borderRadius: 20,

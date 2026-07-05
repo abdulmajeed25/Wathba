@@ -2,7 +2,6 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  Logger,
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
@@ -11,6 +10,7 @@ import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
+import { EmailService } from '../email/email.service';
 import type { UserRole } from '@prisma/client';
 
 export interface JwtPayload {
@@ -41,13 +41,13 @@ const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
   private readonly failedAttempts = new Map<string, { count: number; firstAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
     private readonly jwt: JwtService,
+    private readonly email: EmailService,
   ) {}
 
   async signUp(input: {
@@ -200,13 +200,9 @@ export class AuthService {
       },
     });
     const link = `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/reset-password?token=${raw}`;
-    if (process.env.MAILER_API_KEY) {
-      // Real mailer integration lands with the transactional-email decision;
-      // configured-but-unintegrated must be loud, not silent.
-      this.logger.error(`MAILER_API_KEY configured but mailer not integrated — reset link NOT emailed for ${user.id}`);
-    } else {
-      this.logger.warn(`[STUB] Password-reset link for user=${user.id}: ${link}`);
-    }
+    // STAKES/S-3/A11 — actually send the reset link (stub logs in dev; never
+    // throws, preserving the always-200 no-enumeration contract).
+    await this.email.passwordReset(user.email, link);
     return { ok: true };
   }
 

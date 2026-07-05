@@ -68,7 +68,7 @@ export default async function SignUpPage({
             autoComplete="new-password"
             className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
           />
-          <span className="text-xs text-neutral-500">٨ أحرف على الأقل.</span>
+          <span className="text-xs text-neutral-600">٨ أحرف على الأقل.</span>
         </label>
 
         <label className="flex items-start gap-2 text-sm">

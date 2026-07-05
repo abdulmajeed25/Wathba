@@ -9,6 +9,8 @@ import { ContractsService } from '../contracts/contracts.service';
 import { AuditService } from '../identity/audit.service';
 import { FundingGateway } from './funding.gateway';
 import { CommunityService } from '../community/community.service';
+import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
 
@@ -38,7 +40,79 @@ export class FundingService {
     private readonly community: CommunityService,
     private readonly ledger: LedgerService,
     private readonly audit: AuditService,
+    private readonly email: EmailService,
+    private readonly notifications: NotificationsService,
   ) {}
+
+  /**
+   * STAKES/S-3 (F2/F4) — best-effort backer comms. Fire-and-forget: a mail or
+   * notification failure must never fail (or roll back) the money action.
+   */
+  private async notifyPledgeReceipt(
+    backer: { id: string; email: string },
+    project: { id: string; titleAr: string },
+    amountHalalas: number,
+    tierTitle: string | null,
+  ): Promise<void> {
+    try {
+      await this.notifications.create({
+        userId: backer.id,
+        kind: 'PLEDGE_RECEIVED',
+        payload: {
+          projectId: project.id,
+          title: `تأكيد تعهّدك لمشروع «${project.titleAr}»`,
+          body: `سجّلنا تعهّدك بمبلغ ${(amountHalalas / 100).toFixed(0)} ر.س.`,
+        },
+      });
+      await this.email.pledgeReceipt(backer.email, {
+        projectTitle: project.titleAr,
+        amountHalalas,
+        tierTitle,
+      });
+    } catch (e) {
+      this.logger.error(`pledge-receipt comms failed for backer=${backer.id}`, e as Error);
+    }
+  }
+
+  /** STAKES/S-3 — notify every backer of a settled project (funded/failed). */
+  private async notifyBackersOfOutcome(
+    project: { id: string; titleAr: string },
+    funded: boolean,
+  ): Promise<void> {
+    try {
+      const pledges = await this.prisma.pledge.findMany({
+        where: {
+          projectId: project.id,
+          status: { in: [PledgeStatus.CAPTURED, PledgeStatus.REFUNDED, PledgeStatus.HELD] },
+        },
+        select: { amountHalalas: true, addOnsHalalas: true, backer: { select: { id: true, email: true } } },
+      });
+      // One message per backer, summing their total on the project.
+      const byBacker = new Map<string, { email: string; total: number }>();
+      for (const p of pledges) {
+        const cur = byBacker.get(p.backer.id) ?? { email: p.backer.email, total: 0 };
+        cur.total += Number(p.amountHalalas) + Number(p.addOnsHalalas ?? 0n);
+        byBacker.set(p.backer.id, cur);
+      }
+      for (const [backerId, { email, total }] of byBacker) {
+        await this.notifications.create({
+          userId: backerId,
+          kind: funded ? 'PROJECT_FUNDED' : 'PROJECT_FAILED',
+          payload: {
+            projectId: project.id,
+            title: funded ? `نجحت حملة «${project.titleAr}» 🎉` : `لم تكتمل حملة «${project.titleAr}»`,
+            body: funded
+              ? 'تم تحصيل تعهّدك وينتقل المشروع للتنفيذ.'
+              : 'لم تبلغ الحملة هدفها — جارٍ ردّ مبلغك تلقائياً.',
+          },
+        });
+        if (funded) await this.email.projectFunded(email, { projectTitle: project.titleAr, amountHalalas: total });
+        else await this.email.projectFailed(email, { projectTitle: project.titleAr, amountHalalas: total });
+      }
+    } catch (e) {
+      this.logger.error(`outcome comms failed for project=${project.id}`, e as Error);
+    }
+  }
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
     const project = await this.prisma.project.findUnique({ where: { id: dto.projectId } });
@@ -48,6 +122,17 @@ export class FundingService {
     }
     if (project.deadline.getTime() <= Date.now()) {
       throw new BadRequestException('project has reached its deadline');
+    }
+
+    // STAKES/S-3/A6 — pledging requires a Nafath-verified account (mirror of the
+    // creator-submission gate). The email is reused for the pledge receipt.
+    const backer = await this.prisma.user.findUnique({
+      where: { id: backerId },
+      select: { id: true, email: true, nafathVerified: true },
+    });
+    if (!backer) throw new NotFoundException('user not found');
+    if (!backer.nafathVerified) {
+      throw new ForbiddenException('يجب توثيق حسابك عبر نفاذ (KYC) قبل دعم المشاريع');
     }
 
     const tier = await this.prisma.rewardTier.findUnique({ where: { id: dto.tierId } });
@@ -234,6 +319,14 @@ export class FundingService {
       .materializeFromPledge(updated.id)
       .catch((err) => this.logger.warn(`community.materialize failed: ${err}`));
 
+    // STAKES/S-3 (F2/F4) — pledge-receipt notification + email (best-effort).
+    await this.notifyPledgeReceipt(
+      backer,
+      project,
+      Number(totalContribution),
+      tier.titleAr,
+    );
+
     return updated;
   }
 
@@ -323,6 +416,8 @@ export class FundingService {
         where: { id: projectId },
         data: { status: ProjectStatus.FUNDED },
       });
+      // STAKES/S-3 (F2/F4) — tell backers the campaign succeeded + they were charged.
+      await this.notifyBackersOfOutcome(project, true);
       return { projectId, transition: 'funded' };
     }
 
@@ -339,6 +434,8 @@ export class FundingService {
       where: { id: projectId },
       data: { status: ProjectStatus.REFUNDED },
     });
+    // STAKES/S-3 (F2/F4) — tell backers the campaign failed + refunds are underway.
+    await this.notifyBackersOfOutcome(project, false);
     return { projectId, transition: 'refunded' };
   }
 

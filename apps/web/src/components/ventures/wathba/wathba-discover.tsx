@@ -64,7 +64,7 @@ export function WathbaDiscover({
           }}
         >
           <div>
-            <Num style={{ fontSize: 12, letterSpacing: '2px', color: 'var(--accent)', marginBottom: 8, display: 'block' }}>
+            <Num style={{ fontSize: 12, letterSpacing: '2px', color: 'var(--accent-ink)', marginBottom: 8, display: 'block' }}>
               DISCOVER
             </Num>
             <h1 style={{ fontSize: 42, fontWeight: 700, letterSpacing: '-1px' }}>استكشف المشاريع</h1>

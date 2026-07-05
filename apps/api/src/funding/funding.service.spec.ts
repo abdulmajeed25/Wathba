@@ -31,6 +31,7 @@ describe('FundingService.settleProject (§5 FSM)', () => {
       },
       pledge: {
         count: jest.fn().mockResolvedValue(0),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     } as unknown as PrismaService;
     const escrow = {
@@ -42,7 +43,9 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     const community = {
       materializeFromPledge: jest.fn().mockResolvedValue(undefined),
     } as unknown as import('../community/community.service').CommunityService;
-    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any, { log: jest.fn() } as any), prisma, escrow };
+    const email = { projectFunded: jest.fn(), projectFailed: jest.fn() } as any;
+    const notifications = { create: jest.fn() } as any;
+    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any, { log: jest.fn() } as any, email, notifications), prisma, escrow };
   };
 
   it('no-ops when another settler already claimed the transition (P1-306 race)', async () => {
@@ -160,7 +163,11 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
         update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
           Promise.resolve({ id: 'pl-1', ...data })),
       },
-      user: { update: jest.fn().mockResolvedValue({}) },
+      user: {
+        update: jest.fn().mockResolvedValue({}),
+        // STAKES/S-3/A6 — backer must be Nafath-verified to pledge.
+        findUnique: jest.fn().mockResolvedValue({ id: BACKER, email: 'backer@test.sa', nafathVerified: true }),
+      },
     };
     (prisma as { $transaction?: unknown }).$transaction = jest.fn(
       async (fn: (tx: unknown) => unknown) => fn(prisma),
@@ -176,10 +183,13 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     const gateway = { emitTick: jest.fn() };
     const community = { materializeFromPledge: jest.fn().mockResolvedValue(undefined) };
     const ledger = { record: jest.fn().mockResolvedValue(undefined) };
+    const email = { pledgeReceipt: jest.fn().mockResolvedValue({}), projectFunded: jest.fn(), projectFailed: jest.fn() };
+    const notifications = { create: jest.fn().mockResolvedValue({}) };
     const svc = new FundingService(
       prisma as never, escrow as never, contracts as never,
       gateway as never, community as never, ledger as never,
       { log: jest.fn() } as never,
+      email as never, notifications as never,
     );
     type MockedTables = {
       project: { findUnique: jest.Mock; update: jest.Mock };
@@ -187,8 +197,24 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
       pledge: { aggregate: jest.Mock; create: jest.Mock; update: jest.Mock };
       user: { update: jest.Mock };
     };
-    return { svc, prisma: prisma as never as MockedTables, escrow, gateway, ledger };
+    return { svc, prisma: prisma as never as MockedTables, escrow, gateway, ledger, email, notifications };
   }
+
+  it('STAKES/A6 — rejects an unverified backer (403) before charging', async () => {
+    const { svc, prisma, escrow } = build({});
+    (prisma.user as unknown as { findUnique: jest.Mock }).findUnique.mockResolvedValue({
+      id: BACKER, email: 'b@test.sa', nafathVerified: false,
+    });
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/نفاذ|KYC/);
+    expect(escrow.hold).not.toHaveBeenCalled();
+  });
+
+  it('STAKES/F2 — fires a pledge-receipt email + notification on success', async () => {
+    const { svc, email, notifications } = build({});
+    await svc.pledge(BACKER, dto());
+    expect(email.pledgeReceipt).toHaveBeenCalledWith('backer@test.sa', expect.objectContaining({ projectTitle: expect.any(String) }));
+    expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'PLEDGE_RECEIVED' }));
+  });
 
   it('rejects a non-LIVE project', async () => {
     const { svc } = build({ project: liveProject({ status: ProjectStatus.DRAFT }) });
@@ -314,6 +340,8 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
       { materializeFromPledge: jest.fn() } as never,
       { record: jest.fn() } as never,
       { log: jest.fn() } as never,
+      { projectFunded: jest.fn(), projectFailed: jest.fn() } as never,
+      { create: jest.fn() } as never,
     );
     return { svc, prisma: prisma as never as Record<string, Record<string, jest.Mock>>, escrow };
   }

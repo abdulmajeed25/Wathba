@@ -86,7 +86,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               gap: 9,
               background: 'rgba(var(--accent-rgb),.1)',
               border: '1px solid rgba(var(--accent-rgb),.28)',
-              color: 'var(--accent)',
+              color: 'var(--accent-ink)',
               padding: '7px 14px',
               borderRadius: 30,
               fontSize: 13,
@@ -244,7 +244,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                   background: 'rgba(6,18,31,.85)',
                   backdropFilter: 'blur(6px)',
                   border: '1px solid rgba(var(--accent-rgb),.4)',
-                  color: 'var(--accent)',
+                  color: 'var(--accent-ink)',
                   padding: '7px 13px',
                   borderRadius: 30,
                   fontSize: 12.5,
@@ -281,7 +281,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                   marginBottom: 10,
                 }}
               >
-                <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{featured.cat}</span>·
+                <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{featured.cat}</span>·
                 <span>{featured.loc}</span>
               </div>
               <h3 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6, letterSpacing: '-.4px' }}>
@@ -332,7 +332,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                   </span>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent)' }}>
+                  <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-ink)' }}>
                     {featured.pct}%
                   </Num>
                   <div style={{ fontSize: 11, color: 'var(--muted2)' }}>مُموَّل</div>
@@ -791,7 +791,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               }}
             >
               <span>توزيع الميزانية — سِرب</span>
-              <Num style={{ color: 'var(--accent)' }}>{featured.raisedFmt}</Num>
+              <Num style={{ color: 'var(--accent-ink)' }}>{featured.raisedFmt}</Num>
             </div>
             {wathbaBudgetRows.map((b) => (
               <div key={b.label} style={{ marginBottom: 16 }}>

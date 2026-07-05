@@ -20,7 +20,9 @@ export function WathbaFooter() {
           margin: '0 auto',
           padding: '54px 26px 30px',
           display: 'grid',
-          gridTemplateColumns: '1.4fr 1fr 1fr 1fr',
+          // STAKES/S-2/M5 — auto-fit so the columns wrap instead of forcing a
+          // ~778px min-content that pushed a horizontal scroll onto every page.
+          gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
           gap: 34,
         }}
       >

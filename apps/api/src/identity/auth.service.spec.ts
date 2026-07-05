@@ -45,7 +45,7 @@ function makeJwt(): any {
 describe('AuthService.signUp', () => {
   it('hashes with bcrypt cost 12 and defaults to BACKER role', async () => {
     const prisma = makePrisma();
-    const svc = new AuthService(prisma, makeUsers(null), makeJwt());
+    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never);
     await svc.signUp({ name: 'سارة', email: EMAIL.toUpperCase(), password: PASS });
     const data = prisma.user.create.mock.calls[0][0].data;
     expect(data.email).toBe(EMAIL); // lower-cased
@@ -55,7 +55,7 @@ describe('AuthService.signUp', () => {
   });
 
   it('rejects an already-registered email with 409', async () => {
-    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt());
+    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never);
     await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).rejects.toBeInstanceOf(
       ConflictException,
     );
@@ -70,6 +70,7 @@ describe('AuthService.signIn — lockout FSM', () => {
       makePrisma(),
       makeUsers({ id: 'u1', email: EMAIL, roles: ['BACKER'], passwordHash: hashed }),
       makeJwt(),
+      { passwordReset: jest.fn().mockResolvedValue({}) } as never,
     );
   }
 
@@ -130,7 +131,7 @@ describe('AuthService.refresh — rotation FSM (Sprint 2 / P1-502)', () => {
     const prisma = makePrisma();
     prisma.refreshToken.findUnique = jest.fn().mockResolvedValue(row);
     const users = makeUsers({ id: 'u1', email: EMAIL, roles: ['BACKER'] });
-    const svc = new AuthService(prisma, users, makeJwt());
+    const svc = new AuthService(prisma, users, makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never);
     return { svc, prisma };
   }
 

@@ -43,8 +43,27 @@ export function WathbaShell({
         dangerouslySetInnerHTML={{
           __html: `
             ${wathbaKeyframes}
+            /* STAKES/S-2 — clip residual horizontal overflow (home ticker,
+               campaign hero, header slack on the smallest phones) so no page
+               scrolls sideways. overflow-x clip (not hidden/auto) keeps
+               position:sticky working since it creates no scroll container. */
+            [data-pillar="ventures"]{overflow-x:clip}
             [data-pillar="ventures"] .wathba-ph{background-color:var(--ph-bg);background-image:repeating-linear-gradient(135deg,rgba(var(--accent-rgb),.07) 0,rgba(var(--accent-rgb),.07) 2px,transparent 2px,transparent 11px)}
             [data-pillar="ventures"] .wathba-fade{animation:wathba-fadeUp .45s ease both}
+            /* STAKES/S-2 — responsive toggles inlined here so they load on EVERY
+               ventures page (Next route-split the globals.css copy off the pages
+               that needed it). */
+            [data-pillar="ventures"] .wathba-mob-only{display:none}
+            [data-pillar="ventures"] .wathba-mob-sheet{display:none}
+            @media (max-width:880px){
+              [data-pillar="ventures"] .wathba-desk-only{display:none!important}
+              [data-pillar="ventures"] .wathba-mob-only{display:inline-flex!important}
+              [data-pillar="ventures"] .wathba-mob-sheet{display:flex}
+            }
+            @media (max-width:760px){
+              [data-pillar="ventures"] .wathba-discover-row{flex-direction:column!important;align-items:stretch!important}
+              [data-pillar="ventures"] .wathba-discover-aside{width:100%!important}
+            }
           `,
         }}
       />

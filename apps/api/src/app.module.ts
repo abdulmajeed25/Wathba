@@ -32,6 +32,7 @@ import { CollaboratorsModule } from './collaborators/collaborators.module';
 import { CategoriesModule } from './categories/categories.module';
 import { DiscoverModule } from './discover/discover.module';
 import { CollectionsModule } from './collections/collections.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { CollectionsModule } from './collections/collections.module';
     CategoriesModule,
     DiscoverModule,
     CollectionsModule,
+    EmailModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
