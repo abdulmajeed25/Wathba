@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
 import {
   NotificationKind,
   Prisma,
@@ -14,6 +15,7 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
   ) {}
 
   /** Review queue — projects awaiting admin sign-off. */
@@ -86,8 +88,20 @@ export class AdminService {
           deepLink: `/projects/dashboard/${projectId}/settings`,
         },
       });
+      // STAKES follow-up (A) — email the creator the decision + feedback.
+      const [creator, project] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: creatorId }, select: { email: true } }),
+        this.prisma.project.findUnique({ where: { id: projectId }, select: { titleAr: true } }),
+      ]);
+      if (creator?.email && project) {
+        await this.email.projectReviewed(creator.email, {
+          projectTitle: project.titleAr,
+          approved: decision === 'approve',
+          feedback: reviewFeedback,
+        });
+      }
     } catch {
-      /* never fail the review on a notification glitch */
+      /* never fail the review on a notification/email glitch */
     }
   }
 
