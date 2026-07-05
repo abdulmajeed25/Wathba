@@ -403,7 +403,7 @@ const emptyBox: React.CSSProperties = {
 };
 const moreBtn: React.CSSProperties = {
   background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-  fontSize: 12.5, fontWeight: 600, color: 'var(--accent)', padding: '6px 6px', marginTop: 2,
+  fontSize: 12.5, fontWeight: 600, color: 'var(--accent-ink)', padding: '6px 6px', marginTop: 2,
 };
 const miniInput: React.CSSProperties = {
   width: 0, flex: 1, minWidth: 0, boxSizing: 'border-box', padding: '7px 8px', borderRadius: 8,
@@ -411,12 +411,12 @@ const miniInput: React.CSSProperties = {
   fontFamily: 'inherit', fontSize: 12.5, color: 'var(--text)',
 };
 const applyBtn: React.CSSProperties = {
-  border: 'none', cursor: 'pointer', background: 'rgba(var(--accent-rgb),.12)', color: 'var(--accent)',
+  border: 'none', cursor: 'pointer', background: 'rgba(var(--accent-rgb),.12)', color: 'var(--accent-ink)',
   fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, padding: '7px 12px', borderRadius: 8,
 };
 const resetBtn: React.CSSProperties = {
   marginTop: 14, border: '1px solid rgba(var(--ink-rgb),.14)', cursor: 'pointer',
-  background: 'transparent', color: 'var(--accent)', fontFamily: 'inherit', fontSize: 13,
+  background: 'transparent', color: 'var(--accent-ink)', fontFamily: 'inherit', fontSize: 13,
   fontWeight: 600, padding: '8px 16px', borderRadius: 10,
 };
 function loadMoreBtn(loading: boolean): React.CSSProperties {

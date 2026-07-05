@@ -43,6 +43,11 @@ export function WathbaShell({
         dangerouslySetInnerHTML={{
           __html: `
             ${wathbaKeyframes}
+            /* STAKES/S-2 — clip residual horizontal overflow (home ticker,
+               campaign hero, header slack on the smallest phones) so no page
+               scrolls sideways. overflow-x clip (not hidden/auto) keeps
+               position:sticky working since it creates no scroll container. */
+            [data-pillar="ventures"]{overflow-x:clip}
             [data-pillar="ventures"] .wathba-ph{background-color:var(--ph-bg);background-image:repeating-linear-gradient(135deg,rgba(var(--accent-rgb),.07) 0,rgba(var(--accent-rgb),.07) 2px,transparent 2px,transparent 11px)}
             [data-pillar="ventures"] .wathba-fade{animation:wathba-fadeUp .45s ease both}
             /* STAKES/S-2 — responsive toggles inlined here so they load on EVERY

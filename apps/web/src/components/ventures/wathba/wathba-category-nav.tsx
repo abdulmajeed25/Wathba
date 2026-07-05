@@ -459,7 +459,7 @@ export function WathbaCategoryNav() {
                       {feat.titleAr}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>%{toArabicDigits(feat.pct)}</Num>
+                      <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{toArabicDigits(feat.pct)}</Num>
                       <span style={{ color: 'var(--muted2)' }}>
                         مموَّل · {toArabicDigits(feat.daysLeft)} يوم متبقٍ
                       </span>

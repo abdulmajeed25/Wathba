@@ -122,7 +122,7 @@ export function WathbaDiscoverAllCard({ p }: { p: ApiDiscoverCard }) {
           {p.shortDescAr}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
-          <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>%{toArabicDigits(pct)}</Num>
+          <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{toArabicDigits(pct)}</Num>
           <span style={{ color: 'var(--muted2)' }}>مموَّل</span>
           <span style={{ color: 'var(--muted2)', marginInlineStart: 'auto' }}>
             {toArabicDigits(p.backersCount)} داعم · {toArabicDigits(daysLeft)} يوم متبقٍ

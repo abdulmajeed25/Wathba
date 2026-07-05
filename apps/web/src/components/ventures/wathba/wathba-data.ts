@@ -308,7 +308,9 @@ export function deriveProject(p: WathbaProject): DerivedProject {
     ...p,
     pct,
     pctW: Math.min(pct, 100) + '%',
-    pctColor: over ? 'var(--accent)' : 'var(--blue)',
+    // STAKES/S-2 — accent-ink (deeper emerald) clears AA for the % numeral text
+    // on white; --accent stayed too light (4.5) for the trending/search cards.
+    pctColor: over ? 'var(--accent-ink)' : 'var(--blue)',
     barGrad: over ? 'var(--grad-bar-over)' : 'var(--grad-bar)',
     raisedFmt: fmtMoney(p.raised),
     goalFmt: fmtMoney(p.goal),

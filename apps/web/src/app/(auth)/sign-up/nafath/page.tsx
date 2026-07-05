@@ -53,7 +53,7 @@ export default async function NafathStepPage({
             dir="ltr"
             style={{ textAlign: 'right' }}
           />
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-neutral-600">
             سيُرسل طلب موافقة إلى تطبيق نفاذ على جوّالك. وافق عليه ثم اضغط متابعة.
           </span>
         </label>
@@ -74,7 +74,7 @@ export default async function NafathStepPage({
           أرسل طلب التحقق
         </button>
 
-        <p className="text-center text-xs text-neutral-500">
+        <p className="text-center text-xs text-neutral-600">
           (وضع تطوير: تطبيق نفاذ غير موصول — التحقق يكتمل تلقائياً.)
         </p>
       </form>

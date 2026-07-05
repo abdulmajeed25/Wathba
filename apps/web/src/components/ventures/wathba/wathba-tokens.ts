@@ -28,6 +28,10 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--accent': '#05a661',
     '--accent-rgb': '5,166,97',
     '--accent2-rgb': '6,140,110',
+    // STAKES/S-2 — deeper emerald for accent-colored TEXT on light grounds:
+    // #05a661 on #fff is only 4.5 (fails AA for the stat numerals). --accent
+    // stays the brand green for fills/buttons.
+    '--accent-ink': '#04773a',
     '--on-accent': '#ffffff',
     '--header-bg': 'rgba(255,255,255,.82)',
     '--grad': 'linear-gradient(135deg,#05c074,#03a98e)',
@@ -68,6 +72,8 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--accent': '#22d3ee',
     '--accent-rgb': '34,211,238',
     '--accent2-rgb': '59,130,246',
+    // Dark theme: bright cyan already clears AA on the dark card grounds.
+    '--accent-ink': '#22d3ee',
     '--on-accent': '#06121f',
     '--header-bg': 'rgba(10,20,34,.72)',
     '--grad': 'linear-gradient(135deg,#3b82f6,#22d3ee)',

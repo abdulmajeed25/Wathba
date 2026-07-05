@@ -103,7 +103,7 @@ function ProjectCard({ p }: { p: ApiDiscoverProject }) {
           {p.shortDescAr}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
-          <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>%{ar(percent)}</Num>
+          <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{ar(percent)}</Num>
           <span style={{ color: 'var(--muted2)' }}>مموَّل</span>
           <span style={{ color: 'var(--muted2)', marginInlineStart: 'auto' }}>
             {ar(p.backersCount)} داعم · {ar(daysLeft(p))} يوم متبقٍ

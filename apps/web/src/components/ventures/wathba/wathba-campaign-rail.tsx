@@ -134,7 +134,7 @@ export function WathbaCampaignRail({
         <Icon name="lightbulb" size={18} color="var(--accent)" />
         <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-soft)' }}>
           يُموَّل عند بلوغ{' '}
-          <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>
+          <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
             {thresholdAmount.toLocaleString('en-US')} ر.س ({releaseThresholdPct}%)
           </Num>{' '}
           من الهدف قبل الموعد النهائي. وإلا، تُرَدّ كل الأموال تلقائياً.
