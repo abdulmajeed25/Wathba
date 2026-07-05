@@ -7,6 +7,8 @@ import { LedgerService } from './ledger.service';
 import { HeartbeatService } from '../common/heartbeat.service';
 import { ZatcaService } from './zatca.service';
 import { PayoutBeneficiaryService } from './payout-beneficiary.service';
+import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
 
 /** A validated creator bank/wallet beneficiary — required by Moyasar's
@@ -91,6 +93,8 @@ export class PayoutDisburser {
     private readonly heartbeat: HeartbeatService,
     private readonly beneficiaries: PayoutBeneficiaryService,
     cfg: ConfigService,
+    private readonly email: EmailService,
+    private readonly notifications: NotificationsService,
   ) {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
     this.providerUrl =
@@ -149,6 +153,32 @@ export class PayoutDisburser {
       this.logger.log(
         `Payout SENT id=${p.id} creator=${p.creatorId} amount=${p.amountHalalas} ref=${transferRef}`,
       );
+      // STAKES follow-up (F2/F4) — notify + email the creator (best-effort; a
+      // comms glitch must never undo a sent payout).
+      try {
+        const [creator, project] = await Promise.all([
+          this.prisma.user.findUnique({ where: { id: p.creatorId }, select: { email: true } }),
+          this.prisma.project.findUnique({ where: { id: p.projectId }, select: { titleAr: true } }),
+        ]);
+        await this.notifications.create({
+          userId: p.creatorId,
+          kind: 'PAYOUT_SENT',
+          payload: {
+            projectId: p.projectId,
+            payoutId: p.id,
+            title: `تم تحويل دفعة مشروع «${project?.titleAr ?? ''}»`,
+            body: `حوّلنا دفعة بقيمة ${(Number(p.amountHalalas) / 100).toFixed(0)} ر.س إلى حسابك.`,
+          },
+        });
+        if (creator?.email && project) {
+          await this.email.payoutSent(creator.email, {
+            projectTitle: project.titleAr,
+            amountHalalas: Number(p.amountHalalas),
+          });
+        }
+      } catch (err) {
+        this.logger.error(`payout-sent comms failed id=${p.id}`, err as Error);
+      }
       // ZATCA (Sprint 2 / P0-701): each disbursed tranche carries the
       // platform-commission tax invoice. Failure must not undo the payout —
       // log loudly; generateForPayout is idempotent so the next tick heals.

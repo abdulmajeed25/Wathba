@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 
 /**
  * Nafath KYC adapter (Sprint 2 / P0-501).
@@ -44,6 +45,7 @@ export class NafathService {
   constructor(
     private readonly prisma: PrismaService,
     cfg: ConfigService,
+    private readonly email: EmailService,
   ) {
     this.apiKey = cfg.get<string>('NAFATH_API_KEY') ?? '';
     this.baseUrl = cfg.get<string>('NAFATH_BASE_URL') ?? 'https://nafath.api.elm.sa';
@@ -138,10 +140,17 @@ export class NafathService {
   }
 
   private async markVerified(userId: string): Promise<void> {
-    await this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: { nafathVerified: true, nafathVerifiedAt: new Date() },
+      select: { email: true, name: true },
     });
+    // STAKES follow-up (A7) — welcome the freshly-verified user (best-effort).
+    try {
+      await this.email.welcome(user.email, user.name);
+    } catch (e) {
+      this.logger.error(`welcome email failed for user=${userId}`, e as Error);
+    }
   }
 
   private async req(method: string, path: string, body: unknown): Promise<Record<string, unknown>> {

@@ -20,6 +20,11 @@ function cfg(key = ''): any {
   };
 }
 
+// STAKES follow-up (A7) — EmailService stub for the welcome-on-verify send.
+function makeEmail(): any {
+  return { welcome: jest.fn().mockResolvedValue({ sent: false, stubbed: true }) };
+}
+
 function mockFetch(status: string): jest.SpyInstance {
   return jest.spyOn(globalThis, 'fetch').mockResolvedValue({
     ok: true,
@@ -35,7 +40,8 @@ afterEach(() => {
 describe('NafathService — stub mode', () => {
   it('initiate → confirm marks the user verified (dev only)', async () => {
     const prisma = makePrisma();
-    const svc = new NafathService(prisma, cfg(''));
+    const email = makeEmail();
+    const svc = new NafathService(prisma, cfg(''), email);
     const { transactionId } = await svc.initiate('user-1', '1234567890');
     const r = await svc.confirm('user-1', transactionId);
     expect(r.outcome).toBe('verified');
@@ -44,10 +50,12 @@ describe('NafathService — stub mode', () => {
         data: expect.objectContaining({ nafathVerified: true }),
       }),
     );
+    // STAKES follow-up (A7) — a welcome email goes out on first verification.
+    expect(email.welcome).toHaveBeenCalled();
   });
 
   it("rejects another user's transaction with 404", async () => {
-    const svc = new NafathService(makePrisma(), cfg(''));
+    const svc = new NafathService(makePrisma(), cfg(''), makeEmail());
     const { transactionId } = await svc.initiate('user-1', '1234567890');
     await expect(svc.confirm('user-2', transactionId)).rejects.toBeInstanceOf(NotFoundException);
   });
@@ -56,7 +64,7 @@ describe('NafathService — stub mode', () => {
     const prev = process.env.NODE_ENV;
     process.env.NODE_ENV = 'production';
     try {
-      const svc = new NafathService(makePrisma(), cfg(''));
+      const svc = new NafathService(makePrisma(), cfg(''), makeEmail());
       await expect(svc.initiate('user-1', '1234567890')).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
@@ -70,7 +78,7 @@ describe('NafathService — real mode (mocked Nafath API)', () => {
   it('COMPLETED → verified', async () => {
     mockFetch('COMPLETED');
     const prisma = makePrisma();
-    const svc = new NafathService(prisma, cfg('real-key'));
+    const svc = new NafathService(prisma, cfg('real-key'), makeEmail());
     const r = await svc.confirm('user-1', 'tx-real-1');
     expect(r.outcome).toBe('verified');
     expect(prisma.user.update).toHaveBeenCalled();
@@ -79,7 +87,7 @@ describe('NafathService — real mode (mocked Nafath API)', () => {
   it('REJECTED → rejected and user is NOT verified', async () => {
     mockFetch('REJECTED');
     const prisma = makePrisma();
-    const svc = new NafathService(prisma, cfg('real-key'));
+    const svc = new NafathService(prisma, cfg('real-key'), makeEmail());
     const r = await svc.confirm('user-1', 'tx-real-1');
     expect(r.outcome).toBe('rejected');
     expect(prisma.user.update).not.toHaveBeenCalled();
@@ -87,13 +95,13 @@ describe('NafathService — real mode (mocked Nafath API)', () => {
 
   it('WAITING → pending (poll again)', async () => {
     mockFetch('WAITING');
-    const svc = new NafathService(makePrisma(), cfg('real-key'));
+    const svc = new NafathService(makePrisma(), cfg('real-key'), makeEmail());
     expect((await svc.confirm('user-1', 'tx-real-1')).outcome).toBe('pending');
   });
 
   it('EXPIRED → expired', async () => {
     mockFetch('EXPIRED');
-    const svc = new NafathService(makePrisma(), cfg('real-key'));
+    const svc = new NafathService(makePrisma(), cfg('real-key'), makeEmail());
     expect((await svc.confirm('user-1', 'tx-real-1')).outcome).toBe('expired');
   });
 });

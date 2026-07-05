@@ -65,13 +65,20 @@ function makePrisma(pending: any[]): any {
       findMany: jest.fn().mockResolvedValue(pending),
       update: jest.fn().mockResolvedValue({}),
     },
+    // STAKES follow-up — creator + project lookups for the payout-sent comms.
+    user: { findUnique: jest.fn().mockResolvedValue({ email: 'creator@test.sa' }) },
+    project: { findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع' }) },
   };
 }
+
+// STAKES follow-up (F2/F4) — stubs for the payout-sent email + notification.
+const makeEmail = (): any => ({ payoutSent: jest.fn().mockResolvedValue({ sent: false, stubbed: true }) });
+const makeNotif = (): any => ({ create: jest.fn().mockResolvedValue({}) });
 
 describe('PayoutDisburser.disbursePending', () => {
   it('returns 0/0 on an empty queue', async () => {
     const prisma = makePrisma([]);
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg());
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), makeEmail(), makeNotif());
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 0 });
     expect(prisma.payout.update).not.toHaveBeenCalled();
   });
@@ -79,8 +86,13 @@ describe('PayoutDisburser.disbursePending', () => {
   it('stub mode sends each PENDING payout and journals PAYOUT_SENT', async () => {
     const prisma = makePrisma([payout('a'), payout('b')]);
     const ledger = ledgerMock();
-    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg());
+    const email = makeEmail();
+    const notif = makeNotif();
+    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), email, notif);
     expect(await d.disbursePending()).toEqual({ sent: 2, failed: 0 });
+    // STAKES follow-up — each sent payout emails + notifies the creator.
+    expect(email.payoutSent).toHaveBeenCalledTimes(2);
+    expect(notif.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'PAYOUT_SENT' }));
     expect(prisma.payout.update).toHaveBeenCalledTimes(2);
     expect(prisma.payout.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -105,7 +117,7 @@ describe('PayoutDisburser.disbursePending', () => {
       .fn()
       .mockRejectedValueOnce(new Error('db down'))
       .mockResolvedValueOnce({});
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg());
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), makeEmail(), makeNotif());
     expect(await d.disbursePending()).toEqual({ sent: 1, failed: 1 });
   });
 
@@ -113,7 +125,7 @@ describe('PayoutDisburser.disbursePending', () => {
     const spy = jest.spyOn(globalThis, 'fetch');
     const prisma = makePrisma([payout('z')]);
     // provider key set, but no source account configured
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg('real-key', ''));
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg('real-key', ''), makeEmail(), makeNotif());
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
     expect(prisma.payout.update).not.toHaveBeenCalled();
     expect(spy).not.toHaveBeenCalled(); // fails before the HTTP call
@@ -124,7 +136,7 @@ describe('PayoutDisburser.disbursePending', () => {
     const prisma = makePrisma([payout('z')]);
     const ledger = ledgerMock();
     const bene = beneficiaryMock({ type: 'bank_account', iban: 'SA0380000000608010167519', name: 'X', mobile: '0555000000', country: 'SA' });
-    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), bene, cfg('real-key', 'src_123'));
+    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), bene, cfg('real-key', 'src_123'), makeEmail(), makeNotif());
     expect(await d.disbursePending()).toEqual({ sent: 1, failed: 0 });
     const [url, init] = (globalThis.fetch as unknown as jest.Mock).mock.calls[0];
     expect(String(url)).toContain('/payouts');
@@ -142,7 +154,7 @@ describe('PayoutDisburser.disbursePending', () => {
     const spy = jest.spyOn(globalThis, 'fetch');
     const prisma = makePrisma([payout('z')]);
     // source configured, but the platform has no beneficiary for the creator yet
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg('real-key', 'src_123'));
+    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg('real-key', 'src_123'), makeEmail(), makeNotif());
     expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
     expect(prisma.payout.update).not.toHaveBeenCalled();
     expect(spy).not.toHaveBeenCalled(); // beneficiary guard trips before HTTP
