@@ -106,6 +106,9 @@ export function WathbaSearch({
             placeholder="ابحث عن مشاريع، مبدعين، فئات…"
             style={{
               flex: 1,
+              // STAKES/S-2 — allow the input to shrink below its placeholder's
+              // intrinsic width (otherwise it forces a horizontal scroll @360).
+              minWidth: 0,
               background: 'transparent',
               border: 'none',
               color: 'var(--text)',

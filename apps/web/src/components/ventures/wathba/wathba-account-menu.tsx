@@ -77,8 +77,13 @@ export function WathbaAccountMenu() {
   if (me === null) {
     return (
       <>
-        <Link href="/sign-in" style={loginLink}>تسجيل الدخول</Link>
-        <Link href="/projects/start" style={startBtn}>ابدأ مشروعك</Link>
+        {/* STAKES/S-2 — the text login link hides on mobile (the hamburger sheet
+            + the compact start button cover it) so the header fits 360px. */}
+        <Link href="/sign-in" className="wathba-desk-only" style={loginLink}>تسجيل الدخول</Link>
+        <Link href="/projects/start" style={startBtn}>
+          <span className="wathba-desk-only">ابدأ مشروعك</span>
+          <span className="wathba-mob-only" style={{ display: 'none' }}>ابدأ</span>
+        </Link>
       </>
     );
   }

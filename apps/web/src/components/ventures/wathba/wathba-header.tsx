@@ -9,7 +9,6 @@ import { WathbaNotificationBell } from './wathba-notification-bell';
 import { WathbaCategoryNav } from './wathba-category-nav';
 import { WathbaDiscoverMenu } from './wathba-discover-menu';
 import { WathbaAccountMenu } from './wathba-account-menu';
-import { useIsMobile } from '@/lib/use-is-mobile';
 
 export interface WathbaHeaderProps {
   theme: WathbaTheme;
@@ -24,9 +23,10 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
 ];
 
 export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
-  // STAKES/S-2/D6 — collapse the nav + search below ~880px (where the desktop
-  // row's ~859px min-width would otherwise force a page-wide horizontal scroll).
-  const isMobile = useIsMobile(880);
+  // STAKES/S-2/D6 — collapse the nav + search below 880px. Done with CSS media
+  // queries (wathba-desk-only / wathba-mob-only in globals.css), NOT a JS hook,
+  // so it's correct on the SSR/standalone first paint (a hook's post-hydration
+  // flip left the desktop nav in the DOM and kept the horizontal scroll).
   const [sheet, setSheet] = useState(false);
   return (
     <header
@@ -84,62 +84,58 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           </div>
         </Link>
 
-        {!isMobile && (
-          <nav
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 24,
-              fontSize: 14.5,
-              color: 'var(--muted)',
-              fontWeight: 500,
-            }}
-          >
-            <Link href="/projects/discover" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
-              استكشف
-            </Link>
-            <Link href="/projects/how" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
-              كيف تعمل
-            </Link>
-            <Link href="/projects/ranks" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
-              رتب الداعمين
-            </Link>
-            {/* Batch DISC — the power discover page + its three-zone mega-menu. */}
-            <WathbaDiscoverMenu />
-          </nav>
-        )}
-
-        {!isMobile && (
-          <Link
-            href="/projects/search"
-            style={{
-              flex: 1,
-              maxWidth: 380,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              background: 'rgba(var(--ink-rgb),.05)',
-              border: '1px solid rgba(var(--ink-rgb),.09)',
-              borderRadius: 13,
-              padding: '10px 15px',
-              cursor: 'text',
-              color: 'inherit',
-              textDecoration: 'none',
-            }}
-          >
-            <Icon name="search" size={20} color="var(--muted2)" />
-            <span style={{ color: 'var(--muted2)', fontSize: 14 }}>
-              ابحث عن مشاريع، مبدعين، فئات…
-            </span>
+        <nav
+          className="wathba-desk-only"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 24,
+            fontSize: 14.5,
+            color: 'var(--muted)',
+            fontWeight: 500,
+          }}
+        >
+          <Link href="/projects/discover" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
+            استكشف
           </Link>
-        )}
+          <Link href="/projects/how" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
+            كيف تعمل
+          </Link>
+          <Link href="/projects/ranks" style={{ cursor: 'pointer', color: 'inherit', textDecoration: 'none' }}>
+            رتب الداعمين
+          </Link>
+          {/* Batch DISC — the power discover page + its three-zone mega-menu. */}
+          <WathbaDiscoverMenu />
+        </nav>
+
+        <Link
+          href="/projects/search"
+          className="wathba-desk-only"
+          style={{
+            flex: 1,
+            maxWidth: 380,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            background: 'rgba(var(--ink-rgb),.05)',
+            border: '1px solid rgba(var(--ink-rgb),.09)',
+            borderRadius: 13,
+            padding: '10px 15px',
+            cursor: 'text',
+            color: 'inherit',
+            textDecoration: 'none',
+          }}
+        >
+          <Icon name="search" size={20} color="var(--muted2)" />
+          <span style={{ color: 'var(--muted2)', fontSize: 14 }}>
+            ابحث عن مشاريع، مبدعين، فئات…
+          </span>
+        </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginInlineStart: 'auto' }}>
-          {isMobile && (
-            <Link href="/projects/search" aria-label="بحث" style={iconBtn}>
-              <Icon name="search" size={20} color="var(--muted)" />
-            </Link>
-          )}
+          <Link href="/projects/search" aria-label="بحث" className="wathba-mob-only" style={iconBtn}>
+            <Icon name="search" size={20} color="var(--muted)" />
+          </Link>
           <button
             onClick={onToggleTheme}
             title="تبديل النمط"
@@ -159,31 +155,31 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           <WathbaNotificationBell />
           {/* STAKES/D2 — signed-in avatar menu (with logout) or signed-out CTAs. */}
           <WathbaAccountMenu />
-          {isMobile && (
-            <button
-              type="button"
-              onClick={() => setSheet((v) => !v)}
-              aria-label="القائمة"
-              aria-expanded={sheet}
-              style={iconBtn}
-            >
-              <Icon name={sheet ? 'check' : 'category'} size={22} color="var(--text)" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setSheet((v) => !v)}
+            aria-label="القائمة"
+            aria-expanded={sheet}
+            className="wathba-mob-only"
+            style={iconBtn}
+          >
+            <Icon name={sheet ? 'check' : 'category'} size={22} color="var(--text)" />
+          </button>
         </div>
       </div>
 
-      {/* STAKES/D6 — mobile nav sheet (keyboard-dismissable). */}
-      {isMobile && sheet && (
+      {/* STAKES/D6 — mobile nav sheet (keyboard-dismissable). The hamburger that
+          opens it is mobile-only (CSS), so this never shows on desktop. */}
+      {sheet && (
         <div
           role="menu"
           aria-label="التنقل"
+          className="wathba-mob-sheet"
           onKeyDown={(e) => e.key === 'Escape' && setSheet(false)}
           style={{
             borderTop: '1px solid rgba(var(--ink-rgb),.07)',
             background: 'var(--card)',
             padding: '10px 20px 16px',
-            display: 'flex',
             flexDirection: 'column',
             gap: 2,
           }}
@@ -214,8 +210,10 @@ const iconBtn: React.CSSProperties = {
   borderRadius: 13,
   background: 'transparent',
   border: '1px solid rgba(var(--ink-rgb),.12)',
-  display: 'grid',
-  placeItems: 'center',
+  // display is controlled by .wathba-mob-only (inline-flex on mobile, none on
+  // desktop); center the glyph in whichever mode.
+  alignItems: 'center',
+  justifyContent: 'center',
   cursor: 'pointer',
   textDecoration: 'none',
   flexShrink: 0,
