@@ -91,7 +91,10 @@ export function WathbaFooter() {
                   display: 'block',
                   fontSize: 13.5,
                   color: 'var(--muted2)',
-                  marginBottom: 12,
+                  // STAKES/S-2 — 5px block padding lifts the tap target to ≥24px
+                  // (WCAG 2.5.8 AA); marginBottom trimmed to keep the rhythm.
+                  padding: '5px 0',
+                  marginBottom: 6,
                   cursor: 'pointer',
                   width: 'fit-content',
                   textDecoration: 'none',

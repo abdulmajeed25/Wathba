@@ -179,19 +179,24 @@ export function Icon({ name, size = 20, fill = false, color, style }: IconProps)
   );
 }
 
-/** Numeric wrapper — Space Grotesk + tabular-nums (the `.num` class). */
+/** Numeric wrapper — Space Grotesk + tabular-nums (the `.num` class).
+ *  `decorative` marks purely-ornamental numerals (e.g. giant ghosted step
+ *  watermarks) aria-hidden so they leave the a11y tree + the contrast audit. */
 export function Num({
   children,
   style,
   className,
+  decorative,
 }: {
   children: ReactNode;
   style?: CSSProperties;
   className?: string;
+  decorative?: boolean;
 }) {
   return (
     <span
       className={className}
+      aria-hidden={decorative || undefined}
       style={{
         fontFamily: 'var(--font-space-grotesk), "Space Grotesk", sans-serif',
         fontFeatureSettings: '"tnum"',

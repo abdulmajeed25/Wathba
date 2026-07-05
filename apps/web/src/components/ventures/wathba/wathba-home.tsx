@@ -433,6 +433,8 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               display: 'flex',
               alignItems: 'center',
               gap: 5,
+              // STAKES/S-2 — ≥24px tap target (WCAG 2.5.8 AA).
+              minHeight: 24,
               textDecoration: 'none',
             }}
           >
@@ -951,6 +953,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               }}
             >
               <Num
+                decorative
                 style={{
                   position: 'absolute',
                   top: -14,
