@@ -12,6 +12,7 @@ import { RewardsModule } from './rewards/rewards.module';
 import { AddonsModule } from './addons/addons.module';
 import { FundingModule } from './funding/funding.module';
 import { EscrowPaymentsModule } from './escrow-payments/escrow-payments.module';
+import { EventsModule } from './events/events.module';
 import { MilestonesModule } from './milestones/milestones.module';
 import { ProcurementModule } from './procurement/procurement.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -47,6 +48,7 @@ import { EmailModule } from './email/email.module';
     AddonsModule,
     FundingModule,
     EscrowPaymentsModule,
+    EventsModule,
     MilestonesModule,
     ProcurementModule,
     NotificationsModule,

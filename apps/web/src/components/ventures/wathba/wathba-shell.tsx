@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useState } from 'react';
 
+import { PageViewTracker } from '@/components/analytics/page-view-tracker';
 import { WathbaFooter } from './wathba-footer';
 import { WathbaHeader } from './wathba-header';
 import { wathbaCssVars, wathbaKeyframes, type WathbaTheme } from './wathba-tokens';
@@ -67,6 +68,7 @@ export function WathbaShell({
           `,
         }}
       />
+      <PageViewTracker />
       <WathbaHeader theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
       {/* NO framer-motion wrap on main — first paint must show content
        *  without waiting for hydration (SEO + no-JS users). Inner cards

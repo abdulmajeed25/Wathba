@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -149,8 +150,8 @@ export function WathbaPublicProfile({
 export function ProfileAvatar({ url, name, size = 76 }: { url: string | null; name: string; size?: number }) {
   if (url) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={url} alt={name} width={size} height={size}
+      /* STAKES/M2 — next/image: lazy + fixed dimensions (no CLS). */
+      <Image src={url} alt={name} width={size} height={size}
         style={{ borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '2px solid rgba(var(--accent-rgb),.25)' }} />
     );
   }

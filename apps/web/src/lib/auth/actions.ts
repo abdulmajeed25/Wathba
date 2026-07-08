@@ -75,6 +75,31 @@ async function clearSessionCookie(): Promise<void> {
   store.delete(REFRESH_COOKIE);
 }
 
+/**
+ * STAKES/O1 — fire-and-forget server-side product event. Auth events carry
+ * the user via the bearer (JWT → userId at the API); nothing identifying
+ * beyond that is sent (no IP/UA columns exist server-side).
+ */
+async function trackEvent(
+  name: string,
+  token?: string | null,
+  props: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/v1/events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ name, props }),
+      cache: 'no-store',
+    });
+  } catch {
+    /* analytics must never break an auth flow */
+  }
+}
+
 /** Safe-list redirect targets so a hostile `next=` can't bounce off-site. */
 function safeNext(raw: unknown): string {
   const s = typeof raw === 'string' ? raw : '';
@@ -171,6 +196,7 @@ export async function signUpAction(formData: FormData): Promise<void> {
 
   if (!body?.accessToken) redirect(`/sign-up?err=server&next=${encodeURIComponent(next)}`);
   await setSessionCookie(body.accessToken, body.refreshToken);
+  await trackEvent('signup', body.accessToken); // STAKES/O1
   // §8 KYC step — go straight to Nafath verification after a fresh signup;
   // the post-Nafath bounce honors the original `next` URL.
   redirect(`/sign-up/nafath?next=${encodeURIComponent(next)}`);
@@ -217,6 +243,7 @@ export async function verifyNafathAction(formData: FormData): Promise<void> {
     failKey = 'network';
   }
   if (failKey) redirect(`${back}&err=${failKey}`);
+  await trackEvent('verify', token); // STAKES/O1
   redirect(next);
 }
 

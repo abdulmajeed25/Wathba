@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 
@@ -620,8 +621,8 @@ function AvatarField({ me }: { me?: ApiUserMe | null }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
       <input type="hidden" name="avatarUrl" value={url ?? ''} />
       {url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="الصورة الشخصية" width={64} height={64}
+        /* STAKES/M2 — next/image: lazy + fixed dimensions (no CLS). */
+        <Image src={url} alt="الصورة الشخصية" width={64} height={64}
           style={{ borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(var(--accent-rgb),.25)' }} />
       ) : (
         <div aria-hidden style={{

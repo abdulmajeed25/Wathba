@@ -3,6 +3,12 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import { HeartbeatService } from '../common/heartbeat.service';
 
+/** STAKES/Q5 — version/build stamp: package version + optional git sha env. */
+const VERSION = {
+  version: process.env.npm_package_version ?? '0.1.0',
+  sha: process.env.GIT_SHA ?? null,
+};
+
 @ApiTags('health')
 @Controller('health')
 export class HealthController {
@@ -13,7 +19,14 @@ export class HealthController {
 
   /** Back-compat summary (used by existing probes/dashboards). */
   @Get()
-  async check(): Promise<{ status: string; db: 'up' | 'down'; uptime: number; ts: string }> {
+  async check(): Promise<{
+    status: string;
+    db: 'up' | 'down';
+    uptime: number;
+    ts: string;
+    version: string;
+    sha: string | null;
+  }> {
     let db: 'up' | 'down';
     try {
       await this.prisma.$queryRaw`SELECT 1`;
@@ -21,7 +34,11 @@ export class HealthController {
     } catch {
       db = 'down';
     }
-    return { status: 'ok', db, uptime: process.uptime(), ts: new Date().toISOString() };
+    // STAKES/Q5 — version/build stamp for ops ("which build is live?").
+    return {
+      status: 'ok', db, uptime: process.uptime(), ts: new Date().toISOString(),
+      version: VERSION.version, sha: VERSION.sha,
+    };
   }
 
   /** Liveness — process is up; never touches dependencies. */

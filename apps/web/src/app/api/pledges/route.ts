@@ -17,6 +17,15 @@ export async function POST(req: Request): Promise<Response> {
     cache: 'no-store',
   });
   const text = await r.text();
+  // STAKES/O1 — funnel event on a successful pledge (fire-and-forget).
+  if (r.ok) {
+    void fetch(`${API_BASE}/v1/events`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'pledge_completed' }),
+      cache: 'no-store',
+    }).catch(() => undefined);
+  }
   return new NextResponse(text || '{}', {
     status: r.status,
     headers: { 'content-type': r.headers.get('content-type') ?? 'application/json' },

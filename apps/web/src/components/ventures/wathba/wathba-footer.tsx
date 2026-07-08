@@ -127,6 +127,11 @@ export function WathbaFooter() {
           © 2026 وثبة — WATHBA. جميع الحقوق محفوظة.
         </Num>
         <span style={{ fontSize: 12.5, color: 'var(--muted2)' }}>صُمّم بشغف للمبدعين العرب</span>
+        {/* STAKES/Q5 — version/build stamp ("which build is live?"). */}
+        <Num style={{ fontSize: 11.5, color: 'var(--muted2)', opacity: 0.8 }} className="num" >
+          v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'}
+          {process.env.NEXT_PUBLIC_BUILD_SHA ? ` · ${process.env.NEXT_PUBLIC_BUILD_SHA.slice(0, 7)}` : ''}
+        </Num>
       </div>
     </footer>
   );
