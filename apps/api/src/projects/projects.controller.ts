@@ -32,9 +32,10 @@ export class ProjectsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get project detail (includes reward tiers)' })
-  async get(@Param('id', new ParseUUIDPipe()) id: string) {
-    const p = await this.projects.findById(id);
+  @ApiOperation({ summary: 'Get project detail by UUID or slug (includes reward tiers)' })
+  async get(@Param('id') id: string) {
+    // STAKES/N6 — accepts the human-readable slug too (/p/[slug] on the web).
+    const p = await this.projects.findByIdOrSlug(id);
     return this.projects.toPublic(p);
   }
 

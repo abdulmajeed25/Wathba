@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 
 import { useLiveFunding } from '@/lib/hooks/use-live-funding';
+import { ShareButton } from './wathba-share';
 import { Icon, Num } from './wathba-icons';
 
 const fmtSAR = (n: number): string => `${n.toLocaleString('en-US')} ر.س`;
@@ -181,27 +182,8 @@ export function WathbaCampaignRail({
         >
           <Icon name="notifications" size={16} /> ذكّرني
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof navigator !== 'undefined' && navigator.share) {
-              void navigator.share({ title: projectTitle, url: window.location.href });
-            } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              void navigator.clipboard.writeText(window.location.href);
-            }
-          }}
-          style={{
-            flex: 1, cursor: 'pointer',
-            background: 'transparent',
-            border: '1px solid rgba(var(--ink-rgb),.16)',
-            color: 'var(--text)', fontWeight: 600, fontSize: 13,
-            padding: '10px', borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 6, fontFamily: 'inherit',
-          }}
-        >
-          <Icon name="share" size={16} /> شارك
-        </button>
+        {/* STAKES/I1 — per-network share (X/WhatsApp/Telegram/copy). */}
+        <ShareButton title={projectTitle} />
       </div>
     </motion.aside>
   );

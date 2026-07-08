@@ -3,6 +3,7 @@ import { Reem_Kufi, Tajawal, IBM_Plex_Sans_Arabic, Space_Grotesk } from 'next/fo
 import type { ReactNode } from 'react';
 
 import './globals.css';
+import { SITE_URL } from '@/lib/site';
 
 const reemKufi = Reem_Kufi({
   subsets: ['arabic', 'latin'],
@@ -35,8 +36,25 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: { default: 'وثبة', template: '%s' },
   description: 'وثبة — منصة دعم المشاريع الإبداعية بضمان التنفيذ',
+  alternates: { canonical: './' },
+  openGraph: {
+    siteName: 'وثبة — WATHBA',
+    locale: 'ar_SA',
+    type: 'website',
+  },
+};
+
+/** STAKES/N5 — sitewide Organization markup. */
+const ORG_JSONLD = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'وثبة',
+  alternateName: 'WATHBA',
+  url: SITE_URL,
+  description: 'منصة سعودية للدعم الجماعي تجمع المبدعين بمجتمعٍ يؤمن بأفكارهم — بشفافية وضمان تنفيذ.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -46,7 +64,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       dir="rtl"
       className={`${reemKufi.variable} ${tajawal.variable} ${ibmPlexArabic.variable} ${spaceGrotesk.variable}`}
     >
-      <body>{children}</body>
+      <body>
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

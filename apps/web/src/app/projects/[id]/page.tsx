@@ -33,14 +33,19 @@ export async function generateMetadata({
       ? `${fixture.titleAr} · وثبة`
       : `مشروع ${id} · وثبة`;
   const description = live?.metaDescription ?? live?.shortDescAr ?? fixture?.desc;
-  const ogImage = live?.ogImage ?? undefined;
+  // STAKES/I2 — og:image falls back to the first campaign media asset.
+  const ogImage = live?.ogImage ?? live?.mediaUrls?.[0] ?? undefined;
+  // STAKES/N4 N6 — ONE canonical per project: the human slug when set.
+  const canonical = live?.slug ? `/p/${live.slug}` : `/projects/${id}`;
   return {
     title,
     description,
+    alternates: { canonical },
     openGraph: {
       title,
       description,
       type: 'article',
+      url: canonical,
       ...(ogImage ? { images: [{ url: ogImage }] } : {}),
     },
   };
@@ -64,8 +69,31 @@ export default async function ProjectDetailPage({
   const detail = await getProjectDetail(id).catch(() => null);
   const paused = detail?.status === 'PAUSED';
 
+  // STAKES/N5 — per-campaign structured data. schema.org has no crowdfunding
+  // type; CreativeWork + creator + funding text is the defensible mapping.
+  const jsonLd = detail
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'CreativeWork',
+        name: detail.titleAr,
+        description: detail.metaDescription ?? detail.shortDescAr,
+        url: detail.slug ? `/p/${detail.slug}` : `/projects/${detail.id}`,
+        ...(detail.ogImage || detail.mediaUrls?.[0]
+          ? { image: detail.ogImage ?? detail.mediaUrls[0] }
+          : {}),
+        datePublished: detail.publishedAt ?? undefined,
+        inLanguage: 'ar',
+      }
+    : null;
+
   return (
     <WathbaShell>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       {paused && (
         <div
           dir="rtl"
