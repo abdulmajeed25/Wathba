@@ -5,6 +5,11 @@ import {
 } from '@nestjs/common';
 import { Prisma, ProjectStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  NOTIFICATION_PREF_DEFAULTS,
+  resolvePrefs,
+  type NotificationPrefKey,
+} from '../notifications/notifications.service';
 import type { User } from '@prisma/client';
 
 /**
@@ -30,6 +35,10 @@ export interface ProfilePatch {
   city?: string | null;
   websiteUrl?: string | null;
   socialLinks?: Array<{ platform: string; url: string }>;
+  /** STAKES/E2 E3 — settings toggles. */
+  notificationPrefs?: Partial<Record<NotificationPrefKey, boolean>>;
+  profilePublic?: boolean;
+  showBackedCount?: boolean;
 }
 
 @Injectable()
@@ -73,6 +82,9 @@ export class UsersService {
       city: u.city,
       websiteUrl: u.websiteUrl,
       socialLinks: parseSocialLinks(u.socialLinks),
+      notificationPrefs: resolvePrefs(u.notificationPrefs),
+      profilePublic: u.profilePublic,
+      showBackedCount: u.showBackedCount,
       nafathVerified: u.nafathVerified,
       reputationTier: u.reputationTier,
       totalPledgedHalalas: Number(u.totalPledgedHalalas),
@@ -98,6 +110,18 @@ export class UsersService {
     if (patch.socialLinks !== undefined) {
       data.socialLinks = patch.socialLinks as unknown as Prisma.InputJsonValue;
     }
+    if (patch.notificationPrefs !== undefined) {
+      // Store the FULL resolved set (defaults + patch) so future default
+      // changes never silently flip an explicit user choice.
+      data.notificationPrefs = {
+        ...NOTIFICATION_PREF_DEFAULTS,
+        ...Object.fromEntries(
+          Object.entries(patch.notificationPrefs).filter(([, v]) => typeof v === 'boolean'),
+        ),
+      } as unknown as Prisma.InputJsonValue;
+    }
+    if (patch.profilePublic !== undefined) data.profilePublic = patch.profilePublic;
+    if (patch.showBackedCount !== undefined) data.showBackedCount = patch.showBackedCount;
     if (patch.handle !== undefined) {
       const handle = patch.handle.toLowerCase();
       if (RESERVED_HANDLES.has(handle)) {
@@ -161,6 +185,8 @@ export class UsersService {
         city: true,
         websiteUrl: true,
         socialLinks: true,
+        profilePublic: true,
+        showBackedCount: true,
         nafathVerified: true,
         createdAt: true,
         creatorProfile: {
@@ -169,6 +195,8 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('profile not found');
+    // STAKES/E3 — a private profile is indistinguishable from a missing one.
+    if (!user.profilePublic) throw new NotFoundException('profile not found');
 
     const [backed, created] = await Promise.all([
       // Projects this user backed — distinct, excluding failed payments.
@@ -211,7 +239,8 @@ export class UsersService {
       nafathVerified: user.nafathVerified,
       joinedAt: user.createdAt.toISOString(),
       stats: {
-        backedCount: backed.length,
+        // STAKES/E3 — backed count hidden (null) when the user opted out.
+        backedCount: user.showBackedCount ? backed.length : null,
         createdCount: created.length,
         followersCount: cp?.followersCount ?? 0,
       },

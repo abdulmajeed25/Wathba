@@ -94,6 +94,11 @@ export class FundingService {
         cur.total += Number(p.amountHalalas) + Number(p.addOnsHalalas ?? 0n);
         byBacker.set(p.backer.id, cur);
       }
+      // STAKES/E2 — the in-app outcome notification always lands (charge/refund
+      // state is transactional); the EMAIL honors the campaignOutcomes pref.
+      const emailAllowed = new Set(
+        await this.notifications.filterAllowed([...byBacker.keys()], 'campaignOutcomes'),
+      );
       for (const [backerId, { email, total }] of byBacker) {
         await this.notifications.create({
           userId: backerId,
@@ -106,6 +111,7 @@ export class FundingService {
               : 'لم تبلغ الحملة هدفها — جارٍ ردّ مبلغك تلقائياً.',
           },
         });
+        if (!emailAllowed.has(backerId)) continue;
         if (funded) await this.email.projectFunded(email, { projectTitle: project.titleAr, amountHalalas: total });
         else await this.email.projectFailed(email, { projectTitle: project.titleAr, amountHalalas: total });
       }

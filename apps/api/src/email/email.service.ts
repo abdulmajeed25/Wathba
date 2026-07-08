@@ -59,6 +59,8 @@ export class EmailService {
   passwordReset(to: string, link: string) { return this.deliver(to, emailTemplates.passwordReset(link)); }
   welcome(to: string, name: string) { return this.deliver(to, emailTemplates.welcome(name)); }
   duplicateSignup(to: string) { return this.deliver(to, emailTemplates.duplicateSignup()); }
+  passwordChanged(to: string) { return this.deliver(to, emailTemplates.passwordChanged()); }
+  emailChanged(to: string, newEmailMasked: string) { return this.deliver(to, emailTemplates.emailChanged(newEmailMasked)); }
   pledgeReceipt(to: string, d: { projectTitle: string; amountHalalas: number; tierTitle?: string | null }) {
     return this.deliver(to, emailTemplates.pledgeReceipt(d));
   }

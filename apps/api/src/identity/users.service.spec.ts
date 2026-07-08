@@ -118,6 +118,8 @@ describe('UsersService.publicProfile (STAKES/C1 C5)', () => {
     city: 'جدة',
     websiteUrl: null,
     socialLinks: [{ platform: 'x', url: 'https://x.com/sara' }],
+    profilePublic: true,
+    showBackedCount: true,
     nafathVerified: true,
     createdAt: USER.createdAt,
     creatorProfile: { avatarUrl: 'https://cdn/x.png', bioAr: null, websiteUrl: null, followersCount: 7 },
@@ -156,6 +158,22 @@ describe('UsersService.publicProfile (STAKES/C1 C5)', () => {
     expect(out).not.toHaveProperty('phone');
     // handle lookup is lowercased and non-UUIDs never match the id column
     expect(prisma.user.findFirst.mock.calls[0][0].where).toEqual({ handle: 'sara' });
+  });
+
+  it('404s a private profile exactly like a missing one (STAKES/E3)', async () => {
+    const prisma = makePrisma();
+    prisma.user.findFirst.mockResolvedValue({ ...PUBLIC_ROW, profilePublic: false });
+    const svc = new UsersService(prisma);
+    await expect(svc.publicProfile('sara')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('hides the backed count when showBackedCount is off (STAKES/E3)', async () => {
+    const prisma = makePrisma();
+    prisma.user.findFirst.mockResolvedValue({ ...PUBLIC_ROW, showBackedCount: false });
+    prisma.pledge.findMany.mockResolvedValue([{ projectId: 'p1' }]);
+    const svc = new UsersService(prisma);
+    const out = await svc.publicProfile('sara');
+    expect((out.stats as { backedCount: number | null }).backedCount).toBeNull();
   });
 
   it('falls back to UUID lookup for handle-less legacy rows', async () => {

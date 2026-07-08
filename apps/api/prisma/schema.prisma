@@ -195,6 +195,12 @@ model User {
   websiteUrl          String?
   /// [{platform:'x'|'instagram'|'linkedin'|'youtube'|'tiktok', url}] — validated in the DTO.
   socialLinks         Json            @default("[]")
+  /// STAKES/E2 — per-type notification opt-outs ({projectUpdates, campaignOutcomes,
+  /// comments, marketing}; absent key = the default in NOTIFICATION_PREF_DEFAULTS).
+  notificationPrefs   Json            @default("{}")
+  /// STAKES/E3 — privacy: public /u/[handle] visibility + backed-count display.
+  profilePublic       Boolean         @default(true)
+  showBackedCount     Boolean         @default(true)
   roles               UserRole[]      @default([BACKER])
   nafathVerified      Boolean         @default(false)
   nafathVerifiedAt    DateTime?

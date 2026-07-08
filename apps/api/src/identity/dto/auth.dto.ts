@@ -51,6 +51,25 @@ export class SocialLinkDto {
   url!: string;
 }
 
+/** STAKES/E2 — per-type notification toggles. */
+export class NotificationPrefsDto {
+  @ApiProperty({ required: false })
+  @IsOptional() @IsBoolean()
+  projectUpdates?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsBoolean()
+  campaignOutcomes?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsBoolean()
+  comments?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsBoolean()
+  marketing?: boolean;
+}
+
 export class UpdateProfileDto {
   @ApiProperty({ required: false })
   @IsOptional() @IsString() @MinLength(2) @MaxLength(80)
@@ -94,6 +113,20 @@ export class UpdateProfileDto {
   @IsOptional() @IsArray() @ArrayMaxSize(5)
   @ValidateNested({ each: true }) @Type(() => SocialLinkDto)
   socialLinks?: SocialLinkDto[];
+
+  /** STAKES/E2 — notification preferences (settings toggles). */
+  @ApiProperty({ required: false, type: NotificationPrefsDto })
+  @IsOptional() @ValidateNested() @Type(() => NotificationPrefsDto)
+  notificationPrefs?: NotificationPrefsDto;
+
+  /** STAKES/E3 — privacy controls. */
+  @ApiProperty({ required: false })
+  @IsOptional() @IsBoolean()
+  profilePublic?: boolean;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsBoolean()
+  showBackedCount?: boolean;
 }
 
 export class RefreshDto {
@@ -116,4 +149,26 @@ export class ResetPasswordDto {
   @ApiProperty({ example: 'NewStrongPass!23' })
   @IsString() @MinLength(8) @MaxLength(128)
   password!: string;
+}
+
+/** STAKES/E1 — password change (settings), current-password checked. */
+export class ChangePasswordDto {
+  @ApiProperty()
+  @IsString() @MinLength(8) @MaxLength(128)
+  currentPassword!: string;
+
+  @ApiProperty()
+  @IsString() @MinLength(8) @MaxLength(128)
+  newPassword!: string;
+}
+
+/** STAKES/E1 — email change (settings), current-password checked. */
+export class ChangeEmailDto {
+  @ApiProperty()
+  @IsString() @MinLength(8) @MaxLength(128)
+  currentPassword!: string;
+
+  @ApiProperty({ example: 'new@example.sa' })
+  @IsEmail()
+  newEmail!: string;
 }

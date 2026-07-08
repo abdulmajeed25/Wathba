@@ -45,6 +45,15 @@ function makePrisma(over: Record<string, any> = {}): any {
   return prisma;
 }
 
+/** STAKES/E2 — pref-filter mock: everyone opted in unless overridden. */
+function makeNotifications(): any {
+  return {
+    filterAllowed: jest.fn().mockImplementation((ids: string[]) => Promise.resolve(ids)),
+    allows: jest.fn().mockResolvedValue(true),
+    create: jest.fn().mockResolvedValue({}),
+  };
+}
+
 describe('UpdatesService.create', () => {
   it('assigns orderNum 1 when the project has no updates yet', async () => {
     const create = jest.fn().mockResolvedValue({
@@ -68,7 +77,7 @@ describe('UpdatesService.create', () => {
         create,
       },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     await svc.create(CREATOR, PROJ, { titleAr: 't', bodyAr: 'b' } as any);
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({ orderNum: 1 }),
@@ -97,7 +106,7 @@ describe('UpdatesService.create', () => {
         create,
       },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     await svc.create(CREATOR, PROJ, { titleAr: 't', bodyAr: 'b' } as any);
     expect(create.mock.calls[0][0].data.orderNum).toBe(5);
   });
@@ -106,7 +115,7 @@ describe('UpdatesService.create', () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR }) },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     await expect(
       svc.create(BACKER, PROJ, { titleAr: 't', bodyAr: 'b' } as any),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -135,7 +144,7 @@ describe('UpdatesService.fanOutUpdatePosted (CC-01)', () => {
       },
       notification: { createMany },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     const res = await svc.fanOutUpdatePosted(PROJ, { id: UPD, titleAr: 't' } as any);
 
     expect(createMany).toHaveBeenCalledTimes(1);
@@ -162,7 +171,7 @@ describe('UpdatesService.fanOutUpdatePosted (CC-01)', () => {
       creatorFollow: { findMany: jest.fn().mockResolvedValue([]) },
       notification: { createMany },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     const res = await svc.fanOutUpdatePosted(PROJ, { id: UPD, titleAr: 't' } as any);
     expect(createMany).not.toHaveBeenCalled();
     expect(res.notified).toBe(0);
@@ -196,7 +205,7 @@ describe('UpdatesService.like (toggle)', () => {
       },
       updateLike: { findUnique, create, delete: jest.fn() },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     const r = await svc.like(BACKER, PROJ, UPD);
     expect(create).toHaveBeenCalled();
     expect(updateRow).toHaveBeenCalledWith({
@@ -218,7 +227,7 @@ describe('UpdatesService.like (toggle)', () => {
       },
       updateLike: { findUnique, create: jest.fn(), delete: del },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     const r = await svc.like(BACKER, PROJ, UPD);
     expect(del).toHaveBeenCalled();
     expect(updateRow).toHaveBeenCalledWith({
@@ -242,7 +251,7 @@ describe('UpdatesService.like (toggle)', () => {
       },
       updateLike: { findUnique, delete: jest.fn(), create: jest.fn() },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     const r = await svc.like(BACKER, PROJ, UPD);
     expect(update).toHaveBeenCalledTimes(2);
     expect(update.mock.calls[1][0].data.likeCount).toBe(0);
@@ -253,7 +262,7 @@ describe('UpdatesService.like (toggle)', () => {
     const prisma = makePrisma({
       projectUpdate: { findFirst: jest.fn().mockResolvedValue(null) },
     });
-    const svc = new UpdatesService(prisma);
+    const svc = new UpdatesService(prisma, makeNotifications());
     await expect(svc.like(BACKER, PROJ, UPD)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

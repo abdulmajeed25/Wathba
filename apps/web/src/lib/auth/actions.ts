@@ -327,3 +327,131 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
   }
   redirect('/sign-in?err=reset_ok');
 }
+
+/* ── STAKES/S-7 — settings depth (E1 E2 E3 E4 E5) ─────────────────────────── */
+
+async function requireToken(): Promise<string> {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/sign-in?next=/projects/settings');
+  return token;
+}
+
+/** Small helper: POST/PATCH JSON to the API; returns status (0 = network). */
+async function apiCall(
+  path: string,
+  method: string,
+  token: string,
+  body: unknown,
+): Promise<{ status: number; json: Record<string, unknown> | null }> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      cache: 'no-store',
+    });
+    const json = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+    return { status: res.status, json };
+  } catch {
+    return { status: 0, json: null };
+  }
+}
+
+/** E1 + A12 — change password; all other sessions revoked server-side. */
+export async function changePasswordAction(formData: FormData): Promise<void> {
+  const currentPassword = String(formData.get('currentPassword') ?? '');
+  const newPassword = String(formData.get('newPassword') ?? '');
+  const confirm = String(formData.get('confirm') ?? '');
+  if (newPassword.length < 8) redirect('/projects/settings?err=pwshort');
+  if (newPassword !== confirm) redirect('/projects/settings?err=pwmismatch');
+  const token = await requireToken();
+
+  const { status, json } = await apiCall('/v1/users/me/password', 'POST', token, {
+    currentPassword,
+    newPassword,
+  });
+  if (status === 0) redirect('/projects/settings?err=network');
+  if (status === 401) redirect('/projects/settings?err=badpass');
+  if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
+  // The API revoked every refresh token and minted us a fresh one.
+  const refreshToken = typeof json?.refreshToken === 'string' ? json.refreshToken : undefined;
+  if (refreshToken) await setSessionCookie(token, refreshToken);
+  redirect('/projects/settings?ok=password');
+}
+
+/** E1 — change email (current-password check; generic conflict copy). */
+export async function changeEmailAction(formData: FormData): Promise<void> {
+  const currentPassword = String(formData.get('currentPassword') ?? '');
+  const newEmail = String(formData.get('newEmail') ?? '').trim();
+  if (!newEmail) redirect('/projects/settings?err=emailmissing');
+  const token = await requireToken();
+
+  const { status, json } = await apiCall('/v1/users/me/email', 'POST', token, {
+    currentPassword,
+    newEmail,
+  });
+  if (status === 0) redirect('/projects/settings?err=network');
+  if (status === 401) redirect('/projects/settings?err=badpass');
+  if (status === 409) redirect('/projects/settings?err=emailtaken');
+  if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
+  // JWT carries the email claim — swap in the fresh access token.
+  const accessToken = typeof json?.accessToken === 'string' ? json.accessToken : null;
+  if (accessToken) await setSessionCookie(accessToken);
+  redirect('/projects/settings?ok=email');
+}
+
+/** E2 — persist the per-type notification toggles. */
+export async function saveNotificationPrefsAction(formData: FormData): Promise<void> {
+  const token = await requireToken();
+  const prefs = {
+    projectUpdates: formData.get('projectUpdates') === 'on',
+    campaignOutcomes: formData.get('campaignOutcomes') === 'on',
+    comments: formData.get('comments') === 'on',
+    marketing: formData.get('marketing') === 'on',
+  };
+  const { status } = await apiCall('/v1/users/me', 'PATCH', token, {
+    notificationPrefs: prefs,
+  });
+  if (status === 0) redirect('/projects/settings?err=network');
+  if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
+  redirect('/projects/settings?ok=notifs');
+}
+
+/** E3 — persist the privacy toggles. */
+export async function savePrivacyAction(formData: FormData): Promise<void> {
+  const token = await requireToken();
+  const { status } = await apiCall('/v1/users/me', 'PATCH', token, {
+    profilePublic: formData.get('profilePublic') === 'on',
+    showBackedCount: formData.get('showBackedCount') === 'on',
+  });
+  if (status === 0) redirect('/projects/settings?err=network');
+  if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
+  redirect('/projects/settings?ok=privacy');
+}
+
+/** E5 — revoke every refresh token, then drop this device's session too. */
+export async function signOutAllAction(): Promise<void> {
+  const token = await requireToken();
+  await apiCall('/v1/users/me/signout-all', 'POST', token, undefined);
+  await clearSessionCookie();
+  redirect('/sign-in');
+}
+
+/** E4 — PDPL erasure. The UI collects a typed confirmation before this runs. */
+export async function deleteAccountAction(formData: FormData): Promise<void> {
+  // Server-side re-check of the typed confirmation (defense in depth).
+  if (String(formData.get('confirmPhrase') ?? '').trim() !== 'حذف حسابي') {
+    redirect('/projects/settings?err=confirm');
+  }
+  const token = await requireToken();
+  const { status } = await apiCall('/v1/users/me', 'DELETE', token, undefined);
+  if (status === 0) redirect('/projects/settings?err=network');
+  // 409 = money in flight (escrow/active campaign) — surfaced with its own copy.
+  if (status === 409) redirect('/projects/settings?err=erase409');
+  if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
+  await clearSessionCookie();
+  // Straight to /projects — bouncing via '/' would nest this action redirect
+  // into the root page's own RSC redirect and trip the error boundary.
+  redirect('/projects');
+}

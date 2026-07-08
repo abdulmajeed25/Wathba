@@ -148,6 +148,83 @@ export class AuthService {
     return { accessToken, refreshToken, user: this.users.toPublic(user) };
   }
 
+  // -- STAKES/E1 E5 — account security operations ------------------------------
+
+  /**
+   * E1 + A12 — password change with current-password check. Revokes every
+   * refresh token (other devices die at access-token expiry, ≤1h) and sends
+   * a security notice. The caller's own session cookie pair is re-issued by
+   * the web layer right after.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ ok: true; refreshToken: string }> {
+    const user = await this.users.findById(userId);
+    if (!user.passwordHash || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new UnauthorizedException('current password is incorrect');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    // A12 — invalidate every other session.
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    const refreshToken = await this.mintRefreshToken(userId);
+    try {
+      await this.email.passwordChanged(user.email);
+    } catch {
+      /* best-effort */
+    }
+    return { ok: true, refreshToken };
+  }
+
+  /**
+   * E1 — email change with current-password check. Generic 409 on a taken
+   * address (enumeration resistance, same policy as signup) + a security
+   * notice to the OLD address.
+   */
+  async changeEmail(
+    userId: string,
+    currentPassword: string,
+    newEmail: string,
+  ): Promise<{ ok: true; accessToken: string }> {
+    const email = newEmail.toLowerCase();
+    const user = await this.users.findById(userId);
+    if (!user.passwordHash || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new UnauthorizedException('current password is incorrect');
+    }
+    const taken = await this.users.findByEmail(email);
+    if (taken && taken.id !== userId) {
+      throw new ConflictException('unable to use this email');
+    }
+    const oldEmail = user.email;
+    await this.prisma.user.update({ where: { id: userId }, data: { email } });
+    try {
+      await this.email.emailChanged(oldEmail, maskEmail(email));
+    } catch {
+      /* best-effort */
+    }
+    // The JWT carries the email claim — issue a fresh access token.
+    const accessToken = await this.jwt.signAsync({
+      sub: userId,
+      email,
+      roles: user.roles,
+    } satisfies JwtPayload);
+    return { ok: true, accessToken };
+  }
+
+  /** E5 — revoke every refresh token ("sign out all devices"). */
+  async signOutAll(userId: string): Promise<{ revoked: number }> {
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: count };
+  }
+
   // -- Refresh rotation (Sprint 2 / P1-502) -----------------------------------
 
   private async mintRefreshToken(userId: string, replacesId?: string): Promise<string> {
@@ -253,6 +330,12 @@ export class AuthService {
     });
     return { revoked: count > 0 };
   }
+}
+
+/** sara@example.sa → s***@example.sa (notice-safe). */
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  return `${(local ?? '').slice(0, 1)}***@${domain ?? ''}`;
 }
 
 function hashToken(raw: string): string {
