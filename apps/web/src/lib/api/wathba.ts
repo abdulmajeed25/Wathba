@@ -496,6 +496,15 @@ export interface ApiUserMe {
   city?: string | null;
   websiteUrl?: string | null;
   socialLinks?: Array<{ platform: string; url: string }>;
+  /** STAKES/S-7 — settings toggles. */
+  notificationPrefs?: {
+    projectUpdates?: boolean;
+    campaignOutcomes?: boolean;
+    comments?: boolean;
+    marketing?: boolean;
+  };
+  profilePublic?: boolean;
+  showBackedCount?: boolean;
 }
 
 export interface ApiRewardTier {
@@ -877,13 +886,15 @@ export interface ApiPublicProfile {
   }>;
 }
 
-/** Public + anonymous — accepts a handle or a UUID fallback. */
+/** Public + anonymous — accepts a handle or a UUID fallback.
+ *  revalidate 0: privacy toggles (STAKES/E3) must apply instantly — a 30s
+ *  data-cache window kept a just-hidden profile publicly readable. */
 export async function getPublicProfile(
   handleOrId: string,
 ): Promise<ApiPublicProfile | null> {
   return fetchJson<ApiPublicProfile>(
     `/v1/profiles/${encodeURIComponent(handleOrId)}`,
-    30,
+    0,
   );
 }
 

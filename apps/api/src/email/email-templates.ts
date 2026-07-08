@@ -67,6 +67,25 @@ export const emailTemplates = {
         <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تكن أنت، تجاهل هذه الرسالة — حسابك آمن ولم يتغيّر شيء.</p>`),
     };
   },
+  /** STAKES/E1 A12 — security notice after a password change. */
+  passwordChanged(): EmailContent {
+    return {
+      subject: `${BRAND} — تم تغيير كلمة مرورك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">تم تغيير كلمة المرور</h1>
+        <p>غُيّرت كلمة مرور حسابك للتو، وسُجّل خروجك من بقية الأجهزة.</p>
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تكن أنت من غيّرها، فاستعد كلمة مرورك فوراً وتواصل مع support@wathba.sa.</p>
+        ${cta('{{APP_URL}}/forgot-password', 'استعادة كلمة المرور')}`),
+    };
+  },
+  /** STAKES/E1 — security notice to the OLD address after an email change. */
+  emailChanged(newEmailMasked: string): EmailContent {
+    return {
+      subject: `${BRAND} — تم تغيير بريد حسابك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">تم تغيير بريد الحساب</h1>
+        <p>غُيّر بريد حسابك إلى <strong dir="ltr">${newEmailMasked}</strong>.</p>
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تكن أنت من طلب ذلك، تواصل فوراً مع support@wathba.sa.</p>`),
+    };
+  },
   welcome(name: string): EmailContent {
     return {
       subject: `${BRAND} — تم توثيق حسابك`,

@@ -231,6 +231,9 @@ export const wathbaFooterCols: Array<{
       { label: 'استكشف المشاريع', href: '/projects/discover' },
       { label: 'ابدأ مشروعاً', href: '/projects/start' },
       { label: 'كيف تعمل', href: '/projects/how' },
+      { label: 'عن وثبة', href: '/projects/about' },
+      { label: 'الأسعار والعمولة', href: '/projects/pricing' },
+      { label: 'دليل الناشر', href: '/projects/handbook' },
       { label: 'رتب الداعمين', href: '/projects/ranks' },
       { label: 'بوابة الموردين', href: '/projects/supplier' },
     ],
@@ -255,6 +258,14 @@ export const wathbaFooterCols: Array<{
       { label: 'تواصل معنا', href: '/projects/help' },
     ],
   },
+];
+
+/** STAKES/H5 — WATHBA's own channels: real links, not decorative tiles. */
+export const wathbaSocialLinks: Array<{ icon: string; label: string; href: string }> = [
+  { icon: 'alternate_email', label: 'X',         href: 'https://x.com/wathba_sa' },
+  { icon: 'photo_camera',    label: 'إنستغرام',  href: 'https://instagram.com/wathba.sa' },
+  { icon: 'smart_display',   label: 'يوتيوب',    href: 'https://youtube.com/@wathba-sa' },
+  { icon: 'public',          label: 'لينكدإن',   href: 'https://linkedin.com/company/wathba-sa' },
 ];
 
 export const wathbaSocials = ['public', 'alternate_email', 'photo_camera', 'smart_display'];

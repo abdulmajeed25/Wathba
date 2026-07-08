@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-import { wathbaFooterCols, wathbaSocials } from './wathba-data';
+import { wathbaFooterCols, wathbaSocialLinks } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 
 export function WathbaFooter() {
@@ -53,9 +53,14 @@ export function WathbaFooter() {
             منصة الدعم الجماعي التي تجمع المبدعين بمجتمعٍ يؤمن بأفكارهم — بشفافية وثقة.
           </p>
           <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-            {wathbaSocials.map((s) => (
-              <div
-                key={s}
+            {/* STAKES/H5 — real outbound links (were decorative divs). */}
+            {wathbaSocialLinks.map((s) => (
+              <a
+                key={s.icon}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={s.label}
                 style={{
                   width: 38,
                   height: 38,
@@ -63,11 +68,10 @@ export function WathbaFooter() {
                   border: '1px solid rgba(var(--ink-rgb),.1)',
                   display: 'grid',
                   placeItems: 'center',
-                  cursor: 'pointer',
                 }}
               >
-                <Icon name={s} size={19} color="var(--muted)" />
-              </div>
+                <Icon name={s.icon} size={19} color="var(--muted)" />
+              </a>
             ))}
           </div>
         </div>

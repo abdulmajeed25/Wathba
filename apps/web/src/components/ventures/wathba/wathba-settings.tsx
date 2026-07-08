@@ -4,11 +4,20 @@ import Link from 'next/link';
 import { useRef, useState } from 'react';
 
 import type { ApiUserMe } from '@/lib/api/wathba';
-import { signOutAction, updateProfileAction } from '@/lib/auth/actions';
+import {
+  changeEmailAction,
+  changePasswordAction,
+  deleteAccountAction,
+  saveNotificationPrefsAction,
+  savePrivacyAction,
+  signOutAction,
+  signOutAllAction,
+  updateProfileAction,
+} from '@/lib/auth/actions';
 import { Icon, Num } from './wathba-icons';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 
-type TabId = 'profile' | 'addresses' | 'language' | 'security' | 'notifications';
+type TabId = 'profile' | 'addresses' | 'language' | 'security' | 'notifications' | 'privacy';
 
 const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'profile',       label: 'الملف الشخصي',  icon: 'person' },
@@ -16,7 +25,17 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'language',      label: 'اللغة والمظهر',  icon: 'palette' },
   { id: 'security',      label: 'الأمان',          icon: 'shield' },
   { id: 'notifications', label: 'الإشعارات',      icon: 'notifications' },
+  { id: 'privacy',       label: 'الخصوصية',       icon: 'lock' },
 ];
+
+/** STAKES/S-7 — land on the tab that produced the flash flag. */
+function tabForFlag(ok?: string | null, err?: string | null): TabId {
+  const flag = ok ?? err ?? '';
+  if (['password', 'email', 'pwshort', 'pwmismatch', 'badpass', 'emailtaken', 'emailmissing'].includes(flag)) return 'security';
+  if (['notifs'].includes(flag)) return 'notifications';
+  if (['privacy', 'erase409', 'confirm'].includes(flag)) return 'privacy';
+  return 'profile';
+}
 
 export function WathbaSettings({
   me,
@@ -27,7 +46,7 @@ export function WathbaSettings({
   okFlag?: string | null;
   errFlag?: string | null;
 }) {
-  const [tab, setTab] = useState<TabId>('profile');
+  const [tab, setTab] = useState<TabId>(() => tabForFlag(okFlag, errFlag));
 
   return (
     <div className="wathba-fade">
@@ -51,8 +70,15 @@ export function WathbaSettings({
           </WathbaTabsContent>
           <WathbaTabsContent value="addresses"><AddressesTab /></WathbaTabsContent>
           <WathbaTabsContent value="language"><LanguageTab me={me} /></WathbaTabsContent>
-          <WathbaTabsContent value="security"><SecurityTab me={me} /></WathbaTabsContent>
-          <WathbaTabsContent value="notifications"><NotificationsTab /></WathbaTabsContent>
+          <WathbaTabsContent value="security">
+            <SecurityTab me={me} okFlag={okFlag} errFlag={errFlag} />
+          </WathbaTabsContent>
+          <WathbaTabsContent value="notifications">
+            <NotificationsTab me={me} okFlag={okFlag} errFlag={errFlag} />
+          </WathbaTabsContent>
+          <WathbaTabsContent value="privacy">
+            <PrivacyTab me={me} okFlag={okFlag} errFlag={errFlag} />
+          </WathbaTabsContent>
         </section>
       </WathbaTabs>
     </div>
@@ -291,41 +317,170 @@ function LanguageTab({ me }: { me?: ApiUserMe | null }) {
   );
 }
 
-function SecurityTab({ me }: { me?: ApiUserMe | null }) {
+function SecurityTab({
+  me, okFlag, errFlag,
+}: { me?: ApiUserMe | null; okFlag?: string | null; errFlag?: string | null }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 640 }}>
-      <div style={{
-        background: 'var(--card)',
-        border: '1px solid rgba(var(--ink-rgb),.08)',
-        borderRadius: 16, padding: 24,
-        display: 'flex', flexDirection: 'column', gap: 18,
-      }}>
-        <h2 style={{ fontSize: 19, fontWeight: 700 }}>كلمة المرور</h2>
-        <Row label="آخر تغيير لكلمة المرور" value={me ? new Date(me.createdAt).toLocaleDateString('ar-SA') : '—'}>
-          <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
-            (إعادة تعيين كلمة المرور من الإعدادات تأتي في تحديث قادم — اطلبها مؤقتاً عبر support@wathba.sa)
-          </span>
-        </Row>
+      <Flash okFlag={okFlag} errFlag={errFlag} scope="security" />
+
+      {/* STAKES/E1 — real password change with current-password check. */}
+      <form action={changePasswordAction} style={cardForm}>
+        <h2 style={{ fontSize: 19, fontWeight: 700 }}>تغيير كلمة المرور</h2>
+        <label style={fieldCol}>
+          <span style={fieldLabel}>كلمة المرور الحالية</span>
+          <input type="password" name="currentPassword" required minLength={8} autoComplete="current-password" style={inputStyle} />
+        </label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <label style={fieldCol}>
+            <span style={fieldLabel}>كلمة المرور الجديدة</span>
+            <input type="password" name="newPassword" required minLength={8} autoComplete="new-password" style={inputStyle} />
+          </label>
+          <label style={fieldCol}>
+            <span style={fieldLabel}>تأكيد الجديدة</span>
+            <input type="password" name="confirm" required minLength={8} autoComplete="new-password" style={inputStyle} />
+          </label>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--muted2)' }}>
+          بعد التغيير يُسجَّل خروجك من بقية الأجهزة تلقائياً (يبقى هذا الجهاز).
+        </p>
+        <button type="submit" style={primaryBtn}>حفظ كلمة المرور</button>
+      </form>
+
+      {/* STAKES/E1 — email change (current-password checked; re-login-free). */}
+      <form action={changeEmailAction} style={cardForm}>
+        <h2 style={{ fontSize: 19, fontWeight: 700 }}>تغيير البريد الإلكتروني</h2>
+        <p style={{ fontSize: 12.5, color: 'var(--muted2)' }}>
+          بريدك الحالي: <strong dir="ltr">{me?.email ?? '—'}</strong>
+        </p>
+        <label style={fieldCol}>
+          <span style={fieldLabel}>البريد الجديد</span>
+          <input type="email" name="newEmail" required dir="ltr" style={{ ...inputStyle, textAlign: 'left' }} />
+        </label>
+        <label style={fieldCol}>
+          <span style={fieldLabel}>كلمة المرور (للتأكيد)</span>
+          <input type="password" name="currentPassword" required minLength={8} autoComplete="current-password" style={inputStyle} />
+        </label>
+        <p style={{ fontSize: 12, color: 'var(--muted2)' }}>
+          سيصل إشعار أمني إلى بريدك القديم بعد التغيير.
+        </p>
+        <button type="submit" style={primaryBtn}>حفظ البريد</button>
+      </form>
+
+      {/* STAKES/E5 — sessions. */}
+      <div style={cardForm}>
+        <h2 style={{ fontSize: 19, fontWeight: 700 }}>الجلسات</h2>
+        <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.6 }}>
+          أنت مسجَّل دخولك على هذا الجهاز. إن شككت بوصولٍ غير مصرّح، سجّل الخروج
+          من جميع الأجهزة — ستُبطل كل الجلسات فوراً وتحتاج لتسجيل الدخول من جديد.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <form action={signOutAction}>
+            <button type="submit" style={dangerGhostBtn}>تسجيل الخروج من هذا الجهاز</button>
+          </form>
+          <form action={signOutAllAction}>
+            <button type="submit" style={dangerGhostBtn}>تسجيل الخروج من جميع الأجهزة</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotificationsTab({
+  me, okFlag, errFlag,
+}: { me?: ApiUserMe | null; okFlag?: string | null; errFlag?: string | null }) {
+  const prefs = me?.notificationPrefs ?? {
+    projectUpdates: true, campaignOutcomes: true, comments: true, marketing: false,
+  };
+  return (
+    <form action={saveNotificationPrefsAction} style={{ ...cardForm, maxWidth: 640 }}>
+      <Flash okFlag={okFlag} errFlag={errFlag} scope="notifications" />
+      <h2 style={{ fontSize: 19, fontWeight: 700 }}>تفضيلات الإشعارات</h2>
+      <p style={{ fontSize: 12.5, color: 'var(--muted2)', lineHeight: 1.6 }}>
+        إشعارات الأموال الحرجة (إيصالات التعهد، الاستردادات، الصرف) تصل دائماً —
+        هذه التفضيلات تتحكم بالباقي.
+      </p>
+
+      <PrefToggle name="projectUpdates" label="تحديثات المشاريع المدعومة"
+        hint="إشعار عند نشر تحديث في مشروع دعمته أو تتابع صاحبه." defaultOn={prefs.projectUpdates ?? true} />
+      <PrefToggle name="campaignOutcomes" label="نتائج الحملات (بريد)"
+        hint="بريد نجاح/فشل الحملة — يبقى إشعار داخل المنصة دائماً." defaultOn={prefs.campaignOutcomes ?? true} />
+      <PrefToggle name="comments" label="الردود على تعليقاتي"
+        hint="إشعار عندما يرد أحدهم على تعليقك." defaultOn={prefs.comments ?? true} />
+      <PrefToggle name="marketing" label="رسائل تسويقية"
+        hint="مشاريع مقترحة وأخبار وثبة — معطّلة افتراضياً." defaultOn={prefs.marketing ?? false} />
+
+      <button type="submit" style={{ ...primaryBtn, alignSelf: 'flex-start' }}>حفظ التفضيلات</button>
+    </form>
+  );
+}
+
+/** STAKES/E3 E4 — privacy toggles + the PDPL rights block. */
+function PrivacyTab({
+  me, okFlag, errFlag,
+}: { me?: ApiUserMe | null; okFlag?: string | null; errFlag?: string | null }) {
+  const [confirmPhrase, setConfirmPhrase] = useState('');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 640 }}>
+      <Flash okFlag={okFlag} errFlag={errFlag} scope="privacy" />
+
+      <form action={savePrivacyAction} style={cardForm}>
+        <h2 style={{ fontSize: 19, fontWeight: 700 }}>الخصوصية</h2>
+        <PrefToggle name="profilePublic" label="ملفي العام ظاهر"
+          hint="عند الإيقاف يختفي ملفك (/u/…) تماماً — كأن الرابط غير موجود."
+          defaultOn={me?.profilePublic ?? true} />
+        <PrefToggle name="showBackedCount" label="إظهار عدد المشاريع التي دعمتها"
+          hint="يتحكم بظهور العدّاد في ملفك العام."
+          defaultOn={me?.showBackedCount ?? true} />
+        <button type="submit" style={{ ...primaryBtn, alignSelf: 'flex-start' }}>حفظ الخصوصية</button>
+      </form>
+
+      {/* STAKES/E4 — PDPL rights: export + typed-confirmation erasure. */}
+      <div style={cardForm}>
+        <h2 style={{ fontSize: 19, fontWeight: 700 }}>بياناتك (PDPL)</h2>
+        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.65 }}>
+          يحق لك الحصول على نسخة كاملة من بياناتك المخزّنة لدينا، أو حذف حسابك
+          نهائياً (تُجهَّل بياناتك الشخصية وتُعطَّل إمكانية الدخول؛ تُحتفظ السجلات
+          المالية وفق متطلبات مكافحة غسل الأموال).
+        </p>
+        <a href="/api/me/export" download style={{
+          ...primaryBtn, textDecoration: 'none', display: 'inline-block', width: 'fit-content',
+        }}>
+          تصدير بياناتي (JSON)
+        </a>
       </div>
 
       <div style={{
-        background: 'var(--card)',
-        border: '1px solid rgba(var(--ink-rgb),.08)',
-        borderRadius: 16, padding: 24,
-        display: 'flex', flexDirection: 'column', gap: 14,
+        ...cardForm,
+        border: '1px solid rgba(239,68,68,.35)',
       }}>
-        <h2 style={{ fontSize: 19, fontWeight: 700 }}>الجلسة الحالية</h2>
-        <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.6 }}>
-          أنت مسجَّل دخولك على هذا الجهاز. الجلسات محمية بـcookie آمنة، لا
-          تنتهي إلا بعد ٧ أيام من آخر استخدام.
+        <h2 style={{ fontSize: 19, fontWeight: 700, color: '#dc2626' }}>حذف الحساب</h2>
+        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.65 }}>
+          إجراء نهائي لا يمكن التراجع عنه. لا يمكن الحذف وهناك تعهدات في الضمان
+          أو حملة نشطة باسمك. اكتب <strong>حذف حسابي</strong> للتأكيد.
         </p>
-        <form action={signOutAction}>
-          <button type="submit" style={{
-            background: 'transparent', border: '1px solid rgba(239,68,68,.30)',
-            color: '#dc2626', fontFamily: 'inherit', fontWeight: 700,
-            fontSize: 13, padding: '10px 18px', borderRadius: 11, cursor: 'pointer',
-          }}>
-            تسجيل الخروج من هذا الجهاز
+        <form action={deleteAccountAction} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <input
+            type="text" name="confirmPhrase" dir="rtl"
+            value={confirmPhrase}
+            onChange={(e) => setConfirmPhrase(e.target.value)}
+            placeholder="حذف حسابي"
+            style={inputStyle}
+          />
+          <button
+            type="submit"
+            disabled={confirmPhrase.trim() !== 'حذف حسابي'}
+            style={{
+              ...dangerGhostBtn,
+              background: confirmPhrase.trim() === 'حذف حسابي' ? '#dc2626' : 'transparent',
+              color: confirmPhrase.trim() === 'حذف حسابي' ? '#fff' : '#dc2626',
+              opacity: confirmPhrase.trim() === 'حذف حسابي' ? 1 : 0.6,
+              cursor: confirmPhrase.trim() === 'حذف حسابي' ? 'pointer' : 'not-allowed',
+              alignSelf: 'flex-start',
+            }}
+          >
+            احذف حسابي نهائياً
           </button>
         </form>
       </div>
@@ -333,26 +488,96 @@ function SecurityTab({ me }: { me?: ApiUserMe | null }) {
   );
 }
 
-function NotificationsTab() {
+/* ─────────────────────────────── S-7 shared atoms ── */
+
+const SETTINGS_MESSAGES: Record<string, { text: string; ok: boolean; scope: string }> = {
+  password:     { text: 'تم تغيير كلمة المرور — وسُجّل خروجك من بقية الأجهزة.', ok: true,  scope: 'security' },
+  email:        { text: 'تم تغيير البريد الإلكتروني بنجاح.',                    ok: true,  scope: 'security' },
+  notifs:       { text: 'حُفظت تفضيلات الإشعارات.',                             ok: true,  scope: 'notifications' },
+  privacy:      { text: 'حُفظت إعدادات الخصوصية.',                              ok: true,  scope: 'privacy' },
+  pwshort:      { text: 'كلمة المرور الجديدة يجب أن تتكون من ٨ أحرف على الأقل.', ok: false, scope: 'security' },
+  pwmismatch:   { text: 'كلمتا المرور غير متطابقتين.',                          ok: false, scope: 'security' },
+  badpass:      { text: 'كلمة المرور الحالية غير صحيحة.',                       ok: false, scope: 'security' },
+  emailtaken:   { text: 'تعذّر استخدام هذا البريد — جرّب بريداً آخر.',           ok: false, scope: 'security' },
+  emailmissing: { text: 'أدخل البريد الجديد.',                                  ok: false, scope: 'security' },
+  confirm:      { text: 'اكتب «حذف حسابي» في حقل التأكيد.',                     ok: false, scope: 'privacy' },
+  erase409:     { text: 'لا يمكن حذف الحساب الآن — لديك تعهدات في الضمان أو حملة نشطة. بعد تسويتها يمكنك الحذف.', ok: false, scope: 'privacy' },
+};
+
+function Flash({ okFlag, errFlag, scope }: { okFlag?: string | null; errFlag?: string | null; scope: string }) {
+  const key = okFlag ?? errFlag;
+  if (!key) return null;
+  const msg = SETTINGS_MESSAGES[key];
+  if (!msg || msg.scope !== scope) return null;
   return (
-    <div style={{
-      background: 'var(--card)',
-      border: '1px solid rgba(var(--ink-rgb),.08)',
-      borderRadius: 16, padding: 24, maxWidth: 640,
-      display: 'flex', flexDirection: 'column', gap: 16,
+    <div role={msg.ok ? 'status' : 'alert'} style={{
+      padding: '10px 14px', borderRadius: 11, fontSize: 13,
+      background: msg.ok ? 'rgba(52,211,153,.10)' : 'rgba(239,68,68,.08)',
+      color: msg.ok ? 'var(--pos)' : '#dc2626',
+      border: `1px solid ${msg.ok ? 'rgba(52,211,153,.30)' : 'rgba(239,68,68,.30)'}`,
     }}>
-      <h2 style={{ fontSize: 19, fontWeight: 700 }}>تفضيلات الإشعارات</h2>
-
-      <ToggleRow label="إشعارات داخل التطبيق" hint="تظهر في صندوق الإشعارات أعلى الصفحة." defaultOn />
-      <ToggleRow label="إشعارات بريد إلكتروني" hint="نجاح/فشل الحملات، تحديثات المشاريع، صرف المراحل." defaultOn />
-      <ToggleRow label="رسائل SMS للحالات المهمة" hint="نجاح حملتك، صرف دفعة، تحقّق نفاذ." defaultOn={false} />
-
-      <p style={{ fontSize: 12, color: 'var(--muted2)', lineHeight: 1.6 }}>
-        (واجهة عرض — حفظ التفضيلات يصل عند ربط نقاط نهاية notifications/me.)
-      </p>
+      {msg.text}
     </div>
   );
 }
+
+/** Form-submittable toggle: a real checkbox styled as the switch. */
+function PrefToggle({ name, label, hint, defaultOn }: { name: string; label: string; hint: string; defaultOn: boolean }) {
+  const [on, setOn] = useState(defaultOn);
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
+      padding: '10px 0', borderBottom: '1px solid rgba(var(--ink-rgb),.04)',
+    }}>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{label}</div>
+        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{hint}</div>
+      </div>
+      <input type="checkbox" name={name} checked={on} onChange={() => setOn((v) => !v)} style={{ display: 'none' }} readOnly />
+      <button
+        type="button"
+        onClick={() => setOn((v) => !v)}
+        role="switch"
+        aria-checked={on}
+        aria-label={label}
+        style={{
+          position: 'relative', width: 46, height: 26, borderRadius: 20, flexShrink: 0,
+          border: 'none', cursor: 'pointer',
+          background: on ? 'var(--grad)' : 'rgba(var(--ink-rgb),.15)',
+        }}
+      >
+        <span style={{
+          position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
+          background: 'var(--on-accent)',
+          ...(on ? { right: 3 } : { left: 3 }),
+          transition: 'all .2s',
+        }} />
+      </button>
+    </div>
+  );
+}
+
+const cardForm: React.CSSProperties = {
+  background: 'var(--card)',
+  border: '1px solid rgba(var(--ink-rgb),.08)',
+  borderRadius: 16, padding: 24,
+  display: 'flex', flexDirection: 'column', gap: 16,
+};
+const fieldCol: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 };
+const fieldLabel: React.CSSProperties = { fontSize: 13, color: 'var(--text-soft)' };
+const primaryBtn: React.CSSProperties = {
+  background: 'var(--grad)', color: 'var(--on-accent)',
+  border: 'none', fontFamily: 'inherit', fontWeight: 700,
+  fontSize: 14, padding: '12px 22px', borderRadius: 12,
+  cursor: 'pointer', alignSelf: 'flex-start',
+};
+const dangerGhostBtn: React.CSSProperties = {
+  background: 'transparent', border: '1px solid rgba(239,68,68,.30)',
+  color: '#dc2626', fontFamily: 'inherit', fontWeight: 700,
+  fontSize: 13, padding: '10px 18px', borderRadius: 11, cursor: 'pointer',
+};
+
+/* ────────────────────────────────── STAKES/S-4 identity fields ── */
 
 /* ────────────────────────────────── STAKES/S-4 identity fields ── */
 
@@ -487,37 +712,6 @@ function Row({ label, value, children }: { label: string; value: string; childre
   );
 }
 
-function ToggleRow({ label, hint, defaultOn }: { label: string; hint: string; defaultOn: boolean }) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14,
-      padding: '10px 0', borderBottom: '1px solid rgba(var(--ink-rgb),.04)',
-    }}>
-      <div>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>{label}</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>{hint}</div>
-      </div>
-      <button
-        type="button"
-        onClick={() => setOn((v) => !v)}
-        aria-pressed={on}
-        style={{
-          position: 'relative', width: 46, height: 26, borderRadius: 20,
-          border: 'none', cursor: 'pointer',
-          background: on ? 'var(--grad)' : 'rgba(var(--ink-rgb),.15)',
-        }}
-      >
-        <span style={{
-          position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
-          background: 'var(--on-accent)',
-          ...(on ? { right: 3 } : { left: 3 }),
-          transition: 'all .2s',
-        }} />
-      </button>
-    </div>
-  );
-}
 
 const inputStyle: React.CSSProperties = {
   background: 'rgba(var(--ink-rgb),.04)',

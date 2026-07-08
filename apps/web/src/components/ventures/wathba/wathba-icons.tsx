@@ -4,6 +4,9 @@ import type { CSSProperties, ComponentType, ReactNode, SVGProps } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  AtSign,
+  Camera,
+  Globe,
   ArrowRight,
   Award,
   BadgeCheck,
@@ -141,6 +144,14 @@ const ICON_MAP: Record<string, LucideIconCmp> = {
   package_2: ShoppingBag,
   inventory_2: ShoppingBag,
   volunteer_activism: Heart,
+
+  /* footer socials (STAKES/H5) — these ligatures previously fell back to
+     AlertCircle (no mapping); lucide dropped brand glyphs so we use the
+     closest neutral ones. */
+  public: Globe,
+  alternate_email: AtSign,
+  photo_camera: Camera,
+  smart_display: PlayCircle,
 
   /* category strip — material → lucide */
   memory: Cpu,

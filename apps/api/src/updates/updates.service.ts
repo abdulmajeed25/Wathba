@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { NotificationKind, PledgeStatus, UpdateVisibility, type ProjectUpdate } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   CreateUpdateDto,
   ListUpdatesQueryDto,
@@ -42,7 +43,10 @@ export interface PublicUpdate {
 export class UpdatesService {
   private readonly logger = new Logger(UpdatesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /** Is the viewer allowed to read backer-only content on this project? */
   private async isBacker(projectId: string, viewerId: string | undefined, ownerId: string): Promise<boolean> {
@@ -276,8 +280,15 @@ export class UpdatesService {
     recipients.delete(project.createdById);
     if (recipients.size === 0) return { notified: 0 };
 
+    // STAKES/E2 — drop recipients who opted out of project-update notifications.
+    const allowed = await this.notifications.filterAllowed(
+      [...recipients],
+      'projectUpdates',
+    );
+    if (allowed.length === 0) return { notified: 0 };
+
     const deepLink = `/projects/${projectId}/updates/${update.id}`;
-    const data = [...recipients].map((userId) => ({
+    const data = allowed.map((userId) => ({
       userId,
       kind: NotificationKind.UPDATE_POSTED,
       payload: {
@@ -294,7 +305,7 @@ export class UpdatesService {
       data,
       skipDuplicates: true,
     });
-    this.logger.log(`update=${update.id} fan-out notified=${count} recipients=${recipients.size}`);
+    this.logger.log(`update=${update.id} fan-out notified=${count} recipients=${recipients.size} optedIn=${allowed.length}`);
     return { notified: count };
   }
 
