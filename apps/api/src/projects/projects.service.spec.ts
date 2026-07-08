@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ProjectStatus } from '@prisma/client';
 import { ProjectsService } from './projects.service';
 
@@ -92,5 +92,35 @@ describe('ProjectsService.completeDelivery', () => {
     await expect(svc.completeDelivery('not-the-creator', PROJ)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+});
+
+describe('ProjectsService.findByIdOrSlug (STAKES/N6)', () => {
+  const UUID = 'f18ae89b-f072-4e7e-b40c-a1a185923783';
+
+  it('routes a UUID through findById', async () => {
+    const prisma = makePrisma({
+      project: { findUnique: jest.fn().mockResolvedValue({ id: UUID }), update: jest.fn() },
+    });
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
+    await svc.findByIdOrSlug(UUID);
+    expect(prisma.project.findUnique.mock.calls[0][0].where).toEqual({ id: UUID });
+  });
+
+  it('routes a slug (lowercased) through the slug unique index', async () => {
+    const prisma = makePrisma({
+      project: { findUnique: jest.fn().mockResolvedValue({ id: UUID }), update: jest.fn() },
+    });
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
+    await svc.findByIdOrSlug('Drone-Falcon');
+    expect(prisma.project.findUnique.mock.calls[0][0].where).toEqual({ slug: 'drone-falcon' });
+  });
+
+  it('404s an unknown slug', async () => {
+    const prisma = makePrisma({
+      project: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
+    });
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
+    await expect(svc.findByIdOrSlug('nope')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -386,6 +386,19 @@ export class ProjectsService {
     return proj;
   }
 
+  /** STAKES/N6 — detail lookup by UUID or human-readable slug (/p/[slug]). */
+  async findByIdOrSlug(idOrSlug: string): Promise<Project> {
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+    if (isUuid) return this.findById(idOrSlug);
+    const proj = await this.prisma.project.findUnique({
+      where: { slug: idOrSlug.toLowerCase() },
+      include: { rewardTiers: { orderBy: { sortOrder: 'asc' } } },
+    });
+    if (!proj) throw new NotFoundException('project not found');
+    return proj;
+  }
+
   // Batch CAT — discovery-filter windows.
   private static readonly TREND_WINDOW_MS = 72 * 3_600_000; // pledge velocity look-back
   private static readonly NEARLY_MIN_PCT = 75; // "قاربت على التمويل" threshold
