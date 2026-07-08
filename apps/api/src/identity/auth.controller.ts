@@ -12,9 +12,11 @@ export class AuthController {
   /**
    * Sign-up — per-IP 5/min. Tighter than the global 120/min so a credential
    * stuffing tool can't create 120 fake accounts a minute on a single IP.
+   * Env-tunable so e2e suites (many signups from one IP) don't trip it —
+   * production leaves AUTH_SIGNUP_THROTTLE_LIMIT unset and keeps 5.
    */
   @Post('signup')
-  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Throttle({ default: { ttl: 60_000, limit: Number(process.env.AUTH_SIGNUP_THROTTLE_LIMIT ?? 5) } })
   @ApiOperation({ summary: 'Create account (email + password)' })
   async signUp(@Body() dto: SignUpDto): Promise<AuthResponse> {
     return this.auth.signUp(dto);

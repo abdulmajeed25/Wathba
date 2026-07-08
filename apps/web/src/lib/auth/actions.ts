@@ -132,7 +132,11 @@ export async function signUpAction(formData: FormData): Promise<void> {
   // PDPL: explicit consent required (also enforced server-side by the API DTO).
   if (!acceptTerms) redirect(`/sign-up?err=consent&next=${encodeURIComponent(next)}`);
 
+  // NOTE: redirect() throws NEXT_REDIRECT — keep it OUTSIDE the try, or the
+  // catch relabels every 4xx/5xx as err=network (masked real statuses for
+  // months: 409-taken, 400-invalid and 429-throttle all read as "network").
   let body: AuthResponse | null = null;
+  let status = 0;
   try {
     const res = await fetch(`${API_BASE}/v1/auth/signup`, {
       method: 'POST',
@@ -140,13 +144,15 @@ export async function signUpAction(formData: FormData): Promise<void> {
       body: JSON.stringify({ name, email, password, acceptTerms }),
       cache: 'no-store',
     });
-    if (!res.ok) {
-      const errKey = res.status === 409 ? 'taken' : res.status === 400 ? 'invalid' : 'server';
-      redirect(`/sign-up?err=${errKey}&next=${encodeURIComponent(next)}`);
-    }
-    body = (await res.json()) as AuthResponse;
+    status = res.status;
+    if (res.ok) body = (await res.json()) as AuthResponse;
   } catch {
     redirect(`/sign-up?err=network&next=${encodeURIComponent(next)}`);
+  }
+  if (status < 200 || status >= 300) {
+    const errKey =
+      status === 409 ? 'taken' : status === 400 ? 'invalid' : status === 429 ? 'throttle' : 'server';
+    redirect(`/sign-up?err=${errKey}&next=${encodeURIComponent(next)}`);
   }
 
   if (!body?.accessToken) redirect(`/sign-up?err=server&next=${encodeURIComponent(next)}`);
@@ -198,6 +204,8 @@ export async function skipNafathAction(): Promise<void> {
 }
 
 /** Update name + phone on the current user (Settings → Profile tab). */
+const SOCIAL_PLATFORMS = ['x', 'instagram', 'linkedin', 'youtube', 'tiktok'] as const;
+
 export async function updateProfileAction(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
   const phone = String(formData.get('phone') ?? '').trim();
@@ -205,10 +213,37 @@ export async function updateProfileAction(formData: FormData): Promise<void> {
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/sign-in');
 
-  const body: Record<string, string> = {};
+  const body: Record<string, unknown> = {};
   if (name.length >= 2) body.name = name;
   if (phone && /^\+?\d{8,15}$/.test(phone)) body.phone = phone;
 
+  // STAKES/S-4 — extended identity surface. Empty strings mean "clear".
+  const handle = String(formData.get('handle') ?? '').trim();
+  if (handle && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,29}$/.test(handle)) body.handle = handle;
+  const bioAr = String(formData.get('bioAr') ?? '').trim();
+  if (formData.has('bioAr')) body.bioAr = bioAr.slice(0, 600) || null;
+  const city = String(formData.get('city') ?? '').trim();
+  if (formData.has('city')) body.city = city.slice(0, 80) || null;
+  const websiteUrl = String(formData.get('websiteUrl') ?? '').trim();
+  if (formData.has('websiteUrl')) {
+    body.websiteUrl = /^https?:\/\//.test(websiteUrl) ? websiteUrl : null;
+  }
+  // Avatar: the client uploader wrote the MinIO publicUrl into a hidden input.
+  const avatarUrl = String(formData.get('avatarUrl') ?? '').trim();
+  if (formData.has('avatarUrl')) {
+    body.avatarUrl = /^https?:\/\//.test(avatarUrl) ? avatarUrl : null;
+  }
+  // Social links — one optional https URL per fixed platform.
+  if (SOCIAL_PLATFORMS.some((k) => formData.has(`social_${k}`))) {
+    body.socialLinks = SOCIAL_PLATFORMS.flatMap((platform) => {
+      const url = String(formData.get(`social_${platform}`) ?? '').trim();
+      return /^https:\/\//.test(url) ? [{ platform, url }] : [];
+    });
+  }
+
+  // redirect() throws NEXT_REDIRECT — keep it OUTSIDE the try so the catch
+  // only ever sees real network failures.
+  let status: number;
   try {
     const res = await fetch(`${API_BASE}/v1/users/me`, {
       method: 'PATCH',
@@ -216,10 +251,13 @@ export async function updateProfileAction(formData: FormData): Promise<void> {
       body: JSON.stringify(body),
       cache: 'no-store',
     });
-    if (!res.ok) redirect('/projects/settings?err=server');
+    status = res.status;
   } catch {
     redirect('/projects/settings?err=network');
   }
+  // 409 = handle taken/reserved — its own Arabic message on the form.
+  if (status === 409) redirect('/projects/settings?err=handle');
+  if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
   redirect('/projects/settings?ok=profile');
 }
 

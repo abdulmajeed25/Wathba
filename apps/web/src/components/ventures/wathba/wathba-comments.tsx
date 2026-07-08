@@ -29,6 +29,9 @@ export interface ApiCommentRow {
   id: string;
   userId: string;
   userName: string;
+  /** STAKES/C10 — link the author to /u/[handle] + render the avatar. */
+  userHandle?: string | null;
+  userAvatarUrl?: string | null;
   isCreator: boolean;
   pinned: boolean;
   hidden: boolean;
@@ -233,9 +236,13 @@ function ApiCommentRow({
     }
   };
 
+  // STAKES/C10 — every author name/avatar links to the public profile.
+  const profileHref = `/u/${encodeURIComponent(c.userHandle ?? c.userId)}`;
   return (
     <article style={{ display: 'flex', gap: 12 }}>
-      <div
+      <Link
+        href={profileHref}
+        aria-label={`ملف ${c.userName}`}
         style={{
           width: 40,
           height: 40,
@@ -248,13 +255,22 @@ function ApiCommentRow({
           fontWeight: 700,
           fontSize: 14,
           flexShrink: 0,
+          textDecoration: 'none',
+          overflow: 'hidden',
         }}
       >
-        {initial}
-      </div>
+        {c.userAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={c.userAvatarUrl} alt="" width={40} height={40} style={{ objectFit: 'cover' }} />
+        ) : (
+          initial
+        )}
+      </Link>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>{c.userName}</span>
+          <Link href={profileHref} style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', textDecoration: 'none' }}>
+            {c.userName}
+          </Link>
           {c.isCreator && (
             <span
               style={{

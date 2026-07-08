@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { ApiUserMe } from '@/lib/api/wathba';
 import { signOutAction, updateProfileAction } from '@/lib/auth/actions';
@@ -61,6 +61,13 @@ export function WathbaSettings({
 
 /* ─────────────────────────────────────────────────────────────── tabs ── */
 
+/** STAKES/S-4 — Arabic copy per error code (F-rule: errorCode ↔ key, 1:1). */
+const PROFILE_ERRORS: Record<string, string> = {
+  handle: 'هذا المعرّف مستخدم أو محجوز — جرّب معرّفاً آخر.',
+  server: 'تعذّر حفظ التغييرات — حاول مجدداً.',
+  network: 'تعذّر الاتصال بالخادم — تحقق من الشبكة وحاول مجدداً.',
+};
+
 function ProfileTab({
   me, okFlag, errFlag,
 }: { me?: ApiUserMe | null; okFlag?: string | null; errFlag?: string | null }) {
@@ -75,7 +82,18 @@ function ProfileTab({
         maxWidth: 640,
       }}
     >
-      <h2 style={{ fontSize: 19, fontWeight: 700 }}>الملف الشخصي</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ fontSize: 19, fontWeight: 700 }}>الملف الشخصي</h2>
+        {me?.handle && (
+          <Link href={`/u/${me.handle}`} style={{
+            fontSize: 12.5, fontWeight: 700, color: 'var(--accent-ink)',
+            textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 999, border: '1px solid rgba(var(--accent-rgb),.35)',
+          }}>
+            <Icon name="visibility" size={14} color="var(--accent-ink)" /> عرض ملفي العام
+          </Link>
+        )}
+      </div>
 
       {okFlag === 'profile' && (
         <div style={{
@@ -95,9 +113,11 @@ function ProfileTab({
           border: '1px solid rgba(239,68,68,.30)',
           fontSize: 13,
         }}>
-          تعذّر حفظ التغييرات — حاول مجدداً.
+          {PROFILE_ERRORS[errFlag] ?? PROFILE_ERRORS.server}
         </div>
       )}
+
+      <AvatarField me={me} />
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>الاسم الكامل</span>
@@ -108,6 +128,54 @@ function ProfileTab({
           style={inputStyle}
         />
       </label>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>المعرّف العام (رابط ملفك: /u/المعرّف)</span>
+        <input
+          type="text" name="handle" dir="ltr"
+          defaultValue={me?.handle ?? ''}
+          minLength={3} maxLength={30}
+          pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]{2,29}"
+          placeholder="sara-alamri"
+          style={{ ...inputStyle, textAlign: 'left' }}
+        />
+        <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
+          ٣–٣٠ حرفاً لاتينياً أو رقماً أو (ـ . -). يظهر في رابط ملفك العام.
+        </span>
+      </label>
+
+      <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>نبذة عنك</span>
+        <textarea
+          name="bioAr" rows={3} maxLength={600}
+          defaultValue={me?.bioAr ?? ''}
+          placeholder="عرّف زوار ملفك بنفسك واهتماماتك…"
+          style={{ ...inputStyle, resize: 'vertical', minHeight: 84 }}
+        />
+      </label>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>المدينة</span>
+          <input
+            type="text" name="city" maxLength={80}
+            defaultValue={me?.city ?? ''}
+            placeholder="الرياض"
+            style={inputStyle}
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>موقعك الإلكتروني</span>
+          <input
+            type="url" name="websiteUrl" dir="ltr" maxLength={300}
+            defaultValue={me?.websiteUrl ?? ''}
+            placeholder="https://example.sa"
+            style={{ ...inputStyle, textAlign: 'left' }}
+          />
+        </label>
+      </div>
+
+      <SocialLinksFields me={me} />
 
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>البريد الإلكتروني</span>
@@ -282,6 +350,121 @@ function NotificationsTab() {
       <p style={{ fontSize: 12, color: 'var(--muted2)', lineHeight: 1.6 }}>
         (واجهة عرض — حفظ التفضيلات يصل عند ربط نقاط نهاية notifications/me.)
       </p>
+    </div>
+  );
+}
+
+/* ────────────────────────────────── STAKES/S-4 identity fields ── */
+
+/** C2 — avatar upload: presigned PUT to MinIO (kind:'avatar', ≤2MB) then the
+ *  publicUrl rides the form in a hidden input; initials fallback otherwise. */
+function AvatarField({ me }: { me?: ApiUserMe | null }) {
+  const [url, setUrl] = useState<string | null>(me?.avatarUrl ?? null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const pick = async (file: File) => {
+    setErr(null);
+    if (file.size > 2 * 1024 * 1024) { setErr('حجم الصورة يتجاوز ٢ ميغابايت.'); return; }
+    setBusy(true);
+    try {
+      const presignRes = await fetch('/api/media/upload-url', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ kind: 'avatar', mimeType: file.type || 'image/jpeg', sizeBytes: file.size }),
+      });
+      if (!presignRes.ok) throw new Error(`فشل تحضير الرفع (${presignRes.status})`);
+      const presign = (await presignRes.json()) as { url: string; publicUrl: string };
+      const putRes = await fetch(presign.url, {
+        method: 'PUT',
+        headers: { 'content-type': file.type || 'image/jpeg' },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error(`فشل رفع الصورة (${putRes.status})`);
+      setUrl(presign.publicUrl);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const initial = (me?.name ?? '؟').trim().charAt(0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <input type="hidden" name="avatarUrl" value={url ?? ''} />
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="الصورة الشخصية" width={64} height={64}
+          style={{ borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(var(--accent-rgb),.25)' }} />
+      ) : (
+        <div aria-hidden style={{
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'rgba(var(--accent-rgb),.14)', color: 'var(--accent-ink)',
+          display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 24,
+        }}>{initial}</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" disabled={busy} onClick={() => fileRef.current?.click()} style={{
+            background: 'transparent', border: '1px solid rgba(var(--accent-rgb),.4)',
+            color: 'var(--accent-ink)', fontFamily: 'inherit', fontWeight: 700, fontSize: 12.5,
+            padding: '8px 14px', borderRadius: 10, cursor: busy ? 'wait' : 'pointer',
+          }}>
+            {busy ? 'جارٍ الرفع…' : 'تغيير الصورة'}
+          </button>
+          {url && (
+            <button type="button" onClick={() => setUrl(null)} style={{
+              background: 'transparent', border: '1px solid rgba(239,68,68,.3)', color: '#dc2626',
+              fontFamily: 'inherit', fontWeight: 700, fontSize: 12.5, padding: '8px 14px',
+              borderRadius: 10, cursor: 'pointer',
+            }}>
+              إزالة
+            </button>
+          )}
+        </div>
+        <span style={{ fontSize: 11.5, color: err ? '#dc2626' : 'var(--muted2)' }}>
+          {err ?? 'JPG / PNG / WebP — بحد أقصى ٢ ميغابايت.'}
+        </span>
+      </div>
+      <input
+        ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif"
+        style={{ display: 'none' }}
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) void pick(f); e.target.value = ''; }}
+      />
+    </div>
+  );
+}
+
+/** C4 — five optional, validated social URLs (X/Instagram/LinkedIn/YouTube/TikTok). */
+const SOCIAL_PLATFORMS: Array<{ key: string; label: string; placeholder: string }> = [
+  { key: 'x',         label: 'X',         placeholder: 'https://x.com/…' },
+  { key: 'instagram', label: 'إنستغرام',  placeholder: 'https://instagram.com/…' },
+  { key: 'linkedin',  label: 'لينكدإن',   placeholder: 'https://linkedin.com/in/…' },
+  { key: 'youtube',   label: 'يوتيوب',    placeholder: 'https://youtube.com/@…' },
+  { key: 'tiktok',    label: 'تيك توك',   placeholder: 'https://tiktok.com/@…' },
+];
+
+function SocialLinksFields({ me }: { me?: ApiUserMe | null }) {
+  const existing = new Map((me?.socialLinks ?? []).map((s) => [s.platform, s.url]));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <span style={{ fontSize: 13, color: 'var(--text-soft)', fontWeight: 600 }}>روابط التواصل (اختيارية)</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {SOCIAL_PLATFORMS.map((p) => (
+          <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{p.label}</span>
+            <input
+              type="url" name={`social_${p.key}`} dir="ltr" maxLength={300}
+              defaultValue={existing.get(p.key) ?? ''}
+              placeholder={p.placeholder}
+              pattern="https://.*"
+              style={{ ...inputStyle, textAlign: 'left', fontSize: 13, padding: '10px 12px' }}
+            />
+          </label>
+        ))}
+      </div>
     </div>
   );
 }

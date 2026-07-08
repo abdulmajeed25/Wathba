@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -116,10 +117,20 @@ export function WathbaCreatorTab({
           borderRadius: 12,
         }}
       >
-        <Avatar url={data.avatarUrl} name={data.name} />
+        {/* STAKES/C10 — avatar + name link to the public profile. */}
+        <Link href={`/u/${encodeURIComponent(data.handle ?? data.userId)}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
+          <Avatar url={data.avatarUrl} name={data.name} />
+        </Link>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>{data.name}</h2>
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+              <Link
+                href={`/u/${encodeURIComponent(data.handle ?? data.userId)}`}
+                style={{ color: 'inherit', textDecoration: 'none' }}
+              >
+                {data.name}
+              </Link>
+            </h2>
             {data.nafathVerified && <VerifiedBadge />}
           </div>
           <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
