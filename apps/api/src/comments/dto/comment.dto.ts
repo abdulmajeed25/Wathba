@@ -37,3 +37,12 @@ export class CreateCommentDto {
   @IsUUID('4')
   parentId?: string;
 }
+
+/** STAKES/K1 — author edit within the 15-min window. */
+export class EditCommentDto {
+  @ApiProperty({ example: 'مشروع رائع! بالتوفيق 🌱 (تعديل)' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  bodyAr!: string;
+}

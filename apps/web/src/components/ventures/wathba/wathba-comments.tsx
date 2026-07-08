@@ -39,6 +39,8 @@ export interface ApiCommentRow {
   reportCount?: number;
   bodyAr: string | null;
   parentId: string | null;
+  /** STAKES/K1 — non-null once the author edited within the window. */
+  editedAt?: string | null;
   date: string;
 }
 
@@ -48,13 +50,18 @@ export function WathbaComments({
   apiComments,
   initialCursor,
   isAuthenticated = false,
+  live = false,
 }: {
   projectId: string;
   comments: RichComment[];
   apiComments?: ApiCommentRow[];
   initialCursor?: string | null;
   isAuthenticated?: boolean;
+  /** STAKES/K1 — self-loading live mode for real projects: fetches the
+   *  comment page + the viewer identity, enabling compose/edit/delete. */
+  live?: boolean;
 }) {
+  if (live) return <LiveCommentsLoader projectId={projectId} />;
   if (apiComments !== undefined) {
     return (
       <ApiCommentsList
@@ -68,6 +75,48 @@ export function WathbaComments({
   return <FixtureCommentsList projectId={projectId} comments={comments} />;
 }
 
+/** STAKES/K1 — fetches the first comments page + /api/me, then renders the
+ *  live list with viewer-aware own-comment actions. */
+function LiveCommentsLoader({ projectId }: { projectId: string }) {
+  const [state, setState] = useState<{
+    rows: ApiCommentRow[];
+    cursor: string | null;
+    viewerId: string | null;
+    ready: boolean;
+  }>({ rows: [], cursor: null, viewerId: null, ready: false });
+
+  useEffect(() => {
+    let alive = true;
+    void Promise.all([
+      fetch(`/api/comments/${projectId}?take=25`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : { items: [], nextCursor: null }))
+        .catch(() => ({ items: [], nextCursor: null })),
+      fetch('/api/me')
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]).then(([page, me]: [{ items: ApiCommentRow[]; nextCursor: string | null }, { id: string } | null]) => {
+      if (!alive) return;
+      setState({ rows: page.items, cursor: page.nextCursor, viewerId: me?.id ?? null, ready: true });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+
+  if (!state.ready) {
+    return <div style={{ height: 120, borderRadius: 12, background: 'rgba(var(--ink-rgb),.04)' }} aria-hidden />;
+  }
+  return (
+    <ApiCommentsList
+      projectId={projectId}
+      initial={state.rows}
+      initialCursor={state.cursor}
+      isAuthenticated={state.viewerId !== null}
+      viewerId={state.viewerId}
+    />
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Live API list                                                             */
 /* -------------------------------------------------------------------------- */
@@ -77,15 +126,23 @@ function ApiCommentsList({
   initial,
   initialCursor,
   isAuthenticated,
+  viewerId = null,
 }: {
   projectId: string;
   initial: ApiCommentRow[];
   initialCursor: string | null;
   isAuthenticated: boolean;
+  /** STAKES/K1 — enables edit/delete on the viewer's own comments. */
+  viewerId?: string | null;
 }) {
   const [rows, setRows] = useState<ApiCommentRow[]>(initial);
   const [cursor, setCursor] = useState<string | null>(initialCursor);
   const [loading, setLoading] = useState(false);
+
+  const replaceRow = (updated: ApiCommentRow) =>
+    setRows((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  const dropRow = (id: string) => setRows((prev) => prev.filter((r) => r.id !== id));
+  const prependRow = (row: ApiCommentRow) => setRows((prev) => dedupeById([row, ...prev]));
 
   const loadMore = async (): Promise<void> => {
     if (!cursor || loading) return;
@@ -126,10 +183,19 @@ function ApiCommentsList({
       </div>
 
       {!isAuthenticated && <EligibilityBanner projectId={projectId} />}
+      {isAuthenticated && <LiveComposeBox projectId={projectId} onPosted={prependRow} />}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
         {ordered.map((c) => (
-          <ApiCommentRow key={c.id} comment={c} projectId={projectId} isAuthenticated={isAuthenticated} />
+          <ApiCommentRow
+            key={c.id}
+            comment={c}
+            projectId={projectId}
+            isAuthenticated={isAuthenticated}
+            viewerId={viewerId}
+            onEdited={replaceRow}
+            onDeleted={dropRow}
+          />
         ))}
       </div>
 
@@ -215,24 +281,69 @@ function EligibilityBanner({ projectId }: { projectId: string }) {
   );
 }
 
+const EDIT_WINDOW_MS = 15 * 60 * 1000; // mirrors the API's STAKES/K1 window
+
 function ApiCommentRow({
   comment: c,
   projectId,
   isAuthenticated,
+  viewerId = null,
+  onEdited,
+  onDeleted,
 }: {
   comment: ApiCommentRow;
   projectId: string;
   isAuthenticated: boolean;
+  viewerId?: string | null;
+  onEdited?: (row: ApiCommentRow) => void;
+  onDeleted?: (id: string) => void;
 }) {
   const initial = c.userName?.trim().charAt(0).toUpperCase() || '·';
   const dateAr = formatDateAr(c.date);
   const [reported, setReported] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(c.bodyAr ?? '');
+  const [busy, setBusy] = useState(false);
   const report = async (): Promise<void> => {
     setReported(true); // optimistic
     try {
       await fetch(`/api/comments/${projectId}/${c.id}/report`, { method: 'POST' });
     } catch {
       /* keep the reported state; the API dedups anyway */
+    }
+  };
+
+  // STAKES/K1 — own-comment actions; edit only inside the 15-min window.
+  const isOwn = viewerId !== null && c.userId === viewerId;
+  const editable = isOwn && !c.hidden && Date.now() - new Date(c.date).getTime() < EDIT_WINDOW_MS;
+
+  const saveEdit = async (): Promise<void> => {
+    if (!draft.trim() || busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/comments/${projectId}/${c.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bodyAr: draft.trim() }),
+      });
+      if (res.ok) {
+        onEdited?.((await res.json()) as ApiCommentRow);
+        setEditing(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (): Promise<void> => {
+    if (busy) return;
+    if (typeof window !== 'undefined' && !window.confirm('حذف هذا التعليق نهائياً؟')) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/comments/${projectId}/${c.id}`, { method: 'DELETE' });
+      if (res.ok) onDeleted?.(c.id);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -307,9 +418,43 @@ function ApiCommentRow({
           <p style={{ fontSize: 13.5, color: 'var(--muted2)', fontStyle: 'italic', marginBottom: 9 }}>
             تم إخفاء هذا التعليق
           </p>
+        ) : editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 9 }}>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              maxLength={2000}
+              aria-label="تعديل التعليق"
+              style={{
+                background: 'rgba(var(--ink-rgb),.04)', border: '1px solid rgba(var(--ink-rgb),.14)',
+                borderRadius: 11, padding: '10px 12px', fontSize: 14, color: 'var(--text)',
+                fontFamily: 'inherit', resize: 'vertical',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => void saveEdit()} disabled={busy || !draft.trim()} style={{
+                background: 'var(--grad)', color: 'var(--on-accent)', border: 'none',
+                fontFamily: 'inherit', fontWeight: 700, fontSize: 12.5, padding: '8px 16px',
+                borderRadius: 10, cursor: busy ? 'wait' : 'pointer',
+              }}>
+                حفظ
+              </button>
+              <button type="button" onClick={() => { setEditing(false); setDraft(c.bodyAr ?? ''); }} style={{
+                background: 'transparent', border: '1px solid rgba(var(--ink-rgb),.14)',
+                color: 'var(--text-soft)', fontFamily: 'inherit', fontWeight: 600, fontSize: 12.5,
+                padding: '8px 16px', borderRadius: 10, cursor: 'pointer',
+              }}>
+                إلغاء
+              </button>
+            </div>
+          </div>
         ) : (
           <p style={{ fontSize: 14.5, lineHeight: 1.65, color: 'var(--text-soft)', marginBottom: 9 }}>
             {c.bodyAr}
+            {c.editedAt && (
+              <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}> (معدّل)</span>
+            )}
           </p>
         )}
 
@@ -317,8 +462,19 @@ function ApiCommentRow({
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
             <Icon name="favorite_border" size={14} /> <Num>{c.likeCount}</Num>
           </span>
+          {/* STAKES/K1 — own-comment actions (edit inside the 15-min window). */}
+          {editable && !editing && (
+            <button type="button" onClick={() => setEditing(true)} style={inlineActionBtn}>
+              ✏️ تعديل
+            </button>
+          )}
+          {isOwn && !c.hidden && (
+            <button type="button" onClick={() => void remove()} disabled={busy} style={{ ...inlineActionBtn, color: '#dc2626' }}>
+              🗑 حذف
+            </button>
+          )}
           {/* CC-23 — report/flag a comment (logged-in, non-creator, not own). */}
-          {isAuthenticated && !c.isCreator && !c.hidden && (
+          {isAuthenticated && !c.isCreator && !c.hidden && !isOwn && (
             <button
               type="button"
               onClick={() => void report()}
@@ -335,6 +491,83 @@ function ApiCommentRow({
         </div>
       </div>
     </article>
+  );
+}
+
+const inlineActionBtn: React.CSSProperties = {
+  background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+  fontSize: 12.5, color: 'inherit', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4,
+};
+
+/** STAKES/K1 — compose box for the live list (backers + the creator). */
+function LiveComposeBox({
+  projectId,
+  onPosted,
+}: {
+  projectId: string;
+  onPosted: (row: ApiCommentRow) => void;
+}) {
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const post = async (): Promise<void> => {
+    if (!body.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/comments/${projectId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ bodyAr: body.trim() }),
+      });
+      const json = (await res.json().catch(() => null)) as
+        | (ApiCommentRow & { message?: string })
+        | null;
+      if (res.ok && json) {
+        onPosted(json);
+        setBody('');
+      } else if (res.status === 403) {
+        setError('فقط داعمو المشروع يمكنهم التعليق — ادعم المشروع أولاً.');
+      } else if (res.status === 429) {
+        setError('تعليقات كثيرة خلال دقيقة — انتظر قليلاً ثم حاول مجدداً.');
+      } else {
+        setError(json?.message ?? 'تعذّر نشر التعليق — حاول مجدداً.');
+      }
+    } catch {
+      setError('تعذّر الاتصال بالخادم.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: 22, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={3}
+        maxLength={2000}
+        placeholder="شارك رأيك أو سؤالك مع المجتمع…"
+        aria-label="أضف تعليقاً"
+        style={{
+          background: 'var(--card)', border: '1px solid rgba(var(--ink-rgb),.12)',
+          borderRadius: 13, padding: '12px 14px', fontSize: 14, color: 'var(--text)',
+          fontFamily: 'inherit', resize: 'vertical',
+        }}
+      />
+      {error && (
+        <span role="alert" style={{ fontSize: 12.5, color: '#dc2626' }}>{error}</span>
+      )}
+      <button type="button" onClick={() => void post()} disabled={busy || !body.trim()} style={{
+        background: 'var(--grad)', color: 'var(--on-accent)', border: 'none',
+        fontFamily: 'inherit', fontWeight: 700, fontSize: 13, padding: '10px 20px',
+        borderRadius: 11, cursor: busy ? 'wait' : 'pointer', alignSelf: 'flex-start',
+        opacity: busy || !body.trim() ? 0.6 : 1,
+      }}>
+        {busy ? 'جارٍ النشر…' : 'انشر التعليق'}
+      </button>
+    </div>
   );
 }
 

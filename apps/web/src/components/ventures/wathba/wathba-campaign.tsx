@@ -391,7 +391,15 @@ export function WathbaCampaign({
 
         <section id="section-comments" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>
           {isRealProject(active.id) && <ContestsLoader projectId={active.id} />}
-          <WathbaComments projectId={active.id} comments={rich.comments} />
+          {/* STAKES/K1 — real projects use the live list (compose/edit/delete).
+              Use the PAGE id: `active` may be a fixture skin (adaptApiVenture
+              maps real projects onto fixture visuals and its id is the slug —
+              for unskinned projects `active` is the p1 fallback entirely). */}
+          <WathbaComments
+            projectId={isRealProject(id) ? id : active.id}
+            comments={rich.comments}
+            live={isRealProject(id)}
+          />
         </section>
 
         <section id="section-community" style={{ scrollMarginTop: STICKY_OFFSET + 8, paddingTop: 72, minHeight: `calc(100vh - ${STICKY_OFFSET}px)` }}>

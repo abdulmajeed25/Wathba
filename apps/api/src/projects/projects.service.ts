@@ -386,6 +386,110 @@ export class ProjectsService {
     return proj;
   }
 
+  /**
+   * STAKES/K3 — trust & safety: report a project. Deduped per reporter
+   * (unique index → idempotent alreadyReported), surfaced in the admin
+   * moderation queue alongside comment reports.
+   */
+  async report(
+    userId: string,
+    projectId: string,
+    reasonAr?: string,
+  ): Promise<{ reported: true; alreadyReported?: boolean }> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true },
+    });
+    if (!project) throw new NotFoundException('project not found');
+    try {
+      await this.prisma.projectReport.create({
+        data: { projectId, reporterId: userId, reasonAr: reasonAr ?? null },
+      });
+      return { reported: true };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        return { reported: true, alreadyReported: true };
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * STAKES/J3 — "مشاريع مشابهة": LIVE projects in the same subcategory,
+   * widened to sibling subcategories (same parent) / the legacy enum when
+   * the exact subcategory can't fill the rail. Card projection only.
+   */
+  async similar(projectId: string, limit = 4): Promise<{ items: Array<Record<string, unknown>> }> {
+    const proj = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        categoryId: true,
+        category: true,
+        categoryRef: { select: { parentId: true } },
+      },
+    });
+    if (!proj) throw new NotFoundException('project not found');
+
+    const CARD = {
+      id: true,
+      titleAr: true,
+      shortDescAr: true,
+      slug: true,
+      status: true,
+      raisedHalalas: true,
+      fundingGoalHalalas: true,
+      deadline: true,
+    } as const;
+    const base = {
+      status: ProjectStatus.LIVE,
+      publishedAt: { not: null },
+    };
+
+    const items = proj.categoryId
+      ? await this.prisma.project.findMany({
+          where: { ...base, id: { not: projectId }, categoryId: proj.categoryId },
+          orderBy: { raisedHalalas: 'desc' },
+          take: limit,
+          select: CARD,
+        })
+      : [];
+
+    if (items.length < limit) {
+      const parentId = proj.categoryRef?.parentId;
+      const widened = await this.prisma.project.findMany({
+        where: {
+          ...base,
+          id: { notIn: [projectId, ...items.map((i) => i.id)] },
+          ...(parentId
+            ? { categoryRef: { parentId } }
+            : proj.category
+              ? { category: proj.category }
+              : { id: { equals: '-none-' } }),
+        },
+        orderBy: { raisedHalalas: 'desc' },
+        take: limit - items.length,
+        select: CARD,
+      });
+      items.push(...widened);
+    }
+
+    return {
+      items: items.map((p) => ({
+        id: p.id,
+        titleAr: p.titleAr,
+        shortDescAr: p.shortDescAr,
+        slug: p.slug,
+        status: p.status,
+        fundedPct:
+          p.fundingGoalHalalas > 0n
+            ? Math.round(Number((p.raisedHalalas * 100n) / p.fundingGoalHalalas))
+            : 0,
+        deadline: p.deadline.toISOString(),
+      })),
+    };
+  }
+
   /** STAKES/N6 — detail lookup by UUID or human-readable slug (/p/[slug]). */
   async findByIdOrSlug(idOrSlug: string): Promise<Project> {
     const isUuid =

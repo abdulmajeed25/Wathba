@@ -726,6 +726,34 @@ export async function listReviewQueue(
   return fetchJson<{ items: ApiProjectDetail[] }>(`/v1/admin/review-queue`, 0, bearer);
 }
 
+/** STAKES/K2 K3 — admin moderation queue (reported comments + projects). */
+export interface ApiModerationQueue {
+  comments: Array<{
+    id: string;
+    projectId: string;
+    projectTitleAr: string;
+    authorName: string;
+    authorHandle: string | null;
+    bodyAr: string;
+    reportCount: number;
+    reasons: string[];
+    date: string;
+  }>;
+  projects: Array<{
+    projectId: string;
+    titleAr: string;
+    status: string | null;
+    reportCount: number;
+  }>;
+}
+
+export async function getModerationQueue(
+  token?: string | null,
+): Promise<ApiModerationQueue | null> {
+  const bearer = token ?? (await readSessionToken());
+  return fetchJson<ApiModerationQueue>(`/v1/admin/moderation`, 0, bearer);
+}
+
 export async function listKycQueue(
   token?: string | null,
 ): Promise<{ items: ApiKycRow[] } | null> {
@@ -884,6 +912,41 @@ export interface ApiPublicProfile {
     fundedPct: number;
     publishedAt: string | null;
   }>;
+}
+
+/** STAKES/J3 J4 — compact card shape for the projects rails. */
+export interface ApiRailProject {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  slug: string | null;
+  status: string;
+  fundedPct: number;
+  deadline: string;
+}
+
+/** STAKES/J3 — LIVE projects in the same (sub)category. Public. */
+export async function getSimilarProjects(
+  projectId: string,
+): Promise<ApiRailProject[]> {
+  const data = await fetchJson<{ items: ApiRailProject[] }>(
+    `/v1/projects/${projectId}/similar`,
+    60,
+  );
+  return data?.items ?? [];
+}
+
+/** STAKES/J4 — "لأنك دعمت…" for the signed-in home. */
+export async function getRecommendedProjects(
+  token?: string | null,
+): Promise<{ items: ApiRailProject[]; basedOn: string[] } | null> {
+  const bearer = token ?? (await readSessionToken());
+  if (!bearer) return null;
+  return fetchJson<{ items: ApiRailProject[]; basedOn: string[] }>(
+    '/v1/discover/recommended',
+    0,
+    bearer,
+  );
 }
 
 /** Public + anonymous — accepts a handle or a UUID fallback.

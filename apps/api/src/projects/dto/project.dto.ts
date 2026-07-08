@@ -177,3 +177,10 @@ export class SubmitForReviewDto {
   @IsOptional() @IsString() @IsNotEmpty()
   note?: string;
 }
+
+/** STAKES/K3 — optional free-text reason on a project report. */
+export class ReportProjectDto {
+  @ApiProperty({ required: false, example: 'محتوى مضلل' })
+  @IsOptional() @IsString() @MaxLength(500)
+  reasonAr?: string;
+}

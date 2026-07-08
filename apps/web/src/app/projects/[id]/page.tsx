@@ -5,8 +5,9 @@ import {
   wathbaProjects,
 } from '@/components/ventures/wathba/wathba-data';
 import { WathbaCampaign } from '@/components/ventures/wathba/wathba-campaign';
+import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { getProjectDetail, listVentures } from '@/lib/api/wathba';
+import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
 
 /**
  * Project / campaign page — full Kickstarter-style surface (rich header +
@@ -61,13 +62,16 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const live = await listVentures();
+  const [live, detail] = await Promise.all([
+    listVentures(),
+    // CC-14 — surfaces the PAUSED banner; S-8 — drives the similar rail.
+    getProjectDetail(id).catch(() => null),
+  ]);
   const apiRow = live?.find((v) => v.slug.toLowerCase() === id.toLowerCase());
   const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
   const fallback = wathbaProjects.find((p) => p.id === id);
-  // CC-14 — surface a PAUSED banner without touching the fixture-bound campaign.
-  const detail = await getProjectDetail(id).catch(() => null);
   const paused = detail?.status === 'PAUSED';
+  const similar = detail ? await getSimilarProjects(detail.id).catch(() => []) : [];
 
   // STAKES/N5 — per-campaign structured data. schema.org has no crowdfunding
   // type; CreativeWork + creator + funding text is the defensible mapping.
@@ -107,6 +111,8 @@ export default async function ProjectDetailPage({
         </div>
       )}
       <WathbaCampaign id={id} project={liveProject ?? fallback ?? undefined} />
+      {/* STAKES/J3 — same-subcategory rail (empty for fixture ids). */}
+      <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
     </WathbaShell>
   );
 }

@@ -3,8 +3,9 @@ import { notFound } from 'next/navigation';
 
 import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
 import { WathbaCampaign } from '@/components/ventures/wathba/wathba-campaign';
+import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { getProjectDetail, listVentures } from '@/lib/api/wathba';
+import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
 
 /**
  * STAKES/N6 — human-readable campaign URLs: /p/[slug] (the API detail
@@ -54,6 +55,7 @@ export default async function ProjectBySlugPage({
   const apiRow = live?.find((v) => v.id === detail.id);
   const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
   const paused = detail.status === 'PAUSED';
+  const similar = await getSimilarProjects(detail.id).catch(() => []);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -87,6 +89,8 @@ export default async function ProjectBySlugPage({
         </div>
       )}
       <WathbaCampaign id={detail.id} project={liveProject ?? undefined} />
+      {/* STAKES/J3 — same-subcategory rail. */}
+      <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
     </WathbaShell>
   );
 }

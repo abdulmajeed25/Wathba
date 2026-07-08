@@ -188,4 +188,91 @@ export class AdminService {
     }
     return proj;
   }
+
+  // ── STAKES/K2 K3 — moderation queue ─────────────────────────────────────
+
+  /** Reported comments (not yet hidden) + open project reports, for the admin tab. */
+  async moderationQueue(): Promise<{
+    comments: Array<Record<string, unknown>>;
+    projects: Array<Record<string, unknown>>;
+  }> {
+    const [comments, projectGroups] = await Promise.all([
+      this.prisma.comment.findMany({
+        where: { reportCount: { gt: 0 }, hidden: false },
+        orderBy: { reportCount: 'desc' },
+        take: 50,
+        include: {
+          user: { select: { name: true, handle: true } },
+          project: { select: { id: true, titleAr: true } },
+          reports: { select: { reasonAr: true }, take: 3, orderBy: { createdAt: 'desc' } },
+        },
+      }),
+      this.prisma.projectReport.groupBy({
+        by: ['projectId'],
+        where: { resolvedAt: null },
+        _count: { _all: true },
+        orderBy: { _count: { projectId: 'desc' } },
+        take: 50,
+      }),
+    ]);
+
+    const projectRows = await this.prisma.project.findMany({
+      where: { id: { in: projectGroups.map((g) => g.projectId) } },
+      select: { id: true, titleAr: true, status: true },
+    });
+    const titleById = new Map(projectRows.map((p) => [p.id, p]));
+
+    return {
+      comments: comments.map((c) => ({
+        id: c.id,
+        projectId: c.projectId,
+        projectTitleAr: c.project.titleAr,
+        authorName: c.user.name,
+        authorHandle: c.user.handle,
+        bodyAr: c.bodyAr,
+        reportCount: c.reportCount,
+        reasons: c.reports.map((r) => r.reasonAr).filter(Boolean),
+        date: c.date.toISOString(),
+      })),
+      projects: projectGroups.map((g) => ({
+        projectId: g.projectId,
+        titleAr: titleById.get(g.projectId)?.titleAr ?? '—',
+        status: titleById.get(g.projectId)?.status ?? null,
+        reportCount: g._count._all,
+      })),
+    };
+  }
+
+  /** hide = suppress the body publicly; dismiss = clear the flags, keep the comment. */
+  async moderateComment(
+    commentId: string,
+    action: 'hide' | 'dismiss',
+  ): Promise<{ ok: true; action: string }> {
+    const c = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true },
+    });
+    if (!c) throw new NotFoundException('comment not found');
+    if (action === 'hide') {
+      await this.prisma.comment.update({
+        where: { id: commentId },
+        data: { hidden: true },
+      });
+    } else {
+      await this.prisma.$transaction([
+        this.prisma.commentReport.deleteMany({ where: { commentId } }),
+        this.prisma.comment.update({ where: { id: commentId }, data: { reportCount: 0 } }),
+      ]);
+    }
+    return { ok: true, action };
+  }
+
+  /** Dismiss all open reports on a project (keeps rows for history via resolvedAt). */
+  async dismissProjectReports(projectId: string): Promise<{ ok: true; resolved: number }> {
+    const { count } = await this.prisma.projectReport.updateMany({
+      where: { projectId, resolvedAt: null },
+      data: { resolvedAt: new Date() },
+    });
+    return { ok: true, resolved: count };
+  }
 }

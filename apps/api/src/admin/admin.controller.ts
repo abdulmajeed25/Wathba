@@ -9,7 +9,7 @@ import { FundingService } from '../funding/funding.service';
 import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { AdminService } from './admin.service';
 import { AuditService } from '../identity/audit.service';
-import { GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto } from './dto/admin.dto';
+import { GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto } from './dto/admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -134,5 +134,44 @@ export class AdminController {
   async forceVerify(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
     await this.audit.log({ actorId: jwt.sub, action: 'admin.kyc.force-verify', entity: 'User', entityId: id });
     return this.admin.forceVerifyKyc(id);
+  }
+
+  // ── STAKES/K2 K3 — moderation queue ──────────────────────────────────────
+
+  @Get('moderation')
+  @ApiOperation({ summary: 'STAKES/K2 K3 — reported comments + reported projects' })
+  async moderation() {
+    return this.admin.moderationQueue();
+  }
+
+  @Post('comments/:id/moderate')
+  @ApiOperation({ summary: "STAKES/K2 — hide a reported comment or dismiss its flags" })
+  async moderateComment(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ModerateCommentDto,
+  ) {
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: `admin.comment.${dto.action}`,
+      entity: 'Comment',
+      entityId: id,
+    });
+    return this.admin.moderateComment(id, dto.action);
+  }
+
+  @Post('projects/:id/reports/dismiss')
+  @ApiOperation({ summary: 'STAKES/K3 — dismiss all open reports on a project' })
+  async dismissProjectReports(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: 'admin.project.reports-dismiss',
+      entity: 'Project',
+      entityId: id,
+    });
+    return this.admin.dismissProjectReports(id);
   }
 }

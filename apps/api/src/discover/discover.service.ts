@@ -426,4 +426,68 @@ export class DiscoverService {
     void byId;
     return out;
   }
+
+  /**
+   * STAKES/J4 — home rail for signed-in backers: LIVE projects in the
+   * categories the user has backed (HELD/CAPTURED), excluding projects they
+   * already back. `basedOn` carries the category names for the rail title.
+   */
+  async recommendedForUser(
+    userId: string,
+    limit = 8,
+  ): Promise<{ items: Array<Record<string, unknown>>; basedOn: string[] }> {
+    const pledges = await this.prisma.pledge.findMany({
+      where: { backerId: userId, status: { in: ['HELD', 'CAPTURED'] } },
+      distinct: ['projectId'],
+      select: { projectId: true, project: { select: { categoryId: true } } },
+    });
+    const backedIds = pledges.map((p) => p.projectId);
+    const catIds = [
+      ...new Set(pledges.map((p) => p.project.categoryId).filter((c): c is string => !!c)),
+    ];
+    if (catIds.length === 0) return { items: [], basedOn: [] };
+
+    const [items, cats] = await Promise.all([
+      this.prisma.project.findMany({
+        where: {
+          status: 'LIVE',
+          publishedAt: { not: null },
+          id: { notIn: backedIds },
+          categoryId: { in: catIds },
+        },
+        orderBy: { raisedHalalas: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          titleAr: true,
+          shortDescAr: true,
+          slug: true,
+          status: true,
+          raisedHalalas: true,
+          fundingGoalHalalas: true,
+          deadline: true,
+        },
+      }),
+      this.prisma.category.findMany({
+        where: { id: { in: catIds } },
+        select: { nameAr: true },
+      }),
+    ]);
+
+    return {
+      items: items.map((p) => ({
+        id: p.id,
+        titleAr: p.titleAr,
+        shortDescAr: p.shortDescAr,
+        slug: p.slug,
+        status: p.status,
+        fundedPct:
+          p.fundingGoalHalalas > 0n
+            ? Math.round(Number((p.raisedHalalas * 100n) / p.fundingGoalHalalas))
+            : 0,
+        deadline: p.deadline.toISOString(),
+      })),
+      basedOn: cats.map((c) => c.nameAr),
+    };
+  }
 }

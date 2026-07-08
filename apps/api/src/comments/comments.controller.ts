@@ -15,7 +15,7 @@ import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { CommentsService } from './comments.service';
-import { CreateCommentDto, ListCommentsQueryDto } from './dto/comment.dto';
+import { CreateCommentDto, EditCommentDto, ListCommentsQueryDto } from './dto/comment.dto';
 
 @ApiTags('comments')
 @Controller('projects/:projectId/comments')
@@ -41,6 +41,19 @@ export class CommentsController {
     @Body() dto: CreateCommentDto,
   ) {
     return this.comments.create(jwt.sub, projectId, dto);
+  }
+
+  @Patch(':commentId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'STAKES/K1 — edit own comment (15-min window)' })
+  async edit(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('projectId', new ParseUUIDPipe()) _projectId: string,
+    @Param('commentId', new ParseUUIDPipe()) commentId: string,
+    @Body() dto: EditCommentDto,
+  ) {
+    return this.comments.edit(jwt.sub, commentId, dto.bodyAr);
   }
 
   @Patch(':commentId/pin')

@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'البحث · وثبة' };
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; cat?: string; status?: string }>;
 }) {
   const sp = await searchParams;
   const live = await listVentures();
@@ -21,6 +21,8 @@ export default async function SearchPage({
     <WathbaShell>
       <WathbaSearch
         initialQ={sp.q ?? ''}
+        initialCat={sp.cat ?? ''}
+        initialStatus={sp.status ?? ''}
         projects={projects && projects.length > 0 ? projects : undefined}
       />
     </WathbaShell>
