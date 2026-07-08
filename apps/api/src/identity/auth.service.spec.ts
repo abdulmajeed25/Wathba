@@ -19,6 +19,8 @@ function makeUsers(user: any = null): any {
     findByEmail: jest.fn().mockResolvedValue(user),
     findById: jest.fn().mockResolvedValue(user ?? { id: 'u1', email: EMAIL, roles: ['BACKER'] }),
     toPublic: jest.fn().mockReturnValue({ id: 'u1', email: EMAIL }),
+    // STAKES/C7 — signUp mints a public handle from the email local-part.
+    generateHandle: jest.fn().mockResolvedValue('sara'),
   };
 }
 

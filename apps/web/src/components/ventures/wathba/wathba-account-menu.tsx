@@ -21,6 +21,9 @@ interface Me {
   name: string;
   roles: string[];
   createdProjectsCount?: number;
+  /** STAKES/S-4 — public-profile identity. */
+  handle?: string | null;
+  avatarUrl?: string | null;
 }
 
 export function WathbaAccountMenu() {
@@ -90,9 +93,12 @@ export function WathbaAccountMenu() {
 
   const isCreator = me.roles.includes('CREATOR') || (me.createdProjectsCount ?? 0) > 0;
   const initial = (me.name || '؟').trim().charAt(0);
+  // STAKES/C10 — the identity control links to the PUBLIC profile.
+  const publicProfileHref = `/u/${encodeURIComponent(me.handle ?? me.id)}`;
 
   const items: Array<{ href: string; label: string; icon: string }> = [
-    { href: '/projects/me/profile', label: 'الملف الشخصي', icon: 'person' },
+    { href: publicProfileHref, label: 'ملفي العام', icon: 'person' },
+    { href: '/projects/me/profile', label: 'الملف الشخصي', icon: 'history' },
     ...(isCreator ? [{ href: '/projects/dashboard', label: 'لوحة مشاريعي', icon: 'query_stats' }] : []),
     { href: '/projects/me/pledges', label: 'تعهداتي', icon: 'volunteer_activism' },
     { href: '/projects/discover-all?only=saved', label: 'المشاريع المحفوظة', icon: 'bookmark' },
@@ -108,15 +114,27 @@ export function WathbaAccountMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`حساب ${me.name}`}
-        style={avatarBtn}
+        style={{ ...avatarBtn, overflow: 'hidden', padding: 0 }}
       >
-        {initial}
+        {me.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={me.avatarUrl} alt="" width={42} height={42} style={{ objectFit: 'cover' }} />
+        ) : (
+          initial
+        )}
       </button>
       {open && (
         <div ref={panelRef} role="menu" aria-label="حسابي" style={panel}>
           <div style={panelHead}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{me.name}</div>
+            <Link
+              href={publicProfileHref}
+              onClick={() => close()}
+              style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', textDecoration: 'none', display: 'block' }}
+            >
+              {me.name}
+            </Link>
             <div style={{ fontSize: 12, color: 'var(--muted2)' }}>
+              {me.handle ? `@${me.handle} · ` : ''}
               {me.roles.includes('ADMIN') ? 'مدير' : isCreator ? 'مبدع' : 'داعم'}
             </div>
           </div>

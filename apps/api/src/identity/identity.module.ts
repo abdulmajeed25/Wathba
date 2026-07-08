@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { NafathController } from './nafath.controller';
+import { ProfilesController } from './profiles.controller';
 import { NafathService } from './nafath.service';
 import { PdplService } from './pdpl.service';
 import { JwtStrategy } from './jwt.strategy';
@@ -45,7 +46,7 @@ import { AuditService } from './audit.service';
       },
     }),
   ],
-  controllers: [AuthController, UsersController, NafathController],
+  controllers: [AuthController, UsersController, NafathController, ProfilesController],
   providers: [AuthService, UsersService, NafathService, PdplService, AuditService, JwtStrategy],
   exports: [AuthService, UsersService, AuditService, JwtStrategy, PassportModule, JwtModule],
 })

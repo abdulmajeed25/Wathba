@@ -489,6 +489,13 @@ export interface ApiUserMe {
   createdAt: string;
   /** STAKES/B2 — projects this user has created (0 ⇒ not yet a creator). */
   createdProjectsCount?: number;
+  /** STAKES/S-4 — user-level identity surface. */
+  handle?: string | null;
+  avatarUrl?: string | null;
+  bioAr?: string | null;
+  city?: string | null;
+  websiteUrl?: string | null;
+  socialLinks?: Array<{ platform: string; url: string }>;
 }
 
 export interface ApiRewardTier {
@@ -583,6 +590,9 @@ export interface ApiCommentPublic {
   projectId: string;
   userId: string;
   userName: string;
+  /** STAKES/C10 — link the author to /u/[handle] + render the avatar. */
+  userHandle?: string | null;
+  userAvatarUrl?: string | null;
   isCreator: boolean;
   pinned: boolean;
   hidden: boolean;
@@ -824,6 +834,8 @@ export interface ApiCreatorPastProject {
 export interface ApiCreatorProfile {
   userId: string;
   name: string;
+  /** STAKES/C10 — public-profile handle (/u/[handle]); null for legacy rows. */
+  handle?: string | null;
   nafathVerified: boolean;
   avatarUrl: string | null;
   bioAr: string | null;
@@ -840,6 +852,39 @@ export async function getCreatorProfile(
   userId: string,
 ): Promise<ApiCreatorProfile | null> {
   return fetchJson<ApiCreatorProfile>(`/v1/creators/${userId}`);
+}
+
+/* ---------- STAKES/S-4 — public user profile (/u/[handle]) ---------------- */
+
+export interface ApiPublicProfile {
+  id: string;
+  handle: string | null;
+  name: string;
+  avatarUrl: string | null;
+  bioAr: string | null;
+  city: string | null;
+  websiteUrl: string | null;
+  socialLinks: Array<{ platform: string; url: string }>;
+  nafathVerified: boolean;
+  joinedAt: string;
+  stats: { backedCount: number; createdCount: number; followersCount: number };
+  createdProjects: Array<{
+    id: string;
+    titleAr: string;
+    status: string;
+    fundedPct: number;
+    publishedAt: string | null;
+  }>;
+}
+
+/** Public + anonymous — accepts a handle or a UUID fallback. */
+export async function getPublicProfile(
+  handleOrId: string,
+): Promise<ApiPublicProfile | null> {
+  return fetchJson<ApiPublicProfile>(
+    `/v1/profiles/${encodeURIComponent(handleOrId)}`,
+    30,
+  );
 }
 
 /* ---------- Batch CAT — taxonomy + discovery ------------------------------ */

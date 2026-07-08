@@ -1,6 +1,8 @@
 import {
-  Equals, IsBoolean, IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength,
+  ArrayMaxSize, Equals, IsArray, IsBoolean, IsEmail, IsIn, IsOptional,
+  IsString, IsUrl, Matches, MaxLength, MinLength, ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class SignUpDto {
@@ -37,6 +39,18 @@ export class SignInDto {
   password!: string;
 }
 
+/** STAKES/C4 — one optional, validated social link. */
+export class SocialLinkDto {
+  @ApiProperty({ enum: ['x', 'instagram', 'linkedin', 'youtube', 'tiktok'] })
+  @IsIn(['x', 'instagram', 'linkedin', 'youtube', 'tiktok'])
+  platform!: string;
+
+  @ApiProperty({ example: 'https://x.com/wathba' })
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
+  @MaxLength(300)
+  url!: string;
+}
+
 export class UpdateProfileDto {
   @ApiProperty({ required: false })
   @IsOptional() @IsString() @MinLength(2) @MaxLength(80)
@@ -49,6 +63,37 @@ export class UpdateProfileDto {
   @ApiProperty({ required: false, example: 'ar' })
   @IsOptional() @IsString()
   locale?: string;
+
+  /** STAKES/C7 — user-chosen URL handle; lowercased server-side. */
+  @ApiProperty({ required: false, example: 'sara-alamri' })
+  @IsOptional() @IsString()
+  @Matches(/^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,29}$/, {
+    message: 'handle must be 3-30 chars: letters, digits, _ . -',
+  })
+  handle?: string;
+
+  @ApiProperty({ required: false, description: 'null clears the avatar' })
+  @IsOptional() @IsUrl({ require_protocol: true })
+  @MaxLength(500)
+  avatarUrl?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString() @MaxLength(600)
+  bioAr?: string;
+
+  @ApiProperty({ required: false, example: 'الرياض' })
+  @IsOptional() @IsString() @MaxLength(80)
+  city?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsUrl({ require_protocol: true })
+  @MaxLength(300)
+  websiteUrl?: string;
+
+  @ApiProperty({ required: false, type: [SocialLinkDto] })
+  @IsOptional() @IsArray() @ArrayMaxSize(5)
+  @ValidateNested({ each: true }) @Type(() => SocialLinkDto)
+  socialLinks?: SocialLinkDto[];
 }
 
 export class RefreshDto {
