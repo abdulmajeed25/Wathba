@@ -184,6 +184,17 @@ model User {
   email               String          @unique
   phone               String?
   passwordHash        String?
+  /// STAKES/C7 — unique URL handle for the public profile (/u/[handle]).
+  /// Nullable: legacy rows are backfilled from the email local-part; a user
+  /// can pick their own in settings (validated + reserved-word checked).
+  handle              String?         @unique
+  /// STAKES/C2-C4 — user-level identity surface (every user, not just creators).
+  avatarUrl           String?
+  bioAr               String?         @db.Text
+  city                String?
+  websiteUrl          String?
+  /// [{platform:'x'|'instagram'|'linkedin'|'youtube'|'tiktok', url}] — validated in the DTO.
+  socialLinks         Json            @default("[]")
   roles               UserRole[]      @default([BACKER])
   nafathVerified      Boolean         @default(false)
   nafathVerifiedAt    DateTime?

@@ -21,6 +21,9 @@ export interface PublicComment {
   projectId: string;
   userId: string;
   userName: string;
+  /** STAKES/C10 — lets the web link the author to /u/[handle] + show the avatar. */
+  userHandle: string | null;
+  userAvatarUrl: string | null;
   isCreator: boolean;
   pinned: boolean;
   hidden: boolean;
@@ -32,7 +35,7 @@ export interface PublicComment {
 }
 
 interface CommentWithUser extends Comment {
-  user: { id: string; name: string };
+  user: { id: string; name: string; handle: string | null; avatarUrl: string | null };
 }
 
 @Injectable()
@@ -63,7 +66,7 @@ export class CommentsService {
         ? await this.prisma.comment.findMany({
             where: { projectId, parentId: null, pinned: true },
             orderBy: { pinnedAt: 'desc' },
-            include: { user: { select: { id: true, name: true } } },
+            include: { user: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
             take: 50,
           })
         : [];
@@ -78,7 +81,7 @@ export class CommentsService {
       },
       orderBy: { id: 'desc' },
       take: take + 1,
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
     });
 
     let nextCursor: string | null = null;
@@ -135,7 +138,7 @@ export class CommentsService {
         parentId: dto.parentId ?? null,
         isCreator: userId === project.createdById,
       },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
     });
 
     // Reply notification — DB-backed outbox, fire-and-forget on failure
@@ -202,7 +205,7 @@ export class CommentsService {
         pinned: !c.pinned,
         pinnedAt: !c.pinned ? new Date() : null,
       },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
     });
     return this.toPublic(updated);
   }
@@ -212,7 +215,7 @@ export class CommentsService {
     const updated = await this.prisma.comment.update({
       where: { id: commentId },
       data: { hidden: !c.hidden },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
     });
     return this.toPublic(updated);
   }
@@ -260,6 +263,8 @@ export class CommentsService {
       projectId: c.projectId,
       userId: c.userId,
       userName: c.user.name,
+      userHandle: c.user.handle,
+      userAvatarUrl: c.user.avatarUrl,
       isCreator: c.isCreator,
       pinned: c.pinned,
       hidden: c.hidden,

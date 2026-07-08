@@ -60,12 +60,16 @@ export class AuthService {
     const exists = await this.users.findByEmail(email);
     if (exists) throw new ConflictException('email already registered');
     const passwordHash = await bcrypt.hash(input.password, 12);
+    // STAKES/C7 — mint a unique public handle from the email local-part
+    // (null when it sanitizes too short; the user picks one in settings).
+    const handle = await this.users.generateHandle(email);
     const user = await this.prisma.user.create({
       data: {
         name: input.name,
         email,
         passwordHash,
         phone: input.phone,
+        handle,
         roles: ['BACKER'],
         // PDPL: consent version is stamped server-side; the DTO already
         // rejected any signup without acceptTerms=true.

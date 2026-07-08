@@ -75,6 +75,8 @@ export class CreatorsService {
       select: {
         id: true,
         name: true,
+        handle: true,
+        avatarUrl: true,
         nafathVerified: true,
         creatorProfile: {
           select: {
@@ -147,8 +149,11 @@ export class CreatorsService {
     return {
       userId: user.id,
       name: user.name,
+      // STAKES/C10 — the web links the creator header to /u/[handle].
+      handle: user.handle,
       nafathVerified: user.nafathVerified,
-      avatarUrl: profile?.avatarUrl ?? null,
+      // User-level avatar (STAKES/C2) wins over the legacy creator-profile one.
+      avatarUrl: user.avatarUrl ?? profile?.avatarUrl ?? null,
       bioAr: profile?.bioAr ?? null,
       websiteUrl: profile?.websiteUrl ?? null,
       collaborators: this.parseCollaborators(profile?.collaborators),

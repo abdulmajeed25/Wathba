@@ -59,6 +59,10 @@ export class CreatorProfileResponseDto {
   @ApiProperty()
   name!: string;
 
+  /** STAKES/C10 — public-profile handle (/u/[handle]); null for legacy rows. */
+  @ApiProperty({ nullable: true })
+  handle!: string | null;
+
   @ApiProperty()
   nafathVerified!: boolean;
 

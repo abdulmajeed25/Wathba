@@ -113,6 +113,13 @@ export class PdplService {
           email: `erased-${userId}@erased.wathba.sa`,
           phone: null,
           passwordHash: null, // disables sign-in permanently
+          // STAKES/C1 — kill the public profile surface too (/u/[handle]).
+          handle: null,
+          avatarUrl: null,
+          bioAr: null,
+          city: null,
+          websiteUrl: null,
+          socialLinks: [],
           nafathVerified: false,
           nafathVerifiedAt: null,
           consentVersion: null,
