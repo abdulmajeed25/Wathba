@@ -58,6 +58,7 @@ export class EmailService {
   verification(to: string, link: string) { return this.deliver(to, emailTemplates.verification(link)); }
   passwordReset(to: string, link: string) { return this.deliver(to, emailTemplates.passwordReset(link)); }
   welcome(to: string, name: string) { return this.deliver(to, emailTemplates.welcome(name)); }
+  duplicateSignup(to: string) { return this.deliver(to, emailTemplates.duplicateSignup()); }
   pledgeReceipt(to: string, d: { projectTitle: string; amountHalalas: number; tierTitle?: string | null }) {
     return this.deliver(to, emailTemplates.pledgeReceipt(d));
   }

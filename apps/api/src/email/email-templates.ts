@@ -56,6 +56,17 @@ export const emailTemplates = {
         <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تطلب ذلك، فكلمة مرورك ما زالت آمنة — تجاهل الرسالة.</p>`),
     };
   },
+  /** STAKES/P1 — someone tried to sign up with this (already-registered) email.
+   *  Sent to the OWNER; the requester only sees a generic non-confirming error. */
+  duplicateSignup(): EmailContent {
+    return {
+      subject: `${BRAND} — محاولة إنشاء حساب ببريدك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">لديك حساب لدينا بالفعل</h1>
+        <p>سُجّلت محاولة لإنشاء حساب جديد بهذا البريد على ${BRAND}. إن كنت أنت، فسجّل دخولك مباشرة — وإن نسيت كلمة مرورك فاستعدها:</p>
+        ${cta('{{APP_URL}}/forgot-password', 'استعادة كلمة المرور')}
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تكن أنت، تجاهل هذه الرسالة — حسابك آمن ولم يتغيّر شيء.</p>`),
+    };
+  },
   welcome(name: string): EmailContent {
     return {
       subject: `${BRAND} — تم توثيق حسابك`,

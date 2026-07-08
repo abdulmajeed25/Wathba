@@ -1,7 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
+import { LiveEmailField } from '@/components/auth/auth-fields';
 import { forgotPasswordAction } from '@/lib/auth/actions';
+import { getMe } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'استعادة كلمة المرور · وثبة' };
 
@@ -17,6 +20,9 @@ export default async function ForgotPasswordPage({
 }) {
   const sp = await searchParams;
   const error = sp.err ? (ERROR_MESSAGES[sp.err] ?? ERROR_MESSAGES.network) : null;
+
+  // STAKES/A16 — signed-in users change their password from settings instead.
+  if (await getMe()) redirect('/projects/settings');
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
@@ -34,16 +40,7 @@ export default async function ForgotPasswordPage({
         </div>
       ) : (
         <form action={forgotPasswordAction} className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">البريد الإلكتروني</span>
-            <input
-              type="email"
-              name="email"
-              required
-              autoComplete="email"
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-            />
-          </label>
+          <LiveEmailField />
           {error ? (
             <p role="alert" className="text-sm text-red-600">
               {error}

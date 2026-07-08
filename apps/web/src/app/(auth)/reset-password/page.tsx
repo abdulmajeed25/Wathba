@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { PasswordField } from '@/components/auth/auth-fields';
 import { resetPasswordAction } from '@/lib/auth/actions';
 
 export const metadata: Metadata = { title: 'تعيين كلمة مرور جديدة · وثبة' };
@@ -41,17 +42,12 @@ export default async function ResetPasswordPage({
       ) : (
         <form action={resetPasswordAction} className="flex flex-col gap-4">
           <input type="hidden" name="token" value={token} />
-          <label className="flex flex-col gap-1">
-            <span className="text-sm font-medium">كلمة المرور الجديدة</span>
-            <input
-              type="password"
-              name="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-            />
-          </label>
+          <PasswordField
+            label="كلمة المرور الجديدة"
+            autoComplete="new-password"
+            withStrength
+            hint="٨ أحرف على الأقل — أضف أرقاماً ورموزاً لتقويتها."
+          />
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium">تأكيد كلمة المرور</span>
             <input

@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
+import { LiveEmailField, LiveNameField, PasswordField } from '@/components/auth/auth-fields';
 import { signUpAction } from '@/lib/auth/actions';
+import { destinationFor } from '@/lib/auth/guard';
+import { getMe } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'إنشاء حساب · وثبة' };
 
@@ -9,7 +13,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   missing: 'يرجى إدخال الاسم والبريد الإلكتروني وكلمة المرور.',
   consent: 'يجب الموافقة على الشروط وسياسة الخصوصية للمتابعة.',
   invalid: 'البيانات غير صحيحة. تحقق من البريد الإلكتروني وطول كلمة المرور.',
-  taken: 'هذا البريد الإلكتروني مسجّل بالفعل.',
+  taken:
+    'تعذّر إنشاء الحساب بهذه البيانات. إن كان لديك حساب سابق فسجّل دخولك أو استعد كلمة المرور.',
   throttle: 'محاولات كثيرة خلال دقيقة — انتظر قليلاً ثم حاول مجدداً.',
   network: 'تعذّر الاتصال بالخادم. حاول مرة أخرى.',
   server: 'حدث خطأ ما. حاول مرة أخرى.',
@@ -22,7 +27,11 @@ export default async function SignUpPage({
 }) {
   const sp = await searchParams;
   const error = sp.err ? (ERROR_MESSAGES[sp.err] ?? ERROR_MESSAGES.server) : null;
-  const next = sp.next && sp.next.startsWith('/') ? sp.next : '/projects';
+  const next = sp.next && sp.next.startsWith('/') && !sp.next.startsWith('//') ? sp.next : '/projects';
+
+  // STAKES/A16 — already signed in ⇒ honor the deep-link instead of re-signup.
+  const me = await getMe();
+  if (me) redirect(sp.next && sp.next.startsWith('/') ? next : destinationFor(me));
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
@@ -35,42 +44,9 @@ export default async function SignUpPage({
 
       <form action={signUpAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next} />
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">الاسم</span>
-          <input
-            type="text"
-            name="name"
-            required
-            minLength={2}
-            maxLength={80}
-            autoComplete="name"
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">البريد الإلكتروني</span>
-          <input
-            type="email"
-            name="email"
-            required
-            autoComplete="email"
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">كلمة المرور</span>
-          <input
-            type="password"
-            name="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-          />
-          <span className="text-xs text-neutral-600">٨ أحرف على الأقل.</span>
-        </label>
+        <LiveNameField />
+        <LiveEmailField />
+        <PasswordField autoComplete="new-password" withStrength hint="٨ أحرف على الأقل — أضف أرقاماً ورموزاً لتقويتها." />
 
         <label className="flex items-start gap-2 text-sm">
           <input

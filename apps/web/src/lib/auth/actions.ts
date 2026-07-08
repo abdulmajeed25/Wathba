@@ -87,7 +87,10 @@ export async function signInAction(formData: FormData): Promise<void> {
   const next = safeNext(formData.get('next'));
   if (!email || !password) redirect(`/sign-in?err=missing&next=${encodeURIComponent(next)}`);
 
+  // redirect() throws NEXT_REDIRECT — keep it OUTSIDE the try (see signUpAction).
   let body: AuthResponse | null = null;
+  let status = 0;
+  let retryAfterSec = 0;
   try {
     const res = await fetch(`${API_BASE}/v1/auth/signin`, {
       method: 'POST',
@@ -95,13 +98,24 @@ export async function signInAction(formData: FormData): Promise<void> {
       body: JSON.stringify({ email, password }),
       cache: 'no-store',
     });
-    if (!res.ok) {
-      const errKey = res.status === 401 ? 'invalid' : 'server';
-      redirect(`/sign-in?err=${errKey}&next=${encodeURIComponent(next)}`);
+    status = res.status;
+    if (res.ok) {
+      body = (await res.json()) as AuthResponse;
+    } else if (status === 429) {
+      // STAKES/A9 P2 — the per-email lockout carries a dynamic Retry-After.
+      const err = (await res.json().catch(() => null)) as { retryAfter?: number } | null;
+      retryAfterSec = Math.max(0, Number(err?.retryAfter ?? 0));
     }
-    body = (await res.json()) as AuthResponse;
   } catch {
     redirect(`/sign-in?err=network&next=${encodeURIComponent(next)}`);
+  }
+  if (status === 429) {
+    const wait = retryAfterSec > 0 ? `&wait=${retryAfterSec}` : '';
+    redirect(`/sign-in?err=locked${wait}&next=${encodeURIComponent(next)}`);
+  }
+  if (status < 200 || status >= 300) {
+    const errKey = status === 401 ? 'invalid' : 'server';
+    redirect(`/sign-in?err=${errKey}&next=${encodeURIComponent(next)}`);
   }
 
   if (!body?.accessToken) redirect(`/sign-in?err=server&next=${encodeURIComponent(next)}`);
@@ -169,12 +183,17 @@ export async function signUpAction(formData: FormData): Promise<void> {
  */
 export async function verifyNafathAction(formData: FormData): Promise<void> {
   const nationalId = String(formData.get('nationalId') ?? '').trim();
-  if (!/^\d{10}$/.test(nationalId)) redirect('/sign-up/nafath?err=invalid');
+  // STAKES/A15 — the deep-link target survives the whole signup → Nafath hop.
+  const next = safeNext(formData.get('next'));
+  const back = `/sign-up/nafath?next=${encodeURIComponent(next)}`;
+  if (!/^\d{10}$/.test(nationalId)) redirect(`${back}&err=invalid`);
 
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
-  if (!token) redirect('/sign-in?next=/sign-up/nafath');
+  if (!token) redirect(`/sign-in?next=${encodeURIComponent(back)}`);
 
+  // redirect() throws NEXT_REDIRECT — keep it OUTSIDE the try.
+  let failKey: string | null = null;
   try {
     const initRes = await fetch(`${API_BASE}/v1/nafath/initiate`, {
       method: 'POST',
@@ -182,25 +201,29 @@ export async function verifyNafathAction(formData: FormData): Promise<void> {
       body: JSON.stringify({ nationalId }),
       cache: 'no-store',
     });
-    if (!initRes.ok) redirect('/sign-up/nafath?err=server');
-    const { transactionId } = (await initRes.json()) as { transactionId: string };
-
-    const confirmRes = await fetch(`${API_BASE}/v1/nafath/confirm`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ transactionId }),
-      cache: 'no-store',
-    });
-    if (!confirmRes.ok) redirect('/sign-up/nafath?err=denied');
+    if (!initRes.ok) {
+      failKey = 'server';
+    } else {
+      const { transactionId } = (await initRes.json()) as { transactionId: string };
+      const confirmRes = await fetch(`${API_BASE}/v1/nafath/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ transactionId }),
+        cache: 'no-store',
+      });
+      if (!confirmRes.ok) failKey = 'denied';
+    }
   } catch {
-    redirect('/sign-up/nafath?err=network');
+    failKey = 'network';
   }
-  redirect('/projects');
+  if (failKey) redirect(`${back}&err=${failKey}`);
+  redirect(next);
 }
 
 /** Skip the Nafath step for now — user can complete it later from settings. */
-export async function skipNafathAction(): Promise<void> {
-  redirect('/projects');
+export async function skipNafathAction(formData: FormData): Promise<void> {
+  // STAKES/A15 — honor the preserved deep-link even when skipping KYC.
+  redirect(safeNext(formData.get('next')));
 }
 
 /** Update name + phone on the current user (Settings → Profile tab). */
