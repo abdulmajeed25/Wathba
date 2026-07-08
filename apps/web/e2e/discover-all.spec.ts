@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { signInUI, signUpAndVerify, uniqueEmail } from './helpers';
+import { signUpAndVerify, uniqueEmail } from './helpers';
 
 /**
  * Batch DISC — advanced discover page journeys.
@@ -42,8 +42,9 @@ test('discover-all: two categories + percent radio + sort encode to URL and surv
 
 test('discover-all: signed-in user bookmarks a card then filters by saved', async ({ page }) => {
   const email = uniqueEmail('disc');
+  // signUpAndVerify leaves the user signed in; a redundant signInUI here
+  // would now bounce off /sign-in (STAKES/A16 redirects signed-in users away).
   await signUpAndVerify(page, 'داعم إي٢إي', email, '2298765432');
-  await signInUI(page, email);
 
   await page.goto('/projects/discover-all');
   const firstCard = page.locator('[data-testid="discover-card"]').first();

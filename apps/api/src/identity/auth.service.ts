@@ -58,7 +58,18 @@ export class AuthService {
   }): Promise<AuthResponse> {
     const email = input.email.toLowerCase();
     const exists = await this.users.findByEmail(email);
-    if (exists) throw new ConflictException('email already registered');
+    if (exists) {
+      // STAKES/P1 — enumeration resistance: the requester gets a GENERIC 409
+      // (never "already registered") while the real owner is notified by
+      // email. Full uniformity (identical 2xx for both paths) needs the
+      // verify-email-before-login flow (A5) — documented deferral.
+      try {
+        await this.email.duplicateSignup(email);
+      } catch {
+        /* best-effort — never block the response on email delivery */
+      }
+      throw new ConflictException('unable to create an account with these details');
+    }
     const passwordHash = await bcrypt.hash(input.password, 12);
     // STAKES/C7 — mint a unique public handle from the email local-part
     // (null when it sanitizes too short; the user picks one in settings).

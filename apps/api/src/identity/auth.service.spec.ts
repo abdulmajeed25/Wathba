@@ -56,8 +56,26 @@ describe('AuthService.signUp', () => {
     expect(await bcrypt.compare(PASS, data.passwordHash)).toBe(true);
   });
 
-  it('rejects an already-registered email with 409', async () => {
-    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never);
+  it('rejects an already-registered email with a GENERIC 409 + notifies the owner (STAKES/P1)', async () => {
+    const email = {
+      passwordReset: jest.fn().mockResolvedValue({}),
+      duplicateSignup: jest.fn().mockResolvedValue({ sent: true, stubbed: true }),
+    };
+    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), email as never);
+    await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).rejects.toMatchObject({
+      constructor: ConflictException,
+      // enumeration resistance: the copy never confirms the email exists
+      message: expect.not.stringContaining('registered') as unknown,
+    });
+    expect(email.duplicateSignup).toHaveBeenCalledWith(EMAIL);
+  });
+
+  it('signup email failure never blocks the 409 response', async () => {
+    const email = {
+      passwordReset: jest.fn(),
+      duplicateSignup: jest.fn().mockRejectedValue(new Error('smtp down')),
+    };
+    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), email as never);
     await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).rejects.toBeInstanceOf(
       ConflictException,
     );

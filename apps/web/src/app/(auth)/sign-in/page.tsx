@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
+import { LiveEmailField, PasswordField } from '@/components/auth/auth-fields';
 import { signInAction } from '@/lib/auth/actions';
+import { destinationFor } from '@/lib/auth/guard';
+import { getMe } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'تسجيل الدخول · وثبة' };
 
@@ -13,14 +17,32 @@ const ERROR_MESSAGES: Record<string, string> = {
   reset_ok: 'تم تغيير كلمة المرور بنجاح — سجّل دخولك بكلمتك الجديدة.',
 };
 
+/** STAKES/A9 P2 — human Arabic lockout copy with the remaining time. */
+function lockedMessage(waitSec: number): string {
+  if (waitSec <= 0) return 'محاولات دخول كثيرة — انتظر قليلاً ثم حاول مجدداً.';
+  const min = Math.ceil(waitSec / 60);
+  return min > 1
+    ? `محاولات دخول كثيرة — حاول بعد ${min.toLocaleString('ar-SA')} دقائق.`
+    : `محاولات دخول كثيرة — حاول بعد ${waitSec.toLocaleString('ar-SA')} ثانية.`;
+}
+
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ err?: string; next?: string }>;
+  searchParams: Promise<{ err?: string; next?: string; wait?: string }>;
 }) {
   const sp = await searchParams;
-  const error = sp.err ? (ERROR_MESSAGES[sp.err] ?? ERROR_MESSAGES.server) : null;
-  const next = sp.next && sp.next.startsWith('/') ? sp.next : '/projects';
+  const next = sp.next && sp.next.startsWith('/') && !sp.next.startsWith('//') ? sp.next : '/projects';
+
+  // STAKES/A16 — already signed in ⇒ this page has no job; honor the deep-link.
+  const me = await getMe();
+  if (me) redirect(sp.next && sp.next.startsWith('/') ? next : destinationFor(me));
+
+  const error = sp.err
+    ? sp.err === 'locked'
+      ? lockedMessage(Number(sp.wait ?? 0))
+      : (ERROR_MESSAGES[sp.err] ?? ERROR_MESSAGES.server)
+    : null;
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
@@ -33,28 +55,8 @@ export default async function SignInPage({
 
       <form action={signInAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next} />
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">البريد الإلكتروني</span>
-          <input
-            type="email"
-            name="email"
-            required
-            autoComplete="email"
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">كلمة المرور</span>
-          <input
-            type="password"
-            name="password"
-            required
-            autoComplete="current-password"
-            minLength={8}
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
-          />
-        </label>
+        <LiveEmailField />
+        <PasswordField autoComplete="current-password" />
 
         <p className="text-left text-xs">
           <Link href="/forgot-password" className="text-emerald-700 underline">

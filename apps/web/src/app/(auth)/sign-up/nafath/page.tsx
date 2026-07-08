@@ -14,10 +14,12 @@ const ERR: Record<string, string> = {
 export default async function NafathStepPage({
   searchParams,
 }: {
-  searchParams: Promise<{ err?: string }>;
+  searchParams: Promise<{ err?: string; next?: string }>;
 }) {
   const sp = await searchParams;
   const error = sp.err ? (ERR[sp.err] ?? ERR.server) : null;
+  // STAKES/A15 — the deep-link target rides the whole signup → Nafath hop.
+  const next = sp.next && sp.next.startsWith('/') && !sp.next.startsWith('//') ? sp.next : '/projects';
 
   return (
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[480px] flex-col justify-center gap-6 px-5 py-16">
@@ -39,6 +41,7 @@ export default async function NafathStepPage({
       </div>
 
       <form action={verifyNafathAction} className="flex flex-col gap-4">
+        <input type="hidden" name="next" value={next} />
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">رقم الهوية الوطنية (١٠ أرقام)</span>
           <input
@@ -80,6 +83,7 @@ export default async function NafathStepPage({
       </form>
 
       <form action={skipNafathAction}>
+        <input type="hidden" name="next" value={next} />
         <button
           type="submit"
           className="w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"

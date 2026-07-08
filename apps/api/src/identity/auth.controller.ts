@@ -31,7 +31,8 @@ export class AuthController {
    */
   @Post('signin')
   @HttpCode(200)
-  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  // Env-tunable for e2e (many signins from one IP); prod default stays 10.
+  @Throttle({ default: { ttl: 60_000, limit: Number(process.env.AUTH_SIGNIN_THROTTLE_LIMIT ?? 10) } })
   @ApiOperation({ summary: 'Sign in (email + password)' })
   async signIn(@Body() dto: SignInDto): Promise<AuthResponse> {
     return this.auth.signIn(dto.email, dto.password);
