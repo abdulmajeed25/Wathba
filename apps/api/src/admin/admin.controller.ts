@@ -9,7 +9,7 @@ import { FundingService } from '../funding/funding.service';
 import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { AdminService } from './admin.service';
 import { AuditService } from '../identity/audit.service';
-import { GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto } from './dto/admin.dto';
+import { DeadlineOverrideDto, GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto } from './dto/admin.dto';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -69,12 +69,35 @@ export class AdminController {
       action: `admin.review.${dto.decision}`,
       entity: 'Project',
       entityId: id,
-      detail: dto.reason ? { reason: dto.reason } : undefined,
+      detail: {
+        ...(dto.reason ? { reason: dto.reason } : {}),
+        ...(dto.approvedDurationDays ? { approvedDurationDays: dto.approvedDurationDays } : {}),
+      },
     });
     const updated = dto.decision === 'approve'
-      ? await this.admin.approve(id)
+      ? await this.admin.approve(id, dto.approvedDurationDays)
       : await this.admin.reject(id, dto.reason);
     return this.projects.toPublic(updated);
+  }
+
+  @Post('projects/:id/deadline-override')
+  @ApiOperation({
+    summary:
+      'Batch PAY — ops tool: force a project deadline (AuditLogged; used for settlement drills + e2e)',
+  })
+  async deadlineOverride(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: DeadlineOverrideDto,
+  ) {
+    await this.audit.log({
+      actorId: jwt.sub,
+      action: 'admin.deadline-override',
+      entity: 'Project',
+      entityId: id,
+      detail: { deadline: dto.deadline },
+    });
+    return this.admin.overrideDeadline(id, new Date(dto.deadline));
   }
 
   @Put('projects/:id/platform-partner')

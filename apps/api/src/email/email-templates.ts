@@ -153,6 +153,32 @@ export const emailTemplates = {
         <p>إن لم تطلب هذا التغيير فتجاهل الرسالة — لن يتغيّر شيء بدون هذا التأكيد.</p>`, { showPrefs: false }),
     };
   },
+  /** Batch PAY (Part 2/4) — 72h grace: fix the card or complete the BNPL checkout. */
+  captureGrace(d: { projectTitle: string; amountHalalas: number; bnpl: boolean; link: string }): EmailContent {
+    return {
+      subject: d.bnpl
+        ? `${BRAND} — أكمل تقسيط تعهدك لمشروع «${d.projectTitle}» خلال ٧٢ ساعة`
+        : `${BRAND} — تعذّر سحب مبلغ تعهدك — حدّث بطاقتك خلال ٧٢ ساعة`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">${d.bnpl ? 'أكمل التقسيط' : 'حدّث بطاقتك'}</h1>
+        <p>نجحت حملة <strong>${d.projectTitle}</strong>! ${
+          d.bnpl
+            ? `لإتمام تعهدك بقيمة <strong>${halalasToSar(d.amountHalalas)} ر.س</strong> أكمل خطوات التقسيط عبر مزوّدك خلال <strong>٧٢ ساعة</strong>.`
+            : `تعذّر سحب مبلغ تعهدك <strong>${halalasToSar(d.amountHalalas)} ر.س</strong> (بطاقة منتهية أو رصيد غير كافٍ). حدّث بطاقتك خلال <strong>٧٢ ساعة</strong> — سنعيد المحاولة تلقائياً أيضاً.`
+        }</p>
+        <p><a href="${d.link}">${d.bnpl ? 'أكمل التقسيط الآن' : 'حدّث بطاقتك الآن'}</a></p>
+        <p>بعد انتهاء المهلة يُلغى التعهد وتعود المكافأة للمخزون.</p>`, { showPrefs: false }),
+    };
+  },
+  /** Batch PAY (Part 2) — the grace window expired; the pledge is released. */
+  captureFailed(d: { projectTitle: string; amountHalalas: number }): EmailContent {
+    return {
+      subject: `${BRAND} — أُلغي تعهدك لمشروع «${d.projectTitle}»`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">أُلغي التعهد</h1>
+        <p>انتهت مهلة الـ٧٢ ساعة دون إتمام دفع تعهدك بقيمة
+        <strong>${halalasToSar(d.amountHalalas)} ر.س</strong> لمشروع <strong>${d.projectTitle}</strong>،
+        فأُلغي التعهد وأُعيدت المكافأة للمخزون. لم يُسحب منك أي مبلغ.</p>`, { showPrefs: false }),
+    };
+  },
   /** STAKES/S-14 — sign-in from a browser we haven't seen before. */
   newDeviceSignin(): EmailContent {
     return {

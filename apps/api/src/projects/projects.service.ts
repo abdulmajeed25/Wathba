@@ -696,6 +696,9 @@ export class ProjectsService {
       expectedDeliveryDate: p.expectedDeliveryDate?.toISOString() ?? null,
       createdBy: p.createdById,
       raisedHalalas: Number(p.raisedHalalas),
+      // Batch PAY (Part 2) — PLEDGED (raised @ deadline) vs REALIZED
+      // (captured) are two separate public numbers, never conflated.
+      realizedHalalas: Number(p.realizedHalalas),
       backersCount: p.backersCount,
       platformPartner: p.platformPartner,
       createdAt: p.createdAt.toISOString(),

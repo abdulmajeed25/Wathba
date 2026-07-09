@@ -4,6 +4,7 @@ import type { ApiBackingRow } from '@/lib/api/wathba';
 import { wathbaProjects } from './wathba-data';
 import { EmptyState } from './wathba-states';
 import { Icon, Num } from './wathba-icons';
+import { PledgeActions } from './wathba-pledge-actions';
 
 /**
  * Backer's "my pledges" screen — lists the current user's HELD / CAPTURED /
@@ -19,6 +20,11 @@ const STATE_TONE: Record<
   CAPTURED:  { label: 'تم الخصم',                bg: 'rgba(52,211,153,.10)',  color: 'var(--pos)',    border: 'rgba(52,211,153,.30)' },
   REFUNDED:  { label: 'مسترَد',                   bg: 'rgba(var(--ink-rgb),.06)', color: 'var(--muted)', border: 'rgba(var(--ink-rgb),.20)' },
   FAILED:    { label: 'فشل الدفع',                bg: 'rgba(239,68,68,.08)',  color: '#dc2626',       border: 'rgba(239,68,68,.30)' },
+  // Batch PAY — the new pledge states.
+  PENDING_BNPL:   { label: 'تقسيط معلّق · حتى نجاح الحملة', bg: 'rgba(96,165,250,.10)', color: 'var(--blue)', border: 'rgba(96,165,250,.30)' },
+  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع · ٧٢ ساعة', bg: 'rgba(251,191,36,.12)', color: 'var(--gold)', border: 'rgba(251,191,36,.35)' },
+  FAILED_CAPTURE: { label: 'أُلغي — تعذّر السحب',            bg: 'rgba(239,68,68,.08)', color: '#dc2626', border: 'rgba(239,68,68,.30)' },
+  PENDING_REAUTH: { label: 'بحاجة لتحديث البطاقة',           bg: 'rgba(251,191,36,.10)', color: 'var(--gold)', border: 'rgba(251,191,36,.30)' },
 };
 
 export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null }) {
@@ -108,6 +114,8 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                   >
                     {tone.label}
                   </span>
+                  {/* Batch PAY — cancel window / grace call-to-actions. */}
+                  <PledgeActions row={p} />
                   {/* Sprint 1 / P0-202 — refund status detail per pledge */}
                   {p.state.toUpperCase() === 'REFUNDED' && (
                     <div

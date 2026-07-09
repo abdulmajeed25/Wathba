@@ -83,6 +83,21 @@ export class MoyasarAdapter {
     return { ok: res['status'] === 'refunded' };
   }
 
+  /**
+   * Batch PAY (Part 5) — re-authorization for long campaigns. Issuer holds
+   * expire in days-to-weeks (assumption documented in ReauthScheduler); the
+   * real flow re-authorizes against the saved payment source. Stub always
+   * succeeds unless the ref carries the test marker 'reauth-fail'.
+   */
+  async reauthorize(paymentRef: string): Promise<{ ok: boolean }> {
+    if (this.isStub) {
+      this.logger.warn(`[STUB] Reauthorize payment=${paymentRef}`);
+      return { ok: !paymentRef.includes('reauth-fail') };
+    }
+    const res = await this.req('POST', `/payments/${paymentRef}/reauthorize`, {});
+    return { ok: res['status'] === 'authorized' };
+  }
+
   async void(paymentRef: string): Promise<{ ok: boolean }> {
     if (this.isStub) {
       this.logger.warn(`[STUB] Void payment=${paymentRef}`);

@@ -56,8 +56,29 @@ export function WathbaRewards({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700 }}>ادعم بدون مكافأة</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-            أدخل أي مبلغ. تستلم شكراً شخصياً + تحديثات حصرية.
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+            أدخل أي مبلغ — الحد الأدنى ١٠ ريالات. كل داعم يُحتسب مهما كان مبلغه.
+          </div>
+          {/* Batch PAY (Part 3) — frictionless quick amounts. */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[10, 25, 50, 100].map((amt) => (
+              <span
+                key={amt}
+                role="link"
+                data-quick-amount={amt}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.href = `/projects/${projectId}/back?amount=${amt}`;
+                }}
+                style={{
+                  fontSize: 12.5, fontWeight: 700, color: 'var(--accent-ink)', cursor: 'pointer',
+                  border: '1px solid rgba(var(--accent-rgb),.35)', borderRadius: 999,
+                  padding: '5px 14px', minHeight: 24, display: 'inline-flex', alignItems: 'center',
+                }}
+              >
+                {amt} ر.س
+              </span>
+            ))}
           </div>
         </div>
         <Icon name="arrow_forward" size={18} color="var(--muted)" />

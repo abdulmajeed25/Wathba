@@ -32,6 +32,8 @@ describe('FundingService.settleProject (§5 FSM)', () => {
       pledge: {
         count: jest.fn().mockResolvedValue(0),
         findMany: jest.fn().mockResolvedValue([]),
+        // Batch PAY — BNPL intent transitions at settlement.
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
     } as unknown as PrismaService;
     const escrow = {
@@ -72,6 +74,23 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     expect(res.transition).toBe('refunded');
     expect(escrow.refundAllHeld).toHaveBeenCalledWith('p1');
     expect(escrow.captureAllHeld).not.toHaveBeenCalled();
+  });
+
+  it('Batch PAY — success: BNPL intents become due (CAPTURE_GRACE); failure: discarded', async () => {
+    // Success path — intents transition to the 72h checkout window.
+    const success = buildService(buildProject({}));
+    await success.svc.settleProject('p1');
+    const sCalls = (success.prisma.pledge.updateMany as jest.Mock).mock.calls;
+    expect(sCalls[0][0].where).toEqual({ projectId: 'p1', status: 'PENDING_BNPL' });
+    expect(sCalls[0][0].data.status).toBe('CAPTURE_GRACE');
+    expect(sCalls[0][0].data.graceExpiresAt).toBeInstanceOf(Date);
+
+    // Failure path — the intent is simply discarded (nothing was charged).
+    const fail = buildService(buildProject({ raisedHalalas: 1n }));
+    await fail.svc.settleProject('p1');
+    const fCalls = (fail.prisma.pledge.updateMany as jest.Mock).mock.calls;
+    expect(fCalls[0][0].where).toEqual({ projectId: 'p1', status: 'PENDING_BNPL' });
+    expect(fCalls[0][0].data.status).toBe('REFUNDED');
   });
 
   it('no-ops if deadline has not passed', async () => {

@@ -18,7 +18,7 @@ export default async function ProjectBackPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tier?: string }>;
+  searchParams: Promise<{ tier?: string; amount?: string; custom?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -31,6 +31,7 @@ export default async function ProjectBackPage({
       <WathbaPledge
         projectId={id}
         initialTier={sp.tier ?? 't2'}
+        initialAmountSar={sp.amount ? Number(sp.amount) : sp.custom ? 25 : undefined}
         liveTiers={tiers}
         liveTitleAr={detail?.titleAr ?? null}
       />
