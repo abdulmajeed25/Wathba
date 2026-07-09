@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ApiAddOn, ApiRewardTier } from '@/lib/api/wathba';
+import { useConfirm, useToast } from '../wathba-feedback';
 
 const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
 
@@ -64,6 +65,8 @@ export function DashboardRewardsManager({
   initialAddOns: ApiAddOn[];
 }): React.ReactElement {
   const router = useRouter();
+  const confirmDlg = useConfirm();
+  const toast = useToast();
   const [tab, setTab] = useState<'tiers' | 'addons'>('tiers');
   const [tierForm, setTierForm] = useState<TierFormState>(emptyTierForm);
   const [addOnForm, setAddOnForm] = useState<AddOnFormState>(emptyAddOnForm);
@@ -137,7 +140,8 @@ export function DashboardRewardsManager({
   };
 
   const deleteTier = async (tierId: string): Promise<void> => {
-    if (!confirm('حذف الباقة؟')) return;
+    if (!(await confirmDlg({ title: 'حذف الباقة؟', body: 'لا يمكن التراجع عن الحذف.', confirmLabel: 'حذف', danger: true }))) return;
+    
     setBusy(true);
     setError(null);
     try {
@@ -147,9 +151,11 @@ export function DashboardRewardsManager({
         body: JSON.stringify({ op: 'delete', projectId, tierId }),
       });
       if (!res.ok) throw new Error(`فشل الحذف (${res.status})`);
+      toast('success', 'حُذفت الباقة.');
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
+      toast('error', (e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -185,7 +191,7 @@ export function DashboardRewardsManager({
   };
 
   const deleteAddOn = async (addOnId: string): Promise<void> => {
-    if (!confirm('حذف الإضافة؟')) return;
+    if (!(await confirmDlg({ title: 'حذف الإضافة؟', confirmLabel: 'حذف', danger: true }))) return;
     setBusy(true);
     setError(null);
     try {

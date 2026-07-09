@@ -127,8 +127,10 @@ export function WathbaFooter() {
           © 2026 وثبة — WATHBA. جميع الحقوق محفوظة.
         </Num>
         <span style={{ fontSize: 12.5, color: 'var(--muted2)' }}>صُمّم بشغف للمبدعين العرب</span>
-        {/* STAKES/Q5 — version/build stamp ("which build is live?"). */}
-        <Num style={{ fontSize: 11.5, color: 'var(--muted2)', opacity: 0.8 }} className="num" >
+        {/* STAKES/Q5 — version/build stamp ("which build is live?").
+            S-13 (F-07): --muted at 12px, no opacity — the 11.5px muted2 @ .8
+            stamp failed AA contrast on every page (the S-9 regression). */}
+        <Num style={{ fontSize: 12, color: 'var(--muted)' }} className="num" >
           v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.1.0'}
           {process.env.NEXT_PUBLIC_BUILD_SHA ? ` · ${process.env.NEXT_PUBLIC_BUILD_SHA.slice(0, 7)}` : ''}
         </Num>

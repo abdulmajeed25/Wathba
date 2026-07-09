@@ -151,7 +151,8 @@ export function WathbaCampaign({
           style={{
             fontSize: 13, color: 'var(--muted)',
             display: 'inline-flex', alignItems: 'center', gap: 6,
-            marginBottom: 14, textDecoration: 'none',
+            // STAKES/S-13 (M5) — ≥24px tap target.
+            marginBottom: 10, padding: '4px 2px', minHeight: 24, textDecoration: 'none',
           }}
         >
           <Icon name="arrow_forward" size={17} /> استكشف
@@ -202,7 +203,11 @@ export function WathbaCampaign({
       </section>
 
       {/* ── HERO BAND: gallery (8) + funding rail (4) ─────────────────── */}
+      {/* S-13 (M5) — .wathba-hero-band stacks below 760px: the fixed 2-col
+          grid squeezed the video column to a ~29px sliver on phones (the
+          play button literally measured 29×15). */}
       <section
+        className="wathba-hero-band"
         style={{
           maxWidth: 1320, margin: '0 auto',
           padding: '22px 26px 0',
@@ -211,8 +216,12 @@ export function WathbaCampaign({
         }}
       >
         <HeroMedia youtubeId={rich.youtubeId} alt={rich.heroImage.alt} />
+        {/* S-13 — the rail gets the PAGE id, never the fixture-skin id:
+            `active.id` is 'p1' for unskinned real projects, which hid the
+            report button (isReal=false) on every real campaign — the same
+            disease S-8 fixed for comments. */}
         <WathbaCampaignRail
-          projectId={active.id}
+          projectId={isRealProject(id) ? id : active.id}
           projectTitle={active.titleAr}
           raisedFmt={active.raisedFmt}
           goalFmt={active.goalFmt}

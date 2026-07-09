@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ApiFaqItem, ApiFaqQuestion } from '@/lib/api/wathba';
+import { useConfirm } from '../wathba-feedback';
 
 export function FaqManager({
   projectId,
@@ -141,6 +142,7 @@ function ItemCard({
   item: ApiFaqItem;
 }): React.ReactElement {
   const router = useRouter();
+  const confirmDlg = useConfirm();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [q, setQ] = useState(item.questionAr);
@@ -164,7 +166,7 @@ function ItemCard({
   }
 
   async function remove(): Promise<void> {
-    if (!confirm('حذف هذا السؤال؟')) return;
+    if (!(await confirmDlg({ title: 'حذف هذا السؤال؟', confirmLabel: 'حذف', danger: true }))) return;
     const res = await fetch(`/api/faq/${projectId}/${item.id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError(`فشل الحذف (${res.status})`);
