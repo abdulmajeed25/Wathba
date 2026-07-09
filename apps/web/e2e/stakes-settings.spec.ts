@@ -20,7 +20,10 @@ test('security: password change works and the new password signs in', async ({ p
   await page.locator('input[name="newPassword"]').fill(NEW_PASS);
   await page.locator('input[name="confirm"]').fill(NEW_PASS);
   await page.getByRole('button', { name: 'حفظ كلمة المرور' }).click();
-  await expect(page).toHaveURL(/ok=password/);
+  // Two bcrypt-12 hashes + full session revocation ride this action — under
+  // full-suite parallel load it can exceed the 5s default (the one flake in
+  // the 40+-test runs). Generous explicit timeout, same assertions.
+  await expect(page).toHaveURL(/ok=password/, { timeout: 30_000 });
   await expect(page.getByText('تم تغيير كلمة المرور')).toBeVisible();
 
   // Old sessions are revoked server-side; sign in fresh with the NEW password.
