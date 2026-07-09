@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -201,6 +202,15 @@ export class CreatorsService {
   ): Promise<FollowResponseDto> {
     if (followerId === targetUserId) {
       throw new BadRequestException('cannot follow yourself');
+    }
+
+    // STAKES/S-12 F-11 — following requires the verified-email baseline tier.
+    const follower = await this.prisma.user.findUnique({
+      where: { id: followerId },
+      select: { emailVerified: true },
+    });
+    if (!follower?.emailVerified) {
+      throw new ForbiddenException('فعّل بريدك الإلكتروني أولاً لتتمكن من المتابعة');
     }
 
     return this.prisma.$transaction(async (tx) => {

@@ -41,7 +41,15 @@ const buildSvc = (
     $transaction: jest.fn(),
   } as unknown as MockedPrisma;
   prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
-  return Object.assign(new MilestonesService(prisma), { __prisma: prisma });
+  (prisma as any).user = { findUnique: jest.fn().mockResolvedValue({ email: 'creator@x.sa' }) };
+  // STAKES/S-12 F-08 — named mocks so tests can assert the release notify.
+  const notifications = { create: jest.fn().mockResolvedValue(null) };
+  const email = { milestoneReleased: jest.fn().mockResolvedValue({}) };
+  return Object.assign(new MilestonesService(prisma, notifications as any, email as any), {
+    __prisma: prisma,
+    __notifications: notifications,
+    __email: email,
+  });
 };
 
 describe('MilestonesService.release', () => {
@@ -63,6 +71,14 @@ describe('MilestonesService.release', () => {
         status: 'PENDING',
       }),
     });
+    // STAKES/S-12 F-08 — the creator hears the release (in-app + email).
+    await new Promise((r) => setImmediate(r)); // fire-and-forget settles
+    const notif = (svc as unknown as { __notifications: { create: jest.Mock } }).__notifications;
+    const mail = (svc as unknown as { __email: { milestoneReleased: jest.Mock } }).__email;
+    expect(notif.create).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'u1', kind: 'MILESTONE_APPROVED' }),
+    );
+    expect(mail.milestoneReleased).toHaveBeenCalledWith('creator@x.sa', expect.objectContaining({ amountHalalas: 30_000_000 }));
   });
 
   it('rejects release when project not FUNDED/IN_PRODUCTION', async () => {
@@ -91,7 +107,7 @@ describe('MilestonesService.setMilestones', () => {
         }),
       },
     } as unknown as PrismaService;
-    const svc = new MilestonesService(prisma);
+    const svc = new MilestonesService(prisma, { create: jest.fn().mockResolvedValue(null) } as any, { milestoneReleased: jest.fn().mockResolvedValue({}) } as any);
     await expect(
       svc.setMilestones('u1', 'p', {
         milestones: [

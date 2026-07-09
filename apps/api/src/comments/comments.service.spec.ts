@@ -19,6 +19,8 @@ const COMMENT = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 function makePrisma(over: Record<string, any> = {}): any {
   const prisma: any = {
     project: { findUnique: jest.fn() },
+    // STAKES/S-12 F-11 — the create() gate reads the commenter's verified flag.
+    user: { findUnique: jest.fn().mockResolvedValue({ emailVerified: true }) },
     pledge: { findFirst: jest.fn() },
     comment: {
       findFirst: jest.fn(),

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { API, uniqueEmail } from './helpers';
+import { API, uniqueEmail, verificationLinkFor } from './helpers';
 
 const PASS = 'E2eStrongPass!7';
 
@@ -36,10 +36,16 @@ test('signup form: strength meter + show/hide toggle, then ?next survives the Na
   await expect(page.getByText('صيغة البريد الإلكتروني غير صحيحة.')).toBeVisible();
   await emailInput.fill(email);
 
-  // A15 — finish signup; the deep-link target must ride sign-up → nafath → target.
+  // A15 + S-12 F-11 — the deep-link target must now ride sign-up → the
+  // verification EMAIL → nafath → target (the session is minted by the link).
   await page.locator('input[name="name"]').fill('نورة السالم');
   await page.locator('input[name="acceptTerms"]').check();
   await page.getByRole('button', { name: 'إنشاء الحساب' }).click();
+  await expect(page).toHaveURL(/verify-email\?sent=1/);
+  const link = await verificationLinkFor(email);
+  expect(link).toContain(`next=${encodeURIComponent(target)}`);
+  await page.goto(link.replace(/^https?:\/\/[^/]+/, ''));
+  await page.getByRole('button', { name: 'فعّل حسابي' }).click();
   await expect(page).toHaveURL(new RegExp(`sign-up/nafath\\?next=${encodeURIComponent(target).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
   await page.locator('input[name="nationalId"]').fill('4455667788');
   await page.getByRole('button', { name: 'أرسل طلب التحقق' }).click();

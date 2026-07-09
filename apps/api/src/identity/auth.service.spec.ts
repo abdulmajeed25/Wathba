@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ConflictException, HttpException, UnauthorizedException } from '@nestjs/common';
+import { HttpException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
 
@@ -37,6 +37,12 @@ function makePrisma(): any {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findUnique: jest.fn(),
     },
+    // STAKES/S-12 F-11 — signup issues a verification token.
+    emailVerifyToken: {
+      create: jest.fn().mockResolvedValue({ id: 'evt-1' }),
+      findUnique: jest.fn(),
+      update: jest.fn().mockResolvedValue({}),
+    },
   };
 }
 
@@ -47,7 +53,7 @@ function makeJwt(): any {
 describe('AuthService.signUp', () => {
   it('hashes with bcrypt cost 12 and defaults to BACKER role', async () => {
     const prisma = makePrisma();
-    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never);
+    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}), verification: jest.fn().mockResolvedValue({}) } as never);
     await svc.signUp({ name: 'سارة', email: EMAIL.toUpperCase(), password: PASS });
     const data = prisma.user.create.mock.calls[0][0].data;
     expect(data.email).toBe(EMAIL); // lower-cased
@@ -56,29 +62,43 @@ describe('AuthService.signUp', () => {
     expect(await bcrypt.compare(PASS, data.passwordHash)).toBe(true);
   });
 
-  it('rejects an already-registered email with a GENERIC 409 + notifies the owner (STAKES/P1)', async () => {
+  // STAKES/S-12 F-11 — 2xx-UNIFORM: a duplicate looks exactly like success
+  // to the requester; the real owner gets the notice email.
+  it('returns the identical {ok:true} for a duplicate email + notifies the owner', async () => {
+    const prisma = makePrisma();
     const email = {
       passwordReset: jest.fn().mockResolvedValue({}),
       duplicateSignup: jest.fn().mockResolvedValue({ sent: true, stubbed: true }),
+      verification: jest.fn().mockResolvedValue({}),
     };
-    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), email as never);
-    await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).rejects.toMatchObject({
-      constructor: ConflictException,
-      // enumeration resistance: the copy never confirms the email exists
-      message: expect.not.stringContaining('registered') as unknown,
-    });
+    const svc = new AuthService(prisma, makeUsers({ id: 'u1' }), makeJwt(), email as never);
+    await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).resolves.toEqual({ ok: true });
     expect(email.duplicateSignup).toHaveBeenCalledWith(EMAIL);
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(email.verification).not.toHaveBeenCalled();
   });
 
-  it('signup email failure never blocks the 409 response', async () => {
+  it('signup email failure never blocks the uniform response', async () => {
     const email = {
       passwordReset: jest.fn(),
       duplicateSignup: jest.fn().mockRejectedValue(new Error('smtp down')),
+      verification: jest.fn().mockResolvedValue({}),
     };
     const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), email as never);
-    await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).rejects.toBeInstanceOf(
-      ConflictException,
-    );
+    await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).resolves.toEqual({ ok: true });
+  });
+
+  it('a new signup is created UNVERIFIED and receives the verification link', async () => {
+    const prisma = makePrisma();
+    const email = {
+      passwordReset: jest.fn(),
+      verification: jest.fn().mockResolvedValue({}),
+    };
+    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), email as never);
+    await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).resolves.toEqual({ ok: true });
+    expect(prisma.user.create.mock.calls[0][0].data.emailVerified).toBe(false);
+    expect(prisma.emailVerifyToken.create).toHaveBeenCalled();
+    expect(email.verification).toHaveBeenCalledWith(EMAIL, expect.stringContaining('/verify-email?token='));
   });
 });
 

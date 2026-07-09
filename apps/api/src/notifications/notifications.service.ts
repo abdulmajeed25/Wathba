@@ -120,13 +120,16 @@ export class NotificationsService {
     return { notified: count };
   }
 
-  /** Does this user accept deliveries of the given pref type? */
+  /** Does this user accept deliveries of the given pref type?
+   *  STAKES/S-12 F-11 — engagement deliveries also require the verified-email
+   *  baseline tier (money-critical kinds bypass this whole layer by design). */
   async allows(userId: string, key: NotificationPrefKey): Promise<boolean> {
     const u = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { notificationPrefs: true },
+      select: { notificationPrefs: true, emailVerified: true },
     });
-    return resolvePrefs(u?.notificationPrefs)[key];
+    if (!u?.emailVerified) return false;
+    return resolvePrefs(u.notificationPrefs)[key];
   }
 
   /** Batch variant for fan-outs — returns the subset that opted IN. */
@@ -134,9 +137,11 @@ export class NotificationsService {
     if (userIds.length === 0) return [];
     const rows = await this.prisma.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, notificationPrefs: true },
+      select: { id: true, notificationPrefs: true, emailVerified: true },
     });
-    return rows.filter((r) => resolvePrefs(r.notificationPrefs)[key]).map((r) => r.id);
+    return rows
+      .filter((r) => r.emailVerified && resolvePrefs(r.notificationPrefs)[key])
+      .map((r) => r.id);
   }
 
   async create(input: {

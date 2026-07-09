@@ -27,6 +27,25 @@ export class SignUpDto {
   @ApiProperty({ example: true, description: 'must be true — consent to Terms + Privacy (PDPL)' })
   @IsBoolean() @Equals(true, { message: 'you must accept the terms and privacy policy' })
   acceptTerms!: boolean;
+
+  /** STAKES/S-12 F-11 — deep-link carried through the verification email. */
+  @ApiProperty({ required: false, example: '/projects/x/back' })
+  @IsOptional() @IsString() @MaxLength(300)
+  next?: string;
+}
+
+/** STAKES/S-12 F-11 — consume a one-time email-verification token. */
+export class VerifyEmailDto {
+  @ApiProperty()
+  @IsString() @MinLength(16) @MaxLength(200)
+  token!: string;
+}
+
+/** STAKES/S-12 F-11 — re-send the verification link (always 200). */
+export class ResendVerificationDto {
+  @ApiProperty({ example: 'sara@example.sa' })
+  @IsEmail()
+  email!: string;
 }
 
 export class SignInDto {

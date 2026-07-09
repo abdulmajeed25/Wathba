@@ -141,6 +141,7 @@ enum NotificationKind {
   PAYOUT_SENT
   UPDATE_POSTED
   CREATOR_NEW_PROJECT
+  REFUND_COMPLETED
   RANK_UP
   CONTEST_OPENED
   CONTEST_ANNOUNCED
@@ -203,6 +204,10 @@ model User {
   profilePublic       Boolean         @default(true)
   showBackedCount     Boolean         @default(true)
   roles               UserRole[]      @default([BACKER])
+  /// STAKES/S-12 F-11 — BASELINE identity tier: gates commenting/following/
+  /// engagement notifications. Existing accounts were grandfathered true
+  /// (migration 0035); Nafath below stays the money-tier KYC.
+  emailVerified       Boolean         @default(false)
   nafathVerified      Boolean         @default(false)
   nafathVerifiedAt    DateTime?
   /// PDPL (Sprint 2 / P0-702): which consent text version the user accepted, and when.
@@ -1016,6 +1021,22 @@ model PasswordResetToken {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @db.Uuid
   tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// STAKES/S-12 F-11/F-06 — one-time email-verification tokens.
+/// purpose SIGNUP = first verification; EMAIL_CHANGE = confirm a new
+/// address (newEmail carries the target, applied on verify).
+model EmailVerifyToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  purpose   String    @default("SIGNUP")
+  newEmail  String?
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())

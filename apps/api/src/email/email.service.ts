@@ -20,8 +20,10 @@ export class EmailService {
   private readonly fromAddr = process.env.EMAIL_FROM ?? 'no-reply@wathba.sa';
   private readonly appUrl = process.env.APP_PUBLIC_URL ?? 'https://wathba.sa';
 
-  /** Last N stubbed sends — test/observability hook (bounded, in-memory). */
-  readonly sent: Array<{ to: string; subject: string }> = [];
+  /** Last N stubbed sends — test/observability hook (bounded, in-memory).
+   *  html included: the dev-mailbox seam (STAKES/S-12) lets e2e suites read
+   *  verification links out of the stubbed outbox. Stub mode only. */
+  readonly sent: Array<{ to: string; subject: string; html: string }> = [];
 
   private hydrate(html: string): string {
     return html
@@ -33,7 +35,7 @@ export class EmailService {
     const html = this.hydrate(content.html);
     if (!this.enabled || !this.providerKey || !this.providerUrl) {
       this.logger.log(`[EMAIL stub] → ${to} · "${content.subject}"`);
-      this.sent.push({ to, subject: content.subject });
+      this.sent.push({ to, subject: content.subject, html });
       if (this.sent.length > 100) this.sent.shift();
       return { sent: false, stubbed: true };
     }
@@ -63,6 +65,12 @@ export class EmailService {
   emailChanged(to: string, newEmailMasked: string) { return this.deliver(to, emailTemplates.emailChanged(newEmailMasked)); }
   creatorNewProject(to: string, d: { creatorName: string; projectTitle: string; link: string }) {
     return this.deliver(to, emailTemplates.creatorNewProject(d));
+  }
+  emailChangeVerify(to: string, link: string) {
+    return this.deliver(to, emailTemplates.emailChangeVerify(link));
+  }
+  milestoneReleased(to: string, d: { projectTitle: string; milestoneTitle: string; amountHalalas: number }) {
+    return this.deliver(to, emailTemplates.milestoneReleased(d));
   }
   pledgeReceipt(to: string, d: { projectTitle: string; amountHalalas: number; tierTitle?: string | null }) {
     return this.deliver(to, emailTemplates.pledgeReceipt(d));

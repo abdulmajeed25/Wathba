@@ -136,6 +136,16 @@ describe('CreatorsService.getProfile', () => {
 });
 
 describe('CreatorsService.follow / unfollow', () => {
+  // STAKES/S-12 F-11 — following requires the verified-email baseline tier.
+  it('rejects an unverified-email follower with 403', async () => {
+    const prisma = makePrisma();
+    (prisma as any).user.findUnique.mockResolvedValue({ id: FOLLOWER, emailVerified: false });
+    const svc = new CreatorsService(prisma);
+    await expect(svc.follow(FOLLOWER, TARGET)).rejects.toMatchObject({
+      message: expect.stringContaining('فعّل بريدك') as unknown,
+    });
+  });
+
   it('rejects self-follow with 400', async () => {
     const prisma = makePrisma();
     const svc = new CreatorsService(prisma);
@@ -146,7 +156,7 @@ describe('CreatorsService.follow / unfollow', () => {
 
   it('creates the follow row + increments counter on first follow', async () => {
     const prisma = makePrisma();
-    (prisma as any).user.findUnique.mockResolvedValue({ id: TARGET });
+    (prisma as any).user.findUnique.mockResolvedValue({ id: TARGET, emailVerified: true });
     (prisma as any).creatorProfile.upsert.mockResolvedValue({
       id: PROFILE_ID,
       followersCount: 3,
@@ -165,7 +175,7 @@ describe('CreatorsService.follow / unfollow', () => {
 
   it('is idempotent — second follow does not double-increment', async () => {
     const prisma = makePrisma();
-    (prisma as any).user.findUnique.mockResolvedValue({ id: TARGET });
+    (prisma as any).user.findUnique.mockResolvedValue({ id: TARGET, emailVerified: true });
     (prisma as any).creatorProfile.upsert.mockResolvedValue({
       id: PROFILE_ID,
       followersCount: 4,

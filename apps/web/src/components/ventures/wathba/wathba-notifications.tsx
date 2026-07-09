@@ -28,6 +28,7 @@ const ICON_FOR: Record<
   PROJECT_FUNDED:     { icon: 'rocket_launch',    color: 'var(--pos)',    bg: 'rgba(var(--pos-rgb),.10)' },
   PROJECT_FAILED:     { icon: 'sentiment_dissatisfied', color: 'var(--err, #dc2626)', bg: 'rgba(var(--err-rgb), .10)' },
   MILESTONE_APPROVED: { icon: 'flag',             color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
+  REFUND_COMPLETED:   { icon: 'currency_exchange', color: 'var(--blue)',  bg: 'rgba(var(--blue-rgb),.10)' },
   PAYOUT_SENT:        { icon: 'payments',         color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
   UPDATE_POSTED:      { icon: 'campaign',         color: 'var(--blue)',   bg: 'rgba(var(--blue-rgb),.10)' },
   CREATOR_NEW_PROJECT:{ icon: 'rocket_launch',    color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
@@ -80,6 +81,17 @@ function derive(n: ApiNotification): DerivedLine {
         body: 'اطّلع على الإيصالات في تبويب الشفافية.',
         href: projectId ? `/projects/${projectId}#transparency` : undefined,
       };
+    case 'REFUND_COMPLETED': {
+      // STAKES/S-12 F-08 — "your money is back" (amount in the payload).
+      const amt = typeof p.amountHalalas === 'number' ? p.amountHalalas : null;
+      return {
+        title: proj ? `أُعيد مبلغك من ${proj}` : 'أُعيد مبلغك',
+        body: amt !== null
+          ? `أُعيد إليك ${(amt / 100).toLocaleString('en-US')} ر.س — قد يستغرق ظهوره في حسابك بضعة أيام.`
+          : 'قد يستغرق ظهوره في حسابك بضعة أيام حسب مصرفك.',
+        href: '/projects/me/pledges',
+      };
+    }
     case 'PAYOUT_SENT':
       return {
         title: 'تم إرسال دفعة لمحفظتك',

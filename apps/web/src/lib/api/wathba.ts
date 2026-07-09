@@ -496,6 +496,8 @@ export interface ApiUserMe {
   city?: string | null;
   websiteUrl?: string | null;
   socialLinks?: Array<{ platform: string; url: string }>;
+  /** STAKES/S-12 F-11 — baseline identity tier (drives the settings badge). */
+  emailVerified?: boolean;
   /** STAKES/S-7 — settings toggles. */
   notificationPrefs?: {
     projectUpdates?: boolean;
@@ -679,6 +681,7 @@ export type NotificationKind =
   | 'PAYOUT_SENT'
   | 'UPDATE_POSTED'
   | 'CREATOR_NEW_PROJECT'
+  | 'REFUND_COMPLETED'
   | 'RANK_UP'
   | 'CONTEST_OPENED'
   | 'CONTEST_ANNOUNCED'

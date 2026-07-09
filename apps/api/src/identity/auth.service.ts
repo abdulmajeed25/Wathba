@@ -3,7 +3,6 @@ import {
   HttpStatus,
   Injectable,
   UnauthorizedException,
-  ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -50,25 +49,31 @@ export class AuthService {
     private readonly email: EmailService,
   ) {}
 
+  /**
+   * STAKES/S-12 F-11 — 2xx-UNIFORM signup (full enumeration resistance).
+   * Both paths return the identical `{ok:true}`: a new account is created
+   * UNVERIFIED and receives the verification link; a duplicate email gets
+   * the "someone tried to sign up with your email" notice to the real
+   * owner. No session tokens here — the session is minted when the emailed
+   * link is consumed (verifyEmail), which is what closes the enumeration
+   * channel the old 409-vs-201 contract leaked through.
+   */
   async signUp(input: {
     name: string;
     email: string;
     password: string;
     phone?: string;
-  }): Promise<AuthResponse> {
+    next?: string;
+  }): Promise<{ ok: true }> {
     const email = input.email.toLowerCase();
     const exists = await this.users.findByEmail(email);
     if (exists) {
-      // STAKES/P1 — enumeration resistance: the requester gets a GENERIC 409
-      // (never "already registered") while the real owner is notified by
-      // email. Full uniformity (identical 2xx for both paths) needs the
-      // verify-email-before-login flow (A5) — documented deferral.
       try {
         await this.email.duplicateSignup(email);
       } catch {
         /* best-effort — never block the response on email delivery */
       }
-      throw new ConflictException('unable to create an account with these details');
+      return { ok: true };
     }
     const passwordHash = await bcrypt.hash(input.password, 12);
     // STAKES/C7 — mint a unique public handle from the email local-part
@@ -82,13 +87,113 @@ export class AuthService {
         phone: input.phone,
         handle,
         roles: ['BACKER'],
+        // BASELINE tier: unverified until the emailed link is clicked
+        // (pre-0035 accounts were grandfathered true).
+        emailVerified: false,
         // PDPL: consent version is stamped server-side; the DTO already
         // rejected any signup without acceptTerms=true.
         consentVersion: process.env.CONSENT_VERSION ?? '2026-06-28',
         consentAt: new Date(),
       },
     });
-    return this.issue(user.id, email, user.roles);
+    await this.sendVerification(user.id, email, 'SIGNUP', null, input.next);
+    return { ok: true };
+  }
+
+  // -- STAKES/S-12 F-11 — email verification (the baseline identity tier) ----
+
+  /** Per-email resend cooldown (in-memory, v1 single-instance posture). */
+  private readonly verifyCooldown = new Map<string, number>();
+  private static readonly VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+  private static readonly RESEND_COOLDOWN_MS = 60 * 1000;
+
+  private async sendVerification(
+    userId: string,
+    to: string,
+    purpose: 'SIGNUP' | 'EMAIL_CHANGE',
+    newEmail: string | null,
+    next?: string,
+  ): Promise<void> {
+    const raw = randomBytes(32).toString('base64url');
+    await this.prisma.emailVerifyToken.create({
+      data: {
+        userId,
+        tokenHash: hashToken(raw),
+        purpose,
+        newEmail,
+        expiresAt: new Date(Date.now() + AuthService.VERIFY_TTL_MS),
+      },
+    });
+    const base = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
+    const link = `${base}/verify-email?token=${raw}${next ? `&next=${encodeURIComponent(next)}` : ''}`;
+    try {
+      if (purpose === 'EMAIL_CHANGE') await this.email.emailChangeVerify(to, link);
+      else await this.email.verification(to, link);
+    } catch {
+      /* best-effort — the resend endpoint recovers a lost email */
+    }
+  }
+
+  /**
+   * Consume a one-time verification token.
+   * SIGNUP → mark verified and mint the session (the link IS the login).
+   * EMAIL_CHANGE (F-06) → apply the new address (uniqueness re-checked),
+   * notify the OLD address, revoke other sessions (email is a JWT claim)
+   * and re-issue for the caller.
+   */
+  async verifyEmail(rawToken: string): Promise<AuthResponse> {
+    const row = await this.prisma.emailVerifyToken.findUnique({
+      where: { tokenHash: hashToken(rawToken) },
+    });
+    if (!row || row.usedAt || row.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('invalid or expired verification token');
+    }
+    const user = await this.users.findById(row.userId);
+
+    if (row.purpose === 'EMAIL_CHANGE' && row.newEmail) {
+      const taken = await this.users.findByEmail(row.newEmail);
+      if (taken && taken.id !== user.id) {
+        // The address got registered between request and click — stay generic.
+        throw new UnauthorizedException('invalid or expired verification token');
+      }
+      const oldEmail = user.email as string;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id as string },
+          data: { email: row.newEmail!, emailVerified: true },
+        });
+        await tx.emailVerifyToken.update({ where: { id: row.id }, data: { usedAt: new Date() } });
+        await tx.refreshToken.updateMany({
+          where: { userId: user.id as string, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      });
+      try {
+        await this.email.emailChanged(oldEmail, maskEmail(row.newEmail));
+      } catch {
+        /* best-effort */
+      }
+      return this.issue(user.id as string, row.newEmail, user.roles as UserRole[]);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: user.id as string }, data: { emailVerified: true } });
+      await tx.emailVerifyToken.update({ where: { id: row.id }, data: { usedAt: new Date() } });
+    });
+    return this.issue(user.id as string, user.email as string, user.roles as UserRole[]);
+  }
+
+  /** Always `{ok:true}` (no enumeration); 60s per-email cooldown. */
+  async resendVerification(email: string): Promise<{ ok: true }> {
+    const key = email.toLowerCase();
+    const last = this.verifyCooldown.get(key) ?? 0;
+    if (Date.now() - last < AuthService.RESEND_COOLDOWN_MS) return { ok: true };
+    this.verifyCooldown.set(key, Date.now());
+    const user = await this.users.findByEmail(key);
+    if (user && !user.emailVerified) {
+      await this.sendVerification(user.id, key, 'SIGNUP', null);
+    }
+    return { ok: true };
   }
 
   async signIn(email: string, password: string): Promise<AuthResponse> {
@@ -182,15 +287,18 @@ export class AuthService {
   }
 
   /**
-   * E1 — email change with current-password check. Generic 409 on a taken
-   * address (enumeration resistance, same policy as signup) + a security
-   * notice to the OLD address.
+   * E1 + STAKES/S-12 F-06 — email change is now VERIFY-FIRST: after the
+   * current-password check, a confirmation link goes to the NEW address and
+   * the swap only happens when it's clicked (verifyEmail, purpose
+   * EMAIL_CHANGE — which also notifies the OLD address and revokes other
+   * sessions). Fully 2xx-uniform: a taken address gets the duplicate-signup
+   * notice instead of a link, and the caller sees the same `{ok:true}`.
    */
   async changeEmail(
     userId: string,
     currentPassword: string,
     newEmail: string,
-  ): Promise<{ ok: true; accessToken: string }> {
+  ): Promise<{ ok: true }> {
     const email = newEmail.toLowerCase();
     const user = await this.users.findById(userId);
     if (!user.passwordHash || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
@@ -198,22 +306,15 @@ export class AuthService {
     }
     const taken = await this.users.findByEmail(email);
     if (taken && taken.id !== userId) {
-      throw new ConflictException('unable to use this email');
+      try {
+        await this.email.duplicateSignup(email);
+      } catch {
+        /* best-effort */
+      }
+      return { ok: true };
     }
-    const oldEmail = user.email;
-    await this.prisma.user.update({ where: { id: userId }, data: { email } });
-    try {
-      await this.email.emailChanged(oldEmail, maskEmail(email));
-    } catch {
-      /* best-effort */
-    }
-    // The JWT carries the email claim — issue a fresh access token.
-    const accessToken = await this.jwt.signAsync({
-      sub: userId,
-      email,
-      roles: user.roles,
-    } satisfies JwtPayload);
-    return { ok: true, accessToken };
+    await this.sendVerification(userId, email, 'EMAIL_CHANGE', email);
+    return { ok: true };
   }
 
   /** E5 — revoke every refresh token ("sign out all devices"). */

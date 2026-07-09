@@ -2,7 +2,16 @@ import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { MilestoneStatus, PayoutStatus, ProjectStatus, type Milestone, type SpendLog } from '@prisma/client';
+import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  MilestoneStatus,
+  NotificationKind,
+  PayoutStatus,
+  ProjectStatus,
+  type Milestone,
+  type SpendLog,
+} from '@prisma/client';
 import { CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto } from './dto/milestone.dto';
 
 /**
@@ -18,7 +27,11 @@ import { CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto } from './dto/mi
 export class MilestonesService {
   private readonly logger = new Logger(MilestonesService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
+  ) {}
 
   /** Creator sets the full milestone plan in one shot (replaces existing PENDING ones). */
   async setMilestones(
@@ -146,7 +159,42 @@ export class MilestonesService {
     this.logger.log(
       `Released milestone=${milestoneId} amount=${amountHalalas} halalas — payout queued (PENDING)`,
     );
+    // STAKES/S-12 F-08 — the MILESTONE_APPROVED kind existed since Sprint 1
+    // but nothing ever created one; the creator now hears their milestone
+    // released (in-app + email, transactional → not pref-gated).
+    this.notifyReleased(
+      project.createdById,
+      project.titleAr,
+      updated.titleAr,
+      projectId,
+      Number(amountHalalas),
+    ).catch((err) => this.logger.warn(`milestone-release notify failed: ${String(err)}`));
     return { milestone: updated, amountHalalas };
+  }
+
+  private async notifyReleased(
+    creatorId: string,
+    projectTitleAr: string,
+    milestoneTitleAr: string,
+    projectId: string,
+    amountHalalas: number,
+  ): Promise<void> {
+    await this.notifications.create({
+      userId: creatorId,
+      kind: NotificationKind.MILESTONE_APPROVED,
+      payload: { projectId, projectTitleAr, milestoneTitleAr, amountHalalas },
+    });
+    const creator = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { email: true },
+    });
+    if (creator) {
+      await this.email.milestoneReleased(creator.email, {
+        projectTitle: projectTitleAr,
+        milestoneTitle: milestoneTitleAr,
+        amountHalalas,
+      });
+    }
   }
 
   // -- Spend logs (Live Transparency Dashboard) -------------------------------

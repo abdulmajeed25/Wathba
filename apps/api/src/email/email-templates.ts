@@ -132,6 +132,27 @@ export const emailTemplates = {
         <strong>${d.projectTitle}</strong>. قد يستغرق ظهوره في حسابك بضعة أيام حسب مصرفك.</p>`, { showPrefs: true }),
     };
   },
+  /** STAKES/S-12 F-06 — confirm a NEW address before the email swap applies. */
+  emailChangeVerify(link: string): EmailContent {
+    return {
+      subject: `${BRAND} — تأكيد بريدك الإلكتروني الجديد`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">تأكيد البريد الجديد</h1>
+        <p>طلبتَ تغيير بريد حسابك في ${BRAND} إلى هذا العنوان. لتطبيق التغيير اضغط الرابط:</p>
+        <p><a href="${link}">تأكيد البريد الجديد</a></p>
+        <p>إن لم تطلب هذا التغيير فتجاهل الرسالة — لن يتغيّر شيء بدون هذا التأكيد.</p>`, { showPrefs: false }),
+    };
+  },
+  /** STAKES/S-12 F-08 — a milestone released funds to the creator. */
+  milestoneReleased(d: { projectTitle: string; milestoneTitle: string; amountHalalas: number }): EmailContent {
+    return {
+      subject: `${BRAND} — صُرفت مرحلة من مشروعك «${d.projectTitle}»`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">صُرفت مرحلة</h1>
+        <p>وافقنا على مرحلة <strong>«${d.milestoneTitle}»</strong> من مشروعك
+        <strong>${d.projectTitle}</strong> وصُرف لها مبلغ
+        <strong>${halalasToSar(d.amountHalalas)} ر.س</strong> من محفظة الضمان.</p>
+        <p>تظهر التفاصيل في لوحة مشاريعك وسجلّ الشفافية.</p>`, { showPrefs: true }),
+    };
+  },
   /** STAKES/S-11 F-05 — a creator you follow just launched a new project. */
   creatorNewProject(d: { creatorName: string; projectTitle: string; link: string }): EmailContent {
     return {
