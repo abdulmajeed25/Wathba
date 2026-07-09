@@ -1,6 +1,7 @@
 import {
   Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
@@ -12,8 +13,7 @@ import {
   CreateProjectDto,
   ListProjectsQueryDto,
   UpdateProjectDto,
-  UpdateStoryDto,
-} from './dto/project.dto';
+  UpdateStoryDto, ReportProjectDto } from './dto/project.dto';
 
 @ApiTags('projects')
 @Controller('projects')
@@ -37,6 +37,25 @@ export class ProjectsController {
     // STAKES/N6 — accepts the human-readable slug too (/p/[slug] on the web).
     const p = await this.projects.findByIdOrSlug(id);
     return this.projects.toPublic(p);
+  }
+
+  @Post(':id/report')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({ summary: 'STAKES/K3 — report a project (deduped per reporter)' })
+  async report(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: ReportProjectDto,
+  ) {
+    return this.projects.report(jwt.sub, id, dto.reasonAr);
+  }
+
+  @Get(':id/similar')
+  @ApiOperation({ summary: 'STAKES/J3 — LIVE projects in the same (sub)category' })
+  async similar(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.projects.similar(id);
   }
 
   @Get(':id/tab-counts')

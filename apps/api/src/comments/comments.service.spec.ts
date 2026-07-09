@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
 import { PledgeStatus } from '@prisma/client';
 import { CommentsService } from './comments.service';
 
@@ -179,5 +179,79 @@ describe('CommentsService.togglePin / toggleHide', () => {
     });
     const svc = new CommentsService(prisma, makeNotifications() as any);
     await expect(svc.togglePin(BACKER, COMMENT)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('CommentsService.edit — STAKES/K1 (15-min window)', () => {
+  const row = (ageMs: number, userId = BACKER) => ({
+    id: COMMENT, userId, hidden: false, date: new Date(Date.now() - ageMs),
+  });
+  const updated = {
+    id: COMMENT, projectId: PROJ, userId: BACKER, bodyAr: 'edited',
+    parentId: null, isCreator: false, pinned: false, pinnedAt: null,
+    hidden: false, likeCount: 0, reportCount: 0, editedAt: new Date(), date: new Date(),
+    user: { id: BACKER, name: 'م', handle: 'm', avatarUrl: null },
+  };
+
+  it('edits own comment inside the window and stamps editedAt', async () => {
+    const prisma = makePrisma({
+      comment: {
+        findUnique: jest.fn().mockResolvedValue(row(60_000)),
+        update: jest.fn().mockResolvedValue(updated),
+      },
+    });
+    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const r = await svc.edit(BACKER, COMMENT, 'edited');
+    expect(prisma.comment.update.mock.calls[0][0].data.bodyAr).toBe('edited');
+    expect(prisma.comment.update.mock.calls[0][0].data.editedAt).toBeInstanceOf(Date);
+    expect(r.editedAt).not.toBeNull();
+  });
+
+  it('403s after the window and for non-owners', async () => {
+    const late = makePrisma({
+      comment: { findUnique: jest.fn().mockResolvedValue(row(16 * 60_000)), update: jest.fn() },
+    });
+    await expect(
+      new CommentsService(late, makeNotifications() as any).edit(BACKER, COMMENT, 'x'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const notOwner = makePrisma({
+      comment: { findUnique: jest.fn().mockResolvedValue(row(60_000, CREATOR)), update: jest.fn() },
+    });
+    await expect(
+      new CommentsService(notOwner, makeNotifications() as any).edit(BACKER, COMMENT, 'x'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('CommentsService — STAKES/K5 spam guard', () => {
+  it('400s a blocked word before any DB work', async () => {
+    const prisma = makePrisma();
+    const svc = new CommentsService(prisma, makeNotifications() as any);
+    await expect(
+      svc.create(BACKER, PROJ, { bodyAr: 'buy viagra now' } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('429s the 6th comment inside one minute (per user)', async () => {
+    const createdRow = {
+      id: COMMENT, projectId: PROJ, userId: CREATOR, bodyAr: 'hi',
+      parentId: null, isCreator: true, pinned: false, pinnedAt: null,
+      hidden: false, likeCount: 0, reportCount: 0, editedAt: null, date: new Date(),
+      user: { id: CREATOR, name: 'م', handle: null, avatarUrl: null },
+    };
+    const prisma = makePrisma({
+      project: { findUnique: jest.fn().mockResolvedValue({ id: PROJ, createdById: CREATOR }) },
+      comment: { create: jest.fn().mockResolvedValue(createdRow), findFirst: jest.fn() },
+    });
+    const svc = new CommentsService(prisma, makeNotifications() as any);
+    for (let i = 0; i < 5; i++) {
+      await svc.create(CREATOR, PROJ, { bodyAr: `hello ${i}` } as any);
+    }
+    await expect(svc.create(CREATOR, PROJ, { bodyAr: 'sixth' } as any)).rejects.toMatchObject({
+      constructor: HttpException,
+      status: 429,
+    });
   });
 });

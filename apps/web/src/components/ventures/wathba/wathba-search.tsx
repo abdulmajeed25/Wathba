@@ -19,14 +19,47 @@ interface ApiHit {
   daysLeft: number;
 }
 
+/** STAKES/L4 — filter chips (top-level categories + status), URL-addressable. */
+const CAT_FILTERS: Array<{ slug: string; label: string }> = [
+  { slug: '', label: 'كل الفئات' },
+  { slug: 'technology', label: 'التقنية' },
+  { slug: 'design', label: 'التصميم' },
+  { slug: 'games', label: 'الألعاب' },
+  { slug: 'film-video', label: 'الأفلام والفيديو' },
+  { slug: 'food', label: 'الطعام' },
+  { slug: 'art', label: 'الفنون' },
+];
+const STATUS_FILTERS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'كل الحالات' },
+  { value: 'LIVE', label: 'نشط' },
+  { value: 'FUNDED', label: 'نجح التمويل' },
+];
+
 export function WathbaSearch({
   initialQ = '',
+  initialCat = '',
+  initialStatus = '',
   projects,
 }: {
   initialQ?: string;
+  initialCat?: string;
+  initialStatus?: string;
   projects?: WathbaProject[];
 }) {
   const [q, setQ] = useState(initialQ);
+  const [cat, setCat] = useState(initialCat);
+  const [status, setStatus] = useState(initialStatus);
+
+  // Keep the URL addressable/shareable as filters change (no navigation).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    const setOrDel = (k: string, v: string) => (v ? url.searchParams.set(k, v) : url.searchParams.delete(k));
+    setOrDel('q', q.trim());
+    setOrDel('cat', cat);
+    setOrDel('status', status);
+    window.history.replaceState(null, '', url.toString());
+  }, [q, cat, status]);
 
   // Debounce — wait 250ms after the user stops typing before hitting /v1/search.
   const [debounced, setDebounced] = useState(initialQ);
@@ -40,10 +73,13 @@ export function WathbaSearch({
   // endpoint is unreachable / DB empty — keeps the demo discoverable
   // even before any project is seeded.
   const { data: live, isFetching, isError } = useQuery<ApiHit[]>({
-    queryKey: ['search', debounced],
+    queryKey: ['search', debounced, cat, status],
     queryFn: async () => {
       if (!debounced) return [];
-      const r = await fetch(`/api/search?q=${encodeURIComponent(debounced)}`);
+      const extra =
+        (cat ? `&cat=${encodeURIComponent(cat)}` : '') +
+        (status ? `&status=${encodeURIComponent(status)}` : '');
+      const r = await fetch(`/api/search?q=${encodeURIComponent(debounced)}${extra}`);
       if (!r.ok) throw new Error(`API ${r.status}`);
       const j = (await r.json()) as { items: ApiHit[] };
       return j.items;
@@ -145,6 +181,49 @@ export function WathbaSearch({
             >
               {s}
             </span>
+          ))}
+        </div>
+
+        {/* STAKES/L4 — narrowing filters (category + status), URL-addressable. */}
+        <div
+          data-testid="search-filters"
+          style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 14 }}
+        >
+          <span style={{ fontSize: 13, color: 'var(--muted2)' }}>تصفية:</span>
+          {CAT_FILTERS.map((c) => (
+            <button
+              key={c.slug || 'all'}
+              type="button"
+              onClick={() => setCat(c.slug)}
+              aria-pressed={cat === c.slug}
+              style={{
+                cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit',
+                padding: '7px 14px', borderRadius: 30, minHeight: 24,
+                background: cat === c.slug ? 'var(--grad)' : 'rgba(var(--ink-rgb),.04)',
+                color: cat === c.slug ? 'var(--on-accent)' : 'var(--muted)',
+                border: cat === c.slug ? 'none' : '1px solid rgba(var(--ink-rgb),.1)',
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
+          <span aria-hidden style={{ width: 1, height: 20, background: 'rgba(var(--ink-rgb),.1)' }} />
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.value || 'all'}
+              type="button"
+              onClick={() => setStatus(f.value)}
+              aria-pressed={status === f.value}
+              style={{
+                cursor: 'pointer', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit',
+                padding: '7px 14px', borderRadius: 30, minHeight: 24,
+                background: status === f.value ? 'var(--grad)' : 'rgba(var(--ink-rgb),.04)',
+                color: status === f.value ? 'var(--on-accent)' : 'var(--muted)',
+                border: status === f.value ? 'none' : '1px solid rgba(var(--ink-rgb),.1)',
+              }}
+            >
+              {f.label}
+            </button>
           ))}
         </div>
       </section>

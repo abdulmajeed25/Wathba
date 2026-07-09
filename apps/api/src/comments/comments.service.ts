@@ -1,5 +1,8 @@
 import {
+  BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -31,6 +34,8 @@ export interface PublicComment {
   reportCount: number;
   bodyAr: string | null;
   parentId: string | null;
+  /** STAKES/K1 — non-null once the author edited within the window. */
+  editedAt: string | null;
   date: string;
 }
 
@@ -38,12 +43,51 @@ interface CommentWithUser extends Comment {
   user: { id: string; name: string; handle: string | null; avatarUrl: string | null };
 }
 
+/** STAKES/K1 — the author may edit their comment for this long after posting. */
+export const EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+/** STAKES/K5 — per-user posting budget (in-memory, same v1 posture as the
+ *  auth lockout: one API instance handles all traffic today). */
+const SPAM_MAX_PER_WINDOW = 5;
+const SPAM_WINDOW_MS = 60 * 1000;
+/** Seed wordlist; extend via BLOCKED_WORDS (comma-separated) without a deploy. */
+const BLOCKED_WORDS = ['viagra', 'casino', 'porn', 'xxx']
+  .concat((process.env.BLOCKED_WORDS ?? '').split(',').map((w) => w.trim().toLowerCase()))
+  .filter(Boolean);
+
 @Injectable()
 export class CommentsService {
+  /** STAKES/K5 — sliding-window post timestamps per user. */
+  private readonly recentPosts = new Map<string, number[]>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  /** STAKES/K5 — profanity/spam + rate-limit guard, run before any DB write. */
+  private assertNotSpam(userId: string, bodyAr: string): void {
+    const lower = bodyAr.toLowerCase();
+    if (BLOCKED_WORDS.some((w) => lower.includes(w))) {
+      throw new BadRequestException('التعليق يخالف إرشادات المجتمع — عدّل النص وحاول مجدداً');
+    }
+    const now = Date.now();
+    const stamps = (this.recentPosts.get(userId) ?? []).filter(
+      (t) => now - t < SPAM_WINDOW_MS,
+    );
+    if (stamps.length >= SPAM_MAX_PER_WINDOW) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          message: 'تعليقات كثيرة خلال دقيقة — انتظر قليلاً ثم حاول مجدداً',
+          retryAfter: Math.ceil((SPAM_WINDOW_MS - (now - stamps[0]!)) / 1000),
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    stamps.push(now);
+    this.recentPosts.set(userId, stamps);
+  }
 
   async list(
     projectId: string,
@@ -102,6 +146,9 @@ export class CommentsService {
     projectId: string,
     dto: CreateCommentDto,
   ): Promise<PublicComment> {
+    // STAKES/K5 — wordlist + per-user rate guard before any DB work.
+    this.assertNotSpam(userId, dto.bodyAr);
+
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
       select: { id: true, createdById: true },
@@ -161,6 +208,35 @@ export class CommentsService {
     }
 
     return this.toPublic(created);
+  }
+
+  /**
+   * STAKES/K1 — the author edits their own comment within EDIT_WINDOW_MS.
+   * Sets editedAt so the UI can show "(معدّل)". Hidden comments can't be
+   * edited (moderation wins); replies and top-level behave the same.
+   */
+  async edit(
+    userId: string,
+    commentId: string,
+    bodyAr: string,
+  ): Promise<PublicComment> {
+    this.assertNotSpam(userId, bodyAr);
+    const c = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { id: true, userId: true, hidden: true, date: true },
+    });
+    if (!c) throw new NotFoundException('comment not found');
+    if (c.userId !== userId) throw new ForbiddenException('not your comment');
+    if (c.hidden) throw new ForbiddenException('comment is hidden');
+    if (Date.now() - c.date.getTime() > EDIT_WINDOW_MS) {
+      throw new ForbiddenException('انتهت مهلة التعديل (١٥ دقيقة من النشر)');
+    }
+    const updated = await this.prisma.comment.update({
+      where: { id: commentId },
+      data: { bodyAr, editedAt: new Date() },
+      include: { user: { select: { id: true, name: true, handle: true, avatarUrl: true } } },
+    });
+    return this.toPublic(updated);
   }
 
   /**
@@ -272,6 +348,7 @@ export class CommentsService {
       reportCount: c.reportCount,
       bodyAr: c.hidden ? null : c.bodyAr,
       parentId: c.parentId,
+      editedAt: c.editedAt ? c.editedAt.toISOString() : null,
       date: c.date.toISOString(),
     };
   }

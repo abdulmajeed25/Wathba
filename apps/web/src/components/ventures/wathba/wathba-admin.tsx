@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 
 import { Icon, Num } from './wathba-icons';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
-import type { ApiKycRow, ApiProjectDetail } from '@/lib/api/wathba';
+import type { ApiKycRow, ApiModerationQueue, ApiProjectDetail } from '@/lib/api/wathba';
 
 /**
  * §7 admin console — Tier 2.7 rewrite.
@@ -20,20 +20,24 @@ import type { ApiKycRow, ApiProjectDetail } from '@/lib/api/wathba';
  * cookie is exchanged for a server-side Authorization header (the API layer
  * enforces JwtAuthGuard + RolesGuard with @Roles('ADMIN')).
  */
-type TabId = 'review' | 'kyc' | 'partners';
+type TabId = 'review' | 'kyc' | 'partners' | 'moderation';
 
 const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'review',   label: 'المراجعة',   icon: 'inbox' },
   { id: 'kyc',      label: 'التحقق من الهويات', icon: 'shield' },
   { id: 'partners', label: 'الشراكات',   icon: 'verified' },
+  { id: 'moderation', label: 'البلاغات', icon: 'flag' },
 ];
 
 export function WathbaAdmin({
   reviewQueue,
   kycQueue,
+  moderation = { comments: [], projects: [] },
 }: {
   reviewQueue: ApiProjectDetail[];
   kycQueue: ApiKycRow[];
+  /** STAKES/K2 K3 — reported comments + projects. */
+  moderation?: ApiModerationQueue;
 }): React.ReactElement {
   const [tab, setTab] = useState<TabId>('review');
 
@@ -105,6 +109,10 @@ export function WathbaAdmin({
                 ))}
               </div>
             )}
+          </WathbaTabsContent>
+
+          <WathbaTabsContent value="moderation">
+            <ModerationPanel moderation={moderation} />
           </WathbaTabsContent>
         </section>
       </WathbaTabs>
@@ -396,3 +404,127 @@ function btnDanger(disabled: boolean): React.CSSProperties {
     opacity: disabled ? 0.5 : 1,
   };
 }
+
+/* ───────────────────────── STAKES/K2 K3 — moderation panel ── */
+
+function ModerationPanel({ moderation }: { moderation: ApiModerationQueue }) {
+  const router = useRouter();
+  const [, startTransition] = useTransition();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const act = async (url: string, body?: unknown): Promise<void> => {
+    setBusyId(url);
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+      startTransition(() => router.refresh());
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (moderation.comments.length === 0 && moderation.projects.length === 0) {
+    return <Empty body="لا بلاغات مفتوحة — صندوق الإشراف نظيف ✨" />;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
+      {moderation.comments.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
+            تعليقات مُبلّغ عنها <Num style={{ color: 'var(--muted2)', fontSize: 13 }}>({moderation.comments.length})</Num>
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {moderation.comments.map((c) => (
+              <div key={c.id} data-testid="mod-comment" style={modCard}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 6 }}>
+                    {c.authorName} · في «{c.projectTitleAr}» ·{' '}
+                    <Num>{c.reportCount}</Num> بلاغ
+                  </div>
+                  <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--text-soft)' }}>{c.bodyAr}</p>
+                  {c.reasons.length > 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--muted2)', marginTop: 6 }}>
+                      الأسباب: {c.reasons.join(' · ')}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    disabled={busyId !== null}
+                    onClick={() => void act(`/api/admin/comments/${c.id}/moderate`, { action: 'hide' })}
+                    style={modDangerBtn}
+                  >
+                    إخفاء التعليق
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busyId !== null}
+                    onClick={() => void act(`/api/admin/comments/${c.id}/moderate`, { action: 'dismiss' })}
+                    style={modGhostBtn}
+                  >
+                    تجاهل البلاغات
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {moderation.projects.length > 0 && (
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
+            مشاريع مُبلّغ عنها <Num style={{ color: 'var(--muted2)', fontSize: 13 }}>({moderation.projects.length})</Num>
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {moderation.projects.map((p) => (
+              <div key={p.projectId} data-testid="mod-project" style={modCard}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700 }}>{p.titleAr}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginTop: 4 }}>
+                    <Num>{p.reportCount}</Num> بلاغ مفتوح · الحالة: {p.status ?? '—'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+                  <a href={`/projects/${p.projectId}`} target="_blank" rel="noreferrer" style={modGhostBtn}>
+                    فتح المشروع ↗
+                  </a>
+                  <button
+                    type="button"
+                    disabled={busyId !== null}
+                    onClick={() => void act(`/api/admin/projects/${p.projectId}/reports-dismiss`)}
+                    style={modGhostBtn}
+                  >
+                    تجاهل البلاغات
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const modCard: React.CSSProperties = {
+  display: 'flex', gap: 16, alignItems: 'flex-start',
+  background: 'var(--card)', border: '1px solid rgba(var(--ink-rgb),.08)',
+  borderRadius: 14, padding: 18,
+};
+const modDangerBtn: React.CSSProperties = {
+  background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.35)',
+  color: '#dc2626', fontFamily: 'inherit', fontWeight: 700, fontSize: 12.5,
+  padding: '8px 14px', borderRadius: 10, cursor: 'pointer',
+};
+const modGhostBtn: React.CSSProperties = {
+  background: 'transparent', border: '1px solid rgba(var(--ink-rgb),.14)',
+  color: 'var(--text-soft)', fontFamily: 'inherit', fontWeight: 600, fontSize: 12.5,
+  padding: '8px 14px', borderRadius: 10, cursor: 'pointer', textDecoration: 'none',
+  display: 'inline-flex', alignItems: 'center',
+};

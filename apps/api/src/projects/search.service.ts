@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -29,9 +30,29 @@ export interface SearchHit {
 export class SearchService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async search(q: string, limit = 20): Promise<SearchHit[]> {
+  async search(
+    q: string,
+    limit = 20,
+    // STAKES/L4 — optional narrowing filters for the results page.
+    filters: { categorySlug?: string; status?: string } = {},
+  ): Promise<SearchHit[]> {
     const cleaned = q.trim();
     if (!cleaned) return [];
+
+    // Category slug → the node + its children (top-level widens to subcats).
+    let catCond = Prisma.empty;
+    if (filters.categorySlug) {
+      const node = await this.prisma.category.findFirst({
+        where: { slug: filters.categorySlug.toLowerCase() },
+        select: { id: true, children: { select: { id: true } } },
+      });
+      const ids = node ? [node.id, ...node.children.map((c) => c.id)] : ['-none-'];
+      catCond = Prisma.sql`AND p."categoryId"::text = ANY(${ids})`;
+    }
+    const statusCond =
+      filters.status && ['LIVE', 'SUCCESSFUL', 'FUNDED'].includes(filters.status)
+        ? Prisma.sql`AND p."status"::text = ${filters.status}`
+        : Prisma.empty;
 
     // websearch_to_tsquery is forgiving of natural input. ts_rank gives
     // a relevance score; we order by it descending. Limit defaults to 20.
@@ -69,6 +90,8 @@ export class SearchService {
             wathba_strip_arabic_diacritics(${cleaned})
           ) > 0.25
         )
+        ${catCond}
+        ${statusCond}
       ORDER BY rank DESC, p."createdAt" DESC
       LIMIT ${limit}::int
     `;
@@ -87,5 +110,54 @@ export class SearchService {
       ),
       status: r.status,
     }));
+  }
+
+  /**
+   * STAKES/L1 — header-search suggestions: projects + creators + categories
+   * in one debounced round-trip. Creators only when their profile is public.
+   */
+  async suggest(q: string): Promise<{
+    projects: SearchHit[];
+    creators: Array<{ id: string; name: string; handle: string | null; avatarUrl: string | null }>;
+    categories: Array<{ slug: string; nameAr: string; parentSlug: string | null }>;
+  }> {
+    const cleaned = q.trim();
+    if (cleaned.length < 2) return { projects: [], creators: [], categories: [] };
+
+    const [projects, creators, categories] = await Promise.all([
+      this.search(cleaned, 5),
+      this.prisma.user.findMany({
+        where: {
+          profilePublic: true,
+          projects: { some: { publishedAt: { not: null } } },
+          OR: [
+            { name: { contains: cleaned, mode: 'insensitive' } },
+            { handle: { contains: cleaned.toLowerCase() } },
+          ],
+        },
+        select: { id: true, name: true, handle: true, avatarUrl: true },
+        take: 3,
+      }),
+      this.prisma.category.findMany({
+        where: {
+          OR: [
+            { nameAr: { contains: cleaned } },
+            { slug: { contains: cleaned.toLowerCase() } },
+          ],
+        },
+        select: { slug: true, nameAr: true, parent: { select: { slug: true } } },
+        take: 4,
+      }),
+    ]);
+
+    return {
+      projects,
+      creators,
+      categories: categories.map((c) => ({
+        slug: c.slug,
+        nameAr: c.nameAr,
+        parentSlug: c.parent?.slug ?? null,
+      })),
+    };
   }
 }

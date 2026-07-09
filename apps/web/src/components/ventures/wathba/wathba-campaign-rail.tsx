@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 
 import { useLiveFunding } from '@/lib/hooks/use-live-funding';
+import { ReportProjectButton } from './wathba-report-project';
 import { ShareButton } from './wathba-share';
 import { Icon, Num } from './wathba-icons';
 
@@ -47,6 +48,8 @@ export function WathbaCampaignRail({
   variant?: 'sidebar' | 'header';
 }) {
   const thresholdAmount = Math.round(goal * (releaseThresholdPct / 100));
+  // STAKES/K3 — the report affordance only makes sense on real (UUID) projects.
+  const isReal = /^[0-9a-f-]{36}$/i.test(projectId);
 
   // Live-funding overlay — replace raised/backers/pct when a tick arrives.
   const tick = useLiveFunding(projectId);
@@ -185,6 +188,8 @@ export function WathbaCampaignRail({
         {/* STAKES/I1 — per-network share (X/WhatsApp/Telegram/copy). */}
         <ShareButton title={projectTitle} />
       </div>
+      {/* STAKES/K3 — trust & safety report affordance (real projects only). */}
+      {isReal && <ReportProjectButton projectId={projectId} />}
     </motion.aside>
   );
 }

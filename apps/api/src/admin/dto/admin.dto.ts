@@ -46,3 +46,10 @@ export class SetStaffPickDto {
   @IsBoolean()
   isStaffPick!: boolean;
 }
+
+/** STAKES/K2 — admin resolution of a reported comment. */
+export class ModerateCommentDto {
+  @ApiProperty({ enum: ['hide', 'dismiss'] })
+  @IsIn(['hide', 'dismiss'])
+  action!: 'hide' | 'dismiss';
+}

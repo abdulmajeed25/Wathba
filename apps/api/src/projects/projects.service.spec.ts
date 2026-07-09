@@ -124,3 +124,55 @@ describe('ProjectsService.findByIdOrSlug (STAKES/N6)', () => {
     await expect(svc.findByIdOrSlug('nope')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
+
+describe('ProjectsService.report (STAKES/K3)', () => {
+  const UUIDP = 'f18ae89b-f072-4e7e-b40c-a1a185923783';
+
+  it('creates a report and dedups a second one from the same reporter', async () => {
+    const { Prisma } = require('@prisma/client');
+    const create = jest
+      .fn()
+      .mockResolvedValueOnce({ id: 'r1' })
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('unique', { code: 'P2002', clientVersion: 't' }),
+      );
+    const prisma = makePrisma({
+      project: { findUnique: jest.fn().mockResolvedValue({ id: UUIDP }), update: jest.fn() },
+      projectReport: { create },
+    });
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
+    expect(await svc.report('u1', UUIDP)).toEqual({ reported: true });
+    expect(await svc.report('u1', UUIDP)).toEqual({ reported: true, alreadyReported: true });
+  });
+});
+
+describe('ProjectsService.similar (STAKES/J3)', () => {
+  const UUIDP = 'f18ae89b-f072-4e7e-b40c-a1a185923783';
+  const card = (id: string) => ({
+    id, titleAr: 'م', shortDescAr: 'د', slug: null, status: 'LIVE',
+    raisedHalalas: 5000n, fundingGoalHalalas: 10000n, deadline: new Date('2026-08-01'),
+  });
+
+  it('fills from the same subcategory, then widens to the parent siblings', async () => {
+    const findMany = jest
+      .fn()
+      .mockResolvedValueOnce([card('a')]) //           same categoryId → 1 hit
+      .mockResolvedValueOnce([card('b'), card('c')]); // widened → 2 more
+    const prisma = makePrisma({
+      project: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: UUIDP, categoryId: 'cat-1', category: 'TECH', categoryRef: { parentId: 'top-1' },
+        }),
+        findMany,
+        update: jest.fn(),
+      },
+    });
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any);
+    const out = await svc.similar(UUIDP, 3);
+    expect(out.items.map((i: any) => i.id)).toEqual(['a', 'b', 'c']);
+    expect((out.items[0] as any).fundedPct).toBe(50);
+    // widened query excludes the seed project AND the already-picked ids
+    expect(findMany.mock.calls[1][0].where.id.notIn).toEqual([UUIDP, 'a']);
+    expect(findMany.mock.calls[1][0].where.categoryRef).toEqual({ parentId: 'top-1' });
+  });
+});

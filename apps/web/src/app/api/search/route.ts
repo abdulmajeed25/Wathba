@@ -11,9 +11,15 @@ export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const q = url.searchParams.get('q') ?? '';
   const limit = url.searchParams.get('limit') ?? '20';
+  // STAKES/L4 — optional narrowing filters, passed through verbatim.
+  const cat = url.searchParams.get('cat') ?? '';
+  const status = url.searchParams.get('status') ?? '';
+  const extra =
+    (cat ? `&cat=${encodeURIComponent(cat)}` : '') +
+    (status ? `&status=${encodeURIComponent(status)}` : '');
   try {
     const res = await fetch(
-      `${API_BASE}/v1/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(limit)}`,
+      `${API_BASE}/v1/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(limit)}${extra}`,
       { cache: 'no-store' },
     );
     if (!res.ok) return NextResponse.json({ items: [] }, { status: 200 });

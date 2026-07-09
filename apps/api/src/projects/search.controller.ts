@@ -19,13 +19,22 @@ export class SearchController {
 
   @Get()
   @Throttle({ default: { ttl: 60_000, limit: 30 } })
-  @ApiOperation({ summary: 'Full-text + trigram fuzzy search over projects' })
+  @ApiOperation({ summary: 'Full-text + trigram fuzzy search over projects (STAKES/L4: + filters)' })
   async query(
     @Query('q') q = '',
     @Query('limit') limit = '20',
+    @Query('cat') categorySlug?: string,
+    @Query('status') status?: string,
   ) {
     const parsed = Math.min(50, Math.max(1, Number.parseInt(limit, 10) || 20));
-    const items = await this.search.search(q, parsed);
+    const items = await this.search.search(q, parsed, { categorySlug, status });
     return { items };
+  }
+
+  @Get('suggest')
+  @Throttle({ default: { ttl: 60_000, limit: 60 } })
+  @ApiOperation({ summary: 'STAKES/L1 — typeahead: projects + creators + categories' })
+  async suggest(@Query('q') q = '') {
+    return this.search.suggest(q);
   }
 }

@@ -7,6 +7,7 @@ import { Icon, Num } from './wathba-icons';
 import type { WathbaTheme } from './wathba-tokens';
 import { WathbaNotificationBell } from './wathba-notification-bell';
 import { WathbaCategoryNav } from './wathba-category-nav';
+import { WathbaHeaderSearch } from './wathba-header-search';
 import { WathbaDiscoverMenu } from './wathba-discover-menu';
 import { WathbaAccountMenu } from './wathba-account-menu';
 
@@ -108,29 +109,8 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           <WathbaDiscoverMenu />
         </nav>
 
-        <Link
-          href="/projects/search"
-          className="wathba-desk-only"
-          style={{
-            flex: 1,
-            maxWidth: 380,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            background: 'rgba(var(--ink-rgb),.05)',
-            border: '1px solid rgba(var(--ink-rgb),.09)',
-            borderRadius: 13,
-            padding: '10px 15px',
-            cursor: 'text',
-            color: 'inherit',
-            textDecoration: 'none',
-          }}
-        >
-          <Icon name="search" size={20} color="var(--muted2)" />
-          <span style={{ color: 'var(--muted2)', fontSize: 14 }}>
-            ابحث عن مشاريع، مبدعين، فئات…
-          </span>
-        </Link>
+        {/* STAKES/L1 — real input + typeahead (was a Link styled as a box). */}
+        <WathbaHeaderSearch />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginInlineStart: 'auto' }}>
           <Link href="/projects/search" aria-label="بحث" className="wathba-mob-only" style={iconBtn}>

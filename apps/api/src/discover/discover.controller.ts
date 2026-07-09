@@ -27,6 +27,14 @@ export class DiscoverController {
     return this.discover.facets(q, jwt?.sub);
   }
 
+  @Get('recommended')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'STAKES/J4 — "لأنك دعمت…": LIVE projects in the categories you backed' })
+  async recommended(@CurrentUser() jwt: JwtPayload) {
+    return this.discover.recommendedForUser(jwt.sub);
+  }
+
   @Post('saved/:projectId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

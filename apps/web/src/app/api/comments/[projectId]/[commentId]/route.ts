@@ -35,3 +35,35 @@ export async function DELETE(
     return NextResponse.json({ message: 'upstream unavailable' }, { status: 502 });
   }
 }
+
+/** STAKES/K1 — PATCH /api/comments/:projectId/:commentId — edit own comment. */
+export async function PATCH(
+  req: Request,
+  ctx: { params: Promise<{ projectId: string; commentId: string }> },
+): Promise<Response> {
+  const { projectId, commentId } = await ctx.params;
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  if (!token) return NextResponse.json({ message: 'auth required' }, { status: 401 });
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/v1/projects/${projectId}/comments/${commentId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(await req.json()),
+      },
+    );
+    const text = await res.text();
+    return new NextResponse(text, {
+      status: res.status,
+      headers: { 'Content-Type': res.headers.get('content-type') ?? 'application/json' },
+    });
+  } catch {
+    return NextResponse.json({ message: 'upstream unavailable' }, { status: 502 });
+  }
+}
