@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -15,6 +16,8 @@ interface RosterRow {
   pledgeId: string;
   backerNo: number;
   backerName: string;
+  /** STAKES/S-11 F-18 (C10) — links the roster name to /u/[handle]. */
+  backerHandle: string | null;
   tierId: string;
   tierTitleAr: string;
   requiresShipping: boolean;
@@ -308,7 +311,18 @@ export function WathbaDashboardBackers({
                 return (
                   <tr key={r.pledgeId} style={{ borderTop: '1px solid var(--border-subtle, rgba(18,33,26,0.06))' }}>
                     <Td><span style={{ fontWeight: 700 }}>#{r.backerNo}</span></Td>
-                    <Td>{r.backerName}</Td>
+                    <Td>
+                      {r.backerHandle ? (
+                        <Link
+                          href={`/u/${encodeURIComponent(r.backerHandle)}`}
+                          style={{ color: 'var(--accent-ink)', fontWeight: 600, textDecoration: 'none' }}
+                        >
+                          {r.backerName}
+                        </Link>
+                      ) : (
+                        r.backerName
+                      )}
+                    </Td>
                     <Td>
                       {r.tierTitleAr}
                       {r.requiresShipping && <span title="يتطلب شحناً" style={{ marginInlineStart: 6 }}>📦</span>}

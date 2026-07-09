@@ -16,6 +16,7 @@ import {
   updateProfileAction,
 } from '@/lib/auth/actions';
 import { Icon, Num } from './wathba-icons';
+import { WathbaProfileCompleteness } from './wathba-profile-completeness';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 
 type TabId = 'profile' | 'addresses' | 'language' | 'security' | 'notifications' | 'privacy';
@@ -99,6 +100,9 @@ function ProfileTab({
   me, okFlag, errFlag,
 }: { me?: ApiUserMe | null; okFlag?: string | null; errFlag?: string | null }) {
   return (
+    <div style={{ maxWidth: 640 }}>
+    {/* STAKES/S-11 F-18 (C8) — completion nudge above the editable form. */}
+    {me && <WathbaProfileCompleteness me={me} />}
     <form
       action={updateProfileAction}
       style={{
@@ -261,6 +265,7 @@ function ProfileTab({
         حفظ التغييرات
       </button>
     </form>
+    </div>
   );
 }
 

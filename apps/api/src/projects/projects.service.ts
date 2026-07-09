@@ -225,12 +225,12 @@ export class ProjectsService {
    * CC-20 — flip SCHEDULED projects whose launch time has arrived to LIVE
    * (stamping publishedAt + a fresh deadline). Called by the launch scheduler.
    */
-  async launchDueScheduled(): Promise<{ launched: number }> {
+  async launchDueScheduled(): Promise<{ launched: number; launchedIds: string[] }> {
     const due = await this.prisma.project.findMany({
       where: { status: ProjectStatus.SCHEDULED, scheduledLaunchAt: { lte: new Date() } },
       select: { id: true, durationDays: true },
     });
-    let launched = 0;
+    const launchedIds: string[] = [];
     for (const p of due) {
       const now = new Date();
       const deadline = new Date(now.getTime() + p.durationDays * 86_400_000);
@@ -238,9 +238,10 @@ export class ProjectsService {
         where: { id: p.id, status: ProjectStatus.SCHEDULED },
         data: { status: ProjectStatus.LIVE, publishedAt: now, deadline, scheduledLaunchAt: null },
       });
-      if (claimed.count > 0) launched++;
+      // STAKES/S-11 F-05 — the ids let the scheduler fan out to followers.
+      if (claimed.count > 0) launchedIds.push(p.id);
     }
-    return { launched };
+    return { launched: launchedIds.length, launchedIds };
   }
 
   /**

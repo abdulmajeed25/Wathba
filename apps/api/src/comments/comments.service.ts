@@ -14,7 +14,7 @@ import { CreateCommentDto, ListCommentsQueryDto } from './dto/comment.dto';
 /**
  * Comments bounded context. Owns comment CRUD on a project (story tab) and the
  * creator-side moderation toggles (pin / hide). Only backers (users with a
- * CAPTURED pledge to the project) may post; the public list is open.
+ * HELD/CAPTURED pledge to the project) may post; the public list is open.
  *
  * Hidden comments are surfaced with a flag so the public render can replace
  * the body with a "removed" placeholder while keeping the thread shape stable.
@@ -155,11 +155,18 @@ export class CommentsService {
     });
     if (!project) throw new NotFoundException('project not found');
 
-    // Eligibility: must have a CAPTURED pledge to this project, OR be the
-    // creator themselves (so creators can always reply even before any pledge).
+    // Eligibility: a backer (HELD or CAPTURED pledge) OR the creator.
+    // STAKES/S-11 — was CAPTURED-only, but capture happens at campaign
+    // SUCCESS, so during a live campaign nobody but the creator could
+    // comment at all. HELD money is a real commitment (same rule the
+    // update fan-out uses for who counts as a backer).
     if (userId !== project.createdById) {
       const eligible = await this.prisma.pledge.findFirst({
-        where: { backerId: userId, projectId, status: PledgeStatus.CAPTURED },
+        where: {
+          backerId: userId,
+          projectId,
+          status: { in: [PledgeStatus.HELD, PledgeStatus.CAPTURED] },
+        },
         select: { id: true },
       });
       if (!eligible) {
@@ -200,6 +207,10 @@ export class CommentsService {
             commentId: created.id,
             parentCommentId: parentRow.id,
             byUserId: userId,
+            // STAKES/S-11 F-18 (C10) — actor identity so the notification
+            // can link the replier's name to their public profile.
+            byName: created.user.name,
+            byHandle: created.user.handle,
           },
         });
       } catch {

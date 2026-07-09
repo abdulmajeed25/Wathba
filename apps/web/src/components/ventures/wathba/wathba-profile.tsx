@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import type { ApiBackingRow, ApiSavedCard } from '@/lib/api/wathba';
+import type { ApiBackingRow, ApiSavedCard, ApiUserMe } from '@/lib/api/wathba';
 
 import { adaptApiVenture, deriveProject, wathbaProjects, type DerivedProject } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
+import { WathbaProfileCompleteness } from './wathba-profile-completeness';
 import { EmptyState } from './wathba-states';
 
 /**
@@ -115,9 +116,11 @@ export interface WathbaProfileProps {
   /** STAKES/S-10 F-03 — live bookmarks from GET /v1/discover?only=saved.
    *  Never fixture-backed: null (fetch failed) renders the empty state too. */
   saved?: ApiSavedCard[] | null;
+  /** STAKES/S-11 F-18 (C8) — drives the «أكمل ملفك» nudge. */
+  me?: ApiUserMe | null;
 }
 
-export function WathbaProfile({ backings, saved: savedCards }: WathbaProfileProps = {}) {
+export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfileProps = {}) {
   const [tab, setTab] = useState<ProfileTabId>('backed');
 
   const list = wathbaProjects.map(deriveProject);
@@ -302,6 +305,8 @@ export function WathbaProfile({ backings, saved: savedCards }: WathbaProfileProp
 
       {/* ─────────── tabs + content (lines 1087-1143) ─────────── */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '26px 26px 0' }}>
+        {/* STAKES/S-11 F-18 (C8) — completion nudge above the tabs. */}
+        {me && <WathbaProfileCompleteness me={me} />}
         {/* STAKES/S-10 — real tab semantics (was role="button"): AT users get
             the tablist relationship, and aria-selected tracks the active tab. */}
         <div role="tablist" aria-label="أقسام الملف" style={{ display: 'flex', gap: 10, marginBottom: 26, flexWrap: 'wrap' }}>

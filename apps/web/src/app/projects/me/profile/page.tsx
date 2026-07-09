@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { WathbaProfile } from '@/components/ventures/wathba/wathba-profile';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { listMyBackings, listMySaved } from '@/lib/api/wathba';
+import { getMe, listMyBackings, listMySaved } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'الملف الشخصي · وثبة' };
 
@@ -10,10 +10,10 @@ export const metadata: Metadata = { title: 'الملف الشخصي · وثبة'
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilePage() {
-  const [backings, saved] = await Promise.all([listMyBackings(), listMySaved()]);
+  const [backings, saved, me] = await Promise.all([listMyBackings(), listMySaved(), getMe()]);
   return (
     <WathbaShell>
-      <WathbaProfile backings={backings} saved={saved} />
+      <WathbaProfile backings={backings} saved={saved} me={me} />
     </WathbaShell>
   );
 }

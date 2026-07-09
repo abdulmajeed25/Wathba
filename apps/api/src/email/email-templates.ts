@@ -132,6 +132,16 @@ export const emailTemplates = {
         <strong>${d.projectTitle}</strong>. قد يستغرق ظهوره في حسابك بضعة أيام حسب مصرفك.</p>`, { showPrefs: true }),
     };
   },
+  /** STAKES/S-11 F-05 — a creator you follow just launched a new project. */
+  creatorNewProject(d: { creatorName: string; projectTitle: string; link: string }): EmailContent {
+    return {
+      subject: `${BRAND} — ${d.creatorName} أطلق مشروعاً جديداً`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">مشروع جديد ممن تتابعه</h1>
+        <p><strong>${d.creatorName}</strong> — أحد المبدعين الذين تتابعهم — أطلق للتو مشروعه
+        الجديد <strong>«${d.projectTitle}»</strong>.</p>
+        <p>كن من أوائل الداعمين: <a href="{{APP_URL}}${d.link}">شاهد المشروع</a></p>`, { showPrefs: true }),
+    };
+  },
   payoutSent(d: { projectTitle: string; amountHalalas: number }): EmailContent {
     return {
       subject: `${BRAND} — تحويل دفعة مشروع «${d.projectTitle}»`,

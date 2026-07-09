@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { NotificationKind, type Notification, type Prisma } from '@prisma/client';
 
 /**
@@ -30,6 +31,7 @@ export const NOTIFICATION_PREF_DEFAULTS: Record<NotificationPrefKey, boolean> = 
 /** In-app kinds gated by a pref key (everything else always delivers). */
 const KIND_PREF: Partial<Record<NotificationKind, NotificationPrefKey>> = {
   [NotificationKind.UPDATE_POSTED]: 'projectUpdates',
+  [NotificationKind.CREATOR_NEW_PROJECT]: 'projectUpdates',
   [NotificationKind.COMMENT_REPLY]: 'comments',
 };
 
@@ -46,7 +48,77 @@ export function resolvePrefs(raw: unknown): Record<NotificationPrefKey, boolean>
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
+
+  /**
+   * STAKES/S-11 F-05 — the follow loop's payoff: when a project goes LIVE
+   * (admin approve OR the launch scheduler), every follower of the creator
+   * gets an in-app notification + email, gated on the projectUpdates pref.
+   * Fire-and-forget at the call sites — publishing never fails on fan-out.
+   */
+  async fanOutProjectPublished(projectId: string): Promise<{ notified: number }> {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        titleAr: true,
+        slug: true,
+        createdById: true,
+        createdBy: { select: { name: true } },
+      },
+    });
+    if (!project) return { notified: 0 };
+
+    const followers = await this.prisma.creatorFollow.findMany({
+      where: { creatorProfile: { userId: project.createdById } },
+      select: { followerId: true },
+    });
+    const recipients = followers
+      .map((f) => f.followerId)
+      .filter((id) => id !== project.createdById);
+    if (recipients.length === 0) return { notified: 0 };
+
+    const allowed = await this.filterAllowed(recipients, 'projectUpdates');
+    if (allowed.length === 0) return { notified: 0 };
+
+    const deepLink = project.slug ? `/p/${project.slug}` : `/projects/${projectId}`;
+    const { count } = await this.prisma.notification.createMany({
+      data: allowed.map((userId) => ({
+        userId,
+        kind: NotificationKind.CREATOR_NEW_PROJECT,
+        payload: {
+          projectId,
+          projectTitleAr: project.titleAr,
+          creatorName: project.createdBy.name,
+          deepLink,
+        },
+        dedupKey: `new-project:${projectId}:${userId}`,
+      })),
+      skipDuplicates: true,
+    });
+
+    // Emails ride the same opt-in; best-effort per recipient.
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: allowed } },
+      select: { email: true },
+    });
+    for (const u of users) {
+      void this.email.creatorNewProject(u.email, {
+        creatorName: project.createdBy.name,
+        projectTitle: project.titleAr,
+        link: deepLink,
+      });
+    }
+
+    this.logger.log(
+      `project=${projectId} publish fan-out notified=${count} followers=${recipients.length} optedIn=${allowed.length}`,
+    );
+    return { notified: count };
+  }
 
   /** Does this user accept deliveries of the given pref type? */
   async allows(userId: string, key: NotificationPrefKey): Promise<boolean> {
