@@ -678,6 +678,7 @@ export type NotificationKind =
   | 'MILESTONE_APPROVED'
   | 'PAYOUT_SENT'
   | 'UPDATE_POSTED'
+  | 'CREATOR_NEW_PROJECT'
   | 'RANK_UP'
   | 'CONTEST_OPENED'
   | 'CONTEST_ANNOUNCED'

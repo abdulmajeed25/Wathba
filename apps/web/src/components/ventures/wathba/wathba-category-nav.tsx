@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Icon, Num } from './wathba-icons';
@@ -48,6 +49,7 @@ function toArabicDigits(n: number): string {
 }
 
 export function WathbaCategoryNav() {
+  const pathname = usePathname();
   const [tree, setTree] = useState<CatNode[] | null>(null);
   const [openSlug, setOpenSlug] = useState<string | null>(null);
   // "pinned" = opened by click/keyboard → stays open on mouse-leave (closes on
@@ -226,6 +228,9 @@ export function WathbaCategoryNav() {
         >
           {tree.map((c, i) => {
             const active = c.slug === openSlug;
+            // STAKES/S-11 F-14 (D5) — mark the category the user is ON, not
+            // just the one whose menu is open.
+            const onPage = pathname.startsWith(`/projects/discover/${c.slug}`);
             return (
               <div
                 key={c.id}
@@ -251,6 +256,7 @@ export function WathbaCategoryNav() {
                     }
                   }}
                   data-cat-slug={c.slug}
+                  aria-current={onPage ? 'page' : undefined}
                   style={{
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
@@ -260,8 +266,9 @@ export function WathbaCategoryNav() {
                     padding: '8px 13px',
                     fontFamily: 'inherit',
                     fontSize: 14,
-                    fontWeight: 600,
-                    color: active ? 'var(--accent)' : 'var(--text-soft)',
+                    fontWeight: onPage ? 700 : 600,
+                    color: active || onPage ? 'var(--accent-ink)' : 'var(--text-soft)',
+                    boxShadow: onPage ? 'inset 0 -2px 0 var(--accent)' : 'none',
                   }}
                 >
                   {c.nameAr}

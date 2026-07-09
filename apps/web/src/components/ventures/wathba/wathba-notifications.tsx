@@ -30,6 +30,7 @@ const ICON_FOR: Record<
   MILESTONE_APPROVED: { icon: 'flag',             color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
   PAYOUT_SENT:        { icon: 'payments',         color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
   UPDATE_POSTED:      { icon: 'campaign',         color: 'var(--blue)',   bg: 'rgba(var(--blue-rgb),.10)' },
+  CREATOR_NEW_PROJECT:{ icon: 'rocket_launch',    color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
   RANK_UP:            { icon: 'military_tech',    color: 'var(--gold)',   bg: 'rgba(var(--gold-rgb),.10)' },
   CONTEST_OPENED:     { icon: 'celebration',      color: 'var(--purple)', bg: 'rgba(var(--purple-rgb),.10)' },
   CONTEST_ANNOUNCED:  { icon: 'emoji_events',     color: 'var(--gold)',   bg: 'rgba(var(--gold-rgb),.10)' },
@@ -41,6 +42,8 @@ interface DerivedLine {
   title: string;
   body: string;
   href?: string;
+  /** STAKES/S-11 F-18 (C10) — the acting user, linked to /u/[handle]. */
+  actor?: { name: string; handle: string | null };
 }
 
 function derive(n: ApiNotification): DerivedLine {
@@ -95,6 +98,16 @@ function derive(n: ApiNotification): DerivedLine {
         body: 'تابع رتبتك في صفحة رتب الداعمين.',
         href: '/projects/ranks',
       };
+    case 'CREATOR_NEW_PROJECT': {
+      // STAKES/S-11 F-05 — the follow loop's payoff line.
+      const creator = typeof p.creatorName === 'string' ? p.creatorName : null;
+      const deepLink = typeof p.deepLink === 'string' ? p.deepLink : undefined;
+      return {
+        title: creator ? `${creator} أطلق مشروعاً جديداً` : 'مشروع جديد ممن تتابعه',
+        body: proj ? `«${proj}» انطلق للتو — كن من أوائل الداعمين.` : 'افتح المشروع الجديد.',
+        href: deepLink ?? (projectId ? `/projects/${projectId}` : undefined),
+      };
+    }
     case 'CONTEST_OPENED':
       return {
         title: proj ? `جولة جديدة من «علّق واربح» — ${proj}` : 'جولة جديدة من «علّق واربح»',
@@ -113,12 +126,16 @@ function derive(n: ApiNotification): DerivedLine {
         body: 'اطّلع على الإجابة في صفحة المشروع.',
         href: projectId ? `/projects/${projectId}#faq` : undefined,
       };
-    case 'COMMENT_REPLY':
+    case 'COMMENT_REPLY': {
+      const byName = typeof p.byName === 'string' ? p.byName : null;
+      const byHandle = typeof p.byHandle === 'string' ? p.byHandle : null;
       return {
-        title: 'ردّ جديد على تعليقك',
+        title: byName ? `ردّ ${byName} على تعليقك` : 'ردّ جديد على تعليقك',
         body: 'افتح المشروع لقراءة الردّ.',
         href: projectId && commentId ? `/projects/${projectId}#comments` : undefined,
+        ...(byName ? { actor: { name: byName, handle: byHandle } } : {}),
       };
+    }
     default:
       return { title: 'إشعار جديد', body: '' };
   }
@@ -240,6 +257,8 @@ export function WathbaNotifications({
                   }}
                   onClick={() => {
                     if (!read) markRead(n.id);
+                    // Actor cards aren't Link-wrapped (nested <a>) — navigate here.
+                    if (line.actor && line.href) router.push(line.href);
                   }}
                 >
                   <div
@@ -263,6 +282,18 @@ export function WathbaNotifications({
                     {line.body && (
                       <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.6 }}>{line.body}</p>
                     )}
+                    {line.actor && (
+                      /* Actor chip → public profile. Cards with an actor are
+                         NOT wrapped in an outer Link (nested <a> is invalid),
+                         so this is a real link and the card click navigates. */
+                      <Link
+                        href={`/u/${encodeURIComponent(line.actor.handle ?? line.actor.name)}`}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ display: 'inline-block', marginTop: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none' }}
+                      >
+                        ملف {line.actor.name} ←
+                      </Link>
+                    )}
                   </div>
                   {!read && (
                     <span
@@ -277,7 +308,7 @@ export function WathbaNotifications({
                   )}
                 </article>
               );
-              return line.href ? (
+              return line.href && !line.actor ? (
                 <Link key={n.id} href={line.href} style={{ textDecoration: 'none', color: 'inherit' }}>
                   {card}
                 </Link>

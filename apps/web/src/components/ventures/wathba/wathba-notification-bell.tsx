@@ -31,6 +31,7 @@ const KIND_LABEL: Record<string, string> = {
   MILESTONE_APPROVED: 'صرف مرحلة',
   PAYOUT_SENT: 'إرسال دفعة',
   UPDATE_POSTED: 'تحديث جديد',
+  CREATOR_NEW_PROJECT: 'مشروع جديد ممن تتابعه',
   RANK_UP: 'رتبة جديدة',
   CONTEST_OPENED: 'جولة جديدة من علّق واربح',
   CONTEST_ANNOUNCED: 'نتائج جولة علّق واربح',
@@ -104,6 +105,25 @@ export function WathbaNotificationBell(): React.ReactElement | null {
 
   const unread = state?.unreadCount ?? 0;
   const items = state?.items ?? [];
+
+  // STAKES/S-11 F-14 (D3) — mark-as-read without leaving the dropdown.
+  const markRead = (id: string): void => {
+    setState((s) =>
+      s
+        ? {
+            items: s.items.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n)),
+            unreadCount: Math.max(0, s.unreadCount - (s.items.some((n) => n.id === id && !n.readAt) ? 1 : 0)),
+          }
+        : s,
+    );
+    void fetch(`/api/notifications/${id}/read`, { method: 'POST' }).catch(() => {});
+  };
+  const markAllRead = (): void => {
+    setState((s) =>
+      s ? { items: s.items.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })), unreadCount: 0 } : s,
+    );
+    void fetch('/api/notifications/me/read-all', { method: 'POST' }).catch(() => {});
+  };
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative' }}>
@@ -182,19 +202,23 @@ export function WathbaNotificationBell(): React.ReactElement | null {
           >
             <span>الإشعارات</span>
             {unread > 0 && (
-              <span
+              <button
+                type="button"
+                onClick={markAllRead}
                 style={{
+                  cursor: 'pointer',
                   fontSize: 11,
                   fontWeight: 700,
                   background: 'rgba(var(--accent-rgb), .10)',
-                  color: 'var(--accent)',
+                  color: 'var(--accent-ink, var(--accent))',
                   border: '1px solid rgba(var(--accent-rgb), .30)',
                   padding: '2px 8px',
                   borderRadius: 999,
+                  fontFamily: 'inherit',
                 }}
               >
-                {unread} غير مقروء
-              </span>
+                تحديد الكل كمقروء ({unread})
+              </button>
             )}
           </div>
           {items.length === 0 ? (
@@ -208,6 +232,17 @@ export function WathbaNotificationBell(): React.ReactElement | null {
                 return (
                   <li
                     key={n.id}
+                    onClick={() => { if (!read) markRead(n.id); }}
+                    {...(!read
+                      ? {
+                          role: 'button' as const,
+                          tabIndex: 0,
+                          'aria-label': `تحديد كمقروء: ${KIND_LABEL[n.kind] ?? 'إشعار'}`,
+                          onKeyDown: (e: React.KeyboardEvent) => {
+                            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markRead(n.id); }
+                          },
+                        }
+                      : {})}
                     style={{
                       padding: '10px 14px',
                       borderBottom: '1px solid rgba(var(--ink-rgb), .05)',
@@ -215,6 +250,7 @@ export function WathbaNotificationBell(): React.ReactElement | null {
                       display: 'flex',
                       gap: 10,
                       alignItems: 'flex-start',
+                      cursor: read ? 'default' : 'pointer',
                     }}
                   >
                     {!read && (

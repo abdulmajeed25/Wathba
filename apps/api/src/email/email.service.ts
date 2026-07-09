@@ -61,6 +61,9 @@ export class EmailService {
   duplicateSignup(to: string) { return this.deliver(to, emailTemplates.duplicateSignup()); }
   passwordChanged(to: string) { return this.deliver(to, emailTemplates.passwordChanged()); }
   emailChanged(to: string, newEmailMasked: string) { return this.deliver(to, emailTemplates.emailChanged(newEmailMasked)); }
+  creatorNewProject(to: string, d: { creatorName: string; projectTitle: string; link: string }) {
+    return this.deliver(to, emailTemplates.creatorNewProject(d));
+  }
   pledgeReceipt(to: string, d: { projectTitle: string; amountHalalas: number; tierTitle?: string | null }) {
     return this.deliver(to, emailTemplates.pledgeReceipt(d));
   }

@@ -86,7 +86,7 @@ export class BackersService {
         take: take + 1,
         ...(q.cursor && { cursor: { id: q.cursor }, skip: 1 }),
         include: {
-          backer: { select: { name: true } },
+          backer: { select: { name: true, handle: true, avatarUrl: true } },
           tier: { select: { titleAr: true, requiresShipping: true } },
           addOns: { include: { addOn: { select: { titleAr: true } } } },
         },
@@ -108,7 +108,7 @@ export class BackersService {
     rewardStatus: RewardFulfillmentStatus;
     createdAt: Date;
     tierId: string;
-    backer: { name: string };
+    backer: { name: string; handle: string | null; avatarUrl: string | null };
     tier: { titleAr: string; requiresShipping: boolean };
     addOns: Array<{ qty: number; addOn: { titleAr: string } }>;
   }): Record<string, unknown> {
@@ -116,6 +116,9 @@ export class BackersService {
       pledgeId: p.id,
       backerNo: p.backerNo,
       backerName: p.backer.name,
+      // STAKES/S-11 F-18 (C10) — the roster links each backer to /u/[handle].
+      backerHandle: p.backer.handle,
+      backerAvatarUrl: p.backer.avatarUrl,
       tierId: p.tierId,
       tierTitleAr: p.tier.titleAr,
       requiresShipping: p.tier.requiresShipping,

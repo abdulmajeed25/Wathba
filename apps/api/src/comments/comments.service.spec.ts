@@ -5,7 +5,7 @@ import { CommentsService } from './comments.service';
 
 /**
  * CommentsService — Tier 3.8.
- *   - eligibility: creator can always post; non-creator needs CAPTURED pledge
+ *   - eligibility: creator can always post; non-creator needs a HELD/CAPTURED pledge
  *   - togglePin: creator-only, flips boolean + sets pinnedAt
  *   - toggleHide: creator-only
  *   - parent-reply notification fires for someone else's comment, not self
@@ -57,7 +57,7 @@ describe('CommentsService.create — eligibility', () => {
     expect(r.isCreator).toBe(true);
   });
 
-  it('rejects a backer without a CAPTURED pledge with 403', async () => {
+  it('rejects a user without any HELD/CAPTURED pledge with 403', async () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ id: PROJ, createdById: CREATOR }) },
       pledge: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -68,7 +68,9 @@ describe('CommentsService.create — eligibility', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('lets a backer post when they have a CAPTURED pledge', async () => {
+  // STAKES/S-11 — HELD counts too: capture only happens at campaign success,
+  // so CAPTURED-only meant nobody could comment during a live campaign.
+  it('lets a backer post when they have a HELD or CAPTURED pledge', async () => {
     const create = jest.fn().mockResolvedValue({
       id: COMMENT, projectId: PROJ, userId: BACKER, bodyAr: 'thanks!',
       parentId: null, isCreator: false, pinned: false, pinnedAt: null,
@@ -83,7 +85,11 @@ describe('CommentsService.create — eligibility', () => {
     const svc = new CommentsService(prisma, makeNotifications() as any);
     await svc.create(BACKER, PROJ, { bodyAr: 'thanks!' } as any);
     expect(prisma.pledge.findFirst).toHaveBeenCalledWith({
-      where: { backerId: BACKER, projectId: PROJ, status: PledgeStatus.CAPTURED },
+      where: {
+        backerId: BACKER,
+        projectId: PROJ,
+        status: { in: [PledgeStatus.HELD, PledgeStatus.CAPTURED] },
+      },
       select: { id: true },
     });
     expect(create).toHaveBeenCalled();

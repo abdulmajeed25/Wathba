@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../email/email.service';
@@ -12,6 +12,8 @@ import {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
@@ -47,6 +49,13 @@ export class AdminService {
           },
     });
     await this.notifyReviewed(updated.createdById, projectId, 'approve', null);
+    // STAKES/S-11 F-05 — went LIVE right now → tell the creator's followers.
+    // (Scheduled launches fan out from the LaunchScheduler when they flip.)
+    if (!scheduled) {
+      this.notifications
+        .fanOutProjectPublished(projectId)
+        .catch((err) => this.logger.warn(`publish fan-out failed project=${projectId}: ${String(err)}`));
+    }
     return updated;
   }
 
