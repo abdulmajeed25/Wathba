@@ -41,6 +41,8 @@ export const metadata: Metadata = {
   title: { default: 'وثبة', template: '%s' },
   description: 'وثبة — منصة دعم المشاريع الإبداعية بضمان التنفيذ',
   alternates: { canonical: './' },
+  // STAKES/S-15 (Q1) — apple-touch-icon for iOS homescreen installs.
+  icons: { apple: '/apple-touch-icon.png' },
   openGraph: {
     siteName: 'وثبة — WATHBA',
     locale: 'ar_SA',

@@ -1,13 +1,12 @@
-import { IsIn, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-const EVENT_NAMES = [
-  'page_view', 'signup', 'verify', 'pledge_started', 'pledge_completed', 'project_submitted',
-];
-
 export class TrackEventDto {
-  @ApiProperty({ enum: EVENT_NAMES })
-  @IsIn(EVENT_NAMES)
+  /** STAKES/S-15 (O1) — free-form here; the SERVICE whitelist silently drops
+   *  unknown names with a 200 (analytics must never error a page — the DTO
+   *  @IsIn used to 400 first, contradicting the documented contract). */
+  @ApiProperty({ example: 'page_view' })
+  @IsString() @MaxLength(60)
   name!: string;
 
   /** Random client id from localStorage — never derived from anything identifying. */

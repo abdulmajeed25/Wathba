@@ -107,14 +107,21 @@ export function WathbaCampaign({
     }, 1400);
   };
 
-  // Deep-link via location.hash on mount.
+  // Deep-link via location.hash OR ?tab= on mount, and react to LATER hash
+  // changes too (STAKES/S-15 TABS — in-page notification links like
+  // «#comments» previously only worked on a fresh mount).
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const h = window.location.hash.replace(/^#/, '');
-    if (h && tabs.find((t) => t.id === h)) {
-      // defer one frame so the sections are mounted before scrolling
-      requestAnimationFrame(() => scrollTo(h as TabId));
-    }
+    const activate = (raw: string | null): void => {
+      const key = (raw ?? '').replace(/^#/, '');
+      if (key && tabs.find((t) => t.id === key)) {
+        requestAnimationFrame(() => scrollTo(key as TabId));
+      }
+    };
+    activate(window.location.hash || new URLSearchParams(window.location.search).get('tab'));
+    const onHash = (): void => activate(window.location.hash);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

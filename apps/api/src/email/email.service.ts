@@ -60,6 +60,7 @@ export class EmailService {
   verification(to: string, link: string) { return this.deliver(to, emailTemplates.verification(link)); }
   passwordReset(to: string, link: string) { return this.deliver(to, emailTemplates.passwordReset(link)); }
   welcome(to: string, name: string) { return this.deliver(to, emailTemplates.welcome(name)); }
+  accountActivated(to: string, name: string) { return this.deliver(to, emailTemplates.accountActivated(name)); }
   duplicateSignup(to: string) { return this.deliver(to, emailTemplates.duplicateSignup()); }
   passwordChanged(to: string) { return this.deliver(to, emailTemplates.passwordChanged()); }
   emailChanged(to: string, newEmailMasked: string) { return this.deliver(to, emailTemplates.emailChanged(newEmailMasked)); }

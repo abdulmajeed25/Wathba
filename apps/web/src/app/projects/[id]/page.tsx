@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { SITE_URL } from '@/lib/site';
 
 import {
   adaptApiVenture,
@@ -94,6 +95,18 @@ export default async function ProjectDetailPage({
           : {}),
         datePublished: detail.publishedAt ?? undefined,
         inLanguage: 'ar',
+    // STAKES/S-15 (N5) — crowdfunding-appropriate enrichment: the pledge
+    // action + backers count (schema.org has no crowdfunding type; this is
+    // the documented pattern for donation-style campaigns).
+    potentialAction: {
+      '@type': 'DonateAction',
+      target: `${SITE_URL}${detail.slug ? `/p/${detail.slug}` : `/projects/${detail.id}`}`,
+    },
+    interactionStatistic: {
+      '@type': 'InteractionCounter',
+      interactionType: 'https://schema.org/DonateAction',
+      userInteractionCount: detail.backersCount,
+    },
       }
     : null;
 

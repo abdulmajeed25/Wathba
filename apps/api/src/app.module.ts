@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { CommonModule } from './common/common.module';
+import { SupportModule } from './support/support.module';
 import { HeartbeatModule } from './common/heartbeat.service';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -43,6 +44,7 @@ import { EmailModule } from './email/email.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     HeartbeatModule,
     CommonModule,
+    SupportModule,
     PrismaModule,
     IdentityModule,
     ProjectsModule,

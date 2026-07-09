@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { ApiUserMe } from '@/lib/api/wathba';
 import {
@@ -389,6 +389,9 @@ function SecurityTab({
           أنت مسجَّل دخولك على هذا الجهاز. إن شككت بوصولٍ غير مصرّح، سجّل الخروج
           من جميع الأجهزة — ستُبطل كل الجلسات فوراً وتحتاج لتسجيل الدخول من جديد.
         </p>
+        {/* STAKES/S-15 (E5) — enumerated active sessions + per-session revoke.
+            No device names by design (we store no UA/IP on sessions). */}
+        <SessionsList />
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <form action={signOutAction}>
             <button type="submit" style={dangerGhostBtn}>تسجيل الخروج من هذا الجهاز</button>
@@ -398,6 +401,42 @@ function SecurityTab({
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** STAKES/S-15 (E5) — active refresh-token sessions (created/expiry only). */
+function SessionsList() {
+  const [rows, setRows] = useState<Array<{ id: string; createdAt: string; expiresAt: string }> | null>(null);
+  const load = async (): Promise<void> => {
+    try {
+      const r = await fetch('/api/me/sessions');
+      if (r.ok) setRows(((await r.json()) as { items: Array<{ id: string; createdAt: string; expiresAt: string }> }).items);
+    } catch {
+      /* leave null */
+    }
+  };
+  useEffect(() => { void load(); }, []);
+  if (!rows) return null;
+  return (
+    <div data-testid="sessions-list" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 4 }}>
+      <div style={{ fontSize: 13, fontWeight: 700 }}>الجلسات النشطة ({rows.length})</div>
+      {rows.map((r) => (
+        <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, border: '1px solid rgba(var(--ink-rgb),.1)', borderRadius: 11, padding: '9px 13px' }}>
+          <Num style={{ fontSize: 12, color: 'var(--muted)' }}>
+            بدأت {new Date(r.createdAt).toLocaleDateString('en-GB')} · تنتهي {new Date(r.expiresAt).toLocaleDateString('en-GB')}
+          </Num>
+          <button
+            type="button"
+            onClick={() => {
+              void fetch(`/api/me/sessions/${r.id}`, { method: 'DELETE' }).then(() => void load());
+            }}
+            style={{ cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: '#dc2626', background: 'transparent', border: '1px solid rgba(220,38,38,.35)', borderRadius: 9, padding: '5px 12px', minHeight: 24 }}
+          >
+            إلغاء الجلسة
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -605,11 +644,15 @@ function AvatarField({ me }: { me?: ApiUserMe | null }) {
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const pick = async (file: File) => {
+  const pick = async (rawFile: File) => {
     setErr(null);
-    if (file.size > 2 * 1024 * 1024) { setErr('حجم الصورة يتجاوز ٢ ميغابايت.'); return; }
+    if (rawFile.size > 2 * 1024 * 1024) { setErr('حجم الصورة يتجاوز ٢ ميغابايت.'); return; }
     setBusy(true);
     try {
+      // STAKES/S-15 (C2) — square center-crop + resize to 512px client-side,
+      // so avatars are uniform and uploads stay tiny. Falls back to the raw
+      // file when canvas/decode is unavailable.
+      const file = await cropSquare(rawFile, 512).catch(() => rawFile);
       const presignRes = await fetch('/api/media/upload-url', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -738,3 +781,20 @@ const inputStyle: React.CSSProperties = {
   color: 'var(--text)',
   fontFamily: 'inherit',
 };
+
+/** STAKES/S-15 (C2) — square center-crop + resize via canvas → JPEG 0.9. */
+async function cropSquare(file: File, size: number): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const sx = (bitmap.width - side) / 2;
+  const sy = (bitmap.height - side) / 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('no canvas');
+  ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, size, size);
+  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.9));
+  if (!blob) throw new Error('encode failed');
+  return new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+}

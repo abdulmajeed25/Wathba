@@ -63,6 +63,15 @@ export function WathbaShell({
               [data-pillar="ventures"] .wathba-mob-only{display:inline-flex!important}
               [data-pillar="ventures"] .wathba-mob-sheet{display:flex}
             }
+            /* STAKES/S-15 (Q3) — print: strip chrome, black-on-white body,
+               expand campaign links for paper readers. */
+            @media print{
+              [data-pillar="ventures"] header,[data-pillar="ventures"] footer,
+              [data-pillar="ventures"] nav,[data-pillar="ventures"] aside{display:none!important}
+              [data-pillar="ventures"]{background:#fff!important;color:#000!important}
+              [data-pillar="ventures"] main *{color:#000!important;background:transparent!important;box-shadow:none!important}
+              [data-pillar="ventures"] main a[href^="http"]:after{content:" (" attr(href) ")";font-size:10px}
+            }
             @media (max-width:760px){
               [data-pillar="ventures"] .wathba-hero-band{grid-template-columns:1fr!important}
               [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:1fr!important;gap:26px!important;padding-top:34px!important}

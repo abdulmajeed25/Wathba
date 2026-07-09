@@ -246,6 +246,19 @@ export function WathbaSearch({
             </span>
           )}
         </div>
+        {list.length === 0 && !isFetching && (
+          /* STAKES/S-15 (L3) — an explicit zero-results state with next steps. */
+          <div data-testid="zero-results" style={{ padding: '40px 0 10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>لا نتائج عن هذا البحث</div>
+            <p style={{ fontSize: 13.5, color: 'var(--muted)', marginBottom: 16 }}>
+              جرّب كلمة أقصر أو أعمّ، أو تصفّح فئة من الفئات أعلاه — وقد يهمّك أيضاً:
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Link href="/projects/discover-all" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none', border: '1px solid rgba(var(--accent-rgb),.35)', padding: '8px 16px', borderRadius: 999 }}>استكشف كل المشاريع</Link>
+              <Link href="/projects/discover" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none', border: '1px solid rgba(var(--accent-rgb),.35)', padding: '8px 16px', borderRadius: 999 }}>تصفّح الفئات</Link>
+            </div>
+          </div>
+        )}
         <div
           style={{
             display: 'grid',

@@ -80,6 +80,31 @@ export function WathbaPledge({
     tiers.some((t) => t.id === initialTier) ? initialTier : tiers[0]!.id,
   );
 
+  // STAKES/S-15 (A14) — stash the wizard intent (tier + step) per project so
+  // a mid-pledge session expiry → re-auth → return lands the user back where
+  // they were, not at step 1. Cleared on success; card fields NEVER stashed.
+  const stashKey = `wathba_pledge_${projectId}`;
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(stashKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { tier?: string; step?: number };
+      if (saved.tier && tiers.some((t) => t.id === saved.tier)) setTier(saved.tier);
+      if (saved.step && saved.step >= 1 && saved.step <= 3) setStep(saved.step);
+    } catch {
+      /* corrupt stash — ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try {
+      if (step >= 4) sessionStorage.removeItem(stashKey);
+      else sessionStorage.setItem(stashKey, JSON.stringify({ tier, step }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [stashKey, tier, step]);
+
   // Payment + shipping form state (controlled — Sprint 1).
   const [cardName, setCardName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
