@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
@@ -75,6 +75,18 @@ export class UsersController {
     @Body() dto: ChangeEmailDto,
   ): Promise<{ ok: true }> {
     return this.auth.changeEmail(jwt.sub, dto.currentPassword, dto.newEmail);
+  }
+
+  @Get('me/sessions')
+  @ApiOperation({ summary: 'STAKES/S-15 E5 — list active sessions (no UA/IP stored by design)' })
+  async listSessions(@CurrentUser() jwt: JwtPayload) {
+    return { items: await this.auth.listSessions(jwt.sub) };
+  }
+
+  @Delete('me/sessions/:id')
+  @ApiOperation({ summary: 'STAKES/S-15 E5 — revoke one session' })
+  async revokeSession(@CurrentUser() jwt: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.auth.revokeSession(jwt.sub, id);
   }
 
   @Post('me/signout-all')

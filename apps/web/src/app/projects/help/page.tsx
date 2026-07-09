@@ -7,6 +7,7 @@ import {
   WathbaLegalPage,
 } from '@/components/ventures/wathba/wathba-legal';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
+import { WathbaContactForm } from '@/components/ventures/wathba/wathba-contact-form';
 
 export const metadata: Metadata = { title: 'مركز المساعدة · وثبة' };
 
@@ -87,6 +88,12 @@ export default function HelpPage() {
             </>
           }
         />
+        {/* STAKES/S-15 (H4) — a contact form that actually delivers
+            (stored + emailed), not just printed addresses. */}
+        <div style={{ marginTop: 34 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 700, marginBottom: 14 }}>راسلنا مباشرة</h2>
+          <WathbaContactForm />
+        </div>
       </WathbaLegalPage>
     </WathbaShell>
   );

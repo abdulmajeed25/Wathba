@@ -13,14 +13,15 @@ test('G5: /maintenance redirects home when maintenance mode is OFF', async ({ pa
   await expect(page).toHaveURL(/\/projects$/);
 });
 
-test('G7: report-project uses the styled RTL dialog and cancel is a no-op', async ({ page }) => {
-  // Anonymous user on a real campaign — the report button gates via dialog first.
+test('G7/W4: report-project opens the reason picker and Esc is a no-op', async ({ page }) => {
+  // (The styled ConfirmDialog itself is covered by the K1 comment-delete walk.)
   const { projectId } = seededIds();
   await page.goto(`/projects/${projectId}`);
-  await page.getByRole('button', { name: /الإبلاغ عن المشروع|إبلاغ/ }).first().click();
-  const dialog = page.getByRole('alertdialog', { name: 'الإبلاغ عن هذا المشروع؟' });
+  await page.getByRole('button', { name: /الإبلاغ عن هذا المشروع/ }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'سبب البلاغ' });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'إلغاء' }).click();
+  await expect(dialog.getByRole('radio').first()).toBeChecked();
+  await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
 });
 

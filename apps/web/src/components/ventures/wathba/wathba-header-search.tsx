@@ -21,6 +21,25 @@ interface Suggestions {
 
 const EMPTY: Suggestions = { projects: [], creators: [], categories: [] };
 
+/** STAKES/S-15 (L2) — recent searches, localStorage, newest-first, max 5. */
+const RECENT_KEY = 'wathba_recent_searches';
+function readRecent(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') as unknown;
+    return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string').slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+}
+function pushRecent(q: string): void {
+  try {
+    const next = [q, ...readRecent().filter((x) => x !== q)].slice(0, 5);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 export function WathbaHeaderSearch() {
   const router = useRouter();
   const [q, setQ] = useState('');
@@ -87,6 +106,7 @@ export function WathbaHeaderSearch() {
   ];
 
   const go = (href: string) => {
+    if (q.trim().length >= 2) pushRecent(q.trim());
     setOpen(false);
     router.push(href);
   };
@@ -103,7 +123,8 @@ export function WathbaHeaderSearch() {
     }
   };
 
-  const showPanel = open && options.length > 0 && q.trim().length >= 2;
+  const recent = open && q.trim().length < 2 ? readRecent() : [];
+  const showPanel = open && ((options.length > 0 && q.trim().length >= 2) || recent.length > 0);
 
   return (
     <div
@@ -148,6 +169,23 @@ export function WathbaHeaderSearch() {
             maxHeight: 420, overflowY: 'auto',
           }}
         >
+          {recent.length > 0 && q.trim().length < 2 && (
+            <>
+              <div style={{ padding: '7px 11px 3px', fontSize: 11, fontWeight: 700, color: 'var(--muted2)' }}>عمليات بحث سابقة</div>
+              {recent.map((r) => (
+                <Link
+                  key={`recent-${r}`}
+                  href={`/projects/search?q=${encodeURIComponent(r)}`}
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => { pushRecent(r); setOpen(false); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 11px', borderRadius: 10, textDecoration: 'none', color: 'var(--text)', fontSize: 13.5 }}
+                >
+                  <Icon name="history" size={15} color="var(--muted2)" /> {r}
+                </Link>
+              ))}
+            </>
+          )}
           {options.map((o, i) => (
             <Link
               key={o.key}

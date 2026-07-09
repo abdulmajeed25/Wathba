@@ -181,10 +181,20 @@ export class AuthService {
       return this.issue(user.id as string, row.newEmail, user.roles as UserRole[]);
     }
 
+    const firstActivation = !user.emailVerified;
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id: user.id as string }, data: { emailVerified: true } });
       await tx.emailVerifyToken.update({ where: { id: row.id }, data: { usedAt: new Date() } });
     });
+    // STAKES/S-15 (A7) — the activation moment gets its own welcome; the
+    // Nafath KYC notice stays separate (hybrid contract).
+    if (firstActivation) {
+      try {
+        await this.email.accountActivated(user.email as string, user.name as string);
+      } catch {
+        /* best-effort */
+      }
+    }
     return this.issue(user.id as string, user.email as string, user.roles as UserRole[]);
   }
 
@@ -348,6 +358,35 @@ export class AuthService {
     }
     await this.sendVerification(userId, email, 'EMAIL_CHANGE', email);
     return { ok: true };
+  }
+
+  /** STAKES/S-15 (E5) — enumerate active sessions (refresh tokens). We
+   *  deliberately store no UA/IP on them (privacy posture), so the list is
+   *  created-at ordered; "current session" isn't marked (the API sees only
+   *  the access JWT, which doesn't identify a refresh row). */
+  async listSessions(
+    userId: string,
+  ): Promise<Array<{ id: string; createdAt: string; expiresAt: string }>> {
+    const rows = await this.prisma.refreshToken.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true, expiresAt: true },
+      take: 50,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      createdAt: r.createdAt.toISOString(),
+      expiresAt: r.expiresAt.toISOString(),
+    }));
+  }
+
+  /** STAKES/S-15 (E5) — revoke ONE session (own rows only; idempotent). */
+  async revokeSession(userId: string, sessionId: string): Promise<{ revoked: boolean }> {
+    const { count } = await this.prisma.refreshToken.updateMany({
+      where: { id: sessionId, userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { revoked: count > 0 };
   }
 
   /** E5 — revoke every refresh token ("sign out all devices"). */

@@ -1159,3 +1159,16 @@ model KnownDevice {
   @@unique([userId, deviceHash])
   @@index([userId])
 }
+
+/// STAKES/S-15 (H4) — contact-form submissions (stored + emailed to support).
+model SupportTicket {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  name      String
+  email     String
+  topic     String
+  messageAr String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -86,6 +86,17 @@ export const emailTemplates = {
         <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تكن أنت من طلب ذلك، تواصل فوراً مع support@wathba.sa.</p>`),
     };
   },
+  /** STAKES/S-15 (A7/hybrid) — sent when the emailed link activates the
+   *  account (baseline tier). The KYC-tier notice below stays on Nafath. */
+  accountActivated(name: string): EmailContent {
+    return {
+      subject: `${BRAND} — حسابك مفعّل، أهلاً بك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">أهلاً ${name} 👋</h1>
+        <p>تم تفعيل حسابك في ${BRAND}. يمكنك الآن التعليق ومتابعة المبدعين — ولدعم
+        المشاريع أو إطلاق مشروعك ستحتاج توثيق «نفاذ» (خطوة واحدة).</p>
+        ${cta('{{APP_URL}}/projects/discover', 'استكشف المشاريع')}`),
+    };
+  },
   welcome(name: string): EmailContent {
     return {
       subject: `${BRAND} — تم توثيق حسابك`,
