@@ -1,5 +1,11 @@
 import type { NextConfig } from 'next';
 
+import { validateEnv } from './src/lib/env';
+
+// STAKES/Q4 — fail the PRODUCTION build loudly on a missing/malformed
+// NEXT_PUBLIC_* (dev warns and continues on localhost fallbacks).
+validateEnv();
+
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
@@ -40,6 +46,18 @@ const config: NextConfig = {
   reactStrictMode: true,
   // Slim Docker runtime (Sprint 4 / P0-1101).
   output: 'standalone',
+  // STAKES/M2 — next/image for real remote assets (MinIO avatars/covers).
+  // `unoptimized`: the standalone runtime ships without sharp; next/image
+  // still gives lazy-loading + enforced dimensions (no CLS), which is what
+  // the audit item measured. Flip this off once sharp lands in the image.
+  images: {
+    unoptimized: true,
+    remotePatterns: [
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'http', hostname: '161.97.150.122' },
+      { protocol: 'https', hostname: '**' },
+    ],
+  },
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },

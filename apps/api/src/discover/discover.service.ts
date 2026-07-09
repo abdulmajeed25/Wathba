@@ -312,62 +312,77 @@ export class DiscoverService {
       return rows[0]?.n ?? 0;
     };
 
-    // Category tree with own counts (except-category), rolled up to parents.
-    const catWhere = this.combine(this.whereClause(c, 'category'), Prisma.sql`p."categoryId" IS NOT NULL`);
-    const catRows = await this.prisma.$queryRaw<Array<{ categoryId: string; n: number }>>(Prisma.sql`
-      SELECT p."categoryId" AS "categoryId", count(*)::int AS n
-      FROM "Project" p ${catWhere}
-      GROUP BY p."categoryId"
-    `);
+    // STAKES/M3 — the audit measured this endpoint at 302ms p95: ~19
+    // aggregate round-trips ran SEQUENTIALLY. Every query is an independent
+    // read with its own "except"-WHERE, so fan them all out in one
+    // Promise.all (categories keeps its own two-step dependency inside).
+    const [categories, statusRow, regionRows, pctEntries, moneyEntries, staff, collRows] =
+      await Promise.all([
+        // Category tree with own counts (except-category), rolled up to parents.
+        (async () => {
+          const catWhere = this.combine(this.whereClause(c, 'category'), Prisma.sql`p."categoryId" IS NOT NULL`);
+          const catRows = await this.prisma.$queryRaw<Array<{ categoryId: string; n: number }>>(Prisma.sql`
+            SELECT p."categoryId" AS "categoryId", count(*)::int AS n
+            FROM "Project" p ${catWhere}
+            GROUP BY p."categoryId"
+          `);
+          const own = new Map<string, number>();
+          for (const r of catRows) own.set(r.categoryId, r.n);
+          return this.buildCategoryFacet(own);
+        })(),
+        // Status facet (except-status): count each universe under the other filters.
+        (() => {
+          const statusWhere = this.whereClause(c, 'status');
+          return this.prisma.$queryRaw<Array<{ live: number; funded: number; ended: number }>>(Prisma.sql`
+            SELECT
+              count(*) FILTER (WHERE p.status = 'LIVE' AND p.deadline >= now())::int AS live,
+              count(*) FILTER (WHERE p.status::text = ANY(${FUNDED_SET}))::int AS funded,
+              count(*) FILTER (WHERE p.status::text = ANY(${ENDED_SET}) OR (p.status = 'LIVE' AND p.deadline < now()))::int AS ended
+            FROM "Project" p ${statusWhere}
+          `);
+        })(),
+        // Region facet (except-region).
+        (() => {
+          const regionWhere = this.combine(this.whereClause(c, 'region'), Prisma.sql`p.region IS NOT NULL`);
+          return this.prisma.$queryRaw<Array<{ region: string; n: number }>>(Prisma.sql`
+            SELECT p.region::text AS region, count(*)::int AS n
+            FROM "Project" p ${regionWhere}
+            GROUP BY p.region
+          `);
+        })(),
+        // Percent buckets (except-pct).
+        Promise.all(
+          PCT_BUCKETS.map(async (b) => [b, await countWhere('pct', this.pctCondition(b))] as const),
+        ),
+        // Goal + raised brackets.
+        Promise.all(
+          MONEY_BRACKETS.flatMap((br) => [
+            (async () => ['goal', br.key, await countWhere('goal', this.moneyBracket('fundingGoalHalalas', br))] as const)(),
+            (async () => ['raised', br.key, await countWhere('raised', this.moneyBracket('raisedHalalas', br))] as const)(),
+          ]),
+        ),
+        countWhere('staff', Prisma.sql`p."isStaffPick" = true`),
+        // Collection facet (active collections; counts under the other filters).
+        this.prisma.$queryRaw<Array<{ slug: string; nameAr: string; n: number }>>(Prisma.sql`
+          SELECT col.slug AS slug, col."nameAr" AS "nameAr", count(p.id)::int AS n
+          FROM "Collection" col
+            JOIN "ProjectCollection" pc ON pc."collectionId" = col.id
+            JOIN "Project" p ON p.id = pc."projectId" AND (${this.predicate(c, 'collection')})
+          WHERE col."isActive" = true
+          GROUP BY col.slug, col."nameAr", col."sortOrder"
+          ORDER BY col."sortOrder" ASC
+        `),
+      ]);
 
-    const own = new Map<string, number>();
-    for (const r of catRows) own.set(r.categoryId, r.n);
-    const categories = await this.buildCategoryFacet(own);
-
-    // Status facet (except-status): count each universe under the other filters.
-    const statusWhere = this.whereClause(c, 'status');
-    const statusRow = await this.prisma.$queryRaw<Array<{ live: number; funded: number; ended: number }>>(Prisma.sql`
-      SELECT
-        count(*) FILTER (WHERE p.status = 'LIVE' AND p.deadline >= now())::int AS live,
-        count(*) FILTER (WHERE p.status::text = ANY(${FUNDED_SET}))::int AS funded,
-        count(*) FILTER (WHERE p.status::text = ANY(${ENDED_SET}) OR (p.status = 'LIVE' AND p.deadline < now()))::int AS ended
-      FROM "Project" p ${statusWhere}
-    `);
     const statuses = statusRow[0] ?? { live: 0, funded: 0, ended: 0 };
-
-    // Region facet (except-region).
-    const regionWhere = this.combine(this.whereClause(c, 'region'), Prisma.sql`p.region IS NOT NULL`);
-    const regionRows = await this.prisma.$queryRaw<Array<{ region: string; n: number }>>(Prisma.sql`
-      SELECT p.region::text AS region, count(*)::int AS n
-      FROM "Project" p ${regionWhere}
-      GROUP BY p.region
-    `);
     const regions = Object.fromEntries(regionRows.map((r) => [r.region, r.n]));
-
-    // Percent buckets (except-pct).
-    const pct: Record<string, number> = {};
-    for (const b of PCT_BUCKETS) pct[b] = await countWhere('pct', this.pctCondition(b));
-
-    // Goal + raised brackets.
+    const pct: Record<string, number> = Object.fromEntries(pctEntries);
     const goals: Record<string, number> = {};
     const raised: Record<string, number> = {};
-    for (const br of MONEY_BRACKETS) {
-      goals[br.key] = await countWhere('goal', this.moneyBracket('fundingGoalHalalas', br));
-      raised[br.key] = await countWhere('raised', this.moneyBracket('raisedHalalas', br));
+    for (const [kind, key, n] of moneyEntries) {
+      if (kind === 'goal') goals[key] = n;
+      else raised[key] = n;
     }
-
-    const staff = await countWhere('staff', Prisma.sql`p."isStaffPick" = true`);
-
-    // Collection facet (active collections; counts under the other filters).
-    const collRows = await this.prisma.$queryRaw<Array<{ slug: string; nameAr: string; n: number }>>(Prisma.sql`
-      SELECT col.slug AS slug, col."nameAr" AS "nameAr", count(p.id)::int AS n
-      FROM "Collection" col
-        JOIN "ProjectCollection" pc ON pc."collectionId" = col.id
-        JOIN "Project" p ON p.id = pc."projectId" AND (${this.predicate(c, 'collection')})
-      WHERE col."isActive" = true
-      GROUP BY col.slug, col."nameAr", col."sortOrder"
-      ORDER BY col."sortOrder" ASC
-    `);
     const collections = collRows.map((r) => ({ slug: r.slug, nameAr: r.nameAr, count: r.n }));
 
     return { statuses, categories, regions, pct, goals, raised, staff, collections };

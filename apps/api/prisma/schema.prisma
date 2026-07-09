@@ -677,6 +677,25 @@ model CommentReport {
   @@index([commentId])
 }
 
+/// STAKES/O1 O3 — privacy-respecting product events. NO IP, NO user-agent,
+/// no fingerprinting: an optional random client anonId (localStorage) and an
+/// optional userId for authenticated server-side events. Disclosed in the
+/// privacy page; consent-covered for account events (PDPL signup consent).
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Whitelisted event name (page_view, signup, verify, pledge_started, …).
+  name      String
+  /// Random client-generated id — NOT derived from anything identifying.
+  anonId    String?
+  userId    String?  @db.Uuid
+  path      String?
+  props     Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([createdAt])
+}
+
 /// STAKES/K3 — trust & safety: a user reports a whole project. Deduped per
 /// reporter; surfaced (with comment reports) in the admin moderation queue.
 model ProjectReport {

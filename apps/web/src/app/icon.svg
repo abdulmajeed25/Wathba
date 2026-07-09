@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#05a661"/>
+      <stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#g)"/>
+  <!-- rocket (the brand mark) -->
+  <path d="M32 10c7 4 11 11 11 20 0 3-.5 5.8-1.4 8.4l5.4 7.6-8.5-2.2A21 21 0 0 1 32 47a21 21 0 0 1-6.5-3.2L17 46l5.4-7.6A26 26 0 0 1 21 30c0-9 4-16 11-20z" fill="#fff"/>
+  <circle cx="32" cy="27" r="4.4" fill="#05a661"/>
+  <path d="M27.5 48.5 32 58l4.5-9.5a18 18 0 0 1-9 0z" fill="#fde68a"/>
+</svg>

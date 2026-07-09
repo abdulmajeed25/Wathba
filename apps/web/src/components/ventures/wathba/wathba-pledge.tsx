@@ -2,7 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useState, useEffect } from 'react';
+
+import { track } from '@/lib/analytics';
 
 import {
   deriveProject,
@@ -66,6 +68,12 @@ export function WathbaPledge({
   }, [isLive, liveTiers]);
 
   const [step, setStep] = useState(1);
+
+  // STAKES/O1 — funnel: entering the pledge wizard = pledge_started.
+  useEffect(() => {
+    track('pledge_started', { projectId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [tier, setTier] = useState(() =>
     tiers.some((t) => t.id === initialTier) ? initialTier : tiers[0]!.id,
   );

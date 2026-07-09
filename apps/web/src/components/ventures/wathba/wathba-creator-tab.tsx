@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -238,8 +239,8 @@ export function WathbaCreatorTab({
 function Avatar({ url, name }: { url: string | null; name: string }): React.ReactElement {
   if (url) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      /* STAKES/M2 — next/image: lazy + fixed dimensions (no CLS). */
+      <Image
         src={url}
         alt={name}
         width={56}

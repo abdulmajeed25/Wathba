@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -371,8 +372,8 @@ function ApiCommentRow({
         }}
       >
         {c.userAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={c.userAvatarUrl} alt="" width={40} height={40} style={{ objectFit: 'cover' }} />
+          /* STAKES/M2 — next/image: lazy + fixed dimensions (no CLS). */
+          <Image src={c.userAvatarUrl} alt="" width={40} height={40} style={{ objectFit: 'cover' }} />
         ) : (
           initial
         )}

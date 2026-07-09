@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Reem_Kufi, Tajawal, IBM_Plex_Sans_Arabic, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
 
@@ -34,6 +34,14 @@ const spaceGrotesk = Space_Grotesk({
   variable: '--font-space-grotesk',
   display: 'swap',
 });
+
+/** STAKES/Q1 — brand theme-color for the browser chrome (both schemes). */
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#05a661' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b1512' },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

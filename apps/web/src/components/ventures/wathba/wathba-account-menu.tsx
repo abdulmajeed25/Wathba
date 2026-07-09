@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -117,8 +118,8 @@ export function WathbaAccountMenu() {
         style={{ ...avatarBtn, overflow: 'hidden', padding: 0 }}
       >
         {me.avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={me.avatarUrl} alt="" width={42} height={42} style={{ objectFit: 'cover' }} />
+          /* STAKES/M2 — next/image: lazy + fixed dimensions (no CLS). */
+          <Image src={me.avatarUrl} alt="" width={42} height={42} style={{ objectFit: 'cover' }} />
         ) : (
           initial
         )}

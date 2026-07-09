@@ -28,6 +28,15 @@ export async function POST(
     headers: { Authorization: `Bearer ${token}` },
   });
   const text = await apiRes.text();
+  // STAKES/O1 — funnel event on a successful submit-for-review.
+  if (apiRes.ok) {
+    void fetch(`${API_BASE}/v1/events`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'project_submitted', props: { projectId: id } }),
+      cache: 'no-store',
+    }).catch(() => undefined);
+  }
   return new NextResponse(text, {
     status: apiRes.status,
     headers: { 'content-type': apiRes.headers.get('content-type') ?? 'application/json' },
