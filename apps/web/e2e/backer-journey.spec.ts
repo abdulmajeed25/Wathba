@@ -20,6 +20,10 @@ test('backer: signup → pledge → success → my pledges', async ({ page }) =>
   await page.waitForURL(/\/back\/success/, { timeout: 30_000 });
   await expect(page.getByText('شكراً لدعمك!')).toBeVisible();
 
+  // STAKES/S-10 F-04 (I3) — the success screen carries the share block.
+  await expect(page.getByRole('group', { name: 'شارك دعمك' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'واتساب' })).toBeVisible();
+
   await page.goto('/projects/me/pledges');
   await expect(page.getByText('مشاريع دعمتُها')).toBeVisible();
   await expect(page.getByText('محجوز · بانتظار النجاح').first()).toBeVisible();

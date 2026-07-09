@@ -115,6 +115,62 @@ export function ShareButton({
   );
 }
 
+/**
+ * STAKES/S-10 F-04 (I3) — inline share row for the post-pledge success
+ * surfaces: «ساهمت في…» is the highest-intent share moment on the platform.
+ * Same targets as ShareButton but laid out flat (no popover) with the
+ * backer-voice prefilled text.
+ */
+export function ShareRow({ title, url }: { title: string; url: string }) {
+  const [copied, setCopied] = useState(false);
+  const text = `ساهمت في دعم «${title}» على وثبة — انضم إليّ!`;
+  const abs = () =>
+    /^https?:/.test(url)
+      ? url
+      : typeof window !== 'undefined'
+        ? new URL(url, window.location.origin).toString()
+        : url;
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`${text} ${abs()}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard denied — the per-network links still work */
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-soft)' }}>
+        شارك دعمك وضاعف أثره
+      </div>
+      <div role="group" aria-label="شارك دعمك" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {shareTargets(abs(), text).map((tgt) => (
+          <a key={tgt.key} href={tgt.href} target="_blank" rel="noopener noreferrer" style={pill}>
+            <Icon name="send" size={14} color="var(--accent)" /> {tgt.label}
+          </a>
+        ))}
+        <button
+          type="button"
+          onClick={() => void copy()}
+          style={{ ...pill, cursor: 'pointer', background: 'transparent', fontFamily: 'inherit' }}
+        >
+          <Icon name={copied ? 'check_circle' : 'bookmark'} size={14} color="var(--accent)" />
+          {copied ? 'تم النسخ ✓' : 'نسخ الرابط'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const pill: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 999,
+  border: '1px solid rgba(var(--ink-rgb),.14)', background: 'var(--card)', color: 'var(--text-soft)',
+  fontSize: 13.5, fontWeight: 700, textDecoration: 'none',
+};
+
 const panel: React.CSSProperties = {
   position: 'absolute', bottom: 'calc(100% + 8px)', insetInlineStart: 0, minWidth: 170, zIndex: 60,
   background: 'var(--card)', border: '1px solid rgba(var(--ink-rgb),.1)', borderRadius: 13,

@@ -81,8 +81,12 @@ export function WathbaPublicProfile({
 
           {/* stats */}
           <div style={{ display: 'flex', gap: 0, marginTop: 22, borderTop: '1px solid rgba(var(--ink-rgb),.07)', paddingTop: 18 }}>
-            <Stat label="مشاريع دعمها" value={profile.stats.backedCount} />
-            <StatDivider />
+            {profile.stats.backedCount !== null && (
+              <>
+                <Stat label="مشاريع دعمها" value={profile.stats.backedCount} />
+                <StatDivider />
+              </>
+            )}
             <Stat label="مشاريع أنشأها" value={profile.stats.createdCount} />
             <StatDivider />
             <Stat label="متابِعون" value={profile.stats.followersCount} />

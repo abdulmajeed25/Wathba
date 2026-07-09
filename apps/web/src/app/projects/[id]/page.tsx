@@ -33,9 +33,15 @@ export async function generateMetadata({
     : fixture
       ? `${fixture.titleAr} · وثبة`
       : `مشروع ${id} · وثبة`;
-  const description = live?.metaDescription ?? live?.shortDescAr ?? fixture?.desc;
-  // STAKES/I2 — og:image falls back to the first campaign media asset.
-  const ogImage = live?.ogImage ?? live?.mediaUrls?.[0] ?? undefined;
+  const baseDescription = live?.metaDescription ?? live?.shortDescAr ?? fixture?.desc;
+  // STAKES/S-10 F-04 — the share card carries the funded % for live campaigns.
+  const pct =
+    live && live.fundingGoalHalalas > 0 && (live.status === 'LIVE' || live.status === 'FUNDED')
+      ? Math.round((live.raisedHalalas / live.fundingGoalHalalas) * 100)
+      : null;
+  const description = pct !== null ? `مُموَّل ${pct}٪ · ${baseDescription ?? ''}`.trim() : baseDescription;
+  // STAKES/I2 + S-10 F-04 — og:image: campaign media, else the brand card.
+  const ogImage = live?.ogImage ?? live?.mediaUrls?.[0] ?? '/og-default.png';
   // STAKES/N4 N6 — ONE canonical per project: the human slug when set.
   const canonical = live?.slug ? `/p/${live.slug}` : `/projects/${id}`;
   return {
@@ -47,8 +53,9 @@ export async function generateMetadata({
       description,
       type: 'article',
       url: canonical,
-      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+      images: [{ url: ogImage }],
     },
+    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
   };
 }
 

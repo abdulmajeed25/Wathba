@@ -25,8 +25,14 @@ export async function generateMetadata({
   const live = await getProjectDetail(slug).catch(() => null);
   if (!live) return { title: 'مشروع غير موجود · وثبة' };
   const title = `${live.titleAr} · وثبة`;
-  const description = live.metaDescription ?? live.shortDescAr;
-  const ogImage = live.ogImage ?? live.mediaUrls?.[0] ?? undefined;
+  const baseDescription = live.metaDescription ?? live.shortDescAr;
+  // STAKES/S-10 F-04 — funded % on the share card + brand-card image fallback.
+  const pct =
+    live.fundingGoalHalalas > 0 && (live.status === 'LIVE' || live.status === 'FUNDED')
+      ? Math.round((live.raisedHalalas / live.fundingGoalHalalas) * 100)
+      : null;
+  const description = pct !== null ? `مُموَّل ${pct}٪ · ${baseDescription ?? ''}`.trim() : baseDescription;
+  const ogImage = live.ogImage ?? live.mediaUrls?.[0] ?? '/og-default.png';
   const canonical = live.slug ? `/p/${live.slug}` : `/projects/${live.id}`;
   return {
     title,
@@ -37,8 +43,9 @@ export async function generateMetadata({
       description,
       type: 'article',
       url: canonical,
-      ...(ogImage ? { images: [{ url: ogImage }] } : {}),
+      images: [{ url: ogImage }],
     },
+    twitter: { card: 'summary_large_image', title, description, images: [ogImage] },
   };
 }
 

@@ -52,7 +52,10 @@ export const metadata: Metadata = {
     siteName: 'وثبة — WATHBA',
     locale: 'ar_SA',
     type: 'website',
+    // STAKES/S-10 F-04 — brand card so media-less pages still unfurl with an image.
+    images: [{ url: '/og-default.png', width: 1200, height: 630 }],
   },
+  twitter: { card: 'summary_large_image' },
 };
 
 /** STAKES/N5 — sitewide Organization markup. */

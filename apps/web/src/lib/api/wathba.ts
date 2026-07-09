@@ -904,7 +904,8 @@ export interface ApiPublicProfile {
   socialLinks: Array<{ platform: string; url: string }>;
   nafathVerified: boolean;
   joinedAt: string;
-  stats: { backedCount: number; createdCount: number; followersCount: number };
+  /** backedCount is null when the user hides it (showBackedCount=false). */
+  stats: { backedCount: number | null; createdCount: number; followersCount: number };
   createdProjects: Array<{
     id: string;
     titleAr: string;
@@ -947,6 +948,48 @@ export async function getRecommendedProjects(
     0,
     bearer,
   );
+}
+
+/** STAKES/S-10 F-03 — one saved-project card as the discover API returns it. */
+export interface ApiSavedCard {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  status: string;
+  fundingGoalHalalas: number;
+  raisedHalalas: number;
+  deadline: string;
+  slug: string | null;
+  creatorName: string;
+}
+
+/** STAKES/S-10 F-10 — every LIVE/FUNDED project (id + slug) for the sitemap.
+ *  Pages through discover (the plain projects list is first-page-only), capped
+ *  at 10 pages / 480 projects so a runaway dataset can't stall ISR. */
+export async function listSitemapProjects(): Promise<Array<{ id: string; slug: string | null }> | null> {
+  const out: Array<{ id: string; slug: string | null }> = [];
+  for (let page = 0; page < 10; page++) {
+    // revalidate 0: the DATA cache must not pin a build-time snapshot — the
+    // build prerender caches this URL for an hour and a fresh route render
+    // then serves stale projects (no new slugs). Freshness per render; the
+    // route itself is the caching layer.
+    const data = await fetchJson<{ items: Array<{ id: string; slug: string | null }>; hasMore: boolean }>(
+      `/v1/discover?status=live,funded&take=48&page=${page}`,
+      0,
+    );
+    if (!data?.items) return out.length > 0 ? out : null;
+    out.push(...data.items.map((p) => ({ id: p.id, slug: p.slug })));
+    if (!data.hasMore) break;
+  }
+  return out;
+}
+
+/** Bearer-protected; revalidate 0 — bookmarks must reflect instantly. */
+export async function listMySaved(token?: string | null): Promise<ApiSavedCard[] | null> {
+  const bearer = token ?? (await readSessionToken());
+  if (!bearer) return null;
+  const data = await fetchJson<{ items: ApiSavedCard[] }>('/v1/discover?only=saved&take=24', 0, bearer);
+  return data?.items ?? null;
 }
 
 /** Public + anonymous — accepts a handle or a UUID fallback.

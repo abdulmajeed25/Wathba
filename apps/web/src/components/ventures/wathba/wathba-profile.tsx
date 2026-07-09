@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import type { ApiBackingRow } from '@/lib/api/wathba';
+import type { ApiBackingRow, ApiSavedCard } from '@/lib/api/wathba';
 
 import { adaptApiVenture, deriveProject, wathbaProjects, type DerivedProject } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
+import { EmptyState } from './wathba-states';
 
 /**
  * Wathba (وثبة) — Profile surface.
@@ -46,6 +47,49 @@ const heroStats = [
  * whose slug doesn't match a fixture are skipped so the grid never shows a
  * broken card.
  */
+/** Display row for the saved grid — derived from the LIVE discover card, never
+ *  from fixtures (the fixture slice silently lied about what the user saved). */
+interface SavedRow {
+  id: string;
+  href: string;
+  cat: string;
+  titleAr: string;
+  creator: string;
+  pct: number;
+  pctW: string;
+  barGrad: string;
+  pctColor: string;
+  daysLeft: number;
+}
+
+const SAVED_STATUS_AR: Record<string, string> = {
+  LIVE: 'نشط',
+  FUNDED: 'مموَّل',
+  IN_PRODUCTION: 'قيد التنفيذ',
+  DELIVERED: 'تم التسليم',
+  PAUSED: 'متوقف مؤقتاً',
+};
+
+function savedCardToRow(c: ApiSavedCard): SavedRow {
+  const pct = c.fundingGoalHalalas > 0
+    ? Math.round((c.raisedHalalas / c.fundingGoalHalalas) * 100)
+    : 0;
+  const over = pct >= 100;
+  const msLeft = c.deadline ? new Date(c.deadline).getTime() - Date.now() : 0;
+  return {
+    id: c.id,
+    href: c.slug ? `/p/${c.slug}` : `/projects/${c.id}`,
+    cat: SAVED_STATUS_AR[c.status] ?? c.status,
+    titleAr: c.titleAr,
+    creator: c.creatorName,
+    pct,
+    pctW: Math.min(pct, 100) + '%',
+    pctColor: over ? 'var(--accent-ink)' : 'var(--blue)',
+    barGrad: over ? 'var(--grad-bar-over)' : 'var(--grad-bar)',
+    daysLeft: Math.max(0, Math.ceil(msLeft / 86_400_000)),
+  };
+}
+
 function backingToProject(row: ApiBackingRow): DerivedProject | null {
   if (!row.venture) return null;
   const adapted = adaptApiVenture({
@@ -68,9 +112,12 @@ function backingToProject(row: ApiBackingRow): DerivedProject | null {
 export interface WathbaProfileProps {
   /** Optional live backings from GET /v1/ventures/me/backings. */
   backings?: ApiBackingRow[] | null;
+  /** STAKES/S-10 F-03 — live bookmarks from GET /v1/discover?only=saved.
+   *  Never fixture-backed: null (fetch failed) renders the empty state too. */
+  saved?: ApiSavedCard[] | null;
 }
 
-export function WathbaProfile({ backings }: WathbaProfileProps = {}) {
+export function WathbaProfile({ backings, saved: savedCards }: WathbaProfileProps = {}) {
   const [tab, setTab] = useState<ProfileTabId>('backed');
 
   const list = wathbaProjects.map(deriveProject);
@@ -79,7 +126,7 @@ export function WathbaProfile({ backings }: WathbaProfileProps = {}) {
     (p): p is DerivedProject => Boolean(p),
   );
   const created = [list[2]].filter((p): p is DerivedProject => Boolean(p));
-  const saved = [list[3], list[7]].filter((p): p is DerivedProject => Boolean(p));
+  const saved = (savedCards ?? []).map(savedCardToRow);
 
   // Prefer live backings when present; otherwise the design fixture so the
   // grid keeps its 4-column rhythm.
@@ -255,13 +302,16 @@ export function WathbaProfile({ backings }: WathbaProfileProps = {}) {
 
       {/* ─────────── tabs + content (lines 1087-1143) ─────────── */}
       <section style={{ maxWidth: 1100, margin: '0 auto', padding: '26px 26px 0' }}>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 26, flexWrap: 'wrap' }}>
+        {/* STAKES/S-10 — real tab semantics (was role="button"): AT users get
+            the tablist relationship, and aria-selected tracks the active tab. */}
+        <div role="tablist" aria-label="أقسام الملف" style={{ display: 'flex', gap: 10, marginBottom: 26, flexWrap: 'wrap' }}>
           {profileTabs.map((t) => {
             const isActive = tab === t.id;
             return (
               <span
                 key={t.id}
-                role="button"
+                role="tab"
+                aria-selected={isActive}
                 tabIndex={0}
                 data-tab={t.id}
                 onClick={() => setTab(t.id)}
@@ -477,7 +527,21 @@ function CreatedList({ projects }: { projects: DerivedProject[] }) {
 
 // ─────────────── saved grid (lines 1127-1141) ───────────────
 
-function SavedGrid({ projects }: { projects: DerivedProject[] }) {
+function SavedGrid({ projects }: { projects: SavedRow[] }) {
+  if (projects.length === 0) {
+    return (
+      <EmptyState
+        icon="bookmark"
+        title="لا مشاريع محفوظة بعد"
+        body="احفظ المشاريع التي تهمّك من صفحة الاستكشاف وستجدها هنا."
+        cta={
+          <Link href="/projects/discover-all" style={{ color: 'var(--accent-ink)', fontWeight: 700, textDecoration: 'none' }}>
+            استكشف المشاريع ←
+          </Link>
+        }
+      />
+    );
+  }
   return (
     <div
       className="wathba-fade"
@@ -486,7 +550,7 @@ function SavedGrid({ projects }: { projects: DerivedProject[] }) {
       {projects.map((p) => (
         <Link
           key={p.id}
-          href={`/projects/${p.id}`}
+          href={p.href}
           className="lift"
           style={{
             cursor: 'pointer',
