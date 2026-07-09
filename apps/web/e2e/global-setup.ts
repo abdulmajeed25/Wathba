@@ -43,6 +43,14 @@ export default async function globalSetup(): Promise<void> {
       estDeliveryDate: '2026-12-01',
     }),
   });
+  // STAKES/S-10 F-10 — a human slug set at draft time (slug edits lock after
+  // submission) so the sitemap/canonical specs have a slugged LIVE project.
+  const slug = `e2e-sirb-${Date.now()}`;
+  await fetch(`${API}/v1/projects/${proj.id}`, {
+    method: 'PATCH',
+    headers: auth,
+    body: JSON.stringify({ slug }),
+  });
   await fetch(`${API}/v1/projects/${proj.id}/submit`, { method: 'POST', headers: auth });
   await fetch(`${API}/v1/admin/projects/${proj.id}/review`, {
     method: 'POST',
@@ -66,6 +74,6 @@ export default async function globalSetup(): Promise<void> {
   const path = await import('node:path');
   fs.writeFileSync(
     path.join(os.tmpdir(), 'wathba-e2e-ids.json'),
-    JSON.stringify({ projectId: proj.id, rfqId: rfq.id }),
+    JSON.stringify({ projectId: proj.id, rfqId: rfq.id, slug }),
   );
 }

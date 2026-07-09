@@ -43,8 +43,8 @@ export const E2E_PASSWORD = PASS;
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-export function seededIds(): { projectId: string; rfqId: string } {
+export function seededIds(): { projectId: string; rfqId: string; slug: string } {
   return JSON.parse(
     readFileSync(join(tmpdir(), 'wathba-e2e-ids.json'), 'utf8'),
-  ) as { projectId: string; rfqId: string };
+  ) as { projectId: string; rfqId: string; slug: string };
 }

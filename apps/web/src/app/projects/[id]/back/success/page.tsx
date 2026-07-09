@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+import { ShareRow } from '@/components/ventures/wathba/wathba-share';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
+import { getProjectDetail } from '@/lib/api/wathba';
 import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = { title: 'تم الدعم بنجاح · وثبة' };
@@ -32,6 +34,12 @@ export default async function BackSuccessPage({
     );
   }
   const ref = sp.ref ?? sp.id ?? null;
+
+  // STAKES/S-10 F-04 (I3) — the share block needs the project title; degrade
+  // to the generic platform line if the lookup fails (never block the thanks).
+  const live = await getProjectDetail(id).catch(() => null);
+  const shareTitle = live?.titleAr ?? 'مشروع على وثبة';
+  const shareUrl = live?.slug ? `/p/${live.slug}` : `/projects/${id}`;
 
   return (
     <WathbaShell>
@@ -98,6 +106,9 @@ export default async function BackSuccessPage({
         >
           عودة للمشروع
         </Link>
+      </div>
+      <div style={{ marginTop: 34 }}>
+        <ShareRow title={shareTitle} url={shareUrl} />
       </div>
     </div>
     </WathbaShell>

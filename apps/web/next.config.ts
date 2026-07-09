@@ -42,8 +42,20 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'geolocation=(), camera=(), microphone=(), payment=(self)' },
 ];
 
+/**
+ * STAKES/S-10 F-02 — bots that must receive BLOCKING metadata in <head>.
+ * Dynamic pages stream their metadata into <body> for regular browsers (JS
+ * hoists it), but non-JS link-preview scrapers only read <head>. Next's
+ * default list already covers WhatsApp/Twitter/Telegram/Facebook/Slack/
+ * Discord/LinkedIn (live-verified); setting `htmlLimitedBots` REPLACES that
+ * default, so this regex = Next's default + the previewers it misses.
+ */
+const htmlLimitedBots =
+  /[\w-]+-Google|Google-[\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight|Snapchat|Viber|Pinterest|Mastodon|Bluesky|SignalBot|iframely|Embedly|TelegramBot/i;
+
 const config: NextConfig = {
   reactStrictMode: true,
+  htmlLimitedBots,
   // Slim Docker runtime (Sprint 4 / P0-1101).
   output: 'standalone',
   // STAKES/M2 — next/image for real remote assets (MinIO avatars/covers).

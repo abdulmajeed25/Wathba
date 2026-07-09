@@ -63,6 +63,7 @@ export interface DiscoverCard {
   mediaUrls: string[];
   slug: string | null;
   saved: boolean;
+  creatorName: string;
 }
 
 @Injectable()
@@ -261,8 +262,9 @@ export class DiscoverService {
       SELECT p.id, p."titleAr", p."shortDescAr", p."categoryId", p.region::text AS region,
              p."isStaffPick", p.status::text AS status, p."fundingGoalHalalas", p."raisedHalalas",
              p."backersCount", p.deadline, p."publishedAt", p."mediaUrls", p.slug,
-             ${savedSel} AS saved
+             ${savedSel} AS saved, u.name AS "creatorName"
       FROM "Project" p
+      JOIN "User" u ON u.id = p."createdById"
       ${where}
       ${order}
       LIMIT ${f.take} OFFSET ${offset}
@@ -297,6 +299,7 @@ export class DiscoverService {
       mediaUrls: (r.mediaUrls as string[]) ?? [],
       slug: (r.slug as string) ?? null,
       saved: Boolean(r.saved),
+      creatorName: (r.creatorName as string) ?? '',
     };
   }
 

@@ -13,6 +13,7 @@ import {
   wathbaTiers,
 } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
+import { ShareRow } from './wathba-share';
 import { createCardToken } from '@/lib/payments/moyasar-client';
 import type { ApiRewardTier } from '@/lib/api/wathba';
 
@@ -713,6 +714,13 @@ export function WathbaPledge({
                 >
                   استكشف المزيد
                 </Link>
+              </div>
+              {/* STAKES/S-10 F-04 (I3) — share the pledge at the peak moment. */}
+              <div style={{ marginTop: 28 }}>
+                <ShareRow
+                  title={liveTitleAr ?? active.titleAr}
+                  url={`/projects/${projectId}`}
+                />
               </div>
             </div>
           )}
