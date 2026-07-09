@@ -70,6 +70,12 @@ export class EmailService {
   emailChangeVerify(to: string, link: string) {
     return this.deliver(to, emailTemplates.emailChangeVerify(link));
   }
+  captureGrace(to: string, d: { projectTitle: string; amountHalalas: number; bnpl: boolean; link: string }) {
+    return this.deliver(to, emailTemplates.captureGrace(d));
+  }
+  captureFailed(to: string, d: { projectTitle: string; amountHalalas: number }) {
+    return this.deliver(to, emailTemplates.captureFailed(d));
+  }
   newDeviceSignin(to: string) {
     return this.deliver(to, emailTemplates.newDeviceSignin());
   }

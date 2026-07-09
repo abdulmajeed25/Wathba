@@ -1,5 +1,5 @@
 import {
-  ArrayMaxSize, IsArray, IsEnum, IsInt, IsISO31661Alpha2, IsObject, IsOptional, IsString,
+  ArrayMaxSize, IsArray, IsEnum, IsIn, IsInt, IsISO31661Alpha2, IsObject, IsOptional, IsString,
   IsUUID, Matches, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -43,7 +43,12 @@ export class PledgeAddOnDto {
 
 export class CreatePledgeDto {
   @ApiProperty() @IsUUID() projectId!: string;
-  @ApiProperty() @IsUUID() tierId!: string;
+  /** Batch PAY (Part 3) — optional: absent = no-reward pledge (min 10 SAR). */
+  @ApiProperty({ required: false }) @IsOptional() @IsUUID() tierId?: string;
+
+  /** Batch PAY (Part 4) — CARD (authorize-hold) | TABBY/TAMARA (deferred-initiation intent). */
+  @ApiProperty({ required: false, enum: ['CARD', 'TABBY', 'TAMARA'], default: 'CARD' })
+  @IsOptional() @IsIn(['CARD', 'TABBY', 'TAMARA']) paymentMethod?: string;
 
   @ApiProperty({ example: 75_000 })
   @IsInt() @Min(100) amountHalalas!: number;
@@ -70,4 +75,10 @@ export class CreatePledgeDto {
   @IsOptional() @IsArray() @ArrayMaxSize(20)
   @ValidateNested({ each: true }) @Type(() => PledgeAddOnDto)
   addOns?: PledgeAddOnDto[];
+}
+
+/** Batch PAY (Part 2) — new payment source for a grace-window retry. */
+export class RetryCaptureDto {
+  @ApiProperty({ example: 'tok_sandbox_new' })
+  @IsString() source!: string;
 }

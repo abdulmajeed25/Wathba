@@ -88,6 +88,10 @@ enum PledgeStatus {
   REFUNDED
   FAILED
   DISPUTED
+  PENDING_BNPL
+  CAPTURE_GRACE
+  FAILED_CAPTURE
+  PENDING_REAUTH
 }
 
 /// Creator-editable fulfillment bookkeeping on a pledge (Creator-CC / CC-02).
@@ -142,6 +146,8 @@ enum NotificationKind {
   UPDATE_POSTED
   CREATOR_NEW_PROJECT
   REFUND_COMPLETED
+  PLEDGE_CANCELLED
+  CAPTURE_GRACE
   RANK_UP
   CONTEST_OPENED
   CONTEST_ANNOUNCED
@@ -288,6 +294,13 @@ model Project {
   createdById          String          @db.Uuid
   createdBy            User            @relation("ProjectCreator", fields: [createdById], references: [id])
   raisedHalalas        BigInt          @default(0)
+  /// Batch PAY (Part 2) — REALIZED = actually captured; never conflated with
+  /// PLEDGED (raisedHalalas at deadline). Payout milestones use THIS.
+  realizedHalalas      BigInt          @default(0)
+  /// Batch PAY (Part 5) — admin-approved 61–120d duration (AuditLogged).
+  /// >120d is BLOCKED IN CODE: LONG_DURATION — blocked pending legal counsel
+  /// + capture-model decision (owner). Card auths cannot survive a year.
+  approvedDurationDays Int?
   backersCount         Int             @default(0)
   /// §7 — Wathba-as-co-founder marker. Null = normal community project.
   platformPartner      Json?
@@ -436,8 +449,15 @@ model Pledge {
   backer        User         @relation(fields: [backerId], references: [id])
   projectId     String       @db.Uuid
   project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  tierId        String       @db.Uuid
-  tier          RewardTier   @relation(fields: [tierId], references: [id])
+  /// Batch PAY (Part 3) — nullable: no-reward pledges carry amount only.
+  tierId        String?      @db.Uuid
+  tier          RewardTier?  @relation(fields: [tierId], references: [id])
+  /// Batch PAY — CARD | TABBY | TAMARA (BNPL = deferred-INITIATION intents).
+  paymentMethod String       @default("CARD")
+  graceStartedAt  DateTime?
+  graceExpiresAt  DateTime?
+  captureAttempts Int        @default(0)
+  reauthorizedAt  DateTime?
   amountHalalas BigInt
   /// Sum of add-on amounts (sub-total) — convenience cache, recomputed on add-on change.
   addOnsHalalas BigInt       @default(0)

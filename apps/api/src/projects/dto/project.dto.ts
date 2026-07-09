@@ -83,8 +83,13 @@ export class CreateProjectDto {
   @IsOptional() @IsInt() @Min(50) @Max(100)
   releaseThresholdPct?: number;
 
-  @ApiProperty({ example: 30, minimum: 7, maximum: 90 })
-  @IsInt() @Min(7) @Max(90)
+  /** Batch PAY (Part 5) — tiered duration: ≤60 self-serve; 61–120 requires
+   *  explicit admin approval at review (approvedDurationDays, AuditLogged);
+   *  >120 BLOCKED IN CODE. LONG_DURATION — blocked pending legal counsel +
+   *  capture-model decision (owner): card authorizations cannot survive a
+   *  year, and charge-now-refund-later changes the regulatory posture. */
+  @ApiProperty({ example: 30, minimum: 7, maximum: 120 })
+  @IsInt() @Min(7) @Max(120)
   durationDays!: number;
 
   @ApiProperty({ required: false })
@@ -110,7 +115,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsArray() @IsString({ each: true }) mediaUrls?: string[];
   @IsOptional() @IsInt() @Min(10_000) fundingGoalHalalas?: number;
   @IsOptional() @IsInt() @Min(50) @Max(100) releaseThresholdPct?: number;
-  @IsOptional() @IsInt() @Min(7) @Max(90) durationDays?: number;
+  @IsOptional() @IsInt() @Min(7) @Max(120) durationDays?: number;
   @IsOptional() @IsString() productSpecAr?: string;
   @IsOptional() @IsDateString() expectedDeliveryDate?: string;
 

@@ -13,7 +13,7 @@ type MockedPrisma = PrismaService & {
 };
 
 const buildSvc = (
-  project: { status: ProjectStatus; raisedHalalas: bigint; createdById: string },
+  project: { status: ProjectStatus; raisedHalalas: bigint; realizedHalalas: bigint; createdById: string },
   milestone: Partial<Milestone>,
 ) => {
   const prisma = {
@@ -53,13 +53,14 @@ const buildSvc = (
 };
 
 describe('MilestonesService.release', () => {
-  it('releases 30% of raised funds', async () => {
+  it('releases 30% of REALIZED funds (never raised)', async () => {
     const svc = buildSvc(
-      { status: ProjectStatus.FUNDED, raisedHalalas: 100_000_000n, createdById: 'u1' },
+      // Batch PAY — realized (90M) < pledged (100M): payouts MUST use realized.
+      { status: ProjectStatus.FUNDED, raisedHalalas: 100_000_000n, realizedHalalas: 90_000_000n, createdById: 'u1' },
       { status: MilestoneStatus.APPROVED, releasePct: 30 },
     );
     const { amountHalalas } = await svc.release('p', 'm');
-    expect(amountHalalas).toBe(30_000_000n); // 300,000 SAR
+    expect(amountHalalas).toBe(27_000_000n); // 30% of REALIZED 90M, not raised 100M
     // Sprint 1 / P0-601 — the release must queue a PENDING payout in-tx.
     const prisma = (svc as unknown as { __prisma: MockedPrisma }).__prisma;
     expect(prisma.payout.create).toHaveBeenCalledWith({
@@ -67,7 +68,7 @@ describe('MilestonesService.release', () => {
         projectId: 'p',
         creatorId: 'u1',
         milestoneId: 'm',
-        amountHalalas: 30_000_000n,
+        amountHalalas: 27_000_000n,
         status: 'PENDING',
       }),
     });
@@ -78,12 +79,12 @@ describe('MilestonesService.release', () => {
     expect(notif.create).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'u1', kind: 'MILESTONE_APPROVED' }),
     );
-    expect(mail.milestoneReleased).toHaveBeenCalledWith('creator@x.sa', expect.objectContaining({ amountHalalas: 30_000_000 }));
+    expect(mail.milestoneReleased).toHaveBeenCalledWith('creator@x.sa', expect.objectContaining({ amountHalalas: 27_000_000 }));
   });
 
   it('rejects release when project not FUNDED/IN_PRODUCTION', async () => {
     const svc = buildSvc(
-      { status: ProjectStatus.LIVE, raisedHalalas: 100_000_000n, createdById: 'u1' },
+      { status: ProjectStatus.LIVE, raisedHalalas: 100_000_000n, realizedHalalas: 100_000_000n, createdById: 'u1' },
       { status: MilestoneStatus.APPROVED, releasePct: 30 },
     );
     await expect(svc.release('p', 'm')).rejects.toThrow(/must be FUNDED/);
@@ -91,7 +92,8 @@ describe('MilestonesService.release', () => {
 
   it('rejects release when milestone not APPROVED', async () => {
     const svc = buildSvc(
-      { status: ProjectStatus.FUNDED, raisedHalalas: 100_000_000n, createdById: 'u1' },
+      // Batch PAY — realized (90M) < pledged (100M): payouts MUST use realized.
+      { status: ProjectStatus.FUNDED, raisedHalalas: 100_000_000n, realizedHalalas: 90_000_000n, createdById: 'u1' },
       { status: MilestoneStatus.SUBMITTED, releasePct: 30 },
     );
     await expect(svc.release('p', 'm')).rejects.toThrow(/only APPROVED/);

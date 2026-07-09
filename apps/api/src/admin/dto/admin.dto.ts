@@ -1,4 +1,4 @@
-import { IsBoolean, IsIn, IsObject, IsOptional, IsString, MinLength, ValidateNested } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, Max, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -10,6 +10,11 @@ export class ReviewProjectDto {
   @ApiProperty({ required: false })
   @IsOptional() @IsString()
   reason?: string;
+
+  /** Batch PAY (Part 5) — grant a 61–120 day duration (AuditLogged). */
+  @ApiProperty({ required: false, minimum: 61, maximum: 120 })
+  @IsOptional() @IsInt() @Min(61) @Max(120)
+  approvedDurationDays?: number;
 }
 
 class PlatformStakePayload {
@@ -52,4 +57,11 @@ export class ModerateCommentDto {
   @ApiProperty({ enum: ['hide', 'dismiss'] })
   @IsIn(['hide', 'dismiss'])
   action!: 'hide' | 'dismiss';
+}
+
+/** Batch PAY — audited ops tool: force a deadline (settlement drills + e2e). */
+export class DeadlineOverrideDto {
+  @ApiProperty({ example: '2026-07-10T00:00:00.000Z' })
+  @IsString()
+  deadline!: string;
 }

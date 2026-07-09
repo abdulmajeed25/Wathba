@@ -126,7 +126,9 @@ export class MilestonesService {
     if (m.status !== MilestoneStatus.APPROVED) {
       throw new BadRequestException(`milestone is ${m.status} — only APPROVED can be released`);
     }
-    const amountHalalas = (project.raisedHalalas * BigInt(m.releasePct)) / BigInt(100);
+    // Batch PAY (Part 2) — payouts compute from REALIZED (actually captured)
+    // funds only, never from the pledged-at-deadline figure.
+    const amountHalalas = (project.realizedHalalas * BigInt(m.releasePct)) / BigInt(100);
     const updated = await this.prisma.$transaction(async (tx) => {
       const row = await tx.milestone.update({
         where: { id: milestoneId },

@@ -43,11 +43,14 @@ export function WathbaPledge({
   initialTier = 't2',
   liveTiers = null,
   liveTitleAr = null,
+  initialAmountSar,
 }: {
   projectId: string;
   initialTier?: string;
   liveTiers?: ApiRewardTier[] | null;
   liveTitleAr?: string | null;
+  /** Batch PAY (Part 3) — entering via «ادعم بدون مكافأة» (tierless). */
+  initialAmountSar?: number;
 }) {
   const router = useRouter();
   const project =
@@ -79,6 +82,12 @@ export function WathbaPledge({
   const [tier, setTier] = useState(() =>
     tiers.some((t) => t.id === initialTier) ? initialTier : tiers[0]!.id,
   );
+
+  // Batch PAY (Part 3) — tierless mode + free amount (min 10 SAR).
+  const [noReward, setNoReward] = useState(initialAmountSar !== undefined);
+  const [freeAmountSar, setFreeAmountSar] = useState(initialAmountSar ?? 25);
+  // Batch PAY (Part 4) — payment method (BNPL = deferred-initiation intent).
+  const [method, setMethod] = useState<'CARD' | 'TABBY' | 'TAMARA'>('CARD');
 
   // STAKES/S-15 (A14) — stash the wizard intent (tier + step) per project so
   // a mid-pledge session expiry → re-auth → return lands the user back where
@@ -118,7 +127,9 @@ export function WathbaPledge({
   const [payError, setPayError] = useState<string | null>(null);
 
   const selTier = tiers.find((t) => t.id === tier) ?? tiers[0]!;
-  const total = selTier.price + 8; // + shipping
+  // Batch PAY (Part 3) — tierless pledges: free amount, no shipping fee.
+  const effectivePrice = noReward ? Math.max(freeAmountSar, 0) : selTier.price;
+  const total = noReward ? effectivePrice : selTier.price + 8; // + shipping
 
   async function confirmPledge(): Promise<void> {
     if (!isLive) {
@@ -127,28 +138,39 @@ export function WathbaPledge({
       return;
     }
     setPayError(null);
+    // Batch PAY (Part 3) — server also enforces the 10 SAR minimum.
+    if (noReward && total < 10) {
+      setPayError('الحد الأدنى للدعم ١٠ ريالات.');
+      return;
+    }
     const [expMonth = '', expYear = ''] = cardExp.split('/').map((s) => s.trim());
-    if (!cardName || cardNumber.replace(/\D/g, '').length < 12 || !expMonth || !expYear || cardCvc.length < 3) {
+    // Batch PAY (Part 4) — BNPL needs no card details (hosted checkout later,
+    // and only if the campaign succeeds).
+    if (method === 'CARD' && (!cardName || cardNumber.replace(/\D/g, '').length < 12 || !expMonth || !expYear || cardCvc.length < 3)) {
       setPayError('أكمل بيانات البطاقة (الاسم، الرقم، تاريخ الانتهاء MM/YY، CVC).');
       return;
     }
-    if (selTier.requiresShipping && (!shipName || !shipAddress || !shipCity || !/^\d{4,10}$/.test(shipPostal))) {
+    if (!noReward && selTier.requiresShipping && (!shipName || !shipAddress || !shipCity || !/^\d{4,10}$/.test(shipPostal))) {
       setPayError('هذا المستوى يتطلب عنوان شحن كامل (الاسم، العنوان، المدينة، رمز بريدي 4–10 أرقام).');
       setStep(2);
       return;
     }
     setSubmitting(true);
     try {
-      const tok = await createCardToken({
-        name: cardName,
-        number: cardNumber,
-        month: expMonth,
-        year: expYear,
-        cvc: cardCvc,
-      });
-      if ('error' in tok) {
-        setPayError(tok.error);
-        return;
+      let source = 'bnpl-intent';
+      if (method === 'CARD') {
+        const tok = await createCardToken({
+          name: cardName,
+          number: cardNumber,
+          month: expMonth,
+          year: expYear,
+          cvc: cardCvc,
+        });
+        if ('error' in tok) {
+          setPayError(tok.error);
+          return;
+        }
+        source = tok.token;
       }
       const res = await fetch('/api/pledges', {
         method: 'POST',
@@ -159,10 +181,11 @@ export function WathbaPledge({
           ...(typeof document !== 'undefined' && (document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement | null)?.value
             ? { captchaToken: (document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement).value }
             : {}),
-          tierId: selTier.id,
+          ...(noReward ? {} : { tierId: selTier.id }),
           amountHalalas: Math.round(total * 100),
-          source: tok.token,
-          ...(selTier.requiresShipping
+          source,
+          paymentMethod: method,
+          ...(!noReward && selTier.requiresShipping
             ? {
                 shipping: {
                   name: shipName,
@@ -346,12 +369,65 @@ export function WathbaPledge({
               >
                 اختر مستوى الدعم
               </h2>
+              {/* Batch PAY (Part 3) — first-class tierless support card. */}
+              <div
+                data-testid="no-reward-card"
+                onClick={() => setNoReward(true)}
+                style={{
+                  cursor: 'pointer', borderRadius: 13, padding: 15, marginBottom: 11,
+                  border: noReward ? '1.5px solid var(--accent)' : '1px dashed rgba(var(--accent-rgb),.4)',
+                  background: noReward ? 'rgba(var(--accent-rgb),.06)' : 'var(--card)',
+                }}
+              >
+                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>ادعم بدون مكافأة ❤</div>
+                <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: noReward ? 10 : 0 }}>
+                  أي مبلغ من ١٠ ريالات — كل داعم يُحتسب مهما كان مبلغه.
+                </div>
+                {noReward && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {[10, 25, 50, 100].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setFreeAmountSar(amt); }}
+                        style={{
+                          cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700,
+                          padding: '6px 14px', minHeight: 24, borderRadius: 999,
+                          border: freeAmountSar === amt ? '1.5px solid var(--accent)' : '1px solid rgba(var(--ink-rgb),.16)',
+                          background: freeAmountSar === amt ? 'rgba(var(--accent-rgb),.1)' : 'transparent',
+                          color: freeAmountSar === amt ? 'var(--accent-ink)' : 'var(--text-soft)',
+                        }}
+                      >
+                        {amt} ر.س
+                      </button>
+                    ))}
+                    <input
+                      type="number"
+                      min={10}
+                      value={freeAmountSar}
+                      aria-label="مبلغ الدعم"
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setFreeAmountSar(Number(e.target.value))}
+                      style={{
+                        width: 110, fontFamily: 'inherit', fontSize: 13, padding: '7px 10px',
+                        border: '1px solid rgba(var(--ink-rgb),.16)', borderRadius: 10,
+                        background: 'var(--card)', color: 'var(--text)', outline: 'none',
+                      }}
+                    />
+                    {freeAmountSar < 10 && (
+                      <span role="alert" style={{ fontSize: 12, color: '#dc2626', fontWeight: 700 }}>
+                        الحد الأدنى للدعم ١٠ ريالات
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
               {tiers.map((t) => {
                 const selected = tier === t.id;
                 return (
                   <div
                     key={t.id}
-                    onClick={() => setTier(t.id)}
+                    onClick={() => { setTier(t.id); setNoReward(false); }}
                     style={{
                       cursor: 'pointer',
                       background: selected
@@ -477,7 +553,44 @@ export function WathbaPledge({
               >
                 طريقة الدفع
               </h2>
-              <div style={{ display: 'flex', gap: 11, marginBottom: 20 }}>
+              {/* Batch PAY (Part 4) — method selector: card vs BNPL intents. */}
+              <div role="radiogroup" aria-label="طريقة الدفع" style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                {([['CARD', 'بطاقة'], ['TABBY', 'قسّطها مع تابي'], ['TAMARA', 'قسّطها مع تمارا']] as const).map(([m, label]) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={method === m}
+                    onClick={() => setMethod(m)}
+                    style={{
+                      cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 700,
+                      padding: '9px 18px', minHeight: 24, borderRadius: 11,
+                      border: method === m ? '1.5px solid var(--accent)' : '1px solid rgba(var(--ink-rgb),.16)',
+                      background: method === m ? 'rgba(var(--accent-rgb),.08)' : 'transparent',
+                      color: method === m ? 'var(--accent-ink)' : 'var(--text-soft)',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {method !== 'CARD' && (
+                <div
+                  data-testid="bnpl-disclosure"
+                  style={{
+                    fontSize: 13, lineHeight: 1.8, color: 'var(--text-soft)', marginBottom: 18,
+                    background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.25)',
+                    borderRadius: 12, padding: '12px 16px',
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>
+                    ٤ دفعات × {Math.ceil((total || 0) / 4)} ر.س عبر {method === 'TABBY' ? 'تابي' : 'تمارا'}
+                  </div>
+                  لن يُنشأ التقسيط إلا إذا نجحت الحملة — لا عقد ولا خصم قبل ذلك،
+                  وإن لم تبلغ الحملة هدفها يُلغى الطلب تلقائياً دون أي أثر.
+                </div>
+              )}
+              <div style={{ display: method === 'CARD' ? 'flex' : 'none', gap: 11, marginBottom: 20 }}>
                 <div
                   style={{
                     flex: 1,
@@ -525,6 +638,8 @@ export function WathbaPledge({
                   </span>
                 </div>
               </div>
+              {/* Batch PAY (Part 4) — card fields hide for BNPL (hosted flow). */}
+              <div style={{ display: method === 'CARD' ? 'block' : 'none' }}>
               <div style={{ marginBottom: 14 }}>
                 <label
                   htmlFor="wathba-card-number"
@@ -615,6 +730,7 @@ export function WathbaPledge({
                   {payError}
                 </div>
               )}
+              </div>
               <div
                 style={{
                   marginTop: 18,

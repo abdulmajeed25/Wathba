@@ -10,6 +10,9 @@ import { LedgerEntryType, PledgeStatus, type Pledge } from '@prisma/client';
  */
 @Injectable()
 export class EscrowService {
+  /** Batch PAY (Part 2) — the failed-capture grace window. */
+  static readonly GRACE_MS = 72 * 60 * 60 * 1000;
+
   private readonly logger = new Logger(EscrowService.name);
 
   constructor(
@@ -42,8 +45,10 @@ export class EscrowService {
   private static readonly BATCH_CONCURRENCY = 25;
 
   async captureAllHeld(projectId: string): Promise<{ captured: number; failed: number }> {
+    // PENDING_REAUTH still counts toward PLEDGED and gets a settlement-time
+    // capture attempt (it may succeed; else it enters the grace window).
     const pledges = await this.prisma.pledge.findMany({
-      where: { projectId, status: PledgeStatus.HELD },
+      where: { projectId, status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_REAUTH] } },
     });
     const { ok, fail } = await this.runConcurrent(pledges, (p) => this.captureOne(p));
     this.logger.log(`Captured ${ok} / failed ${fail} pledges for project=${projectId}`);
@@ -52,7 +57,7 @@ export class EscrowService {
 
   async refundAllHeld(projectId: string): Promise<{ refunded: number; failed: number }> {
     const pledges = await this.prisma.pledge.findMany({
-      where: { projectId, status: PledgeStatus.HELD },
+      where: { projectId, status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_REAUTH] } },
     });
     const { ok, fail } = await this.runConcurrent(pledges, (p) => this.refundOne(p));
     this.logger.log(`Refunded ${ok} / failed ${fail} pledges for project=${projectId}`);
@@ -109,24 +114,90 @@ export class EscrowService {
       const { ok } = await this.withRetry(`capture pledge=${p.id}`, () =>
         this.moyasar.capture(p.paymentRef),
       );
-      if (!ok) return false;
-      await this.prisma.pledge.update({
-        where: { id: p.id },
-        data: { status: PledgeStatus.CAPTURED, capturedAt: new Date() },
-      });
-      await this.ledger.record({
-        entryType: LedgerEntryType.CAPTURE,
-        // Full held amount = tier + add-ons (Sprint 2 undercharge fix).
-        amountHalalas: p.amountHalalas + p.addOnsHalalas,
-        pspRef: p.paymentRef,
-        pledgeId: p.id,
-        projectId: p.projectId,
-      });
+      if (!ok) return this.enterGrace(p);
+      await this.markCaptured(p);
       return true;
     } catch (err) {
       this.logger.error(`capture failed for pledge=${p.id}`, err as Error);
-      return false;
+      return this.enterGrace(p);
     }
+  }
+
+  /** Batch PAY — a confirmed capture: pledge CAPTURED + REALIZED counter. */
+  async markCaptured(p: Pick<Pledge, 'id' | 'amountHalalas' | 'addOnsHalalas' | 'paymentRef' | 'projectId'>): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pledge.update({
+        where: { id: p.id },
+        data: { status: PledgeStatus.CAPTURED, capturedAt: new Date() },
+      });
+      // Part 2 — REALIZED is maintained here, the single capture-confirm
+      // chokepoint. Payout milestones read realizedHalalas, never raised.
+      await tx.project.update({
+        where: { id: p.projectId },
+        data: { realizedHalalas: { increment: p.amountHalalas + p.addOnsHalalas } },
+      });
+    });
+    await this.ledger.record({
+      entryType: LedgerEntryType.CAPTURE,
+      // Full held amount = tier + add-ons (Sprint 2 undercharge fix).
+      amountHalalas: p.amountHalalas + p.addOnsHalalas,
+      pspRef: p.paymentRef,
+      pledgeId: p.id,
+      projectId: p.projectId,
+    });
+  }
+
+  /**
+   * Batch PAY (Part 2) — a failed capture at settlement does NOT fail the
+   * campaign (success was decided by the raised amount at the deadline). The
+   * pledge enters a 72-hour grace window: the backer is notified to refresh
+   * their payment; retries run at +6h/+24h/+48h (GraceScheduler); expiry →
+   * FAILED_CAPTURE.
+   */
+  private async enterGrace(p: Pledge): Promise<boolean> {
+    const now = new Date();
+    await this.prisma.pledge.update({
+      where: { id: p.id },
+      data: {
+        status: PledgeStatus.CAPTURE_GRACE,
+        graceStartedAt: now,
+        graceExpiresAt: new Date(now.getTime() + EscrowService.GRACE_MS),
+        captureAttempts: { increment: 1 },
+      },
+    });
+    this.logger.warn(`pledge=${p.id} entered CAPTURE_GRACE (72h)`);
+    return false;
+  }
+
+  /**
+   * Batch PAY (Part 2) — the backer fixes a failed capture with a fresh
+   * payment source: authorize the full amount on the new card and capture
+   * immediately (the campaign already succeeded — no reason to hold).
+   */
+  async captureWithNewSource(p: Pledge, source: string, description: string): Promise<boolean> {
+    const amount = p.amountHalalas + p.addOnsHalalas;
+    const auth = await this.moyasar.hold({
+      pledgeId: p.id,
+      amountHalalas: Number(amount),
+      source,
+      description,
+    });
+    if (auth.status !== 'authorized') return false;
+    const cap = await this.withRetry(`grace-capture pledge=${p.id}`, () =>
+      this.moyasar.capture(auth.paymentRef),
+    );
+    if (!cap.ok) return false;
+    await this.prisma.pledge.update({
+      where: { id: p.id },
+      data: { paymentRef: auth.paymentRef },
+    });
+    await this.markCaptured({ ...p, paymentRef: auth.paymentRef });
+    return true;
+  }
+
+  /** Batch PAY (Part 1) — single-pledge void for backer cancellation. */
+  async voidPledge(p: Pledge): Promise<boolean> {
+    return this.refundOne(p);
   }
 
   private async refundOne(p: Pledge): Promise<boolean> {

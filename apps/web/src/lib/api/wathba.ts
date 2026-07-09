@@ -80,6 +80,11 @@ export interface ApiBackingRow {
   refundedAt: string | null;
   paymentRef: string | null;
   venture?: { id: string; slug: string; title: string; state: string };
+  /** Batch PAY — cancel window + grace states. */
+  paymentMethod?: string;
+  graceExpiresAt?: string | null;
+  cancellableUntil?: string | null;
+  projectStatus?: string | null;
 }
 
 /** Raw pledge row as `/v1/pledges/me` actually returns it. */
@@ -94,6 +99,10 @@ interface ApiPledgeRaw {
   capturedAt: string | null;
   refundedAt: string | null;
   paymentRef: string | null;
+  paymentMethod?: string;
+  graceExpiresAt?: string | null;
+  cancellableUntil?: string | null;
+  projectStatus?: string | null;
 }
 
 export interface ApiApplicationRow {
@@ -223,6 +232,11 @@ export async function listMyBackings(token?: string | null): Promise<ApiBackingR
     capturedAt: r.capturedAt,
     refundedAt: r.refundedAt,
     paymentRef: r.paymentRef,
+    // Batch PAY — cancellation window + grace surfaces.
+    paymentMethod: r.paymentMethod ?? 'CARD',
+    graceExpiresAt: r.graceExpiresAt ?? null,
+    cancellableUntil: r.cancellableUntil ?? null,
+    projectStatus: r.projectStatus ?? null,
   }));
 }
 

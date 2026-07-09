@@ -107,9 +107,9 @@ export class BackersService {
     status: PledgeStatus;
     rewardStatus: RewardFulfillmentStatus;
     createdAt: Date;
-    tierId: string;
+    tierId: string | null;
     backer: { name: string; handle: string | null; avatarUrl: string | null };
-    tier: { titleAr: string; requiresShipping: boolean };
+    tier: { titleAr: string; requiresShipping: boolean } | null;
     addOns: Array<{ qty: number; addOn: { titleAr: string } }>;
   }): Record<string, unknown> {
     return {
@@ -120,8 +120,9 @@ export class BackersService {
       backerHandle: p.backer.handle,
       backerAvatarUrl: p.backer.avatarUrl,
       tierId: p.tierId,
-      tierTitleAr: p.tier.titleAr,
-      requiresShipping: p.tier.requiresShipping,
+      // Batch PAY (Part 3) — tierless no-reward pledges.
+      tierTitleAr: p.tier?.titleAr ?? 'دعم بدون مكافأة',
+      requiresShipping: p.tier?.requiresShipping ?? false,
       addOns: p.addOns.map((a) => ({ titleAr: a.addOn.titleAr, qty: a.qty })),
       totalHalalas: Number(p.amountHalalas + p.addOnsHalalas),
       status: p.status, // money status — READ-ONLY badge
@@ -224,7 +225,7 @@ export class BackersService {
       const cells = [
         `#${p.backerNo}`,
         p.backer.name,
-        p.tier.titleAr,
+        p.tier?.titleAr ?? 'دعم بدون مكافأة',
         addOns,
         ((Number(p.amountHalalas + p.addOnsHalalas)) / 100).toFixed(2),
         PLEDGE_STATUS_AR[p.status] ?? p.status,
@@ -232,7 +233,7 @@ export class BackersService {
         p.createdAt.toISOString().slice(0, 10),
         ...(withAddresses
           ? [
-              p.tier.requiresShipping ? 'نعم' : 'لا',
+              p.tier?.requiresShipping ? 'نعم' : 'لا',
               String(shipping['city'] ?? ''),
               String(shipping['address'] ?? ''),
             ]

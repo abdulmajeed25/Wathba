@@ -30,12 +30,16 @@ function pledge(id: string): any {
 }
 
 function makePrisma(pledges: any[] = []): any {
-  return {
+  const prisma: any = {
     pledge: {
       findMany: jest.fn().mockResolvedValue(pledges),
       update: jest.fn().mockResolvedValue({}),
     },
+    // Batch PAY — markCaptured maintains the REALIZED counter in a tx.
+    project: { update: jest.fn().mockResolvedValue({}) },
   };
+  prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
+  return prisma;
 }
 
 describe('EscrowService.captureAllHeld', () => {
@@ -64,8 +68,14 @@ describe('EscrowService.captureAllHeld', () => {
     const svc = new EscrowService(prisma, moyasar, ledgerMock());
     const r = await svc.captureAllHeld('proj');
     expect(r).toEqual({ captured: 2, failed: 2 });
-    // pledge.update fires only for the 2 successful captures
-    expect(prisma.pledge.update).toHaveBeenCalledTimes(2);
+    // Batch PAY — every pledge gets an update: 2 CAPTURED + 2 into
+    // CAPTURE_GRACE (failed captures no longer stay silently HELD).
+    expect(prisma.pledge.update).toHaveBeenCalledTimes(4);
+    const graceCalls = (prisma.pledge.update as jest.Mock).mock.calls.filter(
+      (c: any[]) => c[0].data.status === 'CAPTURE_GRACE',
+    );
+    expect(graceCalls).toHaveLength(2);
+    expect(graceCalls[0][0].data.graceExpiresAt).toBeInstanceOf(Date);
   });
 
   it('runs in BATCH_CONCURRENCY-sized slices (50 pledges → 2 batches of 25)', async () => {

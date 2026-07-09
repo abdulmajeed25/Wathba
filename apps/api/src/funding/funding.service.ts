@@ -12,7 +12,8 @@ import { FundingGateway } from './funding.gateway';
 import { CommunityService } from '../community/community.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
+import {
+  NotificationKind, Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
 
 /**
@@ -29,6 +30,9 @@ import { CreatePledgeDto } from './dto/pledge.dto';
  */
 @Injectable()
 export class FundingService {
+  /** Batch PAY (Part 3) — platform minimum pledge (10 SAR), configurable. */
+  static readonly MIN_PLEDGE_HALALAS = Number(process.env.MIN_PLEDGE_HALALAS ?? 1000);
+
   private readonly logger = new Logger(FundingService.name);
   /** CC-14 — cumulative pause cap per campaign (policy §5 amendment: 7 days). */
   private static readonly PAUSE_CAP_MS = 7 * 24 * 60 * 60 * 1000;
@@ -145,32 +149,42 @@ export class FundingService {
       throw new ForbiddenException('يجب توثيق حسابك عبر نفاذ (KYC) قبل دعم المشاريع');
     }
 
-    const tier = await this.prisma.rewardTier.findUnique({ where: { id: dto.tierId } });
-    if (!tier || tier.projectId !== dto.projectId) {
+    // Batch PAY (Part 3) — tierless "ادعم بدون مكافأة" pledges: amount only,
+    // platform minimum 10 SAR (configurable), no stock/shipping mechanics.
+    const tier = dto.tierId
+      ? await this.prisma.rewardTier.findUnique({ where: { id: dto.tierId } })
+      : null;
+    if (dto.tierId && (!tier || tier.projectId !== dto.projectId)) {
       throw new BadRequestException('invalid tier for this project');
     }
-    // CC-13 — a closed tier accepts no new pledges.
-    if (!tier.isActive) {
-      throw new BadRequestException('this reward tier is closed');
-    }
-    // CC-13 — while early-bird is active (before its deadline + stock remains),
-    // the effective minimum pledge drops to the early-bird price.
-    const earlyBirdActive =
-      tier.earlyBirdAmountHalalas !== null &&
-      tier.earlyBirdUntil !== null &&
-      tier.earlyBirdUntil.getTime() > Date.now() &&
-      (tier.limitQty === null || tier.claimedQty < tier.limitQty);
-    const minHalalas = earlyBirdActive ? tier.earlyBirdAmountHalalas! : tier.amountHalalas;
-    if (Number(minHalalas) > dto.amountHalalas) {
-      throw new BadRequestException(
-        `amount ${dto.amountHalalas} is below the tier minimum ${Number(minHalalas)}`,
-      );
-    }
-    if (tier.limitQty !== null && tier.claimedQty >= tier.limitQty) {
-      throw new BadRequestException('tier is sold out');
-    }
-    if (tier.requiresShipping && !dto.shipping) {
-      throw new BadRequestException('shipping address is required for this tier');
+    if (!tier) {
+      if (dto.amountHalalas < FundingService.MIN_PLEDGE_HALALAS) {
+        throw new BadRequestException('الحد الأدنى للدعم ١٠ ريالات');
+      }
+    } else {
+      // CC-13 — a closed tier accepts no new pledges.
+      if (!tier.isActive) {
+        throw new BadRequestException('this reward tier is closed');
+      }
+      // CC-13 — while early-bird is active (before its deadline + stock remains),
+      // the effective minimum pledge drops to the early-bird price.
+      const earlyBirdActive =
+        tier.earlyBirdAmountHalalas !== null &&
+        tier.earlyBirdUntil !== null &&
+        tier.earlyBirdUntil.getTime() > Date.now() &&
+        (tier.limitQty === null || tier.claimedQty < tier.limitQty);
+      const minHalalas = earlyBirdActive ? tier.earlyBirdAmountHalalas! : tier.amountHalalas;
+      if (Number(minHalalas) > dto.amountHalalas) {
+        throw new BadRequestException(
+          `amount ${dto.amountHalalas} is below the tier minimum ${Number(minHalalas)}`,
+        );
+      }
+      if (tier.limitQty !== null && tier.claimedQty >= tier.limitQty) {
+        throw new BadRequestException('tier is sold out');
+      }
+      if (tier.requiresShipping && !dto.shipping) {
+        throw new BadRequestException('shipping address is required for this tier');
+      }
     }
 
     // Validate + price-resolve any add-ons. Sold-out add-ons reject the
@@ -200,7 +214,7 @@ export class FundingService {
 
     const contractType =
       dto.contractType ??
-      this.contracts.inferType({ includesPhysicalProduct: tier.includesPhysicalProduct });
+      this.contracts.inferType({ includesPhysicalProduct: tier?.includesPhysicalProduct ?? false });
 
     // 1) Insert the pledge in HELD state, paymentRef='pending'. backerNo is
     //    NOT NULL (since migration 0002), so we assign it here from the current
@@ -213,20 +227,29 @@ export class FundingService {
     });
     const assignedBackerNo = (lastBackerNo._max.backerNo ?? 0) + 1;
 
+    // Batch PAY (Part 4) — BNPL is DEFERRED-INITIATION: the pledge is an
+    // INTENT (PENDING_BNPL). It counts toward the total like a HELD pledge,
+    // but NO provider contract exists and NO money moves until the campaign
+    // succeeds at its deadline. Strictly safer for the backer than a card
+    // authorization.
+    const isBnpl = dto.paymentMethod === 'TABBY' || dto.paymentMethod === 'TAMARA';
     const pledge = await this.prisma.pledge.create({
       data: {
         backerId,
         projectId: dto.projectId,
-        tierId: dto.tierId,
+        tierId: dto.tierId ?? null,
         amountHalalas: BigInt(dto.amountHalalas),
         addOnsHalalas: addOnsSubtotal,
         contractType,
+        paymentMethod: dto.paymentMethod ?? 'CARD',
         shipping: dto.shipping
           ? (dto.shipping as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
-        status: PledgeStatus.HELD,
+        status: isBnpl ? PledgeStatus.PENDING_BNPL : PledgeStatus.HELD,
         backerNo: assignedBackerNo,
-        paymentRef: `pending-${Date.now()}-${backerId.slice(0, 8)}`,
+        paymentRef: isBnpl
+          ? `bnpl-intent-${Date.now()}-${backerId.slice(0, 8)}`
+          : `pending-${Date.now()}-${backerId.slice(0, 8)}`,
         addOns: resolvedAddOns.length > 0
           ? { create: resolvedAddOns.map((r) => ({
               addOnId: r.addOnId,
@@ -245,6 +268,10 @@ export class FundingService {
     //    Sprint-1 ledger).
     const chargeHalalas = pledge.amountHalalas + addOnsSubtotal;
     let payment: { paymentRef: string; status: 'authorized' | 'failed' };
+    if (isBnpl) {
+      // No authorization for BNPL — the intent itself is the record.
+      payment = { paymentRef: pledge.paymentRef, status: 'authorized' };
+    } else
     try {
       payment = await this.escrow.hold({
         pledgeId: pledge.id,
@@ -298,10 +325,12 @@ export class FundingService {
         },
         select: { raisedHalalas: true, backersCount: true },
       });
-      await tx.rewardTier.update({
-        where: { id: dto.tierId },
-        data: { claimedQty: { increment: 1 } },
-      });
+      if (dto.tierId) {
+        await tx.rewardTier.update({
+          where: { id: dto.tierId },
+          data: { claimedQty: { increment: 1 } },
+        });
+      }
       for (const r of resolvedAddOns) {
         await tx.addOn.update({
           where: { id: r.addOnId },
@@ -334,10 +363,132 @@ export class FundingService {
       backer,
       project,
       Number(totalContribution),
-      tier.titleAr,
+      tier?.titleAr ?? null,
     );
 
     return updated;
+  }
+
+  /** Batch PAY (Part 1) — the 48-hour pre-deadline pledge lock. */
+  static readonly CANCEL_LOCK_MS = 48 * 60 * 60 * 1000;
+
+  /**
+   * Batch PAY (Part 1) — backer cancels their own pledge. Free while the
+   * campaign is live UNTIL 48h before the deadline; inside the lock window
+   * cancellation and downgrades are refused (upgrades/new pledges stay open).
+   * A card pledge voids its authorization immediately; a BNPL intent is
+   * simply discarded (nothing was ever charged). Live counters decrement.
+   */
+  async cancelPledge(backerId: string, pledgeId: string): Promise<{ ok: true }> {
+    const pledge = await this.prisma.pledge.findUnique({
+      where: { id: pledgeId },
+      include: { project: { select: { id: true, titleAr: true, status: true, deadline: true, createdById: true } } },
+    });
+    if (!pledge) throw new NotFoundException('pledge not found');
+    if (pledge.backerId !== backerId) throw new ForbiddenException('not your pledge');
+    if (pledge.status !== PledgeStatus.HELD && pledge.status !== PledgeStatus.PENDING_BNPL) {
+      throw new BadRequestException('هذا التعهد غير قابل للإلغاء في حالته الحالية');
+    }
+    const proj = pledge.project;
+    if (proj.status !== ProjectStatus.LIVE && proj.status !== ProjectStatus.PAUSED) {
+      throw new BadRequestException('الحملة لم تعد نشطة');
+    }
+    if (proj.deadline.getTime() - Date.now() <= FundingService.CANCEL_LOCK_MS) {
+      throw new ForbiddenException('قُفلت التعهدات — أقل من ٤٨ ساعة على إغلاق الحملة');
+    }
+
+    if (pledge.status === PledgeStatus.HELD) {
+      // Void the authorization first — the DB flip rides on PSP success.
+      const ok = await this.escrow.voidPledge(pledge);
+      if (!ok) throw new BadRequestException('تعذّر الإلغاء حالياً — حاول بعد قليل');
+    } else {
+      // BNPL intent — no contract exists; discard.
+      await this.prisma.pledge.update({
+        where: { id: pledge.id },
+        data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
+      });
+    }
+
+    const total = pledge.amountHalalas + pledge.addOnsHalalas;
+    const totals = await this.prisma.$transaction(async (tx) => {
+      // Only decrement the backer counter when this was their LAST active pledge.
+      const remaining = await tx.pledge.count({
+        where: {
+          projectId: proj.id,
+          backerId,
+          status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_BNPL, PledgeStatus.CAPTURED] },
+        },
+      });
+      const p2 = await tx.project.update({
+        where: { id: proj.id },
+        data: {
+          raisedHalalas: { decrement: total },
+          ...(remaining === 0 ? { backersCount: { decrement: 1 } } : {}),
+        },
+        select: { raisedHalalas: true, backersCount: true },
+      });
+      if (pledge.tierId) {
+        await tx.rewardTier.update({
+          where: { id: pledge.tierId },
+          data: { claimedQty: { decrement: 1 } },
+        });
+      }
+      await tx.user.update({
+        where: { id: backerId },
+        data: { totalPledgedHalalas: { decrement: total } },
+      });
+      return p2;
+    });
+
+    this.gateway.emitTick({
+      projectId: proj.id,
+      raisedHalalas: totals.raisedHalalas.toString(),
+      backersCount: totals.backersCount,
+      at: Date.now(),
+    });
+    await this.audit.log({
+      actorId: backerId,
+      action: 'pledge.cancel',
+      entity: 'Pledge',
+      entityId: pledge.id,
+    });
+    // Creator sees the cancellation in their activity (read-only —
+    // CREATOR-NO-MONEY: numbers, never controls).
+    await this.notifications
+      .create({
+        userId: proj.createdById,
+        kind: NotificationKind.PLEDGE_CANCELLED,
+        payload: {
+          projectId: proj.id,
+          projectTitleAr: proj.titleAr,
+          amountHalalas: Number(total),
+        },
+      })
+      .catch(() => null);
+    return { ok: true };
+  }
+
+  /**
+   * Batch PAY (Part 2) — the backer updates their card during the 72h grace
+   * window; a successful authorize+capture closes the grace immediately.
+   */
+  async retryCapture(backerId: string, pledgeId: string, source: string): Promise<{ ok: true }> {
+    const pledge = await this.prisma.pledge.findUnique({
+      where: { id: pledgeId },
+      include: { project: { select: { titleAr: true } } },
+    });
+    if (!pledge) throw new NotFoundException('pledge not found');
+    if (pledge.backerId !== backerId) throw new ForbiddenException('not your pledge');
+    if (pledge.status !== PledgeStatus.CAPTURE_GRACE || pledge.paymentMethod !== 'CARD') {
+      throw new BadRequestException('لا توجد عملية سحب معلّقة على هذا التعهد');
+    }
+    const ok = await this.escrow.captureWithNewSource(
+      pledge,
+      source,
+      `وثبة — استكمال دعم مشروع ${pledge.project.titleAr}`,
+    );
+    if (!ok) throw new BadRequestException('تعذّر السحب من البطاقة الجديدة — تحقق منها وحاول مجدداً');
+    return { ok: true };
   }
 
   async listMine(
@@ -350,6 +501,8 @@ export class FundingService {
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
+      // Batch PAY (Part 1) — the UI computes the cancel countdown / lock chip.
+      include: { project: { select: { deadline: true, status: true, titleAr: true } } },
     });
     const nextCursor = items.length > take ? items[take]!.id : null;
     return { items: items.slice(0, take), nextCursor };
@@ -371,6 +524,18 @@ export class FundingService {
       createdAt: p.createdAt.toISOString(),
       capturedAt: p.capturedAt?.toISOString() ?? null,
       refundedAt: p.refundedAt?.toISOString() ?? null,
+      // Batch PAY — cancellation window + grace surfaces.
+      paymentMethod: p.paymentMethod,
+      graceExpiresAt: p.graceExpiresAt?.toISOString() ?? null,
+      cancellableUntil: (p as Pledge & { project?: { deadline: Date; status: string } }).project
+        ? new Date(
+            (p as Pledge & { project: { deadline: Date } }).project.deadline.getTime() -
+              FundingService.CANCEL_LOCK_MS,
+          ).toISOString()
+        : null,
+      projectStatus: (p as Pledge & { project?: { status: string } }).project?.status ?? null,
+      projectDeadline:
+        (p as Pledge & { project?: { deadline: Date } }).project?.deadline.toISOString() ?? null,
     };
   }
 
@@ -410,26 +575,50 @@ export class FundingService {
     if (claimed.count === 0) return { projectId, transition: 'noop' };
 
     if (successful) {
+      // Batch PAY (Part 4) — BNPL DEFERRED-INITIATION: the campaign
+      // succeeded, so intents become due — the backer now completes the
+      // Tabby/Tamara hosted checkout within the same 72h grace window as
+      // failed card captures. No contract existed until this moment.
+      const now = new Date();
+      await this.prisma.pledge.updateMany({
+        where: { projectId, status: PledgeStatus.PENDING_BNPL },
+        data: {
+          status: PledgeStatus.CAPTURE_GRACE,
+          graceStartedAt: now,
+          graceExpiresAt: new Date(now.getTime() + 72 * 60 * 60 * 1000),
+        },
+      });
+
       await this.escrow.captureAllHeld(projectId);
       // Straggler pass: pledges that passed the LIVE check before our claim
       // but committed after the first capture query are still HELD — sweep
       // them once more before declaring FUNDED.
-      const straggler = await this.escrow.captureAllHeld(projectId);
+      await this.escrow.captureAllHeld(projectId);
       const residue = await this.countHeld(projectId);
-      if (straggler.failed > 0 || residue > 0) {
+      if (residue > 0) {
         this.logger.error(
           `SETTLEMENT ALERT project=${projectId}: ${residue} pledge(s) still HELD after capture ` +
-            `(authorization holds expire ~7 days — retry via POST /v1/admin/projects/${projectId}/settle)`,
+            `(should be 0 — failures transition to CAPTURE_GRACE; retry via POST /v1/admin/projects/${projectId}/settle)`,
         );
       }
       await this.prisma.project.update({
         where: { id: projectId },
         data: { status: ProjectStatus.FUNDED },
       });
+      // Part 2 — grace notifications: card declines («حدّث بطاقتك») and BNPL
+      // checkouts («أكمل التقسيط») get their 72h call-to-action.
+      await this.notifyGraceBackers(projectId);
       // STAKES/S-3 (F2/F4) — tell backers the campaign succeeded + they were charged.
       await this.notifyBackersOfOutcome(project, true);
       return { projectId, transition: 'funded' };
     }
+
+    // Batch PAY (Part 4) — failed campaign: BNPL intents are simply
+    // discarded. Nothing was ever charged; nothing to void or refund.
+    await this.prisma.pledge.updateMany({
+      where: { projectId, status: PledgeStatus.PENDING_BNPL },
+      data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
+    });
 
     await this.escrow.refundAllHeld(projectId);
     const straggler = await this.escrow.refundAllHeld(projectId);
@@ -447,6 +636,44 @@ export class FundingService {
     // STAKES/S-3 (F2/F4) — tell backers the campaign failed + refunds are underway.
     await this.notifyBackersOfOutcome(project, false);
     return { projectId, transition: 'refunded' };
+  }
+
+  /** Batch PAY (Part 2/4) — the 72h grace call-to-action, per method. */
+  private async notifyGraceBackers(projectId: string): Promise<void> {
+    const rows = await this.prisma.pledge.findMany({
+      where: { projectId, status: PledgeStatus.CAPTURE_GRACE },
+      include: {
+        backer: { select: { id: true, email: true } },
+        project: { select: { titleAr: true } },
+      },
+    });
+    for (const p of rows) {
+      const isBnpl = p.paymentMethod !== 'CARD';
+      await this.notifications
+        .create({
+          userId: p.backer.id,
+          kind: NotificationKind.CAPTURE_GRACE,
+          payload: {
+            projectId,
+            projectTitleAr: p.project.titleAr,
+            pledgeId: p.id,
+            amountHalalas: Number(p.amountHalalas + p.addOnsHalalas),
+            method: p.paymentMethod,
+            graceExpiresAt: p.graceExpiresAt?.toISOString() ?? null,
+          },
+        })
+        .catch(() => null);
+      try {
+        await this.email.captureGrace(p.backer.email, {
+          projectTitle: p.project.titleAr,
+          amountHalalas: Number(p.amountHalalas + p.addOnsHalalas),
+          bnpl: isBnpl,
+          link: `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/projects/me/pledges?fix=${p.id}`,
+        });
+      } catch {
+        /* best-effort */
+      }
+    }
   }
 
   private async countHeld(projectId: string): Promise<number> {

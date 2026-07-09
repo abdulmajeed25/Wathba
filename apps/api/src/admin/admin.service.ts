@@ -28,8 +28,29 @@ export class AdminService {
     });
   }
 
-  async approve(projectId: string): Promise<Project> {
+  async approve(projectId: string, approvedDurationDays?: number): Promise<Project> {
     const proj = await this.requireUnderReview(projectId);
+    // Batch PAY (Part 5) — tiered duration at the approval gate:
+    //   ≤60d self-serve · 61–120d only with the explicit grant (AuditLogged
+    //   upstream) · >120d BLOCKED IN CODE (LONG_DURATION — blocked pending
+    //   legal counsel + capture-model decision; owner task).
+    if (proj.durationDays > 120) {
+      throw new BadRequestException('durations beyond 120 days are blocked (LONG_DURATION register)');
+    }
+    if (proj.durationDays > 60) {
+      const grant = approvedDurationDays ?? proj.approvedDurationDays;
+      if (!grant || grant < proj.durationDays) {
+        throw new BadRequestException(
+          `a ${proj.durationDays}-day campaign needs an explicit approvedDurationDays grant (61–120)`,
+        );
+      }
+    }
+    if (approvedDurationDays) {
+      await this.prisma.project.update({
+        where: { id: projectId },
+        data: { approvedDurationDays },
+      });
+    }
     const now = new Date();
     // CC-20 — if the creator set a future launch time, enter SCHEDULED and let
     // the launch scheduler flip it LIVE at that time; otherwise go LIVE now.
@@ -57,6 +78,12 @@ export class AdminService {
         .catch((err) => this.logger.warn(`publish fan-out failed project=${projectId}: ${String(err)}`));
     }
     return updated;
+  }
+
+  /** Batch PAY — ops tool behind the audited controller route. */
+  async overrideDeadline(projectId: string, deadline: Date): Promise<{ ok: true; deadline: string }> {
+    await this.prisma.project.update({ where: { id: projectId }, data: { deadline } });
+    return { ok: true, deadline: deadline.toISOString() };
   }
 
   /**

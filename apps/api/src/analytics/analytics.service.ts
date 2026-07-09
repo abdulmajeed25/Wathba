@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PledgeStatus } from '@prisma/client';
+import { METHOD_FEES, feeFor } from '../config/fees';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -54,7 +55,8 @@ export class AnalyticsService {
     const tierPerformance = grouped
       .map((g) => ({
         tierId: g.tierId,
-        titleAr: tierMap.get(g.tierId)?.titleAr ?? '—',
+        // Batch PAY (Part 3) — tierless pledges group under the null key.
+        titleAr: g.tierId === null ? 'دعم بدون مكافأة' : (tierMap.get(g.tierId)?.titleAr ?? '—'),
         backers: g._count._all,
         amountHalalas: Number((g._sum.amountHalalas ?? 0n) + (g._sum.addOnsHalalas ?? 0n)),
       }))
@@ -70,6 +72,29 @@ export class AnalyticsService {
       statusGroups.map((s) => [s.status, s._count._all]),
     ) as Record<string, number>;
 
+    // Batch PAY (Part 4) — per-method breakdown, fee-aware: creators see the
+    // effective platform+processor cost per method (numbers, never controls).
+    const methodGroups = await this.prisma.pledge.groupBy({
+      by: ['paymentMethod'],
+      where: { projectId, status: { in: [PledgeStatus.CAPTURED, PledgeStatus.HELD, PledgeStatus.PENDING_BNPL, PledgeStatus.CAPTURE_GRACE] } },
+      _count: { _all: true },
+      _sum: { amountHalalas: true, addOnsHalalas: true },
+    });
+    const byMethod = methodGroups.map((g) => {
+      const gross = (g._sum.amountHalalas ?? 0n) + (g._sum.addOnsHalalas ?? 0n);
+      const method = (g.paymentMethod as keyof typeof METHOD_FEES) ?? 'CARD';
+      const fees = feeFor(method in METHOD_FEES ? method : 'CARD', gross);
+      return {
+        method: g.paymentMethod,
+        labelAr: METHOD_FEES[method in METHOD_FEES ? method : 'CARD'].labelAr,
+        pledges: g._count._all,
+        grossHalalas: Number(gross),
+        platformFeeHalalas: Number(fees.platformHalalas),
+        processorFeeHalalas: Number(fees.processorHalalas),
+        netHalalas: Number(fees.netHalalas),
+      };
+    });
+
     // Update engagement — already-materialised counters, just aggregated.
     const upd = await this.prisma.projectUpdate.aggregate({
       where: { projectId },
@@ -82,8 +107,10 @@ export class AnalyticsService {
     const activeBackers = captured + held;
 
     return {
+      byMethod,
       totals: {
         raisedHalalas: Number(project.raisedHalalas),
+        realizedHalalas: Number(project.realizedHalalas),
         goalHalalas: Number(project.fundingGoalHalalas),
         backersCount: project.backersCount,
         percentFunded:
