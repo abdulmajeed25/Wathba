@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsInt, IsString, Matches, Max, Min } from 'class-validator';
@@ -18,6 +18,13 @@ class UploadUrlDto {
 
   @IsInt() @Min(1) @Max(50 * 1024 * 1024)
   sizeBytes!: number;
+}
+
+/** STAKES/S-14 (P5) — verify an uploaded object by key. */
+class VerifyUploadDto {
+  @IsString()
+  @Matches(/^(hero|story|reward|evidence|avatar)\/[\w/.-]+$/)
+  key!: string;
 }
 
 @ApiTags('media')
@@ -45,5 +52,16 @@ export class MediaController {
       mimeType: dto.mimeType,
       sizeBytes: dto.sizeBytes,
     });
+  }
+
+  /** STAKES/S-14 (P5) — post-upload magic-byte verification (image kinds). */
+  @Post('verify')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify an uploaded object is a real image (magic bytes); deletes + 400s otherwise' })
+  async verify(@Body() dto: VerifyUploadDto): Promise<{ ok: true; format: string }> {
+    return this.media.verifyObject(dto.key);
   }
 }

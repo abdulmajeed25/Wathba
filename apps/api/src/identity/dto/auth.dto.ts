@@ -28,6 +28,11 @@ export class SignUpDto {
   @IsBoolean() @Equals(true, { message: 'you must accept the terms and privacy policy' })
   acceptTerms!: boolean;
 
+  /** STAKES/S-14 P3 — Turnstile token (required only when the env key is set). */
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString() @MaxLength(3000)
+  captchaToken?: string;
+
   /** STAKES/S-12 F-11 — deep-link carried through the verification email. */
   @ApiProperty({ required: false, example: '/projects/x/back' })
   @IsOptional() @IsString() @MaxLength(300)

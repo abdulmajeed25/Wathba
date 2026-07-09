@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { LiveEmailField, LiveNameField, PasswordField } from '@/components/auth/auth-fields';
+import { TurnstileSlot } from '@/components/auth/turnstile-slot';
 import { signUpAction } from '@/lib/auth/actions';
 import { destinationFor } from '@/lib/auth/guard';
 import { getMe } from '@/lib/api/wathba';
@@ -73,6 +74,7 @@ export default async function SignUpPage({
             {error}
           </p>
         ) : null}
+        <TurnstileSlot />
 
         <button
           type="submit"

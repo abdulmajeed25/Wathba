@@ -48,6 +48,11 @@ export class CreatePledgeDto {
   @ApiProperty({ example: 75_000 })
   @IsInt() @Min(100) amountHalalas!: number;
 
+  /** STAKES/S-14 P3 — Turnstile token (required only when the env key is set). */
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString() @MaxLength(3000)
+  captchaToken?: string;
+
   /** Tokenized card / pay-method ref from the web SDK. */
   @ApiProperty({ example: 'tok_sandbox_4242' })
   @IsString() source!: string;

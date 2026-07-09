@@ -227,7 +227,10 @@ export function WathbaSearch({
           ))}
         </div>
       </section>
-      <section style={{ maxWidth: 1320, margin: '30px auto 0', padding: '0 26px 10px' }}>
+      {/* STAKES/S-14 (M1/F-09) — reserve the results region: the debounced
+          fetch swapping content in shifted everything below (CLS 0.84 on
+          mobile Lighthouse). */}
+      <section style={{ maxWidth: 1320, margin: '30px auto 0', padding: '0 26px 10px', minHeight: '65vh' }}>
         <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
           <Num style={{ color: 'var(--text)', fontWeight: 700 }}>{list.length}</Num>
           <span>نتيجة</span>

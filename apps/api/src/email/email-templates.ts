@@ -142,6 +142,16 @@ export const emailTemplates = {
         <p>إن لم تطلب هذا التغيير فتجاهل الرسالة — لن يتغيّر شيء بدون هذا التأكيد.</p>`, { showPrefs: false }),
     };
   },
+  /** STAKES/S-14 — sign-in from a browser we haven't seen before. */
+  newDeviceSignin(): EmailContent {
+    return {
+      subject: `${BRAND} — تسجيل دخول من جهاز جديد`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">دخول من جهاز جديد</h1>
+        <p>سُجّل دخول إلى حسابك في ${BRAND} من متصفح أو جهاز لم نرَه من قبل.</p>
+        <p>إن كان هذا أنت فلا حاجة لأي إجراء. وإن لم يكن، غيّر كلمة مرورك فوراً من
+        <a href="{{APP_URL}}/projects/settings">إعدادات الأمان</a> — تغييرها يُسجّل الخروج من كل الأجهزة.</p>`, { showPrefs: false }),
+    };
+  },
   /** STAKES/S-12 F-08 — a milestone released funds to the creator. */
   milestoneReleased(d: { projectTitle: string; milestoneTitle: string; amountHalalas: number }): EmailContent {
     return {

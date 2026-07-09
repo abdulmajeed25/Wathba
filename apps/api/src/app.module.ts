@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { CommonModule } from './common/common.module';
 import { HeartbeatModule } from './common/heartbeat.service';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -41,6 +42,7 @@ import { EmailModule } from './email/email.module';
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     HeartbeatModule,
+    CommonModule,
     PrismaModule,
     IdentityModule,
     ProjectsModule,

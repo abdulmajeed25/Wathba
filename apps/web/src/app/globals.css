@@ -39,8 +39,6 @@
 
 @theme {
   --font-arabic: var(--font-ibm-plex-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
-  --font-display: var(--font-reem-kufi), 'Reem Kufi', system-ui, sans-serif;
-  --font-body: var(--font-tajawal), 'Tajawal', system-ui, sans-serif;
 
   --color-base: var(--bg-base);
   --color-elevated: var(--bg-elevated);

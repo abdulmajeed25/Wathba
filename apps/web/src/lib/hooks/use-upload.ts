@@ -74,6 +74,21 @@ export function useUpload(): UploadState & {
           xhr.send(file);
         });
 
+        // STAKES/S-14 (P5) — post-upload magic-byte verification for images:
+        // the API reads the first bytes back from storage; a payload that
+        // isn't a real image is deleted server-side and this upload fails.
+        if (file.type.startsWith('image/')) {
+          const verifyRes = await fetch('/api/media/verify', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ key: presigned.key }),
+          });
+          if (!verifyRes.ok) {
+            const msg = await verifyRes.text().catch(() => '');
+            throw new Error(msg.includes('صورة') ? 'الملف ليس صورة صالحة' : `verification failed (${verifyRes.status})`);
+          }
+        }
+
         const result: UploadResult = {
           key: presigned.key,
           publicUrl: presigned.publicUrl,

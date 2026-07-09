@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
@@ -74,6 +74,33 @@ export class MediaService {
     });
   }
 
+  /**
+   * STAKES/S-14 (P5) — post-upload verification: fetch the first bytes from
+   * storage and require real image magic numbers for the image kinds. A
+   * mismatch deletes the object and 400s — a text/HTML payload can no longer
+   * live behind an image/* declared type.
+   */
+  async verifyObject(key: string): Promise<{ ok: true; format: string }> {
+    let bytes: Uint8Array;
+    try {
+      const res = await this.s3.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: 'bytes=0-15' }),
+      );
+      bytes = new Uint8Array(await res.Body!.transformToByteArray());
+    } catch {
+      throw new BadRequestException('الملف غير موجود — أعد الرفع');
+    }
+    const format = sniffImage(bytes);
+    if (!format) {
+      await this.s3
+        .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+        .catch(() => {});
+      this.log.warn(`magic-byte check failed for key=${key} — object deleted`);
+      throw new BadRequestException('الملف ليس صورة صالحة (JPEG/PNG/WebP/AVIF)');
+    }
+    return { ok: true, format };
+  }
+
   async createPresignedPut(opts: {
     userId: string;
     kind: Kind;
@@ -119,4 +146,25 @@ export class MediaService {
     this.log.log(`presigned PUT user=${opts.userId} kind=${opts.kind} key=${key}`);
     return { url, key, bucket: this.bucket, publicUrl, expiresAt };
   }
+}
+
+/**
+ * STAKES/S-14 (P5) — magic-byte signatures for the image kinds. The presign
+ * flow means the API never touches upload bytes, so declared MIME was the
+ * only check; verifyObject() closes that by reading the first bytes back
+ * from storage after the PUT.
+ */
+export function sniffImage(bytes: Uint8Array): 'jpeg' | 'png' | 'webp' | 'avif' | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'png';
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50
+  ) return 'webp';
+  if (bytes.length >= 12 && bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
+    const brand = String.fromCharCode(bytes[8]!, bytes[9]!, bytes[10]!, bytes[11]!);
+    if (brand.startsWith('avif') || brand.startsWith('avis') || brand.startsWith('mif1')) return 'avif';
+  }
+  return null;
 }

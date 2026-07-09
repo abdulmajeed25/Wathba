@@ -196,7 +196,12 @@ export async function signUpAction(formData: FormData): Promise<void> {
     const res = await fetch(`${API_BASE}/v1/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, acceptTerms, ...(next !== '/projects' ? { next } : {}) }),
+      body: JSON.stringify({
+        name, email, password, acceptTerms,
+        ...(next !== '/projects' ? { next } : {}),
+        // STAKES/S-14 P3 — Turnstile implicit-render field (empty when the slot is off).
+        ...(formData.get('cf-turnstile-response') ? { captchaToken: String(formData.get('cf-turnstile-response')) } : {}),
+      }),
       cache: 'no-store',
     });
     status = res.status;

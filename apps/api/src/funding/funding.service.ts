@@ -2,6 +2,7 @@ import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { CaptchaService } from '../common/captcha.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { LedgerService } from '../escrow-payments/ledger.service';
@@ -42,6 +43,7 @@ export class FundingService {
     private readonly audit: AuditService,
     private readonly email: EmailService,
     private readonly notifications: NotificationsService,
+      private readonly captcha: CaptchaService,
   ) {}
 
   /**
@@ -121,6 +123,8 @@ export class FundingService {
   }
 
   async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
+    // STAKES/S-14 P3 — env-flagged bot gate (no-op until the key is set).
+    await this.captcha.assertHuman(dto.captchaToken, 'pledge');
     const project = await this.prisma.project.findUnique({ where: { id: dto.projectId } });
     if (!project) throw new NotFoundException('project not found');
     if (project.status !== ProjectStatus.LIVE) {

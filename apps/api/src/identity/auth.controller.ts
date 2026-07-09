@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, NotFoundException, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, NotFoundException, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, type AuthResponse } from './auth.service';
@@ -81,8 +81,11 @@ export class AuthController {
   // Env-tunable for e2e (many signins from one IP); prod default stays 10.
   @Throttle({ default: { ttl: 60_000, limit: Number(process.env.AUTH_SIGNIN_THROTTLE_LIMIT ?? 10) } })
   @ApiOperation({ summary: 'Sign in (email + password)' })
-  async signIn(@Body() dto: SignInDto): Promise<AuthResponse> {
-    return this.auth.signIn(dto.email, dto.password);
+  async signIn(
+    @Body() dto: SignInDto,
+    @Headers('user-agent') userAgent?: string,
+  ): Promise<AuthResponse> {
+    return this.auth.signIn(dto.email, dto.password, userAgent);
   }
 
   /**
