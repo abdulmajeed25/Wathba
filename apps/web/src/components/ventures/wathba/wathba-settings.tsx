@@ -33,7 +33,7 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 /** STAKES/S-7 — land on the tab that produced the flash flag. */
 function tabForFlag(ok?: string | null, err?: string | null): TabId {
   const flag = ok ?? err ?? '';
-  if (['password', 'email', 'pwshort', 'pwmismatch', 'badpass', 'emailtaken', 'emailmissing'].includes(flag)) return 'security';
+  if (['password', 'email', 'emailpending', 'pwshort', 'pwmismatch', 'badpass', 'emailtaken', 'emailmissing'].includes(flag)) return 'security';
   if (['notifs'].includes(flag)) return 'notifications';
   if (['privacy', 'erase409', 'confirm'].includes(flag)) return 'privacy';
   return 'profile';
@@ -216,8 +216,10 @@ function ProfileTab({
           disabled
           style={{ ...inputStyle, opacity: 0.65, cursor: 'not-allowed' }}
         />
+        {/* STAKES/S-12 F-06 — points at the REAL flow (the old copy said
+            "contact support" while the security tab could actually edit it). */}
         <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
-          لتغيير البريد، تواصل مع الدعم (support@wathba.sa).
+          لتغيير البريد انتقل إلى تبويب «الأمان» — يتطلب كلمة المرور وتأكيداً عبر البريد الجديد.
         </span>
       </label>
 
@@ -353,11 +355,17 @@ function SecurityTab({
         <button type="submit" style={primaryBtn}>حفظ كلمة المرور</button>
       </form>
 
-      {/* STAKES/E1 — email change (current-password checked; re-login-free). */}
+      {/* STAKES/E1 + S-12 F-06 — email change is verify-first: a confirmation
+          link goes to the NEW address; nothing changes until it's clicked. */}
       <form action={changeEmailAction} style={cardForm}>
         <h2 style={{ fontSize: 19, fontWeight: 700 }}>تغيير البريد الإلكتروني</h2>
         <p style={{ fontSize: 12.5, color: 'var(--muted2)' }}>
           بريدك الحالي: <strong dir="ltr">{me?.email ?? '—'}</strong>
+          {me?.emailVerified === false && (
+            <span style={{ display: 'inline-block', marginInlineStart: 8, padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'rgba(212,167,44,.16)', color: '#9a6700' }}>
+              غير مفعّل
+            </span>
+          )}
         </p>
         <label style={fieldCol}>
           <span style={fieldLabel}>البريد الجديد</span>
@@ -368,7 +376,8 @@ function SecurityTab({
           <input type="password" name="currentPassword" required minLength={8} autoComplete="current-password" style={inputStyle} />
         </label>
         <p style={{ fontSize: 12, color: 'var(--muted2)' }}>
-          سيصل إشعار أمني إلى بريدك القديم بعد التغيير.
+          سيصلك رابط تأكيد على البريد الجديد — لن يتغيّر شيء قبل الضغط عليه،
+          ويصل إشعار أمني إلى بريدك القديم بعد التطبيق.
         </p>
         <button type="submit" style={primaryBtn}>حفظ البريد</button>
       </form>
@@ -499,6 +508,7 @@ function PrivacyTab({
 const SETTINGS_MESSAGES: Record<string, { text: string; ok: boolean; scope: string }> = {
   password:     { text: 'تم تغيير كلمة المرور — وسُجّل خروجك من بقية الأجهزة.', ok: true,  scope: 'security' },
   email:        { text: 'تم تغيير البريد الإلكتروني بنجاح.',                    ok: true,  scope: 'security' },
+  emailpending: { text: 'أرسلنا رابط تأكيد إلى بريدك الجديد — لن يتغيّر شيء قبل الضغط عليه.', ok: true, scope: 'security' },
   notifs:       { text: 'حُفظت تفضيلات الإشعارات.',                             ok: true,  scope: 'notifications' },
   privacy:      { text: 'حُفظت إعدادات الخصوصية.',                              ok: true,  scope: 'privacy' },
   pwshort:      { text: 'كلمة المرور الجديدة يجب أن تتكون من ٨ أحرف على الأقل.', ok: false, scope: 'security' },

@@ -58,11 +58,16 @@ export default async function SignInPage({
         <LiveEmailField />
         <PasswordField autoComplete="current-password" />
 
-        <p className="text-left text-xs">
+        <div className="flex items-center justify-between text-xs">
+          {/* STAKES/S-12 F-17 — session-length choice: unchecked = browser-session cookies. */}
+          <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <input type="checkbox" name="remember" defaultChecked className="h-4 w-4 accent-emerald-600" />
+            تذكرني
+          </label>
           <Link href="/forgot-password" className="text-emerald-700 underline">
             نسيت كلمة المرور؟
           </Link>
-        </p>
+        </div>
 
         {error ? (
           <p role="alert" className="text-sm text-red-600">

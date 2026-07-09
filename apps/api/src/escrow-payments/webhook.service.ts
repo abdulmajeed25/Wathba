@@ -4,7 +4,9 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
 import { AuditService } from '../identity/audit.service';
-import { LedgerEntryType, PledgeStatus, Prisma } from '@prisma/client';
+import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { LedgerEntryType, NotificationKind, PledgeStatus, Prisma } from '@prisma/client';
 
 /**
  * Moyasar webhook processor (Sprint 1 / P0-003).
@@ -46,9 +48,40 @@ export class WebhookService {
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
     cfg: ConfigService,
   ) {
     this.secret = cfg.get<string>('MOYASAR_WEBHOOK_SECRET') ?? '';
+  }
+
+  /**
+   * STAKES/S-12 F-08 — "your refund landed": in-app + email to the backer
+   * when a pledge reaches REFUNDED. The template + kind existed but nothing
+   * ever fired them. Transactional (money truth) → NOT pref-gated.
+   * Best-effort: a notification glitch never fails the webhook.
+   */
+  private async notifyRefundCompleted(pledgeId: string): Promise<void> {
+    const row = await this.prisma.pledge.findUnique({
+      where: { id: pledgeId },
+      select: {
+        amountHalalas: true,
+        addOnsHalalas: true,
+        backer: { select: { id: true, email: true } },
+        project: { select: { id: true, titleAr: true } },
+      },
+    });
+    if (!row) return;
+    const amountHalalas = Number(row.amountHalalas + row.addOnsHalalas);
+    await this.notifications.create({
+      userId: row.backer.id,
+      kind: NotificationKind.REFUND_COMPLETED,
+      payload: { projectId: row.project.id, projectTitleAr: row.project.titleAr, amountHalalas },
+    });
+    await this.email.refundCompleted(row.backer.email, {
+      projectTitle: row.project.titleAr,
+      amountHalalas,
+    });
   }
 
   /** Constant-time shared-secret check. */
@@ -163,6 +196,8 @@ export class WebhookService {
           projectId: pledge.projectId,
           source: 'webhook',
         });
+        // STAKES/S-12 F-08 — tell the backer their money is back.
+        this.notifyRefundCompleted(pledge.id).catch(() => {});
         return 'applied';
       }
 
@@ -181,6 +216,8 @@ export class WebhookService {
           projectId: pledge.projectId,
           source: 'webhook',
         });
+        // STAKES/S-12 F-08 — tell the backer their money is back.
+        this.notifyRefundCompleted(pledge.id).catch(() => {});
         return 'applied';
       }
 

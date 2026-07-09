@@ -1,13 +1,25 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, NotFoundException, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService, type AuthResponse } from './auth.service';
-import { ForgotPasswordDto, RefreshDto, ResetPasswordDto, SignInDto, SignUpDto } from './dto/auth.dto';
+import { EmailService } from '../email/email.service';
+import {
+  ForgotPasswordDto,
+  RefreshDto,
+  ResendVerificationDto,
+  ResetPasswordDto,
+  SignInDto,
+  SignUpDto,
+  VerifyEmailDto,
+} from './dto/auth.dto';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly email: EmailService,
+  ) {}
 
   /**
    * Sign-up — per-IP 5/min. Tighter than the global 120/min so a credential
@@ -16,10 +28,45 @@ export class AuthController {
    * production leaves AUTH_SIGNUP_THROTTLE_LIMIT unset and keeps 5.
    */
   @Post('signup')
+  @HttpCode(200)
   @Throttle({ default: { ttl: 60_000, limit: Number(process.env.AUTH_SIGNUP_THROTTLE_LIMIT ?? 5) } })
-  @ApiOperation({ summary: 'Create account (email + password)' })
-  async signUp(@Body() dto: SignUpDto): Promise<AuthResponse> {
+  @ApiOperation({
+    summary:
+      'Create account — ALWAYS 200 {ok:true} (STAKES/S-12 F-11 2xx-uniform, no enumeration); the session is minted by verify-email',
+  })
+  async signUp(@Body() dto: SignUpDto): Promise<{ ok: true }> {
     return this.auth.signUp(dto);
+  }
+
+  /** STAKES/S-12 F-11 — the emailed link lands here; success = signed in. */
+  @Post('verify-email')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: Number(process.env.AUTH_SIGNUP_THROTTLE_LIMIT ?? 10) } })
+  @ApiOperation({ summary: 'Consume a one-time email-verification token → session tokens' })
+  async verifyEmail(@Body() dto: VerifyEmailDto): Promise<AuthResponse> {
+    return this.auth.verifyEmail(dto.token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @ApiOperation({ summary: 'Re-send the verification link — always 200 (no enumeration), 60s cooldown' })
+  async resendVerification(@Body() dto: ResendVerificationDto): Promise<{ ok: true }> {
+    return this.auth.resendVerification(dto.email);
+  }
+
+  /**
+   * Test seam — the stubbed outbox for a recipient. ONLY exists when the
+   * mailer is stubbed (EMAIL_ENABLED unset) and never in production; e2e
+   * suites read the verification link out of it. 404s otherwise.
+   */
+  @Get('dev-mailbox')
+  @ApiOperation({ summary: 'DEV ONLY — last stubbed emails for a recipient (404 in production/real-mailer mode)' })
+  devMailbox(@Query('to') to: string): Array<{ to: string; subject: string; html: string }> {
+    if (process.env.NODE_ENV === 'production' || process.env.EMAIL_ENABLED === 'true') {
+      throw new NotFoundException();
+    }
+    return this.email.sent.filter((m) => m.to === to).slice(-5);
   }
 
   /**

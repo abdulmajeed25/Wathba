@@ -155,6 +155,16 @@ export class CommentsService {
     });
     if (!project) throw new NotFoundException('project not found');
 
+    // STAKES/S-12 F-11 — the BASELINE identity tier: commenting requires a
+    // verified email (existing accounts were grandfathered by migration 0035).
+    const commenter = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { emailVerified: true },
+    });
+    if (!commenter?.emailVerified) {
+      throw new ForbiddenException('فعّل بريدك الإلكتروني أولاً لتتمكن من التعليق');
+    }
+
     // Eligibility: a backer (HELD or CAPTURED pledge) OR the creator.
     // STAKES/S-11 — was CAPTURED-only, but capture happens at campaign
     // SUCCESS, so during a live campaign nobody but the creator could

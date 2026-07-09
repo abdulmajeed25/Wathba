@@ -67,12 +67,13 @@ export class UsersController {
   @Post('me/email')
   @HttpCode(200)
   @ApiOperation({
-    summary: 'STAKES/E1 — change email (current-password check, generic 409, old-address notice)',
+    summary:
+      'STAKES/E1 + S-12 F-06 — request an email change: verify-first (link to the NEW address), 2xx-uniform',
   })
   async changeEmail(
     @CurrentUser() jwt: JwtPayload,
     @Body() dto: ChangeEmailDto,
-  ): Promise<{ ok: true; accessToken: string }> {
+  ): Promise<{ ok: true }> {
     return this.auth.changeEmail(jwt.sub, dto.currentPassword, dto.newEmail);
   }
 

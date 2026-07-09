@@ -85,6 +85,8 @@ export class UsersService {
       notificationPrefs: resolvePrefs(u.notificationPrefs),
       profilePublic: u.profilePublic,
       showBackedCount: u.showBackedCount,
+      // STAKES/S-12 F-11 — baseline-tier state (settings badge + resend CTA).
+      emailVerified: u.emailVerified,
       nafathVerified: u.nafathVerified,
       reputationTier: u.reputationTier,
       totalPledgedHalalas: Number(u.totalPledgedHalalas),

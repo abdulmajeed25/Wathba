@@ -29,6 +29,7 @@ const KIND_LABEL: Record<string, string> = {
   PROJECT_FUNDED: 'نجح مشروع',
   PROJECT_FAILED: 'لم يصل مشروع للهدف',
   MILESTONE_APPROVED: 'صرف مرحلة',
+  REFUND_COMPLETED: 'أُعيد مبلغك',
   PAYOUT_SENT: 'إرسال دفعة',
   UPDATE_POSTED: 'تحديث جديد',
   CREATOR_NEW_PROJECT: 'مشروع جديد ممن تتابعه',

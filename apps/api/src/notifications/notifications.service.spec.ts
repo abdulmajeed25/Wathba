@@ -17,7 +17,7 @@ describe('NotificationsService.fanOutProjectPublished', () => {
 
   function build(overrides: {
     followers?: Array<{ followerId: string }>;
-    prefRows?: Array<{ id: string; notificationPrefs: unknown }>;
+    prefRows?: Array<{ id: string; notificationPrefs: unknown; emailVerified: boolean }>;
     emails?: Array<{ email: string }>;
   }) {
     const createMany = jest.fn().mockResolvedValue({ count: (overrides.followers ?? []).length });
@@ -42,8 +42,8 @@ describe('NotificationsService.fanOutProjectPublished', () => {
     const { service, email, createMany } = build({
       followers: [{ followerId: 'f-1' }, { followerId: 'f-2' }, { followerId: 'creator-1' }],
       prefRows: [
-        { id: 'f-1', notificationPrefs: null }, // defaults → projectUpdates ON
-        { id: 'f-2', notificationPrefs: { projectUpdates: false } }, // opted out
+        { id: 'f-1', notificationPrefs: null, emailVerified: true }, // defaults → ON
+        { id: 'f-2', notificationPrefs: { projectUpdates: false }, emailVerified: true }, // opted out
       ],
       emails: [{ email: 'f1@x.sa' }],
     });

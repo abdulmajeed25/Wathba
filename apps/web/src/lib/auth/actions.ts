@@ -29,8 +29,18 @@ interface AuthResponse {
   user: Record<string, unknown>;
 }
 
-async function setSessionCookie(token: string, refreshToken?: string): Promise<void> {
+/**
+ * STAKES/S-12 F-17 — session-length choice: "تذكرني" keeps the 30-day
+ * persistent cookies; unchecked issues SESSION cookies (die with the
+ * browser). Server-side refresh-token expiry is unchanged either way.
+ */
+async function setSessionCookie(
+  token: string,
+  refreshToken?: string,
+  opts: { remember?: boolean } = {},
+): Promise<void> {
   const store = await cookies();
+  const persist = opts.remember !== false; // default: remember (existing flows)
   store.set({
     name: SESSION_COOKIE,
     value: token,
@@ -40,7 +50,7 @@ async function setSessionCookie(token: string, refreshToken?: string): Promise<v
     path: '/',
     /* Access JWT is short-lived (1h on apps/api since Sprint 2); middleware
      * rotates it via the refresh cookie before it lapses. */
-    maxAge: 60 * 60 * 24 * 30,
+    ...(persist ? { maxAge: 60 * 60 * 24 * 30 } : {}),
   });
   if (refreshToken) {
     store.set({
@@ -50,7 +60,7 @@ async function setSessionCookie(token: string, refreshToken?: string): Promise<v
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       path: '/',
-      maxAge: 60 * 60 * 24 * 30,
+      ...(persist ? { maxAge: 60 * 60 * 24 * 30 } : {}),
     });
   }
 }
@@ -144,7 +154,10 @@ export async function signInAction(formData: FormData): Promise<void> {
   }
 
   if (!body?.accessToken) redirect(`/sign-in?err=server&next=${encodeURIComponent(next)}`);
-  await setSessionCookie(body.accessToken, body.refreshToken);
+  // STAKES/S-12 F-17 — unchecked "تذكرني" → browser-session cookies only.
+  await setSessionCookie(body.accessToken, body.refreshToken, {
+    remember: formData.get('remember') === 'on',
+  });
 
   // STAKES/B1 — route by role & state. An explicit deep-link `next` wins;
   // otherwise ADMIN → admin, creator → dashboard, everyone else → discover home
@@ -174,32 +187,87 @@ export async function signUpAction(formData: FormData): Promise<void> {
   // NOTE: redirect() throws NEXT_REDIRECT — keep it OUTSIDE the try, or the
   // catch relabels every 4xx/5xx as err=network (masked real statuses for
   // months: 409-taken, 400-invalid and 429-throttle all read as "network").
-  let body: AuthResponse | null = null;
+  //
+  // STAKES/S-12 F-11 — the API is now 2xx-UNIFORM: duplicates and new
+  // accounts both come back {ok:true}, and the session is minted when the
+  // emailed verification link is consumed. No cookies are set here.
   let status = 0;
   try {
     const res = await fetch(`${API_BASE}/v1/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, acceptTerms }),
+      body: JSON.stringify({ name, email, password, acceptTerms, ...(next !== '/projects' ? { next } : {}) }),
+      cache: 'no-store',
+    });
+    status = res.status;
+  } catch {
+    redirect(`/sign-up?err=network&next=${encodeURIComponent(next)}`);
+  }
+  if (status < 200 || status >= 300) {
+    const errKey = status === 400 ? 'invalid' : status === 429 ? 'throttle' : 'server';
+    redirect(`/sign-up?err=${errKey}&next=${encodeURIComponent(next)}`);
+  }
+
+  // Uniform landing for BOTH paths — the enumeration channel stays closed.
+  redirect(`/verify-email?sent=1&email=${encodeURIComponent(maskEmailForUi(email))}`);
+}
+
+/** Mask for the "check your inbox" screen — never echoes the full address. */
+function maskEmailForUi(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '***';
+  return `${local.slice(0, 2)}***@${domain}`;
+}
+
+/**
+ * STAKES/S-12 F-11 — consume the emailed verification token. Success mints
+ * the session (the link IS the login) and continues into the Nafath step,
+ * honoring the deep-link `next` carried through the email.
+ */
+export async function verifyEmailAction(formData: FormData): Promise<void> {
+  const token = String(formData.get('token') ?? '').trim();
+  const next = safeNext(formData.get('next'));
+  if (!token) redirect('/verify-email?err=invalid');
+
+  let body: AuthResponse | null = null;
+  let status = 0;
+  try {
+    const res = await fetch(`${API_BASE}/v1/auth/verify-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
       cache: 'no-store',
     });
     status = res.status;
     if (res.ok) body = (await res.json()) as AuthResponse;
   } catch {
-    redirect(`/sign-up?err=network&next=${encodeURIComponent(next)}`);
+    redirect('/verify-email?err=network');
   }
-  if (status < 200 || status >= 300) {
-    const errKey =
-      status === 409 ? 'taken' : status === 400 ? 'invalid' : status === 429 ? 'throttle' : 'server';
-    redirect(`/sign-up?err=${errKey}&next=${encodeURIComponent(next)}`);
+  if (!body?.accessToken) {
+    redirect(`/verify-email?err=${status === 401 ? 'expired' : 'server'}`);
   }
-
-  if (!body?.accessToken) redirect(`/sign-up?err=server&next=${encodeURIComponent(next)}`);
   await setSessionCookie(body.accessToken, body.refreshToken);
-  await trackEvent('signup', body.accessToken); // STAKES/O1
-  // §8 KYC step — go straight to Nafath verification after a fresh signup;
-  // the post-Nafath bounce honors the original `next` URL.
+  await trackEvent('signup', body.accessToken); // STAKES/O1 — account activated
+  // §8 KYC step — continue to Nafath (the money tier), preserving `next`.
   redirect(`/sign-up/nafath?next=${encodeURIComponent(next)}`);
+}
+
+/** STAKES/S-12 F-11 — re-send the link; always lands on the same screen. */
+export async function resendVerificationAction(formData: FormData): Promise<void> {
+  const email = String(formData.get('email') ?? '').trim();
+  if (email) {
+    try {
+      await fetch(`${API_BASE}/v1/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+        cache: 'no-store',
+      });
+    } catch {
+      /* uniform screen regardless */
+    }
+  }
+  redirect(`/verify-email?sent=1&resent=1&email=${encodeURIComponent(email ? maskEmailForUi(email) : '***')}`);
 }
 
 /**
@@ -414,18 +482,17 @@ export async function changeEmailAction(formData: FormData): Promise<void> {
   if (!newEmail) redirect('/projects/settings?err=emailmissing');
   const token = await requireToken();
 
-  const { status, json } = await apiCall('/v1/users/me/email', 'POST', token, {
+  // STAKES/S-12 F-06 — verify-first: the API sends a confirmation link to the
+  // NEW address (2xx-uniform even when taken); nothing changes until the
+  // link is clicked, so no token swap happens here anymore.
+  const { status } = await apiCall('/v1/users/me/email', 'POST', token, {
     currentPassword,
     newEmail,
   });
   if (status === 0) redirect('/projects/settings?err=network');
   if (status === 401) redirect('/projects/settings?err=badpass');
-  if (status === 409) redirect('/projects/settings?err=emailtaken');
   if (status < 200 || status >= 300) redirect('/projects/settings?err=server');
-  // JWT carries the email claim — swap in the fresh access token.
-  const accessToken = typeof json?.accessToken === 'string' ? json.accessToken : null;
-  if (accessToken) await setSessionCookie(accessToken);
-  redirect('/projects/settings?ok=email');
+  redirect('/projects/settings?ok=emailpending');
 }
 
 /** E2 — persist the per-type notification toggles. */

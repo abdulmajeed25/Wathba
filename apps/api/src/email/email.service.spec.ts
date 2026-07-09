@@ -33,7 +33,7 @@ describe('EmailService (stub mode)', () => {
     const svc = new EmailService();
     const res = await svc.pledgeReceipt('backer@wathba.sa', { projectTitle: 'سِرب', amountHalalas: 5000 });
     expect(res).toEqual({ sent: false, stubbed: true });
-    expect(svc.sent.at(-1)).toEqual({ to: 'backer@wathba.sa', subject: expect.stringContaining('سِرب') });
+    expect(svc.sent.at(-1)).toEqual({ to: 'backer@wathba.sa', subject: expect.stringContaining('سِرب'), html: expect.any(String) });
   });
 
   it('hydrates {{APP_URL}} / {{PREFS_URL}} placeholders (welcome)', async () => {
