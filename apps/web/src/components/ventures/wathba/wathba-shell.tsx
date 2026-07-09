@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useState } from 'react';
 
 import { PageViewTracker } from '@/components/analytics/page-view-tracker';
+import { WathbaFeedbackProvider } from './wathba-feedback';
 import { WathbaFooter } from './wathba-footer';
 import { WathbaHeader } from './wathba-header';
 import { wathbaCssVars, wathbaKeyframes, type WathbaTheme } from './wathba-tokens';
@@ -38,6 +39,7 @@ export function WathbaShell({
   };
 
   return (
+    <WathbaFeedbackProvider>
     <div data-theme={theme} data-pillar="ventures" style={styleVars}>
       {/* keyframes + a couple shared utility styles scoped via :where to leak no specificity */}
       <style
@@ -62,6 +64,7 @@ export function WathbaShell({
               [data-pillar="ventures"] .wathba-mob-sheet{display:flex}
             }
             @media (max-width:760px){
+              [data-pillar="ventures"] .wathba-hero-band{grid-template-columns:1fr!important}
               [data-pillar="ventures"] .wathba-discover-row{flex-direction:column!important;align-items:stretch!important}
               [data-pillar="ventures"] .wathba-discover-aside{width:100%!important}
             }
@@ -77,5 +80,6 @@ export function WathbaShell({
       <main className="wathba-fade">{children}</main>
       <WathbaFooter />
     </div>
+    </WathbaFeedbackProvider>
   );
 }

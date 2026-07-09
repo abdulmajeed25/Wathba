@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useConfirm } from './wathba-feedback';
 
 /**
  * STAKES/K3 — trust & safety: report a project. Subtle text affordance under
@@ -9,10 +10,11 @@ import { useState } from 'react';
  */
 export function ReportProjectButton({ projectId }: { projectId: string }) {
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'anon'>('idle');
+  const confirmDlg = useConfirm();
 
   const report = async (): Promise<void> => {
     if (state !== 'idle') return;
-    if (typeof window !== 'undefined' && !window.confirm('الإبلاغ عن هذا المشروع لفريق وثبة؟')) return;
+    if (!(await confirmDlg({ title: 'الإبلاغ عن هذا المشروع؟', body: 'سيصل البلاغ لفريق وثبة لمراجعته.', confirmLabel: 'إبلاغ' }))) return;
     setState('busy');
     try {
       const res = await fetch(`/api/projects/${projectId}/report`, {

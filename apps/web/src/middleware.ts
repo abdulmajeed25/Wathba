@@ -64,6 +64,20 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const refresh = req.cookies.get('wathba_refresh')?.value;
   const { pathname, search } = req.nextUrl;
 
+  // STAKES/S-13 (G5) — maintenance mode: MAINTENANCE_MODE=1 rewrites every
+  // page to the 503 surface (read per-request, so flipping the env + a
+  // restart is the whole procedure; /maintenance itself stays reachable).
+  if (process.env.MAINTENANCE_MODE === '1' && pathname !== '/maintenance') {
+    const url = req.nextUrl.clone();
+    url.pathname = '/maintenance';
+    url.search = '';
+    return NextResponse.rewrite(url, { status: 503 });
+  }
+  if (process.env.MAINTENANCE_MODE !== '1' && pathname === '/maintenance') {
+    // Not in maintenance → don't leave a stale bookmark surface up; go home.
+    return NextResponse.redirect(new URL('/projects', req.url));
+  }
+
   // Sprint 2 / P1-502 — rotate a lapsing access token transparently.
   if (session && refresh) {
     const expMs = jwtExpMs(session);

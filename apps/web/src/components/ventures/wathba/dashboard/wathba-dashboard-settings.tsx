@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import type { ApiProjectDetail } from '@/lib/api/wathba';
 import { WathbaDashboardCollaborators } from './wathba-dashboard-collaborators';
+import { useConfirm } from '../wathba-feedback';
 
 /* ─────── Static enums + labels ──────────────────────────────────────────────
  * Kept colocated so we don't drag the @prisma/client enum into the browser
@@ -65,6 +66,7 @@ export function DashboardSettings({
 
   // ── Basics form ──────────────────────────────────────────────────────────
   const [titleAr, setTitleAr] = useState(project.titleAr);
+  const confirmDlg = useConfirm();
   const [shortDescAr, setShortDescAr] = useState(project.shortDescAr);
   const [category, setCategory] = useState(project.category);
 
@@ -229,9 +231,11 @@ export function DashboardSettings({
 
   const submitForReview = async (): Promise<void> => {
     if (
-      !confirm(
-        'سيتمّ إرسال الحملة لمراجعة الإدارة. لن تتمكّن من تعديل البيانات الأساسية أثناء المراجعة. متابعة؟',
-      )
+      !(await confirmDlg({
+        title: 'إرسال الحملة للمراجعة؟',
+        body: 'سيتمّ إرسال الحملة لمراجعة الإدارة، ولن تتمكّن من تعديل البيانات الأساسية أثناء المراجعة.',
+        confirmLabel: 'إرسال للمراجعة',
+      }))
     )
       return;
     setBusySection('visibility');

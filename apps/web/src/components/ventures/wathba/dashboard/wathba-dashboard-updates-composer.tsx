@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import type { ApiUpdateRow } from '../wathba-updates';
+import { useConfirm } from '../wathba-feedback';
 
 /**
  * Creator-side updates composer + list. Composer POSTs through the Next route
@@ -17,6 +18,7 @@ export function DashboardUpdatesComposer({
   initial: ApiUpdateRow[];
 }): React.ReactElement {
   const [rows, setRows] = useState<ApiUpdateRow[]>(initial);
+  const confirmDlg = useConfirm();
   const [titleAr, setTitleAr] = useState('');
   const [bodyAr, setBodyAr] = useState('');
   const [visibility, setVisibility] = useState<'PUBLIC' | 'BACKERS_ONLY'>('PUBLIC');
@@ -67,7 +69,7 @@ export function DashboardUpdatesComposer({
   };
 
   const onDelete = async (id: string): Promise<void> => {
-    if (!confirm('هل تريد حذف هذا التحديث؟')) return;
+    if (!(await confirmDlg({ title: 'حذف هذا التحديث؟', confirmLabel: 'حذف', danger: true }))) return;
     const snapshot = rows;
     setRows((prev) => prev.filter((r) => r.id !== id));
     try {

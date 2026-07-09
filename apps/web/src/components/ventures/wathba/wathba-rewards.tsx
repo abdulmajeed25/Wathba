@@ -161,8 +161,9 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
             style={{
               fontFamily: 'inherit', cursor: 'pointer',
               background: 'transparent', border: 'none',
-              color: 'var(--accent)', fontSize: 12, fontWeight: 700,
-              padding: 0, marginTop: 4,
+              color: 'var(--accent-ink)', fontSize: 12, fontWeight: 700,
+              // STAKES/S-13 (M5) — ≥24px tap target (WCAG 2.5.8); was 18px tall.
+              padding: '5px 6px', marginTop: 2, minHeight: 24,
             }}
           >
             {expanded ? '— عرض أقل' : `+${moreCount} المزيد`}

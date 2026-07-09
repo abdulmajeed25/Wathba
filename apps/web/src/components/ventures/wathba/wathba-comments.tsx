@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { RichComment } from './wathba-rich';
 import { Icon, Num } from './wathba-icons';
+import { useConfirm } from './wathba-feedback';
 
 /**
  * Comments tab — cursor pagination + infinite-scroll + threading. Built to
@@ -305,6 +306,7 @@ function ApiCommentRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(c.bodyAr ?? '');
   const [busy, setBusy] = useState(false);
+  const confirmDlg = useConfirm();
   const report = async (): Promise<void> => {
     setReported(true); // optimistic
     try {
@@ -338,7 +340,7 @@ function ApiCommentRow({
 
   const remove = async (): Promise<void> => {
     if (busy) return;
-    if (typeof window !== 'undefined' && !window.confirm('حذف هذا التعليق نهائياً؟')) return;
+    if (!(await confirmDlg({ title: 'حذف هذا التعليق نهائياً؟', body: 'الحذف نهائي ولا يمكن التراجع عنه.', confirmLabel: 'حذف', danger: true }))) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/comments/${projectId}/${c.id}`, { method: 'DELETE' });
@@ -380,7 +382,7 @@ function ApiCommentRow({
       </Link>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 5, flexWrap: 'wrap' }}>
-          <Link href={profileHref} style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', textDecoration: 'none' }}>
+          <Link href={profileHref} style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', textDecoration: 'none', display: 'inline-block', padding: '3px 2px', minHeight: 24 }}>
             {c.userName}
           </Link>
           {c.isCreator && (

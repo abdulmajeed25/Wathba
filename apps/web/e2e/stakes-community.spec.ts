@@ -42,9 +42,12 @@ test('K1: creator composes, edits (معدّل) and deletes a live comment', asyn
   await expect(page.getByText(`${stamp} — معدّل`)).toBeVisible();
   await expect(page.getByText('(معدّل)')).toBeVisible();
 
-  // Delete own comment.
-  page.once('dialog', (d) => void d.accept());
+  // Delete own comment — S-13: the styled RTL confirm dialog (no more
+  // native window.confirm, which rendered LTR and off-design).
   await page.locator('article', { hasText: stamp }).first().getByRole('button', { name: /حذف/ }).click();
+  const dialog = page.getByRole('alertdialog', { name: 'حذف هذا التعليق نهائياً؟' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'حذف' }).click();
   await expect(page.getByText(`${stamp} — معدّل`)).not.toBeVisible();
 });
 

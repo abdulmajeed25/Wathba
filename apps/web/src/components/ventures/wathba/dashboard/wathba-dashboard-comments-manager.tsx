@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 
 import type { ApiCommentRow } from '../wathba-comments';
+import { useConfirm } from '../wathba-feedback';
 
 /**
  * Creator-side comment moderation list. Each row exposes Pin, Hide, Delete
@@ -17,6 +18,7 @@ export function DashboardCommentsManager({
   initial: ApiCommentRow[];
 }): React.ReactElement {
   const [rows, setRows] = useState<ApiCommentRow[]>(initial);
+  const confirmDlg = useConfirm();
   // CC-07 — creator replies, keyed by parent comment id. Optimistic: a temp
   // row appears immediately, then is replaced by the server row or rolled back.
   const [replies, setReplies] = useState<Record<string, ApiCommentRow[]>>({});
@@ -94,7 +96,7 @@ export function DashboardCommentsManager({
   };
 
   const onDelete = async (id: string): Promise<void> => {
-    if (!confirm('هل تريد حذف هذا التعليق نهائياً؟')) return;
+    if (!(await confirmDlg({ title: 'حذف هذا التعليق نهائياً؟', confirmLabel: 'حذف', danger: true }))) return;
     const snapshot = rows;
     setRows((prev) => prev.filter((r) => r.id !== id));
     try {

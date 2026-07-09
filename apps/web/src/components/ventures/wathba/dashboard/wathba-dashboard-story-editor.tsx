@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useUpload } from '@/lib/hooks/use-upload';
+import { useConfirm } from '../wathba-feedback';
 
 /**
  * Story block editor for the creator dashboard.
@@ -46,6 +47,7 @@ export function DashboardStoryEditor({
   const { upload, uploading, progress } = useUpload();
 
   const [storyAr, setStoryAr] = useState(initialStoryAr);
+  const confirmDlg = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -139,9 +141,9 @@ export function DashboardStoryEditor({
     }
   }, [projectId, router, storyAr, postLaunch, changeNote]);
 
-  const reset = useCallback((): void => {
+  const reset = useCallback(async (): Promise<void> => {
     if (!dirty) return;
-    if (!confirm('تتراجع عن التعديلات اللي ما حفظتها؟')) return;
+    if (!(await confirmDlg({ title: 'تتراجع عن التعديلات؟', body: 'التعديلات غير المحفوظة ستضيع.', confirmLabel: 'تراجع', danger: true }))) return;
     setStoryAr(initialStoryAr);
     setError(null);
     setSavedAt(null);
