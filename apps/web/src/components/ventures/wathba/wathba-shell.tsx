@@ -65,6 +65,7 @@ export function WathbaShell({
             }
             @media (max-width:760px){
               [data-pillar="ventures"] .wathba-hero-band{grid-template-columns:1fr!important}
+              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:1fr!important;gap:26px!important;padding-top:34px!important}
               [data-pillar="ventures"] .wathba-discover-row{flex-direction:column!important;align-items:stretch!important}
               [data-pillar="ventures"] .wathba-discover-aside{width:100%!important}
             }

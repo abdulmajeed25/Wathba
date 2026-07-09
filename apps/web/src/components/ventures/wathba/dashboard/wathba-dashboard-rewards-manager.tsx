@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -724,10 +725,11 @@ function AddOnCard({
       }}
     >
       {addon.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={addon.imageUrl}
           alt=""
+          width={64}
+          height={64}
           style={{ width: 64, height: 64, borderRadius: 8, objectFit: 'cover' }}
         />
       )}

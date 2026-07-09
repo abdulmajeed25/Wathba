@@ -20,13 +20,13 @@ const isDev = process.env.NODE_ENV !== 'production';
  */
 const csp = [
   `default-src 'self'`,
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://cdn.moyasar.com`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://cdn.moyasar.com https://challenges.cloudflare.com`,
   `style-src 'self' 'unsafe-inline' https://cdn.moyasar.com`,
   `img-src 'self' data: blob: https:`,
   `media-src 'self' blob: https:`,
   `font-src 'self' data:`,
   `connect-src 'self' https://api.moyasar.com ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}`,
-  `frame-src https://api.moyasar.com https://cdn.moyasar.com`,
+  `frame-src https://api.moyasar.com https://cdn.moyasar.com https://challenges.cloudflare.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,
   `form-action 'self'`,

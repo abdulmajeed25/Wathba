@@ -69,6 +69,9 @@ export class EmailService {
   emailChangeVerify(to: string, link: string) {
     return this.deliver(to, emailTemplates.emailChangeVerify(link));
   }
+  newDeviceSignin(to: string) {
+    return this.deliver(to, emailTemplates.newDeviceSignin());
+  }
   milestoneReleased(to: string, d: { projectTitle: string; milestoneTitle: string; amountHalalas: number }) {
     return this.deliver(to, emailTemplates.milestoneReleased(d));
   }

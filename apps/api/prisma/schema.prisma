@@ -1146,3 +1146,16 @@ model SavedProject {
   @@unique([userId, projectId])
   @@index([userId, createdAt])
 }
+
+/// STAKES/S-14 — new-device sign-in notice: salted UA hash only (no IP/raw
+/// UA — same privacy posture as AnalyticsEvent).
+model KnownDevice {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  deviceHash String
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, deviceHash])
+  @@index([userId])
+}

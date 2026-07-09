@@ -45,7 +45,7 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     } as unknown as import('../community/community.service').CommunityService;
     const email = { projectFunded: jest.fn(), projectFailed: jest.fn() } as any;
     const notifications = { create: jest.fn() } as any;
-    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any, { log: jest.fn() } as any, email, notifications), prisma, escrow };
+    return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any, { log: jest.fn() } as any, email, notifications, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never), prisma, escrow };
   };
 
   it('no-ops when another settler already claimed the transition (P1-306 race)', async () => {
@@ -190,6 +190,7 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
       gateway as never, community as never, ledger as never,
       { log: jest.fn() } as never,
       email as never, notifications as never,
+      { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
     );
     type MockedTables = {
       project: { findUnique: jest.Mock; update: jest.Mock };
@@ -342,6 +343,7 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
       { log: jest.fn() } as never,
       { projectFunded: jest.fn(), projectFailed: jest.fn() } as never,
       { create: jest.fn() } as never,
+      { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
     );
     return { svc, prisma: prisma as never as Record<string, Record<string, jest.Mock>>, escrow };
   }

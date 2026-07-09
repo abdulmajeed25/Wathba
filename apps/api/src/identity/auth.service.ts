@@ -10,6 +10,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 import { EmailService } from '../email/email.service';
+import { CaptchaService } from '../common/captcha.service';
 import type { UserRole } from '@prisma/client';
 
 export interface JwtPayload {
@@ -47,6 +48,7 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly email: EmailService,
+    private readonly captcha: CaptchaService,
   ) {}
 
   /**
@@ -64,7 +66,10 @@ export class AuthService {
     password: string;
     phone?: string;
     next?: string;
+    captchaToken?: string;
   }): Promise<{ ok: true }> {
+    // STAKES/S-14 P3 — env-flagged bot gate (no-op until the key is set).
+    await this.captcha.assertHuman(input.captchaToken, 'signup');
     const email = input.email.toLowerCase();
     const exists = await this.users.findByEmail(email);
     if (exists) {
@@ -196,7 +201,7 @@ export class AuthService {
     return { ok: true };
   }
 
-  async signIn(email: string, password: string): Promise<AuthResponse> {
+  async signIn(email: string, password: string, userAgent?: string): Promise<AuthResponse> {
     const key = email.toLowerCase();
     this.checkLockout(key);
     const user = await this.users.findByEmail(email);
@@ -211,7 +216,35 @@ export class AuthService {
     }
     // Success — clear the per-email counter.
     this.failedAttempts.delete(key);
+    // STAKES/S-14 (P4-audit) — new-device notice, fire-and-forget.
+    this.noteDevice(user.id, user.email, userAgent).catch(() => {});
     return this.issue(user.id, user.email, user.roles);
+  }
+
+  /**
+   * STAKES/S-14 — "دخول من جهاز جديد": salted UA hash only (no IP/raw UA).
+   * The FIRST device enrolls silently (a notice right after signup is
+   * noise); notices start from the second distinct browser onward.
+   */
+  private async noteDevice(userId: string, email: string, userAgent?: string): Promise<void> {
+    if (!userAgent) return;
+    const salt = process.env.DEVICE_HASH_SALT ?? 'wathba-device-v1';
+    const deviceHash = createHash('sha256').update(`${userAgent}|${salt}`).digest('hex');
+    const existing = await this.prisma.knownDevice.findUnique({
+      where: { userId_deviceHash: { userId, deviceHash } },
+    });
+    if (existing) {
+      await this.prisma.knownDevice.update({
+        where: { id: existing.id },
+        data: { lastSeenAt: new Date() },
+      });
+      return;
+    }
+    const priorDevices = await this.prisma.knownDevice.count({ where: { userId } });
+    await this.prisma.knownDevice.create({ data: { userId, deviceHash } });
+    if (priorDevices > 0) {
+      await this.email.newDeviceSignin(email);
+    }
   }
 
   /** Throws 429 with Retry-After if this email has hit LOGIN_FAIL_LIMIT. */

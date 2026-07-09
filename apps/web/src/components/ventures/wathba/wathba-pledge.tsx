@@ -14,6 +14,7 @@ import {
 } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 import { ShareRow } from './wathba-share';
+import { TurnstileSlot } from '@/components/auth/turnstile-slot';
 import { createCardToken } from '@/lib/payments/moyasar-client';
 import type { ApiRewardTier } from '@/lib/api/wathba';
 
@@ -126,9 +127,13 @@ export function WathbaPledge({
       }
       const res = await fetch('/api/pledges', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(localStorage.getItem('wathba_ref') ? { 'x-wathba-ref': localStorage.getItem('wathba_ref')! } : {}) },
         body: JSON.stringify({
           projectId,
+          // STAKES/S-14 P3 — Turnstile implicit field (absent when the slot is off).
+          ...(typeof document !== 'undefined' && (document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement | null)?.value
+            ? { captchaToken: (document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement).value }
+            : {}),
           tierId: selTier.id,
           amountHalalas: Math.round(total * 100),
           source: tok.token,
@@ -601,6 +606,9 @@ export function WathbaPledge({
               >
                 <Icon name="shield" size={18} />
                 الدفع مشفّر بالكامل. لن يُخصم المبلغ إلا عند نجاح المشروع.
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <TurnstileSlot />
               </div>
             </div>
           )}

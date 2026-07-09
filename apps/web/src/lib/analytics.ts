@@ -33,7 +33,15 @@ export function track(
       name,
       anonId: anonId(),
       path: path ?? (typeof location !== 'undefined' ? location.pathname : undefined),
-      props,
+      // STAKES/S-14 (I4) — referral attribution rides every event when set.
+      props: (() => {
+        try {
+          const ref = localStorage.getItem('wathba_ref');
+          return ref ? { ref, ...props } : props;
+        } catch {
+          return props;
+        }
+      })(),
     });
     if (navigator.sendBeacon) {
       navigator.sendBeacon('/api/events', new Blob([payload], { type: 'application/json' }));

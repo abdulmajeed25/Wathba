@@ -67,7 +67,11 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
   return (
     <div className="wathba-fade">
       {/* ============================== HERO ============================== */}
+      {/* STAKES/S-14 (F-09) — .wathba-home-hero stacks below 760px: the
+          fixed 2-col grid squeezed at 360px and re-laid out on hydration,
+          which was the home page's CLS (~0.5 mobile). */}
       <section
+        className="wathba-home-hero"
         style={{
           maxWidth: 1320,
           margin: '0 auto',

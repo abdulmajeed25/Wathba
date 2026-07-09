@@ -22,7 +22,12 @@ export async function POST(req: Request): Promise<Response> {
     void fetch(`${API_BASE}/v1/events`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'pledge_completed' }),
+      // S-14 (I4) — referral attribution rides via the x-wathba-ref header
+      // (the pledge DTO itself stays clean).
+      body: JSON.stringify({
+        name: 'pledge_completed',
+        ...(req.headers.get('x-wathba-ref') ? { props: { ref: req.headers.get('x-wathba-ref') } } : {}),
+      }),
       cache: 'no-store',
     }).catch(() => undefined);
   }

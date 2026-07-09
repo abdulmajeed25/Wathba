@@ -1,29 +1,22 @@
 import type { Metadata, Viewport } from 'next';
-import { Reem_Kufi, Tajawal, IBM_Plex_Sans_Arabic, Space_Grotesk } from 'next/font/google';
+import { IBM_Plex_Sans_Arabic, Space_Grotesk } from 'next/font/google';
 import type { ReactNode } from 'react';
 
 import './globals.css';
 import { SITE_URL } from '@/lib/site';
 
-const reemKufi = Reem_Kufi({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-reem-kufi',
-  display: 'swap',
-});
-
-const tajawal = Tajawal({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '700'],
-  variable: '--font-tajawal',
-  display: 'swap',
-});
-
+/* STAKES/S-14 (M1) — Reem Kufi + Tajawal were preloaded (7 files) but
+ * consumed NOWHERE (--font-display/--font-body had zero users): pure LCP
+ * tax on throttled mobile. Removed. */
 const ibmPlexArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic', 'latin'],
   weight: ['400', '500', '600', '700'],
   variable: '--font-ibm-plex-arabic',
-  display: 'swap',
+  // STAKES/S-14 (M1/F-09) — 'optional': the late Arabic-font swap reflowed
+  // the whole page (CLS ~0.5 on throttled mobile). With 'optional', a slow
+  // first visit keeps the system Arabic fallback (no mid-read reflow);
+  // cached + fast connections still paint the brand face.
+  display: 'optional',
 });
 
 // STAKES/S-2/M6 — the numeric face (`.num` / <Num/>) was referenced by CSS name
@@ -73,7 +66,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="ar"
       dir="rtl"
-      className={`${reemKufi.variable} ${tajawal.variable} ${ibmPlexArabic.variable} ${spaceGrotesk.variable}`}
+      className={`${ibmPlexArabic.variable} ${spaceGrotesk.variable}`}
     >
       <body>
         <script
