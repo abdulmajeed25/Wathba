@@ -216,7 +216,7 @@ export const wathbaFooterCols: Array<{
   {
     title: 'المنصة',
     items: [
-      { label: 'استكشف المشاريع', href: '/projects/discover' },
+      { label: 'اكتشف المشاريع', href: '/projects/discover-all' },
       { label: 'ابدأ مشروعاً', href: '/projects/start' },
       { label: 'كيف تعمل', href: '/projects/how' },
       { label: 'عن وثبة', href: '/projects/about' },

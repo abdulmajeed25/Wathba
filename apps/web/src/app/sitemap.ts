@@ -15,7 +15,6 @@ export const revalidate = 3600;
 
 const STATIC_PATHS = [
   '/projects',
-  '/projects/discover',
   '/projects/discover-all',
   '/projects/campaigns',
   '/projects/how',

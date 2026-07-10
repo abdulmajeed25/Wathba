@@ -48,7 +48,7 @@ export function WathbaCategory({
           }}
         >
           <Link
-            href="/projects/discover"
+            href="/projects/discover-all"
             style={{
               cursor: 'pointer',
               fontSize: 13,

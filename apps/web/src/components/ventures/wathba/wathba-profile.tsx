@@ -541,7 +541,7 @@ function SavedGrid({ projects }: { projects: SavedRow[] }) {
         body="احفظ المشاريع التي تهمّك من صفحة الاستكشاف وستجدها هنا."
         cta={
           <Link href="/projects/discover-all" style={{ color: 'var(--accent-ink)', fontWeight: 700, textDecoration: 'none' }}>
-            استكشف المشاريع ←
+            اكتشف المشاريع ←
           </Link>
         }
       />

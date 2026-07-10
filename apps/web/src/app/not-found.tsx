@@ -23,7 +23,7 @@ export default function NotFound() {
         </h1>
         <p style={{ fontSize: 15, color: '#667085', maxWidth: 420, margin: '0 auto 24px', lineHeight: 1.7 }}>
           الرابط الذي تبحث عنه غير موجود أو تم نقله. جرّب العودة للرئيسية أو
-          استكشف المشاريع الحية.
+          اكتشف المشاريع الحية.
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <Link
@@ -41,7 +41,7 @@ export default function NotFound() {
             الرئيسية
           </Link>
           <Link
-            href="/projects/discover"
+            href="/projects/discover-all"
             style={{
               border: '1px solid #d0d5dd',
               color: '#344054',
@@ -52,7 +52,7 @@ export default function NotFound() {
               textDecoration: 'none',
             }}
           >
-            استكشف المشاريع
+            اكتشف المشاريع
           </Link>
         </div>
       </div>

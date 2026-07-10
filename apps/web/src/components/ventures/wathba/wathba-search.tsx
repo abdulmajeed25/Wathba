@@ -255,8 +255,8 @@ export function WathbaSearch({
               جرّب كلمة أقصر أو أعمّ، أو تصفّح فئة من الفئات أعلاه — وقد يهمّك أيضاً:
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-              <Link href="/projects/discover-all" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none', border: '1px solid rgba(var(--accent-rgb),.35)', padding: '8px 16px', borderRadius: 999 }}>استكشف كل المشاريع</Link>
-              <Link href="/projects/discover" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none', border: '1px solid rgba(var(--accent-rgb),.35)', padding: '8px 16px', borderRadius: 999 }}>تصفّح الفئات</Link>
+              <Link href="/projects/discover-all" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none', border: '1px solid rgba(var(--accent-rgb),.35)', padding: '8px 16px', borderRadius: 999 }}>اكتشف كل المشاريع</Link>
+              <Link href="/projects/discover-all" style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none', border: '1px solid rgba(var(--accent-rgb),.35)', padding: '8px 16px', borderRadius: 999 }}>تصفّح الفئات</Link>
             </div>
           </div>
         )}

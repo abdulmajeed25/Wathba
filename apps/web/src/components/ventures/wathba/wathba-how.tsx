@@ -379,7 +379,7 @@ export function WathbaHow() {
               أطلق مشروعك
             </Link>
             <Link
-              href="/projects/discover"
+              href="/projects/discover-all"
               style={{
                 border: '1px solid rgba(6,18,31,.4)',
                 cursor: 'pointer',
@@ -392,7 +392,7 @@ export function WathbaHow() {
                 textDecoration: 'none',
               }}
             >
-              استكشف المشاريع
+              اكتشف المشاريع
             </Link>
           </div>
         </div>

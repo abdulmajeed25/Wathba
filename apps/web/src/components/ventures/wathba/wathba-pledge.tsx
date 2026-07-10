@@ -848,7 +848,7 @@ export function WathbaPledge({
                   ملفي الشخصي
                 </Link>
                 <Link
-                  href="/projects/discover"
+                  href="/projects/discover-all"
                   style={{
                     cursor: 'pointer',
                     background: 'transparent',
@@ -861,7 +861,7 @@ export function WathbaPledge({
                     textDecoration: 'none',
                   }}
                 >
-                  استكشف المزيد
+                  اكتشف المزيد
                 </Link>
               </div>
               {/* STAKES/S-10 F-04 (I3) — share the pledge at the peak moment. */}

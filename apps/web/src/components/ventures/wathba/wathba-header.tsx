@@ -18,7 +18,9 @@ export interface WathbaHeaderProps {
 }
 
 const NAV_LINKS: Array<{ href: string; label: string }> = [
-  { href: '/projects/discover', label: 'استكشف' },
+// Batch SEARCH Part 1 — ONE discovery entry: «اكتشف» (discover-all, the
+// canonical page). The duplicate «استكشف» was removed; its route
+// permanently redirects (next.config).
   { href: '/projects/how', label: 'كيف تعمل' },
   { href: '/projects/ranks', label: 'رتب الداعمين' },
   { href: '/projects/discover-all', label: 'اكتشف' },
