@@ -20,7 +20,7 @@ export async function generateMetadata({
   const { catSlug } = await params;
   const cat = await getCategoryBySlug(catSlug);
   return {
-    title: cat ? `${cat.nameAr} · استكشف · وثبة` : 'استكشف · وثبة',
+    title: cat ? `${cat.nameAr} · اكتشف · وثبة` : 'اكتشف · وثبة',
     description: cat ? `اكتشف مشاريع ${cat.nameAr} على وثبة` : undefined,
   };
 }

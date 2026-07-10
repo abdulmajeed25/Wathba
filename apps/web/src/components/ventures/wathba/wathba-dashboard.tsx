@@ -32,28 +32,28 @@ const dashTabs = [
 type DashTabId = (typeof dashTabs)[number]['id'];
 
 const dashStats = [
-  { label: 'إجمالي التمويل', value: '$684,200', delta: '+12% هذا الأسبوع', icon: 'trending_up', color: 'var(--accent)' },
+  { label: 'إجمالي التمويل', value: '684,200 ر.س', delta: '+12% هذا الأسبوع', icon: 'trending_up', color: 'var(--accent)' },
   { label: 'الداعمون', value: '2,847', delta: '+184 جديد', icon: 'groups', color: 'var(--blue)' },
   { label: 'نسبة الإنجاز', value: '171%', delta: 'تجاوز الهدف', icon: 'check_circle', color: 'var(--pos)' },
   { label: 'الأيام المتبقية', value: '12', delta: 'تنتهي 28 يناير', icon: 'schedule', color: 'var(--gold)' },
 ];
 
 const chartBars = [
-  { d: 'السبت', h: '38%', v: '$18K' },
-  { d: 'الأحد', h: '52%', v: '$26K' },
-  { d: 'الإثنين', h: '44%', v: '$22K' },
-  { d: 'الثلاثاء', h: '68%', v: '$34K' },
-  { d: 'الأربعاء', h: '58%', v: '$29K' },
-  { d: 'الخميس', h: '85%', v: '$42K' },
-  { d: 'الجمعة', h: '100%', v: '$51K' },
+  { d: 'السبت', h: '38%', v: '18 ألف' },
+  { d: 'الأحد', h: '52%', v: '26 ألف' },
+  { d: 'الإثنين', h: '44%', v: '22 ألف' },
+  { d: 'الثلاثاء', h: '68%', v: '34 ألف' },
+  { d: 'الأربعاء', h: '58%', v: '29 ألف' },
+  { d: 'الخميس', h: '85%', v: '42 ألف' },
+  { d: 'الجمعة', h: '100%', v: '51 ألف' },
 ];
 
 const recentBackersFixture = [
-  { name: 'عبدالله الشمري', tier: 'الباقة المزدوجة', amount: '$149', time: 'قبل ٥ دقائق', rank: 'داعم', rc: 'var(--blue)' },
-  { name: 'نورة ع.', tier: 'الباقة الأساسية', amount: '$79', time: 'قبل ١٨ دقيقة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
-  { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '$399', time: 'قبل ٤٢ دقيقة', rank: 'محسن', rc: 'var(--accent)' },
-  { name: 'ريم خالد', tier: 'داعم مبكر', amount: '$25', time: 'قبل ساعة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
-  { name: 'سلطان ا.', tier: 'الشريك المؤسس', amount: '$2,500', time: 'قبل ٣ ساعات', rank: 'شريك مؤسس', rc: 'var(--purple)' },
+  { name: 'عبدالله الشمري', tier: 'الباقة المزدوجة', amount: '149 ر.س', time: 'قبل ٥ دقائق', rank: 'داعم', rc: 'var(--blue)' },
+  { name: 'نورة ع.', tier: 'الباقة الأساسية', amount: '79 ر.س', time: 'قبل ١٨ دقيقة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
+  { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '399 ر.س', time: 'قبل ٤٢ دقيقة', rank: 'محسن', rc: 'var(--accent)' },
+  { name: 'ريم خالد', tier: 'داعم مبكر', amount: '25 ر.س', time: 'قبل ساعة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
+  { name: 'سلطان ا.', tier: 'الشريك المؤسس', amount: '2,500 ر.س', time: 'قبل ٣ ساعات', rank: 'شريك مؤسس', rc: 'var(--purple)' },
 ];
 
 const updates = [

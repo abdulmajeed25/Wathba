@@ -30,7 +30,7 @@ export function WathbaCampaignHeader({
       {/* ── HEADER STRIP ──────────────────────────────────────────────── */}
       <section style={{ maxWidth: 1320, margin: '0 auto', padding: '24px 26px 0' }}>
         <Link
-          href="/projects/discover"
+          href="/projects/discover-all"
           style={{
             fontSize: 13, color: 'var(--muted)',
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -38,7 +38,7 @@ export function WathbaCampaignHeader({
             marginBottom: 10, padding: '4px 2px', minHeight: 24, textDecoration: 'none',
           }}
         >
-          <Icon name="arrow_forward" size={17} /> استكشف
+          <Icon name="arrow_forward" size={17} /> اكتشف
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>

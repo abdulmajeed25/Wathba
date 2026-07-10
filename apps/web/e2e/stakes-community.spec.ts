@@ -106,13 +106,15 @@ test('L1/L4/J3: typeahead, search filters, similar API', async ({ page, request 
   await box.fill('تقنية');
   await expect(page.getByRole('option').first()).toBeVisible();
 
-  // L4 — the results page carries URL-addressable filter chips.
-  await page.goto('/projects/search?q=مشروع&cat=technology&status=LIVE');
-  const filters = page.getByTestId('search-filters');
-  await expect(filters.getByRole('button', { name: 'التقنية' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(filters.getByRole('button', { name: 'نشط' })).toHaveAttribute('aria-pressed', 'true');
-  await filters.getByRole('button', { name: 'كل الفئات' }).click();
-  await expect(page).toHaveURL((url) => !url.searchParams.has('cat'));
+  // L4 (Batch SEARCH Part 3) — the results page is the UNIFIED discover
+  // surface: ?q= + the advanced sidebar, all URL-encoded and combinable.
+  await page.goto('/projects/search?q=مشروع&cat=technology&status=live');
+  await expect(page.getByTestId('discover-total')).toContainText('نتيجة عن');
+  const aside = page.getByLabel('عوامل التصفية');
+  await expect(aside).toBeVisible();
+  // Toggling the active status filter off drops it from the URL, keeps q.
+  await aside.getByText('نشطة').click();
+  await expect(page).toHaveURL((url) => !url.searchParams.has('status') && url.searchParams.get('q') === 'مشروع');
 
   // J3 — the similar endpoint answers with a card list for the seeded project.
   const { projectId } = seededIds();

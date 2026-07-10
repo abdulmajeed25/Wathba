@@ -49,7 +49,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
             body="ابدأ رحلتك بدعم أول مشروع — كل دعم محجوز فقط ويُخصم عند نجاح الحملة."
             cta={
               <Link
-                href="/projects/discover"
+                href="/projects/discover-all"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -64,7 +64,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                 }}
               >
                 <Icon name="explore" size={16} color="var(--on-accent)" />
-                استكشف المشاريع
+                اكتشف المشاريع
               </Link>
             }
           />

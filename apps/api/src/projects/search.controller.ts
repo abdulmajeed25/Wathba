@@ -1,5 +1,5 @@
 import { Throttle } from '@nestjs/throttler';
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Header, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { SearchService } from './search.service';
@@ -32,8 +32,11 @@ export class SearchController {
   }
 
   @Get('suggest')
-  @Throttle({ default: { ttl: 60_000, limit: 60 } })
-  @ApiOperation({ summary: 'STAKES/L1 — typeahead: projects + creators + categories' })
+  @Throttle({ default: { ttl: 60_000, limit: 120 } })
+  // Batch SEARCH Part 2 — brief shared cache: suggestions tolerate 15s
+  // staleness and the debounced keystroke stream hits this hard.
+  @Header('Cache-Control', 'public, max-age=15')
+  @ApiOperation({ summary: 'Typeahead: projects (thumb + creator + funded%) + creators (+count) + categories' })
   async suggest(@Query('q') q = '') {
     return this.search.suggest(q);
   }

@@ -180,7 +180,7 @@ export function WathbaRanks() {
         {/* CTA strip — design 1170-1172 */}
         <div style={{ textAlign: 'center', marginTop: 40 }}>
           <Link
-            href="/projects/discover"
+            href="/projects/discover-all"
             style={{
               border: 'none',
               cursor: 'pointer',

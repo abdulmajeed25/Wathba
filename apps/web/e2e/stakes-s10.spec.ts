@@ -78,8 +78,8 @@ test('F-03: المحفوظة tab shows LIVE bookmarks, and the empty state when 
   await page.reload();
   await page.getByRole('tab', { name: 'المحفوظة' }).click();
   await expect(page.getByText('لا مشاريع محفوظة بعد')).toBeVisible();
-  // exact: the footer carries a plain "استكشف المشاريع" link too.
-  await expect(page.getByRole('link', { name: 'استكشف المشاريع ←', exact: true })).toBeVisible();
+  // exact: the footer carries a plain "اكتشف المشاريع" link too.
+  await expect(page.getByRole('link', { name: 'اكتشف المشاريع ←', exact: true })).toBeVisible();
 });
 
 test('F-10: sitemap advertises the /p/[slug] canonical and the slug resolves', async ({ page, request }) => {

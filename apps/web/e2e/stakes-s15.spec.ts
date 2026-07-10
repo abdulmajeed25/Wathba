@@ -65,7 +65,7 @@ test('L2/L3: recent searches persist; zero results shows next steps', async ({ p
   await page.waitForURL(/projects\/search/);
   await page.goto('/projects');
   await box.click();
-  await expect(page.getByText('عمليات بحث سابقة')).toBeVisible();
+  await expect(page.getByText('عمليات بحثك الأخيرة')).toBeVisible();
   await expect(page.getByRole('option', { name: /تقنية/ }).first()).toBeVisible();
 });
 

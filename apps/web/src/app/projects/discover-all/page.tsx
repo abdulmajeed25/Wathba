@@ -7,7 +7,7 @@ import { getDiscoverFacets, listDiscoverAll } from '@/lib/api/wathba';
 
 export const metadata: Metadata = {
   title: 'اكتشف · وثبة',
-  description: 'استكشف كل مشاريع وثبة مع تصفية متقدمة حسب الفئة والموقع والهدف ونسبة التمويل.',
+  description: 'اكتشف كل مشاريع وثبة مع تصفية متقدمة حسب الفئة والموقع والهدف ونسبة التمويل.',
 };
 
 const KEYS = ['status', 'includeEnded', 'cat', 'region', 'goalMin', 'goalMax', 'raisedMin', 'raisedMax', 'pct', 'only', 'collection', 'sort'] as const;

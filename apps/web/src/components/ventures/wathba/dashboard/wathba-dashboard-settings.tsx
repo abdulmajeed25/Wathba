@@ -15,7 +15,6 @@ const CATEGORIES: ReadonlyArray<{ value: string; labelAr: string }> = [
   { value: 'TECH', labelAr: 'تقنية' },
   { value: 'DESIGN', labelAr: 'تصميم' },
   { value: 'FILM', labelAr: 'أفلام' },
-  { value: 'MUSIC', labelAr: 'موسيقى' },
   { value: 'FOOD', labelAr: 'طعام' },
   { value: 'GAMES', labelAr: 'ألعاب' },
   { value: 'PUBLISHING', labelAr: 'نشر' },

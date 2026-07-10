@@ -50,9 +50,9 @@ interface LaunchWizardState {
 }
 
 const DEFAULT_TIERS: DraftTier[] = [
-  { id: 'dt0', price: '$25',  title: 'داعم مبكر',     desc: 'شارة + تحديثات حصرية' },
-  { id: 'dt1', price: '$79',  title: 'الباقة الأساسية', desc: 'وحدة + شحن مجاني' },
-  { id: 'dt2', price: '$149', title: 'الباقة المزدوجة', desc: 'وحدتان + إكسسوارات' },
+  { id: 'dt0', price: '25 ر.س',  title: 'داعم مبكر',     desc: 'شارة + تحديثات حصرية' },
+  { id: 'dt1', price: '79 ر.س',  title: 'الباقة الأساسية', desc: 'وحدة + شحن مجاني' },
+  { id: 'dt2', price: '149 ر.س', title: 'الباقة المزدوجة', desc: 'وحدتان + إكسسوارات' },
 ];
 
 const DEFAULT_MILESTONES: DraftMilestone[] = [

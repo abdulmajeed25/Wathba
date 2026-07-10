@@ -26,9 +26,10 @@ export class ProjectsService {
   /**
    * Batch CAT — legacy ProjectCategory enum → the matching top-level Category
    * node id, so every new/edited project also carries the canonical
-   * `categoryId`. MUSIC was removed from the tree; its projects resolve to
-   * Film & Video → Music Videos (amendment). Returns null if the tree is not
-   * seeded (fresh DB) so writes never hard-fail on taxonomy.
+   * `categoryId`. MUSIC is PERMANENTLY excluded (Batch SEARCH BUG-2): the
+   * music-videos subcategory was purged in 0040, so any legacy MUSIC value
+   * resolves to the film-video top-level node. Returns null if the tree is
+   * not seeded (fresh DB) so writes never hard-fail on taxonomy.
    */
   private static readonly LEGACY_SLUG: Record<string, string> = {
     TECH: 'technology', DESIGN: 'design', FILM: 'film-video', MUSIC: 'film-video',
@@ -51,13 +52,6 @@ export class ProjectsService {
       select: { id: true },
     });
     if (!top) return null;
-    if (cat === 'MUSIC') {
-      const mv = await this.prisma.category.findFirst({
-        where: { slug: 'music-videos', parentId: top.id },
-        select: { id: true },
-      });
-      return mv?.id ?? top.id;
-    }
     return top.id;
   }
 

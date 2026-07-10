@@ -132,7 +132,7 @@ export function WathbaDiscoverCategory({
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 26px 60px' }}>
       {/* Breadcrumb */}
       <nav aria-label="مسار التنقل" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted2)', marginBottom: 14 }}>
-        <Link href="/projects/discover" style={{ color: 'inherit', textDecoration: 'none' }}>الفئات</Link>
+        <Link href="/projects/discover-all" style={{ color: 'inherit', textDecoration: 'none' }}>الفئات</Link>
         <Icon name="chevron_left" size={15} color="var(--muted2)" />
         <Link href={base(cat.slug)} style={{ color: sub ? 'inherit' : 'var(--text)', textDecoration: 'none', fontWeight: sub ? 400 : 700 }}>
           {cat.nameAr}

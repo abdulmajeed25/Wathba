@@ -166,7 +166,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               أطلق مشروعك
             </Link>
             <Link
-              href="/projects/discover"
+              href="/projects/discover-all"
               style={{
                 cursor: 'pointer',
                 background: 'transparent',
@@ -183,7 +183,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               }}
             >
               <Icon name="explore" size={21} />
-              استكشف المشاريع
+              اكتشف المشاريع
             </Link>
           </div>
           <div style={{ display: 'flex', gap: 36 }}>
@@ -429,7 +429,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
         >
           <h2 style={{ fontSize: 24, fontWeight: 700 }}>تصفّح حسب الفئة</h2>
           <Link
-            href="/projects/discover"
+            href="/projects/discover-all"
             style={{
               cursor: 'pointer',
               fontSize: 14,

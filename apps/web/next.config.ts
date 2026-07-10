@@ -73,6 +73,17 @@ const config: NextConfig = {
   async headers() {
     return [{ source: '/(.*)', headers: securityHeaders }];
   },
+  // Batch SEARCH Part 1 — CANONICAL DISCOVERY URL: /projects/discover-all is
+  // THE discovery page («اكتشف», mega-menu + advanced filters). The old
+  // «استكشف» category index /projects/discover is retired with a permanent
+  // redirect; per-category landing pages (/projects/discover/[catSlug])
+  // remain as children of the canonical discovery surface (URLs preserved
+  // for SEO).
+  async redirects() {
+    return [
+      { source: '/projects/discover', destination: '/projects/discover-all', permanent: true },
+    ];
+  },
 };
 
 export default config;
