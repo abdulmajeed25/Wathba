@@ -1,0 +1,56 @@
+import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
+import { WathbaCampaignHeader } from '@/components/ventures/wathba/wathba-campaign-header';
+import { WathbaCampaignTabBar } from '@/components/ventures/wathba/wathba-campaign-tabbar';
+import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
+import { getProjectDetail, listVentures } from '@/lib/api/wathba';
+
+/**
+ * TABS — the persistent campaign shell (Kickstarter pattern): the header
+ * (cover/video, title, creator card, funding progress + 80%-gate bar, days
+ * left, backers, ادعم المشروع, ذكّرني, share) and the TAB BAR render here
+ * ONCE; tab navigations only swap the content area below (this layout does
+ * not re-render between child routes).
+ *
+ * Shared header data is fetched here; child routes fetch only their own
+ * slice. The same-URL fetches dedupe within a request and share the ISR
+ * data cache across routes.
+ */
+export default async function CampaignLayout({
+  params,
+  children,
+}: {
+  params: Promise<{ id: string }>;
+  children: React.ReactNode;
+}) {
+  const { id } = await params;
+  const [live, detail] = await Promise.all([
+    listVentures(),
+    // CC-14 — surfaces the PAUSED banner.
+    getProjectDetail(id).catch(() => null),
+  ]);
+  const apiRow = live?.find((v) => v.slug.toLowerCase() === id.toLowerCase());
+  const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
+  const paused = detail?.status === 'PAUSED';
+
+  return (
+    <WathbaShell>
+      {paused && (
+        <div
+          dir="rtl"
+          style={{
+            maxWidth: 1120, margin: '0 auto 4px', padding: '10px 18px', borderRadius: 12,
+            background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.4)',
+            color: '#a96400', fontSize: 13.5, fontWeight: 700, textAlign: 'center',
+          }}
+        >
+          ⏸ هذه الحملة موقوفة مؤقتاً — الدعم الجديد متوقف حالياً.
+        </div>
+      )}
+      <WathbaCampaignHeader id={id} project={liveProject ?? undefined} />
+      <WathbaCampaignTabBar id={id} project={liveProject ?? undefined} />
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '36px 26px 80px' }}>
+        {children}
+      </div>
+    </WathbaShell>
+  );
+}

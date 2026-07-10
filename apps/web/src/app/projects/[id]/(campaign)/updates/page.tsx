@@ -1,16 +1,28 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
+import { isRealProject } from '@/components/ventures/wathba/wathba-campaign-shared';
+import { WathbaTabUpdatesFixture } from '@/components/ventures/wathba/wathba-tab-updates';
+import { campaignTabMetadata, resolveLiveProject } from '@/lib/campaign-tab-meta';
 import { listProjectUpdates } from '@/lib/api/wathba';
 
-export const metadata: Metadata = { title: 'تحديثات الحملة · وثبة' };
+/** TABS — التحديثات tab route (per-tab metadata; shell in layout). */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  return campaignTabMetadata(id, 'التحديثات', 'updates', 'تحديثات المبدع المنشورة على الحملة — الأحدث أولاً.');
+}
+
 export const revalidate = 30;
 
 /**
- * Public updates index for a project (fixes the Part-1 404 — the route only had
- * /updates/[updateId]). Lists published updates newest-first; backer-only bodies
- * are withheld from non-backers by the API.
+ * TABS — updates index: real projects list live published updates newest-
+ * first (backer-only bodies withheld by the API); fixture projects render
+ * the demo list. Each update keeps its /updates/[updateId] permalink, now a
+ * child of the same persistent campaign shell.
  */
 export default async function ProjectUpdatesIndexPage({
   params,
@@ -18,16 +30,16 @@ export default async function ProjectUpdatesIndexPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
+  if (!isRealProject(id)) {
+    const project = await resolveLiveProject(id);
+    return <WathbaTabUpdatesFixture id={id} project={project} />;
+  }
   const updates = (await listProjectUpdates(id))?.items ?? [];
 
   return (
-    <WathbaShell>
-      <div dir="rtl" style={{ maxWidth: 760, margin: '0 auto', padding: '24px 20px' }}>
+      <div dir="rtl" style={{ maxWidth: 760, margin: '0 auto' }}>
         <div style={{ marginBottom: 20 }}>
-          <Link href={`/projects/${id}`} style={{ fontSize: 13, color: 'var(--brand-primary, #05a661)', textDecoration: 'none' }}>
-            ← العودة للحملة
-          </Link>
-          <h1 style={{ fontSize: 26, fontWeight: 800, margin: '8px 0 0' }}>تحديثات الحملة</h1>
+          <h2 style={{ fontSize: 26, fontWeight: 800, margin: '8px 0 0' }}>تحديثات الحملة</h2>
         </div>
 
         {updates.length === 0 ? (
@@ -67,6 +79,5 @@ export default async function ProjectUpdatesIndexPage({
           </div>
         )}
       </div>
-    </WathbaShell>
   );
 }
