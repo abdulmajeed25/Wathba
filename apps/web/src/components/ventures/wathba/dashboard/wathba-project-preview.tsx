@@ -11,7 +11,7 @@ import type { ApiProjectDetail, ApiRewardTier } from '@/lib/api/wathba';
 const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
 
 const CATEGORY_AR: Record<string, string> = {
-  TECH: 'تقنية', DESIGN: 'تصميم', FILM: 'أفلام', MUSIC: 'موسيقى', FOOD: 'طعام',
+  TECH: 'تقنية', DESIGN: 'تصميم', FILM: 'أفلام', FOOD: 'طعام',
   GAMES: 'ألعاب', PUBLISHING: 'نشر', FASHION: 'أزياء', ART: 'فن', SOCIAL: 'اجتماعي',
 };
 

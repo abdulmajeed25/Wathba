@@ -515,7 +515,7 @@ function StepFunding({
               padding: '0 14px',
             }}
           >
-            <span style={{ color: 'var(--accent)', fontWeight: 700 }}>$</span>
+            <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>ر.س</span>
             <input
               aria-label="هدف التمويل"
               value={goalText}
@@ -754,7 +754,7 @@ function StepTiers({
   };
   const addTier = (): void => {
     const id = 'dt-' + Date.now().toString(36);
-    onChange([...tiers, { id, price: '$0', title: 'مستوى جديد', desc: '' }]);
+    onChange([...tiers, { id, price: '0 ر.س', title: 'مستوى جديد', desc: '' }]);
     onEdit(id);
   };
 

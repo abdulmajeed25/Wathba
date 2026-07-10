@@ -7,7 +7,8 @@ import { useQuery } from '@tanstack/react-query';
 import { deriveProject, type WathbaProject, wathbaProjects } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 
-const suggestions = ['تقنية', 'درون', 'لعبة', 'فيلم وثائقي', 'موسيقى', 'حديقة ذكية', 'رواية مصوّرة'];
+// BUG-2 — «موسيقى» removed: Music is permanently excluded.
+const suggestions = ['تقنية', 'درون', 'لعبة', 'فيلم وثائقي', 'حديقة ذكية', 'رواية مصوّرة'];
 
 interface ApiHit {
   id: string;

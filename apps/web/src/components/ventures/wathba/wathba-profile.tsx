@@ -36,7 +36,7 @@ type ProfileTabId = (typeof profileTabs)[number]['id'];
 
 const heroStats = [
   { v: '12', l: 'مشروعاً دعمته' },
-  { v: '$3,840', l: 'إجمالي الدعم' },
+  { v: '3,840 ر.س', l: 'إجمالي الدعم' },
   { v: '1', l: 'مشروع أطلقته' },
 ];
 
@@ -297,7 +297,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
               />
             </div>
             <Num className="num" style={{ fontSize: 12, color: 'var(--muted)' }}>
-              $6,160 تفصلك عن رتبة «شريك مؤسس»
+              6,160 ر.س تفصلك عن رتبة «شريك مؤسس»
             </Num>
           </div>
         </div>

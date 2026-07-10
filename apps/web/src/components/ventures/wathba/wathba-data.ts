@@ -6,6 +6,8 @@
  * surfaces swap to those endpoints; this file remains the fallback fixture.
  */
 
+import { formatSar } from '@/lib/i18n/format';
+
 export interface WathbaProject {
   id: string;
   titleAr: string;
@@ -95,21 +97,8 @@ export const wathbaProjects: WathbaProject[] = [
         'تستثمر وثبة في هذا المشروع بصفتها شريكاً مؤسساً، وتشارك أرباحه لاحقاً بشكلٍ منفصل عن دعم المجتمع. الدعم الذي تقدّمه عبر الحملة لا يختلف عن أي مشروع آخر.',
     },
   },
-  {
-    id: 'p5',
-    titleAr: 'وتر — ألبوم موسيقى عربية حديثة',
-    titleEn: 'Watar',
-    creator: 'فرقة المدى',
-    cat: 'موسيقى',
-    catId: 'music',
-    raised: 38900,
-    goal: 45000,
-    backers: 720,
-    daysLeft: 14,
-    loc: 'بيروت، لبنان',
-    badge: '',
-    desc: 'ألبوم يمزج الآلات العربية الكلاسيكية بإنتاج إلكتروني معاصر.',
-  },
+  // BUG-2 (Batch SEARCH) — the music fixture («وتر») is PERMANENTLY removed:
+  // Music is a cultural exclusion; a policy spec guards against re-adding it.
   {
     id: 'p6',
     titleAr: 'مِداد — رواية مصوّرة',
@@ -171,7 +160,6 @@ export const wathbaCategories: WathbaCategory[] = [
   { id: 'art', ar: 'فنون', en: 'Art', icon: 'palette', count: '٦١٠ مشروع', subs: ['رسم', 'نحت', 'تصوير فوتوغرافي', 'فن رقمي', 'خزف', 'فن الشارع', 'تجهيز فني', 'نسيج'] },
   { id: 'games', ar: 'ألعاب', en: 'Games', icon: 'sports_esports', count: '٤٩٣ مشروع', subs: ['ألعاب طاولة', 'ألعاب فيديو', 'بطاقات', 'أحجية', 'ألعاب أدوار', 'ألعاب جوال', 'أجهزة لعب'] },
   { id: 'film', ar: 'أفلام', en: 'Film', icon: 'movie', count: '٣٨٧ مشروع', subs: ['وثائقي', 'روائي', 'أفلام قصيرة', 'رسوم متحركة', 'خيال علمي', 'كوميديا', 'دراما', 'تجريبي'] },
-  { id: 'music', ar: 'موسيقى', en: 'Music', icon: 'music_note', count: '٤٢١ مشروع', subs: ['عربي', 'إلكتروني', 'روك', 'هيب هوب', 'كلاسيكي', 'جاز', 'بوب', 'عالمي'] },
   { id: 'design', ar: 'تصميم', en: 'Design', icon: 'design_services', count: '٥٥٨ مشروع', subs: ['منتجات', 'جرافيك', 'أثاث', 'أزياء', 'طباعة', 'عمارة', 'تصميم تفاعلي', 'ألعاب أطفال'] },
   { id: 'publishing', ar: 'نشر', en: 'Publishing', icon: 'menu_book', count: '٣٠٢ مشروع', subs: ['روايات', 'قصص مصوّرة', 'كتب أطفال', 'شعر', 'مجلات', 'كتب فنية', 'صحافة', 'مختارات'] },
   { id: 'food', ar: 'طعام', en: 'Food', icon: 'restaurant', count: '٢١٧ مشروع', subs: ['مأكولات', 'مشروبات', 'حلويات', 'مطاعم', 'مزارع', 'كتب طبخ', 'دفعات صغيرة', 'نباتي'] },
@@ -213,11 +201,11 @@ export const wathbaHowSteps = [
 ];
 
 export const wathbaTickerMessages = [
-  '🟢 أحمد دعم «سِرب» بـ $240',
+  '🟢 أحمد دعم «سِرب» بـ 240 ر.س',
   '🚀 «حكايا» وصل 100% من هدفه',
   '🟢 سارة أصبحت سفيرة الآن',
   '✨ مشروع جديد: «بستان» في التصميم',
-  '🟢 خالد دعم «صدى» بـ $85',
+  '🟢 خالد دعم «صدى» بـ 85 ر.س',
 ];
 
 // Sprint 3 / P1-210 — every footer item is a real destination (no orphans).
@@ -286,7 +274,10 @@ export interface DerivedProject extends WathbaProject {
 }
 
 const fmtNum = (n: number) => Math.round(n).toLocaleString('en-US');
-const fmtMoney = (n: number) => '$' + fmtNum(n);
+// BUG-1 (Batch SEARCH) — Wathba is SAR-only. ALL money strings flow through
+// formatSar (src/lib/i18n/format.ts), the single money renderer; a policy
+// spec (e2e/money-policy.spec.ts) fails the gate if a '$' render returns.
+const fmtMoney = (n: number) => formatSar('ar', n);
 
 function trustBandFor(score: number): 'low' | 'moderate' | 'high' | 'exceptional' {
   if (score >= 90) return 'exceptional';
@@ -549,11 +540,11 @@ export const wathbaProjectFaqs = [
 ];
 
 export const wathbaTxTimeline = [
-  { label: 'إطلاق الحملة', amount: '$0', date: '١ يناير', done: true },
-  { label: 'تأمين المصنع', amount: '$120K', date: 'مكتمل', done: true },
-  { label: 'بدء الإنتاج', amount: '$330K', date: 'فبراير', done: true },
-  { label: 'الشحن للداعمين', amount: '$110K', date: 'مارس', done: false },
-  { label: 'الدعم والصيانة', amount: '$80K', date: 'مستمر', done: false },
+  { label: 'إطلاق الحملة', amount: '0 ر.س', date: '١ يناير', done: true },
+  { label: 'تأمين المصنع', amount: '120 ألف ر.س', date: 'مكتمل', done: true },
+  { label: 'بدء الإنتاج', amount: '330 ألف ر.س', date: 'فبراير', done: true },
+  { label: 'الشحن للداعمين', amount: '110 آلاف ر.س', date: 'مارس', done: false },
+  { label: 'الدعم والصيانة', amount: '80 ألف ر.س', date: 'مستمر', done: false },
 ];
 
 export const wathbaSortOptions = [

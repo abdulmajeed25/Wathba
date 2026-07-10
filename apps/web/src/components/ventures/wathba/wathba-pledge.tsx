@@ -1005,7 +1005,7 @@ export function WathbaPledge({
               }}
             >
               <span style={{ color: 'var(--muted)' }}>الشحن</span>
-              <Num style={{ fontWeight: 600 }}>$8</Num>
+              <Num style={{ fontWeight: 600 }}>8 ر.س</Num>
             </div>
             <div
               style={{
