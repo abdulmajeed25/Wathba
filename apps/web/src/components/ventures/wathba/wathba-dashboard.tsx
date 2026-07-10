@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import type { ApiApplicationRow, ApiBackingRow } from '@/lib/api/wathba';
+import { formatSar } from '@/lib/i18n/format';
 
 import { Icon, Num } from './wathba-icons';
 
@@ -83,11 +84,13 @@ function relativeAr(iso: string): string {
 }
 
 function adaptBacking(row: ApiBackingRow): (typeof recentBackersFixture)[number] {
-  const usd = Math.round(Number(row.amount));
+  // BUG-1 (Batch SEARCH) — SAR-only: this row rendered `$…` until the
+  // hardened policy guard caught it.
+  const sar = Math.round(Number(row.amount));
   return {
     name: row.venture?.title ?? row.backerUserId.slice(0, 8),
     tier: row.venture?.slug ?? '—',
-    amount: `$${usd.toLocaleString('en-US')}`,
+    amount: formatSar('ar', sar),
     time: relativeAr(row.committedAt),
     rank: 'داعم',
     rc: 'var(--blue)',

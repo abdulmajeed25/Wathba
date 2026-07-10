@@ -6,13 +6,11 @@ import { useState } from 'react';
 import type { RichRewardTier } from './wathba-rich';
 import { Icon, Num } from './wathba-icons';
 
-/** rough SAR→USD display only (3.75 peg + 0% spread for the demo). */
-const SAR_TO_USD = 1 / 3.75;
 
 /**
  * Reward-tier list — sits in the right column of the campaign tab AND on
  * the standalone Rewards tab. Each card carries: optional Featured flag,
- * title, SAR price + ≈USD conversion, description, "what's included" list,
+ * title, SAR price (SAR-only per BUG-1), description, "what's included" list,
  * optional add-ons, backers, ships-to, est-delivery, limited quantity,
  * "+N المزيد" expander, and a "تعهّد" CTA that bounces to the auth-gated
  * pledge flow via the `next` query param.
@@ -95,7 +93,6 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
   const [expanded, setExpanded] = useState(false);
   const soldOut = t.limit != null && t.claimed >= t.limit;
   const remaining = t.limit != null ? Math.max(0, t.limit - t.claimed) : null;
-  const usd = Math.round(t.priceSar * SAR_TO_USD);
   const allIncludes = [...t.includes, ...(t.addOns ?? [])];
   const visible = expanded ? allIncludes : allIncludes.slice(0, 3);
   const moreCount = allIncludes.length - visible.length;
@@ -146,9 +143,6 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
         <div>
           <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
             {t.priceSar.toLocaleString('en-US')} ر.س
-          </Num>
-          <Num style={{ fontSize: 12, color: 'var(--muted2)', display: 'block', marginTop: 2 }}>
-            ≈ ${usd.toLocaleString('en-US')}
           </Num>
         </div>
         <Num style={{ fontSize: 12, color: 'var(--muted2)' }}>

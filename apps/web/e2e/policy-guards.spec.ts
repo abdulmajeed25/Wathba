@@ -19,8 +19,10 @@ const WEB_SRC = join(__dirname, '..', 'src');
 
 test('BUG-1 guard: no dollar-rendered money in web source (formatSar is exclusive)', () => {
   // $<digit> inside string literals ('.. $25 ..'), or a currency:'USD'.
+  // Arabic-Indic digits ٠-٩ included — the ranks fixture's «$١٬٠٠٠+» slipped
+  // past the first, ASCII-only version of this guard.
   const out = execSync(
-    `grep -rn --include='*.ts' --include='*.tsx' -E "\\\\$[0-9]|currency: ?'USD'|'\\\\$'" ${WEB_SRC} || true`,
+    `grep -rn --include='*.ts' --include='*.tsx' -E "\\\\$[0-9٠-٩]|currency: ?'USD'|'\\\\$'" ${WEB_SRC} || true`,
     { encoding: 'utf8' },
   )
     .split('\n')
@@ -28,6 +30,17 @@ test('BUG-1 guard: no dollar-rendered money in web source (formatSar is exclusiv
     .filter((l) => l && !l.includes('${'))
     .filter((l) => !l.includes('policy-guards'));
   expect(out).toEqual([]);
+
+  // The ${…} exclusion above is exactly where a real dollar RENDER hid:
+  // `≈ ${usd.toLocaleString()}` (wathba-rewards). Catch money-named
+  // interpolations that sit behind a literal $ in JSX text.
+  const interp = execSync(
+    `grep -rn --include='*.tsx' -E "\\\\$\\\\{(usd|dollar|price[A-Z]?[a-z]*Usd)" ${WEB_SRC} || true`,
+    { encoding: 'utf8' },
+  )
+    .split('\n')
+    .filter((l) => l && !l.includes('policy-guards'));
+  expect(interp).toEqual([]);
 });
 
 test('BUG-2 guard: no excluded terms in web fixtures/chips', () => {
