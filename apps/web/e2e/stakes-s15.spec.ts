@@ -69,15 +69,15 @@ test('L2/L3: recent searches persist; zero results shows next steps', async ({ p
   await expect(page.getByRole('option', { name: /تقنية/ }).first()).toBeVisible();
 });
 
-test('TABS: ?tab=comments deep-links into the comments section', async ({ page }) => {
+test('TABS: legacy ?tab=comments and #comments deep-links redirect to the route', async ({ page }) => {
   const { projectId } = seededIds();
+  // TABS — the one-page anchors became real sub-routes; old links redirect.
   await page.goto(`/projects/${projectId}?tab=comments`);
-  const anchor = page.getByText('فقط الداعمون يمكنهم التعليق').first();
-  await expect(anchor).toBeVisible();
-  // The deep-link must have scrolled the comments block into (or near) view.
-  await expect
-    .poll(() => anchor.evaluate((el) => el.getBoundingClientRect().top < window.innerHeight + 150))
-    .toBe(true);
+  await page.waitForURL(`**/projects/${projectId}/comments`);
+  await expect(page.getByText('فقط الداعمون يمكنهم التعليق').first()).toBeVisible();
+
+  await page.goto(`/projects/${projectId}#transparency`);
+  await page.waitForURL(`**/projects/${projectId}/transparency`);
 });
 
 test('A7: activation (not Nafath) sends the welcome-activation email', async ({ page }) => {
