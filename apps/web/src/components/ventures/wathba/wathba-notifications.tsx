@@ -79,7 +79,7 @@ function derive(n: ApiNotification): DerivedLine {
       return {
         title: proj ? `صرف مرحلة جديدة — ${proj}` : 'صرف مرحلة جديدة',
         body: 'اطّلع على الإيصالات في تبويب الشفافية.',
-        href: projectId ? `/projects/${projectId}#transparency` : undefined,
+        href: projectId ? `/projects/${projectId}/transparency` : undefined,
       };
     case 'REFUND_COMPLETED': {
       // STAKES/S-12 F-08 — "your money is back" (amount in the payload).
@@ -102,7 +102,7 @@ function derive(n: ApiNotification): DerivedLine {
       return {
         title: proj ? `تحديث جديد من ${proj}` : 'تحديث جديد',
         body: 'افتح المشروع لقراءة التحديث كاملاً.',
-        href: projectId && updateId ? `/projects/${projectId}/updates/${updateId}` : (projectId ? `/projects/${projectId}#updates` : undefined),
+        href: projectId && updateId ? `/projects/${projectId}/updates/${updateId}` : (projectId ? `/projects/${projectId}/updates` : undefined),
       };
     case 'RANK_UP':
       return {
@@ -124,19 +124,19 @@ function derive(n: ApiNotification): DerivedLine {
       return {
         title: proj ? `جولة جديدة من «علّق واربح» — ${proj}` : 'جولة جديدة من «علّق واربح»',
         body: round ? `الجولة رقم ${round} مفتوحة الآن.` : 'افتح المشروع للمشاركة.',
-        href: projectId ? `/projects/${projectId}#comments` : undefined,
+        href: projectId ? `/projects/${projectId}/comments` : undefined,
       };
     case 'CONTEST_ANNOUNCED':
       return {
         title: proj ? `أُعلنت نتائج «علّق واربح» — ${proj}` : 'أُعلنت نتائج «علّق واربح»',
         body: round ? `اطّلع على فائزي الجولة ${round}.` : 'اطّلع على الفائزين.',
-        href: projectId ? `/projects/${projectId}#comments` : undefined,
+        href: projectId ? `/projects/${projectId}/comments` : undefined,
       };
     case 'FAQ_ANSWERED':
       return {
         title: 'وصل ردّ على سؤالك',
         body: 'اطّلع على الإجابة في صفحة المشروع.',
-        href: projectId ? `/projects/${projectId}#faq` : undefined,
+        href: projectId ? `/projects/${projectId}/faqs` : undefined,
       };
     case 'COMMENT_REPLY': {
       const byName = typeof p.byName === 'string' ? p.byName : null;
@@ -144,7 +144,7 @@ function derive(n: ApiNotification): DerivedLine {
       return {
         title: byName ? `ردّ ${byName} على تعليقك` : 'ردّ جديد على تعليقك',
         body: 'افتح المشروع لقراءة الردّ.',
-        href: projectId && commentId ? `/projects/${projectId}#comments` : undefined,
+        href: projectId && commentId ? `/projects/${projectId}/comments` : undefined,
         ...(byName ? { actor: { name: byName, handle: byHandle } } : {}),
       };
     }

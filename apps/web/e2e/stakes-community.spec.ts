@@ -25,7 +25,8 @@ test('K1: creator composes, edits (معدّل) and deletes a live comment', asyn
   const { projectId } = seededIds();
   // The smoke user OWNS the seeded project — creators can always comment.
   await uiSignIn(page, SMOKE_EMAIL, SMOKE_PASS);
-  await page.goto(`/projects/${projectId}`);
+  // TABS — comments are a real sub-route now.
+  await page.goto(`/projects/${projectId}/comments`);
 
   const stamp = `تعليق إي٢إي ${Date.now()}`;
   const compose = page.getByLabel('أضف تعليقاً');

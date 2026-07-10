@@ -50,17 +50,15 @@ export default async function ProjectUpdatePage({
   if (!update) notFound();
 
   return (
-    <main
+    <div
       dir="rtl"
       style={{
         maxWidth: 760,
         margin: '0 auto',
-        padding: '40px 24px 80px',
-        fontFamily: 'inherit',
       }}
     >
       <Link
-        href={`/projects/${id}#updates`}
+        href={`/projects/${id}/updates`}
         style={{
           fontSize: 13,
           color: 'var(--muted)',
@@ -92,7 +90,7 @@ export default async function ProjectUpdatePage({
         >
           تحديث #{update.orderNum}
         </div>
-        <h1
+        <h2
           style={{
             fontSize: 32,
             fontWeight: 700,
@@ -102,7 +100,7 @@ export default async function ProjectUpdatePage({
           }}
         >
           {update.titleAr}
-        </h1>
+        </h2>
         <div style={{ display: 'flex', gap: 16, fontSize: 13, color: 'var(--muted)' }}>
           <span>{formatDateAr(update.date)}</span>
           <span>♥ {update.likeCount}</span>
@@ -120,6 +118,6 @@ export default async function ProjectUpdatePage({
       >
         {update.bodyAr}
       </article>
-    </main>
+    </div>
   );
 }

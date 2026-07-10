@@ -3,7 +3,9 @@ import { SITE_URL } from '@/lib/site';
 import { notFound } from 'next/navigation';
 
 import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
-import { WathbaCampaign } from '@/components/ventures/wathba/wathba-campaign';
+import { WathbaCampaignHeader } from '@/components/ventures/wathba/wathba-campaign-header';
+import { WathbaCampaignTabBar } from '@/components/ventures/wathba/wathba-campaign-tabbar';
+import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/wathba/wathba-tab-story';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
@@ -108,9 +110,23 @@ export default async function ProjectBySlugPage({
           ⏸ هذه الحملة موقوفة مؤقتاً — الدعم الجديد متوقف حالياً.
         </div>
       )}
-      <WathbaCampaign id={detail.id} project={liveProject ?? undefined} />
-      {/* STAKES/J3 — same-subcategory rail. */}
-      <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
+      {/* TABS — /p/[slug] stays the canonical STORY surface; its tab bar
+          deep-links into the /projects/[id]/<tab> sub-routes (this page is
+          the story tab itself, marked active via storyHref). */}
+      <WathbaCampaignHeader id={detail.id} project={liveProject ?? undefined} />
+      <WathbaCampaignTabBar
+        id={detail.id}
+        project={liveProject ?? undefined}
+        storyHref={`/p/${slug}`}
+      />
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '36px 26px 80px' }}>
+        <WathbaLegacyTabRedirect id={detail.id} />
+        <WathbaTabStory id={detail.id} project={liveProject ?? undefined} />
+        {/* STAKES/J3 — same-subcategory rail. */}
+        <div style={{ marginTop: 48 }}>
+          <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
+        </div>
+      </div>
     </WathbaShell>
   );
 }

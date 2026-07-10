@@ -5,20 +5,16 @@ import {
   adaptApiVenture,
   wathbaProjects,
 } from '@/components/ventures/wathba/wathba-data';
-import { WathbaCampaign } from '@/components/ventures/wathba/wathba-campaign';
+import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/wathba/wathba-tab-story';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
-import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
 
 /**
- * Project / campaign page — full Kickstarter-style surface (rich header +
- * hero video + funding rail + trust band + 8 tabs incl. the 3-col campaign
- * tab with TOC). Public per M1 (middleware no longer gates this path);
- * action buttons inside the page bounce through /sign-in?next=<orig>.
- *
- * Server-rendered for SEO + first-paint speed. The live API lookup falls
- * back to the bundled fixture so anonymous browsing of the demo projects
- * (p1–p8) works even when the DB is empty.
+ * TABS — الحملة (story), the campaign's default tab. The persistent shell
+ * (header + tab bar) lives in the (campaign) layout; this page renders only
+ * the story column (TOC | story + risks | creator/rewards rail), the JSON-LD
+ * and the similar rail. Old #anchor / ?tab= deep-links redirect to their
+ * routes via WathbaLegacyTabRedirect.
  */
 export async function generateMetadata({
   params,
@@ -60,11 +56,11 @@ export async function generateMetadata({
   };
 }
 
-// ISR — re-render every 60s so the funding totals stay fresh without
-// blowing the cache on every request. Per-project page.
+// ISR — re-render every 60s so the story stays fresh without blowing the
+// cache on every request.
 export const revalidate = 60;
 
-export default async function ProjectDetailPage({
+export default async function ProjectStoryPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -72,17 +68,14 @@ export default async function ProjectDetailPage({
   const { id } = await params;
   const [live, detail] = await Promise.all([
     listVentures(),
-    // CC-14 — surfaces the PAUSED banner; S-8 — drives the similar rail.
     getProjectDetail(id).catch(() => null),
   ]);
   const apiRow = live?.find((v) => v.slug.toLowerCase() === id.toLowerCase());
   const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
-  const fallback = wathbaProjects.find((p) => p.id === id);
-  const paused = detail?.status === 'PAUSED';
+  // STAKES/J3 — same-subcategory rail (empty for fixture ids).
   const similar = detail ? await getSimilarProjects(detail.id).catch(() => []) : [];
 
-  // STAKES/N5 — per-campaign structured data. schema.org has no crowdfunding
-  // type; CreativeWork + creator + funding text is the defensible mapping.
+  // STAKES/N5 — per-campaign structured data (CreativeWork + DonateAction).
   const jsonLd = detail
     ? {
         '@context': 'https://schema.org',
@@ -95,44 +88,31 @@ export default async function ProjectDetailPage({
           : {}),
         datePublished: detail.publishedAt ?? undefined,
         inLanguage: 'ar',
-    // STAKES/S-15 (N5) — crowdfunding-appropriate enrichment: the pledge
-    // action + backers count (schema.org has no crowdfunding type; this is
-    // the documented pattern for donation-style campaigns).
-    potentialAction: {
-      '@type': 'DonateAction',
-      target: `${SITE_URL}${detail.slug ? `/p/${detail.slug}` : `/projects/${detail.id}`}`,
-    },
-    interactionStatistic: {
-      '@type': 'InteractionCounter',
-      interactionType: 'https://schema.org/DonateAction',
-      userInteractionCount: detail.backersCount,
-    },
+        potentialAction: {
+          '@type': 'DonateAction',
+          target: `${SITE_URL}${detail.slug ? `/p/${detail.slug}` : `/projects/${detail.id}`}`,
+        },
+        interactionStatistic: {
+          '@type': 'InteractionCounter',
+          interactionType: 'https://schema.org/DonateAction',
+          userInteractionCount: detail.backersCount,
+        },
       }
     : null;
 
   return (
-    <WathbaShell>
+    <div>
       {jsonLd && (
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       )}
-      {paused && (
-        <div
-          dir="rtl"
-          style={{
-            maxWidth: 1120, margin: '0 auto 4px', padding: '10px 18px', borderRadius: 12,
-            background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.4)',
-            color: '#a96400', fontSize: 13.5, fontWeight: 700, textAlign: 'center',
-          }}
-        >
-          ⏸ هذه الحملة موقوفة مؤقتاً — الدعم الجديد متوقف حالياً.
-        </div>
-      )}
-      <WathbaCampaign id={id} project={liveProject ?? fallback ?? undefined} />
-      {/* STAKES/J3 — same-subcategory rail (empty for fixture ids). */}
-      <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
-    </WathbaShell>
+      <WathbaLegacyTabRedirect id={id} />
+      <WathbaTabStory id={id} project={liveProject ?? undefined} />
+      <div style={{ marginTop: 48 }}>
+        <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
+      </div>
+    </div>
   );
 }

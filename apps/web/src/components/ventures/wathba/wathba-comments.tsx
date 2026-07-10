@@ -249,7 +249,7 @@ function dedupeById<T extends { id: string }>(rows: T[]): T[] {
 function EligibilityBanner({ projectId }: { projectId: string }) {
   return (
     <Link
-      href={`/sign-in?next=${encodeURIComponent(`/projects/${projectId}#comments`)}`}
+      href={`/sign-in?next=${encodeURIComponent(`/projects/${projectId}/comments`)}`}
       style={{
         display: 'flex',
         gap: 12,
@@ -661,7 +661,7 @@ function FixtureCommentsList({
 function ComposeBox({ projectId }: { projectId: string }) {
   return (
     <Link
-      href={`/sign-in?next=${encodeURIComponent(`/projects/${projectId}#comments`)}`}
+      href={`/sign-in?next=${encodeURIComponent(`/projects/${projectId}/comments`)}`}
       style={{
         display: 'flex', gap: 12, alignItems: 'center',
         background: 'var(--card)',
