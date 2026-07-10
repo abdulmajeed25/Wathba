@@ -18,6 +18,7 @@ import {
   Check,
   ChevronDown,
   ChevronLeft,
+  ChevronUp,
   Clock,
   Compass,
   CreditCard,
@@ -56,6 +57,7 @@ import {
   ShoppingBag,
   Sparkles,
   Sun,
+  Trash2,
   ThumbsUp,
   TrendingUp,
   UploadCloud,
@@ -96,6 +98,8 @@ const ICON_MAP: Record<string, LucideIconCmp> = {
 
   /* nav / header / search */
   expand_more: ChevronDown,
+  expand_less: ChevronUp,
+  delete: Trash2,
   chevron_left: ChevronLeft,
   arrow_back: ArrowLeft,
   arrow_forward: ArrowRight,

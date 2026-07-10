@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 
 import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
 import { WathbaHome } from '@/components/ventures/wathba/wathba-home';
+import { WathbaHomeMagazine } from '@/components/ventures/wathba/wathba-home-magazine';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { getRecommendedProjects, listVentures } from '@/lib/api/wathba';
+import { getHomePayload, getRecommendedProjects, listVentures } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'وثبة — منصة دعم المشاريع' };
 
@@ -19,10 +20,12 @@ export const metadata: Metadata = { title: 'وثبة — منصة دعم الم�
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectsPage() {
-  const [live, recommended] = await Promise.all([
+  const [live, recommended, home] = await Promise.all([
     listVentures(),
     // STAKES/J4 — signed-in backers get "لأنك دعمت…" (null when anonymous).
     getRecommendedProjects().catch(() => null),
+    // Batch HOME — the admin-composed magazine sections below the fold.
+    getHomePayload().catch(() => null),
   ]);
   const projects = live
     ? live.map(adaptApiVenture).filter((p): p is NonNullable<typeof p> => p !== null)
@@ -37,6 +40,7 @@ export default async function ProjectsPage() {
         />
       )}
       <WathbaHome projects={projects && projects.length > 0 ? projects : undefined} />
+      {home && <WathbaHomeMagazine payload={home} />}
     </WathbaShell>
   );
 }

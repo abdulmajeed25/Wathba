@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { WathbaAdminHome } from './wathba-admin-home';
 import { Icon, Num } from './wathba-icons';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 import type { ApiKycRow, ApiModerationQueue, ApiProjectDetail } from '@/lib/api/wathba';
@@ -20,13 +21,15 @@ import type { ApiKycRow, ApiModerationQueue, ApiProjectDetail } from '@/lib/api/
  * cookie is exchanged for a server-side Authorization header (the API layer
  * enforces JwtAuthGuard + RolesGuard with @Roles('ADMIN')).
  */
-type TabId = 'review' | 'kyc' | 'partners' | 'moderation';
+type TabId = 'review' | 'kyc' | 'partners' | 'moderation' | 'home';
 
 const TABS: Array<{ id: TabId; label: string; icon: string }> = [
   { id: 'review',   label: 'المراجعة',   icon: 'inbox' },
   { id: 'kyc',      label: 'التحقق من الهويات', icon: 'shield' },
   { id: 'partners', label: 'الشراكات',   icon: 'verified' },
   { id: 'moderation', label: 'البلاغات', icon: 'flag' },
+  // Batch HOME — sections + editorial cards.
+  { id: 'home', label: 'إدارة الرئيسية', icon: 'campaign' },
 ];
 
 export function WathbaAdmin({
@@ -113,6 +116,10 @@ export function WathbaAdmin({
 
           <WathbaTabsContent value="moderation">
             <ModerationPanel moderation={moderation} />
+          </WathbaTabsContent>
+
+          <WathbaTabsContent value="home">
+            {tab === 'home' && <WathbaAdminHome />}
           </WathbaTabsContent>
         </section>
       </WathbaTabs>
