@@ -1172,3 +1172,78 @@ export async function listDiscover(params: DiscoverParams): Promise<ApiDiscoverR
   const q = qs.toString();
   return fetchJson<ApiDiscoverResult>(`/v1/projects${q ? `?${q}` : ''}`, 60);
 }
+
+/* ---------- Batch HOME — the magazine homepage ----------------------------- */
+
+export interface ApiEditorialCard {
+  id: string;
+  kind: string;
+  slug: string | null;
+  titleAr: string;
+  bodyAr: string;
+  bodyLongAr: string | null;
+  imageUrl: string | null;
+  linkUrl: string | null;
+  linkLabelAr: string | null;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface ApiHomeProjectCard {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  slug: string | null;
+  status: string;
+  fundedPct: number;
+  backersCount: number;
+  deadline: string;
+  imageUrl: string | null;
+  isStaffPick: boolean;
+}
+
+export interface ApiHomePayload {
+  sections: Array<{ key: string; sortOrder: number }>;
+  heroBanners: ApiEditorialCard[];
+  announcements: ApiEditorialCard[];
+  programBanner: ApiEditorialCard | null;
+  featured: ApiHomeProjectCard | null;
+  trending: ApiHomeProjectCard[];
+  showcase: { slug: string; nameAr: string; featured: ApiHomeProjectCard; grid: ApiHomeProjectCard[] } | null;
+  homeStretch: ApiHomeProjectCard[];
+  successStories: ApiEditorialCard[];
+  creatorInterviews: ApiEditorialCard[];
+  freshFavorites: ApiHomeProjectCard[];
+  resources: ApiEditorialCard[];
+  tips: ApiEditorialCard[];
+  trustGuides: ApiEditorialCard[];
+}
+
+/** ISR 60 — project numbers stay fresh without hammering the API. */
+export async function getHomePayload(): Promise<ApiHomePayload | null> {
+  // Tagged so the admin BFF mutations can revalidateTag('wathba-home') and
+  // section toggles / card edits appear immediately instead of after the
+  // 60s window.
+  try {
+    const res = await fetch(`${API_BASE}/v1/home`, {
+      next: { revalidate: 60, tags: ['wathba-home'] },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ApiHomePayload;
+  } catch {
+    return null;
+  }
+}
+
+/** Editorial article by slug (same tag — admin edits bust it too). */
+export async function getStory(slug: string): Promise<ApiEditorialCard | null> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/stories/${encodeURIComponent(slug)}`, {
+      next: { revalidate: 300, tags: ['wathba-home'] },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ApiEditorialCard;
+  } catch {
+    return null;
+  }
+}

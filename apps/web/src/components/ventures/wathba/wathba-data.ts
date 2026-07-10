@@ -255,6 +255,8 @@ export const wathbaFooterCols: Array<{
       { label: 'سياسة الخصوصية (PDPL)', href: '/projects/legal/privacy' },
       { label: 'سياسة الاسترداد', href: '/projects/legal/refund-policy' },
       { label: 'عقود الدعم', href: '/projects/legal/contracts' },
+      // Batch HOME (S12) — the scam-protection guide, footer-linked per spec.
+      { label: 'احمِ حملتك من الاحتيال', href: '/stories/protect-your-campaign' },
       { label: 'تواصل معنا', href: '/projects/help' },
     ],
   },

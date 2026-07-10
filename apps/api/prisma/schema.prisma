@@ -1192,3 +1192,31 @@ model SupportTicket {
 
   @@index([createdAt])
 }
+
+/// Batch HOME — editorial content powering the magazine homepage. kind:
+/// HERO_BANNER|ANNOUNCEMENT|SUCCESS_STORY|CREATOR_INTERVIEW|RESOURCE|TIP|
+/// TRUST_GUIDE (DTO-validated). slug set ⇒ the card has an article page at
+/// /stories/[slug] rendering bodyLongAr.
+model EditorialCard {
+  id          String    @id @default(uuid()) @db.Uuid
+  kind        String
+  slug        String?   @unique
+  titleAr     String
+  bodyAr      String    @db.Text
+  bodyLongAr  String?   @db.Text
+  imageUrl    String?
+  linkUrl     String?
+  linkLabelAr String?
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  publishedAt DateTime  @default(now())
+
+  @@index([kind, isActive, sortOrder])
+}
+
+/// Batch HOME — admin toggles/reorders homepage sections without deploys.
+model HomepageSection {
+  key       String  @id
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+}

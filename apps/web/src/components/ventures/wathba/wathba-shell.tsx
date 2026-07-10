@@ -72,6 +72,23 @@ export function WathbaShell({
               [data-pillar="ventures"] main *{color:#000!important;background:transparent!important;box-shadow:none!important}
               [data-pillar="ventures"] main a[href^="http"]:after{content:" (" attr(href) ")";font-size:10px}
             }
+            /* Batch HOME — magazine utilities. .lift is the dc.html hover
+               affordance (referenced across the port but never defined);
+               the carousel track hides its scrollbar but stays swipeable;
+               duo/row grids stack via CSS (no JS re-layout → zero CLS). */
+            [data-pillar="ventures"] .lift{transition:transform .18s ease,box-shadow .18s ease}
+            [data-pillar="ventures"] .lift:hover{transform:translateY(-3px);box-shadow:var(--card-shadow-h)}
+            @media (prefers-reduced-motion:reduce){
+              [data-pillar="ventures"] .lift,[data-pillar="ventures"] .lift:hover{transition:none;transform:none}
+            }
+            [data-pillar="ventures"] .wathba-carousel-track::-webkit-scrollbar{display:none}
+            @media (max-width:880px){
+              [data-pillar="ventures"] .wathba-mag-duo{grid-template-columns:1fr!important}
+              [data-pillar="ventures"] .wathba-mag-row{grid-template-columns:1fr 1fr!important}
+            }
+            @media (max-width:540px){
+              [data-pillar="ventures"] .wathba-mag-row{grid-template-columns:1fr!important}
+            }
             @media (max-width:760px){
               [data-pillar="ventures"] .wathba-hero-band{grid-template-columns:1fr!important}
               [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:1fr!important;gap:26px!important;padding-top:34px!important}
