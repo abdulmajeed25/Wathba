@@ -1093,7 +1093,7 @@ function StepReview({
     { label: 'الفئة', value: categoryLabel, accent: false },
     {
       label: 'الهدف',
-      value: '$' + goalNum.toLocaleString('en-US'),
+      value: goalNum.toLocaleString('en-US') + ' ر.س',
       accent: true,
     },
     { label: 'المدة', value: `${durationNum.toLocaleString('en-US')} يوم`, accent: false },

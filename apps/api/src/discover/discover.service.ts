@@ -27,6 +27,8 @@ const MONEY_BRACKETS: Array<{ key: string; minH: number | null; maxH: number | n
 const PCT_BUCKETS = ['lt25', 'p25_50', 'p50_75', 'p75_100', 'gt100'];
 
 interface NormalizedFilters {
+  /** Batch SEARCH Part 3 — free-text query (unified search/discover layer). */
+  q?: string;
   statuses: string[];
   includeEnded: boolean;
   categoryIds: string[];
@@ -114,6 +116,7 @@ export class DiscoverService {
     const only = csv(q.only);
     const recommended = only.includes('recommended');
     return {
+      q: (q.q ?? '').trim() || undefined,
       statuses: csv(q.status).filter((s) => s === 'live' || s === 'funded'),
       includeEnded: q.includeEnded === '1' || q.includeEnded === 'true',
       categoryIds: await this.expandCategorySlugs(csv(q.cat)),
@@ -184,6 +187,15 @@ export class DiscoverService {
     if (f.collectionId) {
       c.collection = Prisma.sql`EXISTS (SELECT 1 FROM "ProjectCollection" pc WHERE pc."projectId" = p.id AND pc."collectionId" = ${f.collectionId}::uuid)`;
     }
+    if (f.q) {
+      // Same FTS + trigram predicate as /v1/search (N2 indexes) — the search
+      // page and discover-all share this one query layer; ?q= is just one
+      // more combinable dimension.
+      c.q = Prisma.sql`(
+        p."searchVector" @@ websearch_to_tsquery('simple', wathba_strip_arabic_diacritics(${f.q}))
+        OR similarity(wathba_strip_arabic_diacritics(p."titleAr"), wathba_strip_arabic_diacritics(${f.q})) > 0.25
+      )`;
+    }
     return c;
   }
 
@@ -217,7 +229,7 @@ export class DiscoverService {
 
   private readonly VELOCITY = Prisma.sql`(SELECT count(*) FROM "Pledge" pl WHERE pl."projectId" = p.id AND pl."createdAt" >= now() - interval '72 hours' AND pl.status IN ('HELD','CAPTURED'))`;
 
-  private orderClause(sort: string, region?: string): Prisma.Sql {
+  private orderClause(sort: string, region?: string, q?: string): Prisma.Sql {
     switch (sort) {
       case 'popular':
         return Prisma.sql`ORDER BY ${this.VELOCITY} DESC, p."backersCount" DESC, p.id DESC`;
@@ -235,7 +247,11 @@ export class DiscoverService {
           : Prisma.sql`ORDER BY p."publishedAt" DESC NULLS LAST, p.id DESC`;
       case 'relevance':
       default:
-        // Blend: staff-pick boost → 72h pledge velocity → recency → id.
+        // With a text query, textual rank leads; the staff/velocity blend
+        // breaks ties. Without one: staff-pick boost → velocity → recency.
+        if (q) {
+          return Prisma.sql`ORDER BY ts_rank(p."searchVector", websearch_to_tsquery('simple', wathba_strip_arabic_diacritics(${q}))) DESC, p."isStaffPick" DESC, ${this.VELOCITY} DESC, p.id DESC`;
+        }
         return Prisma.sql`ORDER BY p."isStaffPick" DESC, ${this.VELOCITY} DESC, p."publishedAt" DESC NULLS LAST, p.id DESC`;
     }
   }
@@ -251,7 +267,7 @@ export class DiscoverService {
     const f = await this.normalize(q, viewerId);
     const c = this.conditions(f);
     const where = this.whereClause(c);
-    const order = this.orderClause(f.sort, f.region);
+    const order = this.orderClause(f.sort, f.region, f.q);
     const offset = f.page * f.take;
 
     const savedSel = f.viewerId

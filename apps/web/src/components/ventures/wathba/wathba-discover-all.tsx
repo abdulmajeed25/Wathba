@@ -9,6 +9,7 @@ import { WathbaDiscoverAllCard } from './wathba-discover-all-card';
 import {
   MONEY_BRACKETS, PCT_OPTS, QUICK_REGIONS, REGIONS, SORTS, arabicCount, toArabicDigits,
 } from './discover-all-constants';
+import { SEARCH_CHIPS } from './wathba-search-chips';
 
 /**
  * Batch DISC — the advanced discover page (/projects/discover-all). RTL: filter
@@ -24,11 +25,15 @@ export function WathbaDiscoverAll({
   facets,
   sp,
   signedIn,
+  q,
 }: {
   initial: ApiDiscoverAllResult;
   facets: ApiDiscoverFacets | null;
   sp: SP;
   signedIn: boolean;
+  /** Batch SEARCH Part 3 — set on /projects/search: ?q= is one more
+   *  combinable predicate over the SAME component + query layer. */
+  q?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -120,7 +125,7 @@ export function WathbaDiscoverAll({
           {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: 22, fontWeight: 800 }} data-testid="discover-total">
-              {arabicCount(total)} مشروعاً
+              {q ? <>{arabicCount(total)} نتيجة عن «{q}»</> : <>{arabicCount(total)} مشروعاً</>}
             </h1>
             <label style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
               ترتيب حسب
@@ -147,10 +152,30 @@ export function WathbaDiscoverAll({
           </div>
 
           {items.length === 0 ? (
-            <div style={emptyBox}>
+            <div style={emptyBox} data-testid="zero-results">
               <Icon name="explore" size={26} color="var(--muted2)" />
-              <div style={{ marginTop: 10, fontWeight: 600 }}>لا توجد مشاريع مطابقة لعوامل التصفية.</div>
-              <button type="button" onClick={() => router.push(pathname, { scroll: false })} style={resetBtn}>
+              <div style={{ marginTop: 10, fontWeight: 600 }}>
+                {q ? `لا نتائج عن «${q}» — جرّب فئة أخرى.` : 'لا توجد مشاريع مطابقة لعوامل التصفية.'}
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 12 }}>
+                {SEARCH_CHIPS.map((chip) => (
+                  <a
+                    key={chip}
+                    href={`/projects/search?q=${encodeURIComponent(chip)}`}
+                    style={{
+                      fontSize: 12.5, fontWeight: 600, color: 'var(--text)', textDecoration: 'none',
+                      border: '1px solid rgba(var(--ink-rgb),.14)', padding: '6px 13px', borderRadius: 999,
+                    }}
+                  >
+                    {chip}
+                  </a>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => router.push(q ? `${pathname}?q=${encodeURIComponent(q)}` : pathname, { scroll: false })}
+                style={resetBtn}
+              >
                 مسح كل عوامل التصفية
               </button>
             </div>

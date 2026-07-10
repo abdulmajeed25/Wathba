@@ -275,8 +275,8 @@ export interface DerivedProject extends WathbaProject {
 
 const fmtNum = (n: number) => Math.round(n).toLocaleString('en-US');
 // BUG-1 (Batch SEARCH) — Wathba is SAR-only. ALL money strings flow through
-// formatSar (src/lib/i18n/format.ts), the single money renderer; a policy
-// spec (e2e/money-policy.spec.ts) fails the gate if a '$' render returns.
+// formatSar (src/lib/i18n/format.ts), the single money renderer; the
+// policy spec (e2e/policy-guards.spec.ts) fails the gate on any dollar render.
 const fmtMoney = (n: number) => formatSar('ar', n);
 
 function trustBandFor(score: number): 'low' | 'moderate' | 'high' | 'exceptional' {

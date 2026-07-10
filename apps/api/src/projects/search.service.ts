@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface SearchHit {
   id: string;
+  slug: string | null;
   titleAr: string;
   shortDescAr: string;
   category: string;
@@ -24,6 +25,10 @@ export interface SearchHit {
   fundingGoalHalalas: number;
   daysLeft: number;
   status: string;
+  // Batch SEARCH Part 2 — image-rich suggestion rows.
+  imageUrl: string | null;
+  creatorName: string | null;
+  fundedPct: number;
 }
 
 @Injectable()
@@ -58,6 +63,7 @@ export class SearchService {
     // a relevance score; we order by it descending. Limit defaults to 20.
     const rows: Array<{
       id: string;
+      slug: string | null;
       titleAr: string;
       shortDescAr: string;
       category: string;
@@ -65,9 +71,12 @@ export class SearchService {
       fundingGoalHalalas: bigint;
       deadline: Date;
       status: string;
+      imageUrl: string | null;
+      creatorName: string | null;
     }> = await this.prisma.$queryRaw`
       SELECT
         p."id",
+        p."slug",
         p."titleAr",
         p."shortDescAr",
         p."category"::text AS category,
@@ -75,11 +84,14 @@ export class SearchService {
         p."fundingGoalHalalas",
         p."deadline",
         p."status"::text AS status,
+        p."mediaUrls"[1] AS "imageUrl",
+        u."name" AS "creatorName",
         ts_rank(
           p."searchVector",
           websearch_to_tsquery('simple', wathba_strip_arabic_diacritics(${cleaned}))
         ) AS rank
       FROM "Project" p
+      LEFT JOIN "User" u ON u."id" = p."createdById"
       WHERE
         p."status" IN ('LIVE', 'SUCCESSFUL', 'FUNDED')
         AND (
@@ -99,6 +111,7 @@ export class SearchService {
     const now = Date.now();
     return rows.map((r) => ({
       id: r.id,
+      slug: r.slug,
       titleAr: r.titleAr,
       shortDescAr: r.shortDescAr,
       category: r.category,
@@ -109,6 +122,12 @@ export class SearchService {
         Math.ceil((r.deadline.getTime() - now) / 86_400_000),
       ),
       status: r.status,
+      imageUrl: r.imageUrl,
+      creatorName: r.creatorName,
+      fundedPct:
+        r.fundingGoalHalalas > 0n
+          ? Number((r.raisedHalalas * 100n) / r.fundingGoalHalalas)
+          : 0,
     }));
   }
 
@@ -118,7 +137,7 @@ export class SearchService {
    */
   async suggest(q: string): Promise<{
     projects: SearchHit[];
-    creators: Array<{ id: string; name: string; handle: string | null; avatarUrl: string | null }>;
+    creators: Array<{ id: string; name: string; handle: string | null; avatarUrl: string | null; projectsCount: number }>;
     categories: Array<{ slug: string; nameAr: string; parentSlug: string | null }>;
   }> {
     const cleaned = q.trim();
@@ -135,7 +154,10 @@ export class SearchService {
             { handle: { contains: cleaned.toLowerCase() } },
           ],
         },
-        select: { id: true, name: true, handle: true, avatarUrl: true },
+        select: {
+          id: true, name: true, handle: true, avatarUrl: true,
+          _count: { select: { projects: { where: { publishedAt: { not: null } } } } },
+        },
         take: 3,
       }),
       this.prisma.category.findMany({
@@ -152,7 +174,10 @@ export class SearchService {
 
     return {
       projects,
-      creators,
+      creators: creators.map((u) => ({
+        id: u.id, name: u.name, handle: u.handle, avatarUrl: u.avatarUrl,
+        projectsCount: u._count.projects,
+      })),
       categories: categories.map((c) => ({
         slug: c.slug,
         nameAr: c.nameAr,

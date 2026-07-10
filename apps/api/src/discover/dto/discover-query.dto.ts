@@ -8,6 +8,10 @@ import { ApiProperty } from '@nestjs/swagger';
  * (`?status=live,funded&cat=technology,games`); the service parses + validates.
  */
 export class DiscoverQueryDto {
+  /** Batch SEARCH Part 3 — free-text query (the unified search page). */
+  @ApiProperty({ required: false, example: 'درون' })
+  @IsOptional() @IsString() q?: string;
+
   /** CSV of statuses: `live`, `funded`. */
   @ApiProperty({ required: false, example: 'live,funded' })
   @IsOptional() @IsString() status?: string;

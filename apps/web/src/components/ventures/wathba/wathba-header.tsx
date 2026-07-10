@@ -8,7 +8,7 @@ import { Icon, Num } from './wathba-icons';
 import type { WathbaTheme } from './wathba-tokens';
 import { WathbaNotificationBell } from './wathba-notification-bell';
 import { WathbaCategoryNav } from './wathba-category-nav';
-import { WathbaHeaderSearch } from './wathba-header-search';
+import { WathbaHeaderSearch, WathbaMobileSearchButton } from './wathba-header-search';
 import { WathbaDiscoverMenu } from './wathba-discover-menu';
 import { WathbaAccountMenu } from './wathba-account-menu';
 
@@ -154,9 +154,9 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
         <WathbaHeaderSearch />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginInlineStart: 'auto' }}>
-          <Link href="/projects/search" aria-label="بحث" className="wathba-mob-only" style={iconBtn}>
-            <Icon name="search" size={20} color="var(--muted)" />
-          </Link>
+          {/* Batch SEARCH Part 2 — mobile: full-screen search sheet (was a
+              bare link to the results page). */}
+          <WathbaMobileSearchButton style={iconBtn} />
           {/* STAKES/S-11 F-14 (D6) — desk-only: with bell + avatar + hamburger,
               a 6th 42px control overflowed the signed-in header at 360px (the
               anonymous-header overflow audit never saw it). Mobile gets the
