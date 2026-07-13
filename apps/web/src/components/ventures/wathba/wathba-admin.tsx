@@ -294,7 +294,14 @@ function KycRow({ user }: { user: ApiKycRow }): React.ReactElement {
   const verify = (): void => {
     setError(null);
     startTransition(async () => {
-      const r = await fetch(`/api/admin/users/${user.id}/force-verify`, { method: 'POST' });
+      // OPS Part 0 — SENSITIVE operation: a written reason is mandatory.
+      // Free-text entry arrives with the Part-5 ops screen; this action's
+      // reason class is fixed and descriptive.
+      const r = await fetch(`/api/admin/users/${user.id}/force-verify`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reason: 'توثيق نفاذ يدوي بعد تعذر التحقق الآلي — قرار مشرف من طابور KYC' }),
+      });
       if (!r.ok) {
         setError('فشل التحقّق');
         return;

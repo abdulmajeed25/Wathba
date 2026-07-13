@@ -7,15 +7,18 @@ const SESSION_COOKIE = 'wathba_session';
 
 /** Browser proxy for `POST /v1/admin/users/:id/force-verify`. */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return NextResponse.json({ message: 'auth required' }, { status: 401 });
+  // OPS Part 0 — SENSITIVE tier: the written reason travels with the call.
+  const body = await req.text();
   const r = await fetch(`${API_BASE}/v1/admin/users/${id}/force-verify`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    ...(body ? { body } : {}),
   });
   const text = await r.text();
   return new NextResponse(text || '{}', {

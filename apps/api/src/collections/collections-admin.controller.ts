@@ -1,14 +1,16 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Ip, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
-import { AuditService } from '../identity/audit.service';
 import { CollectionsService } from './collections.service';
+import { OperationsRegistry } from '../ops/operations.registry';
+import type { OperationContext } from '../ops/operation.types';
 import { AssignProjectDto, CreateCollectionDto, UpdateCollectionDto } from './dto/collection.dto';
 
-/** Batch DISC — ADMIN CRUD for حملات وثبة collections (all audited). */
+/** Batch DISC admin CRUD — OPS Part 0: every mutation is a registry
+ *  operation (CONTENT tier, audited in-transaction). Reads stay here. */
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -17,8 +19,12 @@ import { AssignProjectDto, CreateCollectionDto, UpdateCollectionDto } from './dt
 export class CollectionsAdminController {
   constructor(
     private readonly collections: CollectionsService,
-    private readonly audit: AuditService,
+    private readonly registry: OperationsRegistry,
   ) {}
+
+  private ctx(jwt: JwtPayload, ip: string): OperationContext {
+    return { actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] }, ip };
+  }
 
   @Get()
   @ApiOperation({ summary: 'All collections (incl. inactive) with project counts' })
@@ -27,33 +33,49 @@ export class CollectionsAdminController {
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a collection' })
-  async create(@CurrentUser() jwt: JwtPayload, @Body() dto: CreateCollectionDto) {
-    const c = await this.collections.create(dto);
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.collection.create', entity: 'Collection', entityId: c.id, detail: { slug: c.slug } });
-    return c;
+  @ApiOperation({ summary: 'Create a collection (registry-governed)' })
+  async create(@CurrentUser() jwt: JwtPayload, @Body() dto: CreateCollectionDto, @Ip() ip: string) {
+    const out = await this.registry.execute('content.collections.create', dto, this.ctx(jwt, ip));
+    return out.result;
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a collection (activate, show-in-menu, copy)' })
-  async update(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: UpdateCollectionDto) {
-    const c = await this.collections.update(id, dto);
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.collection.update', entity: 'Collection', entityId: id, detail: dto as Record<string, unknown> });
-    return c;
+  async update(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateCollectionDto,
+    @Ip() ip: string,
+  ) {
+    const out = await this.registry.execute(
+      'content.collections.update',
+      { id, ...dto },
+      this.ctx(jwt, ip),
+    );
+    return out.result;
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a collection' })
-  async remove(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.collection.delete', entity: 'Collection', entityId: id });
-    return this.collections.remove(id);
+  async remove(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string, @Ip() ip: string) {
+    const out = await this.registry.execute('content.collections.delete', { id }, this.ctx(jwt, ip));
+    return out.result;
   }
 
   @Post(':id/projects')
   @ApiOperation({ summary: 'Assign a project to a collection' })
-  async assign(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string, @Body() dto: AssignProjectDto) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.collection.assign', entity: 'Collection', entityId: id, detail: { projectId: dto.projectId } });
-    return this.collections.assign(id, dto.projectId);
+  async assign(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: AssignProjectDto,
+    @Ip() ip: string,
+  ) {
+    const out = await this.registry.execute(
+      'content.collections.assign',
+      { collectionId: id, projectId: dto.projectId },
+      this.ctx(jwt, ip),
+    );
+    return out.result;
   }
 
   @Delete(':id/projects/:projectId')
@@ -62,8 +84,13 @@ export class CollectionsAdminController {
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
+    @Ip() ip: string,
   ) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.collection.unassign', entity: 'Collection', entityId: id, detail: { projectId } });
-    return this.collections.unassign(id, projectId);
+    const out = await this.registry.execute(
+      'content.collections.unassign',
+      { collectionId: id, projectId },
+      this.ctx(jwt, ip),
+    );
+    return out.result;
   }
 }

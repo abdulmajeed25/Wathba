@@ -100,7 +100,7 @@ test('Part 1: cancel before the lock works + counters drop; inside the lock → 
   await fetch(`${API}/v1/admin/projects/${projectId}/deadline-override`, {
     method: 'POST',
     headers: admin,
-    body: JSON.stringify({ deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString() }),
+    body: JSON.stringify({ deadline: new Date(Date.now() + 24 * 3600 * 1000).toISOString(), reason: 'اختبار آلي: تقليص المدة لإغلاق نافذة الإلغاء' }),
   });
   const lockedRes = await fetch(`${API}/v1/pledges/${p2.id}/cancel`, { method: 'POST', headers: b });
   expect(lockedRes.status).toBe(403);
@@ -142,9 +142,9 @@ test('Part 0/2/4: deadline with ≥80% captures; BNPL completes via webhook; rea
   await fetch(`${API}/v1/admin/projects/${projectId}/deadline-override`, {
     method: 'POST',
     headers: admin,
-    body: JSON.stringify({ deadline: new Date(Date.now() - 60_000).toISOString() }),
+    body: JSON.stringify({ deadline: new Date(Date.now() - 60_000).toISOString(), reason: 'اختبار آلي: مقعد تسوية — تقديم الموعد للماضي' }),
   });
-  const settle = await fetch(`${API}/v1/admin/projects/${projectId}/settle`, { method: 'POST', headers: admin });
+  const settle = await fetch(`${API}/v1/admin/projects/${projectId}/settle`, { method: 'POST', headers: { ...admin, 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'اختبار آلي: تشغيل التسوية بعد الموعد' }) });
   expect(settle.ok).toBe(true);
 
   const settled = await projectState(projectId);
@@ -182,9 +182,9 @@ test('Part 0 failure path: below 80% at deadline → authorizations VOIDED, neve
   await fetch(`${API}/v1/admin/projects/${projectId}/deadline-override`, {
     method: 'POST',
     headers: admin,
-    body: JSON.stringify({ deadline: new Date(Date.now() - 60_000).toISOString() }),
+    body: JSON.stringify({ deadline: new Date(Date.now() - 60_000).toISOString(), reason: 'اختبار آلي: مقعد تسوية — تقديم الموعد للماضي' }),
   });
-  await fetch(`${API}/v1/admin/projects/${projectId}/settle`, { method: 'POST', headers: admin });
+  await fetch(`${API}/v1/admin/projects/${projectId}/settle`, { method: 'POST', headers: { ...admin, 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'اختبار آلي: تشغيل التسوية بعد الموعد' }) });
 
   const state = await projectState(projectId);
   expect(state.status).toBe('REFUNDED');
