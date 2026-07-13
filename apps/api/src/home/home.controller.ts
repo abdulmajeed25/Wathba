@@ -1,14 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Ip, NotFoundException, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
 import { HomeService } from './home.service';
-import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
-import { AuditService } from '../identity/audit.service';
 import type { JwtPayload } from '../identity/auth.service';
+import { OperationsRegistry } from '../ops/operations.registry';
+import type { OperationContext } from '../ops/operation.types';
 
 const KINDS = ['HERO_BANNER', 'ANNOUNCEMENT', 'SUCCESS_STORY', 'CREATOR_INTERVIEW', 'RESOURCE', 'TIP', 'TRUST_GUIDE'];
 
@@ -51,7 +51,9 @@ export class HomeController {
   }
 }
 
-/** Batch HOME — ADMIN surface (CREATOR-NO-MONEY untouched; all AuditLogged). */
+/** Batch HOME — ADMIN surface. OPS Part 0: every mutation is a registry
+ *  operation (CONTENT tier, audited in-transaction); reads live on
+ *  HomeService so this controller never touches Prisma. */
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -59,26 +61,25 @@ export class HomeController {
 @Controller('admin')
 export class HomeAdminController {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditService,
+    private readonly home: HomeService,
+    private readonly registry: OperationsRegistry,
   ) {}
+
+  private ctx(jwt: JwtPayload, ip: string): OperationContext {
+    return { actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] }, ip };
+  }
 
   @Get('editorial-cards')
   @ApiOperation({ summary: 'All editorial cards (incl. inactive)' })
   async list() {
-    return {
-      items: await this.prisma.editorialCard.findMany({
-        orderBy: [{ kind: 'asc' }, { sortOrder: 'asc' }],
-      }),
-    };
+    return { items: await this.home.listCardsAdmin() };
   }
 
   @Post('editorial-cards')
-  @ApiOperation({ summary: 'Create an editorial card' })
-  async create(@CurrentUser() jwt: JwtPayload, @Body() dto: UpsertCardDto) {
-    const row = await this.prisma.editorialCard.create({ data: dto });
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.editorial.create', entity: 'EditorialCard', entityId: row.id });
-    return row;
+  @ApiOperation({ summary: 'Create an editorial card (registry-governed)' })
+  async create(@CurrentUser() jwt: JwtPayload, @Body() dto: UpsertCardDto, @Ip() ip: string) {
+    const out = await this.registry.execute('content.editorial.card.create', dto, this.ctx(jwt, ip));
+    return out.result;
   }
 
   @Patch('editorial-cards/:id')
@@ -87,25 +88,28 @@ export class HomeAdminController {
     @CurrentUser() jwt: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: Partial<UpsertCardDto>,
+    @Ip() ip: string,
   ) {
-    const row = await this.prisma.editorialCard.update({ where: { id }, data: dto });
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.editorial.update', entity: 'EditorialCard', entityId: id });
-    return row;
+    const out = await this.registry.execute(
+      'content.editorial.card.update',
+      { id, ...dto },
+      this.ctx(jwt, ip),
+    );
+    return out.result;
   }
 
   @Delete('editorial-cards/:id')
   @HttpCode(200)
   @ApiOperation({ summary: 'Delete an editorial card' })
-  async remove(@CurrentUser() jwt: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
-    await this.prisma.editorialCard.delete({ where: { id } });
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.editorial.delete', entity: 'EditorialCard', entityId: id });
-    return { ok: true };
+  async remove(@CurrentUser() jwt: JwtPayload, @Param('id', ParseUUIDPipe) id: string, @Ip() ip: string) {
+    const out = await this.registry.execute('content.editorial.card.delete', { id }, this.ctx(jwt, ip));
+    return out.result;
   }
 
   @Get('homepage-sections')
   @ApiOperation({ summary: 'All homepage sections (toggle/reorder state)' })
   async sections() {
-    return { items: await this.prisma.homepageSection.findMany({ orderBy: { sortOrder: 'asc' } }) };
+    return { items: await this.home.listSectionsAdmin() };
   }
 
   @Patch('homepage-sections/:key')
@@ -114,15 +118,13 @@ export class HomeAdminController {
     @CurrentUser() jwt: JwtPayload,
     @Param('key') key: string,
     @Body() dto: PatchSectionDto,
+    @Ip() ip: string,
   ) {
-    const row = await this.prisma.homepageSection.update({ where: { key }, data: dto });
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: 'admin.homepage-section.update',
-      entity: 'HomepageSection',
-      entityId: key,
-      detail: dto as Record<string, unknown>,
-    });
-    return row;
+    const out = await this.registry.execute(
+      'content.homepage-section.update',
+      { key, ...dto },
+      this.ctx(jwt, ip),
+    );
+    return out.result;
   }
 }

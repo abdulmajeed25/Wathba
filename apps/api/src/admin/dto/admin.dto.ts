@@ -43,6 +43,11 @@ export class GrantRoleDto {
   @ApiProperty({ enum: ['CREATOR', 'BACKER', 'SUPPLIER'], example: 'SUPPLIER' })
   @IsIn(['CREATOR', 'BACKER', 'SUPPLIER'])
   role!: 'CREATOR' | 'BACKER' | 'SUPPLIER';
+
+  /** OPS Part 0 — SENSITIVE tier: written justification (≥10 chars). */
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString()
+  reason?: string;
 }
 
 /** Batch CAT — toggle the "مختارات وثبة" editorial pick. */
@@ -57,6 +62,10 @@ export class ModerateCommentDto {
   @ApiProperty({ enum: ['hide', 'dismiss'] })
   @IsIn(['hide', 'dismiss'])
   action!: 'hide' | 'dismiss';
+
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString()
+  reason?: string;
 }
 
 /** Batch PAY — audited ops tool: force a deadline (settlement drills + e2e). */
@@ -64,4 +73,16 @@ export class DeadlineOverrideDto {
   @ApiProperty({ example: '2026-07-10T00:00:00.000Z' })
   @IsString()
   deadline!: string;
+
+  /** OPS Part 0 — MONEY tier: written justification (≥10 chars). */
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString()
+  reason?: string;
+}
+
+/** OPS Part 0 — generic reason body for registry-governed endpoints. */
+export class OpsReasonDto {
+  @ApiProperty({ required: false })
+  @IsOptional() @IsString()
+  reason?: string;
 }

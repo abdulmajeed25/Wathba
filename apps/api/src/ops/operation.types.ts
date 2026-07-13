@@ -1,0 +1,121 @@
+import type { Prisma } from '@prisma/client';
+import type { z } from 'zod';
+
+/**
+ * OPS Part 0 — the operation contract. Every governed capability on the
+ * platform is declared ONCE as an Operation and invoked only through the
+ * registry; the ops UI is one client of this layer, a future agent is
+ * another. Money and state machines never move through raw field edits —
+ * an operation moves them, with preconditions, a mandatory dryRun and a
+ * transaction-coupled audit entry (no audit = no commit).
+ */
+
+export type RiskTier = 'CONTENT' | 'STANDARD' | 'SENSITIVE' | 'MONEY';
+export type ActorType = 'HUMAN' | 'AGENT' | 'SYSTEM';
+
+export interface OperationActor {
+  id: string;
+  type: ActorType;
+  /** Coarse UserRole[] until Part 2 lands RBAC; the PermissionPort maps it. */
+  roles: string[];
+}
+
+export interface OperationContext {
+  actor: OperationActor;
+  /** Written justification; forced ≥10 chars for MONEY + SENSITIVE tiers. */
+  reason?: string;
+  /** Mandatory for MONEY; unique per intent — replay returns the stored result. */
+  idempotencyKey?: string;
+  /** Stamped by the Part-1 step-up guard; enforcement is env-gated until then. */
+  stepUpVerifiedAt?: Date | null;
+  ip?: string;
+  userAgent?: string;
+}
+
+/** Structured preview of what WOULD change — never mutates. */
+export interface DryRunPreview {
+  summaryAr: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  counts?: Record<string, number>;
+  /** BigInt halalas serialized as strings. */
+  monetaryDeltasHalalas?: Record<string, string>;
+}
+
+export interface PreconditionDef<I> {
+  code: string;
+  /** Arabic refusal shown to the operator/agent when the check fails. */
+  reasonAr: string;
+  check: (db: ReadOnlyDb, input: I, ctx: OperationContext) => Promise<boolean>;
+}
+
+/** Read surface handed to dryRun/preconditions — writes are proxied away. */
+export type ReadOnlyDb = Prisma.TransactionClient;
+
+export interface OperationDef<I = unknown, R = unknown> {
+  key: string;
+  titleAr: string;
+  descriptionAr: string;
+  inputSchema: z.ZodType<I>;
+  /** Permission key (Part 2 RBAC); the default port maps ADMIN → everything. */
+  permission: string;
+  riskTier: RiskTier;
+  reversible: boolean;
+  compensatingKey?: string;
+  /** Registry forces this true for MONEY + SENSITIVE regardless. */
+  requiresReason: boolean;
+  /**
+   * Orchestrated ops call external systems (PSP) and manage their own inner
+   * transactionality; the registry claims idempotency + writes the audit row
+   * atomically BEFORE invoking, then marks the claim COMPLETED/FAILED.
+   * Non-orchestrated ops mutate ONLY through the tx the registry opens —
+   * mutation, audit entry and idempotency row commit or roll back together.
+   */
+  orchestrated?: boolean;
+  preconditions: Array<PreconditionDef<I>>;
+  dryRun(db: ReadOnlyDb, input: I, ctx: OperationContext): Promise<DryRunPreview>;
+  execute(tx: Prisma.TransactionClient, input: I, ctx: OperationContext): Promise<R>;
+  /** Post-commit side effects (emails, notifications) — fire-and-forget. */
+  afterCommit?(result: R, input: I, ctx: OperationContext): Promise<void>;
+}
+
+export interface ExecuteOutcome<R = unknown> {
+  executionId: string;
+  replayed: boolean;
+  result: R;
+}
+
+export interface DryRunOutcome {
+  ok: boolean;
+  blockers: Array<{ code: string; reasonAr: string }>;
+  preview: DryRunPreview | null;
+}
+
+/** Manifest row — doubles as the future agent tool manifest (Part 4). */
+export interface OperationDescriptor {
+  key: string;
+  titleAr: string;
+  descriptionAr: string;
+  permission: string;
+  riskTier: RiskTier;
+  reversible: boolean;
+  compensatingKey: string | null;
+  requiresReason: boolean;
+  inputSchema: Record<string, unknown>;
+}
+
+/* ── enforcement ports — implementations arrive with Parts 1/2/4 ─────── */
+
+export interface PermissionPort {
+  has(actor: OperationActor, permission: string): boolean;
+}
+
+export interface StepUpPort {
+  /** Throws (Arabic) when a MONEY/SENSITIVE op lacks fresh re-auth. */
+  assertFresh(ctx: OperationContext, tier: RiskTier): void;
+}
+
+export interface FourEyesPort {
+  /** True → the op must enter the approval queue instead of executing. */
+  mustQueue(tier: RiskTier, ctx: OperationContext): Promise<boolean>;
+}

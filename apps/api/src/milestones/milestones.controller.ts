@@ -1,5 +1,5 @@
 import {
-  Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, UseGuards,
+  Body, Controller, Get, Headers, Ip, Param, ParseUUIDPipe, Post, Put, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
@@ -8,6 +8,7 @@ import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { MilestonesService } from './milestones.service';
 import { AuditService } from '../identity/audit.service';
+import { OperationsRegistry } from '../ops/operations.registry';
 import {
   CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto,
 } from './dto/milestone.dto';
@@ -18,6 +19,7 @@ export class MilestonesController {
   constructor(
     private readonly svc: MilestonesService,
     private readonly audit: AuditService,
+    private readonly registry: OperationsRegistry,
   ) {}
 
   @Get('milestones')
@@ -67,14 +69,21 @@ export class MilestonesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Approve a submitted milestone (admin)' })
+  @ApiOperation({ summary: 'Approve a submitted milestone — MONEY-tier operation (registry-governed)' })
   async approve(
     @CurrentUser() jwt: JwtPayload,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Param('milestoneId', new ParseUUIDPipe()) milestoneId: string,
+    @Ip() ip: string,
+    @Body() dto?: { reason?: string },
+    @Headers('x-idempotency-key') idemKey?: string,
   ) {
-    await this.audit.log({ actorId: jwt.sub, action: 'milestone.approve', entity: 'Milestone', entityId: milestoneId });
-    const m = await this.svc.approve(projectId, milestoneId);
+    await this.registry.execute(
+      'money.milestone.approve',
+      { projectId, milestoneId },
+      this.opsCtx(jwt, ip, dto?.reason, idemKey),
+    );
+    const m = await this.svc.getOne(projectId, milestoneId);
     return this.svc.toPublic(m);
   }
 
@@ -82,15 +91,31 @@ export class MilestonesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Release escrow tranche for an approved milestone (admin)' })
+  @ApiOperation({ summary: 'Release escrow tranche — MONEY-tier operation (registry-governed)' })
   async release(
     @CurrentUser() jwt: JwtPayload,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,
     @Param('milestoneId', new ParseUUIDPipe()) milestoneId: string,
+    @Ip() ip: string,
+    @Body() dto?: { reason?: string },
+    @Headers('x-idempotency-key') idemKey?: string,
   ) {
-    await this.audit.log({ actorId: jwt.sub, action: 'milestone.release', entity: 'Milestone', entityId: milestoneId });
-    const { milestone, amountHalalas } = await this.svc.release(projectId, milestoneId);
-    return { milestone: this.svc.toPublic(milestone), amountHalalas: Number(amountHalalas) };
+    const out = await this.registry.execute<{ amountHalalas: string }>(
+      'money.milestone.release',
+      { projectId, milestoneId },
+      this.opsCtx(jwt, ip, dto?.reason, idemKey),
+    );
+    const m = await this.svc.getOne(projectId, milestoneId);
+    return { milestone: this.svc.toPublic(m), amountHalalas: Number(out.result.amountHalalas) };
+  }
+
+  private opsCtx(jwt: JwtPayload, ip: string, reason?: string, idemKey?: string) {
+    return {
+      actor: { id: jwt.sub, type: 'HUMAN' as const, roles: jwt.roles as unknown as string[] },
+      ip,
+      reason,
+      idempotencyKey: idemKey || `legacy-${crypto.randomUUID()}`,
+    };
   }
 
   @Get('transparency')

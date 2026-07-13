@@ -164,6 +164,15 @@ export class HomeService {
     return null;
   }
 
+  /** OPS Part 0 — admin reads (mutations live in the operations registry). */
+  async listCardsAdmin() {
+    return this.prisma.editorialCard.findMany({ orderBy: [{ kind: 'asc' }, { sortOrder: 'asc' }] });
+  }
+
+  async listSectionsAdmin() {
+    return this.prisma.homepageSection.findMany({ orderBy: { sortOrder: 'asc' } });
+  }
+
   /** Article page data for /stories/[slug]. */
   async article(slug: string) {
     return this.prisma.editorialCard.findFirst({

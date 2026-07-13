@@ -14,7 +14,7 @@ test('supplier: signup → role grant → bid → my bids', async ({ page, conte
   const grant = await fetch(`${API}/v1/admin/users/${me.id}/grant-role`, {
     method: 'POST',
     headers: { authorization: `Bearer ${admin}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ role: 'SUPPLIER' }),
+    body: JSON.stringify({ role: 'SUPPLIER', reason: 'اختبار آلي: منح دور مورد لرحلة المزادات' }),
   });
   expect(grant.ok).toBe(true);
 

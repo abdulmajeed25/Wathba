@@ -10,6 +10,7 @@ import { PayoutBeneficiaryService } from './payout-beneficiary.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
+import { commissionBreakdown } from '../config/fees';
 
 /** A validated creator bank/wallet beneficiary — required by Moyasar's
  *  `POST /payouts` `destination` object (Sprint 5 / #4). */
@@ -24,8 +25,13 @@ export interface PayoutBeneficiary {
 
 /** Moyasar payout `status` values that mean "accepted / in flight". */
 const ACCEPTED_STATUSES = new Set(['queued', 'initiated', 'paid']);
-/** Terminal-failure statuses — the disburser keeps the payout PENDING. */
+/** Terminal-failure statuses — OPS-0 correction #3: these now write FAILED. */
 const FAILED_STATUSES = new Set(['failed', 'canceled', 'returned']);
+
+/** OPS-0 correction #3 — a provider-terminal rejection (vs a transient
+ *  config/network error): the payout is marked FAILED with the reason instead
+ *  of silently returning to PENDING forever. */
+export class TerminalPayoutError extends Error {}
 
 /**
  * Build the Moyasar `POST /payouts` request body per the documented contract
@@ -72,10 +78,14 @@ export function sequenceNumberFor(payoutId: string): string {
  * configured, deterministic stub otherwise so the full release → payout →
  * ledger pipeline runs locally.
  *
- * Crash-safety note: the provider call and the SENT update are not atomic.
- * A crash in between would re-send on the next tick — acceptable for the
- * stub; the real provider integration MUST pass `payout.id` as its
- * idempotency key so the retry is absorbed provider-side.
+ * Crash-safety (OPS-0 correction #3): each payout is CLAIMED atomically
+ * (PENDING→SENDING via a status-guarded updateMany) before the provider call,
+ * so a concurrent tick — cron racing the manual ops trigger — can never
+ * double-send. A crash mid-flight leaves the row visibly stuck in SENDING
+ * (surfaced loudly each tick), never silently re-payable; the deterministic
+ * `sequence_number` doubles as the provider-side idempotency reference.
+ * Terminal provider rejections write FAILED + failureReason; transient errors
+ * (config/network) release the claim back to PENDING for the next tick.
  */
 @Injectable()
 export class PayoutDisburser {
@@ -120,6 +130,18 @@ export class PayoutDisburser {
   }
 
   async disbursePending(): Promise<{ sent: number; failed: number }> {
+    // OPS-0 correction #3 — a row stuck in SENDING means a crash mid-provider
+    // call: it must NEVER be auto-resent (double-pay risk); surface it loudly
+    // every tick until an operator reconciles it (money.reconcile, Part 5§4).
+    const stuck = await this.prisma.payout.findMany({
+      where: { status: PayoutStatus.SENDING, claimedAt: { lt: new Date(Date.now() - 15 * 60_000) } },
+      select: { id: true },
+    });
+    if (stuck.length > 0) {
+      this.logger.error(
+        `PAYOUTS STUCK IN SENDING (crash mid-send, need manual reconciliation): ${stuck.map((s) => s.id).join(', ')}`,
+      );
+    }
     const pending = await this.prisma.payout.findMany({
       where: { status: PayoutStatus.PENDING },
       orderBy: { createdAt: 'asc' },
@@ -136,22 +158,48 @@ export class PayoutDisburser {
   }
 
   private async disburseOne(p: Payout): Promise<boolean> {
+    // OPS-0 correction #3 — atomic claim: only the caller that flips
+    // PENDING→SENDING owns this payout; a concurrent tick claims 0 rows.
+    const claim = await this.prisma.payout.updateMany({
+      where: { id: p.id, status: PayoutStatus.PENDING },
+      data: { status: PayoutStatus.SENDING, claimedAt: new Date() },
+    });
+    if (claim.count === 0) return false;
+
+    // OPS-0 correction #2 — withhold exactly what the ZATCA invoice bills
+    // (commission + VAT) and transfer the NET; same breakdown function as
+    // the invoice, so they agree to the halala.
+    const fees = commissionBreakdown(p.amountHalalas);
     try {
-      const transferRef = await this.sendViaProvider(p);
+      const transferRef = await this.sendViaProvider(p, fees.netHalalas);
       await this.prisma.payout.update({
         where: { id: p.id },
-        data: { status: PayoutStatus.SENT, sentAt: new Date() },
+        data: {
+          status: PayoutStatus.SENT,
+          sentAt: new Date(),
+          feeWithheldHalalas: fees.withheldHalalas,
+          netHalalas: fees.netHalalas,
+        },
       });
       await this.ledger.record({
         entryType: LedgerEntryType.PAYOUT_SENT,
-        amountHalalas: p.amountHalalas,
+        amountHalalas: fees.netHalalas,
         pspRef: transferRef,
         payoutId: p.id,
         projectId: p.projectId,
         source: 'disburser',
       });
+      // The withheld leg: PAYOUT_SENT (net) + COMMISSION (withheld) = gross.
+      await this.ledger.record({
+        entryType: LedgerEntryType.COMMISSION,
+        amountHalalas: fees.withheldHalalas,
+        pspRef: `commission-${p.id}`,
+        payoutId: p.id,
+        projectId: p.projectId,
+        source: 'disburser',
+      });
       this.logger.log(
-        `Payout SENT id=${p.id} creator=${p.creatorId} amount=${p.amountHalalas} ref=${transferRef}`,
+        `Payout SENT id=${p.id} creator=${p.creatorId} gross=${p.amountHalalas} net=${fees.netHalalas} withheld=${fees.withheldHalalas} ref=${transferRef}`,
       );
       // STAKES follow-up (F2/F4) — notify + email the creator (best-effort; a
       // comms glitch must never undo a sent payout).
@@ -167,13 +215,14 @@ export class PayoutDisburser {
             projectId: p.projectId,
             payoutId: p.id,
             title: `تم تحويل دفعة مشروع «${project?.titleAr ?? ''}»`,
-            body: `حوّلنا دفعة بقيمة ${(Number(p.amountHalalas) / 100).toFixed(0)} ر.س إلى حسابك.`,
+            // OPS-0 correction #2 — the creator is told the NET actually sent.
+            body: `حوّلنا دفعة بقيمة ${(Number(fees.netHalalas) / 100).toFixed(0)} ر.س إلى حسابك (بعد خصم عمولة المنصة وضريبتها).`,
           },
         });
         if (creator?.email && project) {
           await this.email.payoutSent(creator.email, {
             projectTitle: project.titleAr,
-            amountHalalas: Number(p.amountHalalas),
+            amountHalalas: Number(fees.netHalalas),
           });
         }
       } catch (err) {
@@ -190,8 +239,24 @@ export class PayoutDisburser {
       }
       return true;
     } catch (err) {
-      // Stays PENDING — retried next tick; repeated failures surface in logs.
-      this.logger.error(`payout disburse failed id=${p.id} (stays PENDING)`, err as Error);
+      if (err instanceof TerminalPayoutError) {
+        // OPS-0 correction #3 — the provider terminally rejected: FAILED is
+        // finally reachable, with the reason on the row. Retry is an explicit
+        // ops decision (money.payout.retry, census N₄), never automatic.
+        await this.prisma.payout.update({
+          where: { id: p.id },
+          data: { status: PayoutStatus.FAILED, failureReason: err.message.slice(0, 500) },
+        });
+        this.logger.error(`payout FAILED (terminal) id=${p.id}: ${err.message}`);
+      } else {
+        // Transient (config/network/beneficiary-missing): release the claim —
+        // back to PENDING for the next tick.
+        await this.prisma.payout.updateMany({
+          where: { id: p.id, status: PayoutStatus.SENDING },
+          data: { status: PayoutStatus.PENDING, claimedAt: null },
+        });
+        this.logger.error(`payout disburse failed id=${p.id} (returned to PENDING)`, err as Error);
+      }
       return false;
     }
   }
@@ -213,10 +278,10 @@ export class PayoutDisburser {
    *
    * Stub mode (no PAYOUT_PROVIDER_KEY) is unchanged for local/dev.
    */
-  private async sendViaProvider(p: Payout): Promise<string> {
+  private async sendViaProvider(p: Payout, netHalalas: bigint): Promise<string> {
     if (!this.providerKey) {
       this.logger.warn(
-        `[STUB] Disburse payout=${p.id} amount=${Number(p.amountHalalas) / 100} SAR to creator=${p.creatorId}`,
+        `[STUB] Disburse payout=${p.id} net=${Number(netHalalas) / 100} SAR (gross=${Number(p.amountHalalas) / 100}) to creator=${p.creatorId}`,
       );
       return `stub-transfer-${p.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
     }
@@ -233,7 +298,8 @@ export class PayoutDisburser {
       body: JSON.stringify(
         buildPayoutRequest({
           sourceId: this.sourceId,
-          amountHalalas: p.amountHalalas,
+          // OPS-0 correction #2 — the transfer is the NET (gross − withheld).
+          amountHalalas: netHalalas,
           purpose: this.purpose,
           payoutId: p.id,
           projectId: p.projectId,
@@ -245,11 +311,18 @@ export class PayoutDisburser {
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
+      // 4xx = the provider examined and rejected this request — terminal.
+      // 5xx/network stays transient (generic Error → back to PENDING).
+      if (res.status >= 400 && res.status < 500) {
+        throw new TerminalPayoutError(`Moyasar payouts ${res.status}: ${JSON.stringify(json)}`);
+      }
       throw new Error(`Moyasar payouts ${res.status}: ${JSON.stringify(json)}`);
     }
     const status = String(json['status'] ?? '');
     if (FAILED_STATUSES.has(status)) {
-      throw new Error(`payout ${status}: ${String(json['failure_reason'] ?? 'no reason given')}`);
+      throw new TerminalPayoutError(
+        `payout ${status}: ${String(json['failure_reason'] ?? 'no reason given')}`,
+      );
     }
     if (!ACCEPTED_STATUSES.has(status) && status !== '') {
       throw new Error(`payout returned unexpected status "${status}"`);

@@ -1,16 +1,22 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Ip, Param, ParseUUIDPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { Roles, RolesGuard } from '../identity/roles.guard';
 import { ProjectsService } from '../projects/projects.service';
-import { FundingService } from '../funding/funding.service';
-import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { AdminService } from './admin.service';
-import { AuditService } from '../identity/audit.service';
-import { DeadlineOverrideDto, GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto } from './dto/admin.dto';
+import { OperationsRegistry } from '../ops/operations.registry';
+import type { OperationContext } from '../ops/operation.types';
+import { DeadlineOverrideDto, GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto, OpsReasonDto } from './dto/admin.dto';
 
+/**
+ * OPS Part 0 — this controller no longer mutates anything itself: every
+ * mutation below is a thin adapter over the operations registry (which owns
+ * preconditions, the transaction, the audit row and idempotency). Reads
+ * (queues) stay on AdminService. Response shapes are preserved for the BFF
+ * proxies and e2e seams.
+ */
 @ApiTags('admin')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,34 +26,46 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly projects: ProjectsService,
-    private readonly funding: FundingService,
-    private readonly disburser: PayoutDisburser,
-    private readonly audit: AuditService,
+    private readonly registry: OperationsRegistry,
   ) {}
+
+  private ctx(jwt: JwtPayload, ip: string, reason?: string, idemKey?: string): OperationContext {
+    return {
+      actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] },
+      ip,
+      reason,
+      // MONEY ops demand an idempotency key; legacy seams that don't send one
+      // get single-shot semantics via a generated key.
+      idempotencyKey: idemKey || `legacy-${crypto.randomUUID()}`,
+    };
+  }
 
   @Post('projects/:id/settle')
   @ApiOperation({
     summary:
-      'Manual settlement trigger (Sprint 1 / P0-304) — settles a past-deadline LIVE project, ' +
-      'or sweeps HELD residue on an already-settled one',
+      'Manual settlement trigger — MONEY-tier operation (registry: reason + idempotency + audit-in-tx)',
   })
-  async settle(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.settle', entity: 'Project', entityId: id });
-    const result = await this.funding.settleProject(id);
-    if (result.transition !== 'noop') return result;
-    // Already settled (or not due) — attempt a residue sweep for stuck HELD pledges.
-    try {
-      return await this.funding.resettleResidue(id);
-    } catch {
-      return result; // genuinely nothing to do (e.g. still LIVE before deadline)
-    }
+  async settle(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Ip() ip: string,
+    @Body() dto?: OpsReasonDto,
+    @Headers('x-idempotency-key') idemKey?: string,
+  ) {
+    const out = await this.registry.execute('money.settle.run', { projectId: id }, this.ctx(jwt, ip, dto?.reason, idemKey));
+    return out.result;
   }
 
   @Post('payouts/disburse')
-  @ApiOperation({ summary: 'Manual payout-disbursement tick (Sprint 1 / P0-301)' })
-  async disburse(@CurrentUser() jwt: JwtPayload) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.disburse', entity: 'Payout' });
-    return this.disburser.disbursePending();
+  @ApiOperation({ summary: 'Manual payout-disbursement tick — MONEY-tier operation' })
+  async disburse(
+    @CurrentUser() jwt: JwtPayload,
+    @Ip() ip: string,
+    @Body() dto?: OpsReasonDto,
+    @Headers('x-idempotency-key') idemKey?: string,
+  ) {
+    const out = await this.registry.execute('money.payout.disburse', {}, this.ctx(jwt, ip, dto?.reason, idemKey));
+    return out.result;
   }
 
   @Get('review-queue')
@@ -58,46 +76,45 @@ export class AdminController {
   }
 
   @Post('projects/:id/review')
-  @ApiOperation({ summary: 'Approve or reject a project under review' })
+  @ApiOperation({ summary: 'Approve or reject a project under review (registry-governed)' })
   async review(
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ReviewProjectDto,
+    @Ip() ip: string,
   ) {
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: `admin.review.${dto.decision}`,
-      entity: 'Project',
-      entityId: id,
-      detail: {
-        ...(dto.reason ? { reason: dto.reason } : {}),
-        ...(dto.approvedDurationDays ? { approvedDurationDays: dto.approvedDurationDays } : {}),
-      },
-    });
-    const updated = dto.decision === 'approve'
-      ? await this.admin.approve(id, dto.approvedDurationDays)
-      : await this.admin.reject(id, dto.reason);
+    if (dto.decision === 'approve') {
+      await this.registry.execute(
+        'projects.review.approve',
+        { projectId: id, ...(dto.approvedDurationDays ? { approvedDurationDays: dto.approvedDurationDays } : {}) },
+        this.ctx(jwt, ip, dto.reason),
+      );
+    } else {
+      await this.registry.execute(
+        'projects.review.reject',
+        { projectId: id, ...(dto.reason?.trim() ? { feedbackAr: dto.reason.trim() } : {}) },
+        this.ctx(jwt, ip, dto.reason),
+      );
+    }
+    const updated = await this.projects.findRaw(id);
     return this.projects.toPublic(updated);
   }
 
   @Post('projects/:id/deadline-override')
-  @ApiOperation({
-    summary:
-      'Batch PAY — ops tool: force a project deadline (AuditLogged; used for settlement drills + e2e)',
-  })
+  @ApiOperation({ summary: 'Force a project deadline — MONEY-tier operation (settlement drills + e2e seam)' })
   async deadlineOverride(
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: DeadlineOverrideDto,
+    @Ip() ip: string,
+    @Headers('x-idempotency-key') idemKey?: string,
   ) {
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: 'admin.deadline-override',
-      entity: 'Project',
-      entityId: id,
-      detail: { deadline: dto.deadline },
-    });
-    return this.admin.overrideDeadline(id, new Date(dto.deadline));
+    const out = await this.registry.execute(
+      'money.deadline.override',
+      { projectId: id, deadline: dto.deadline },
+      this.ctx(jwt, ip, dto.reason, idemKey),
+    );
+    return out.result;
   }
 
   @Put('projects/:id/platform-partner')
@@ -106,27 +123,31 @@ export class AdminController {
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: SetPlatformPartnerDto,
+    @Ip() ip: string,
   ) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.platform-partner', entity: 'Project', entityId: id });
-    const updated = await this.admin.setPlatformPartner(id, dto.platformPartner);
+    await this.registry.execute(
+      'projects.platform-partner.set',
+      { projectId: id, value: dto.platformPartner },
+      this.ctx(jwt, ip),
+    );
+    const updated = await this.projects.findRaw(id);
     return this.projects.toPublic(updated);
   }
 
   @Put('projects/:id/staff-pick')
-  @ApiOperation({ summary: 'Batch CAT — toggle "مختارات وثبة" editorial pick (audited)' })
+  @ApiOperation({ summary: 'Toggle "مختارات وثبة" editorial pick (registry-governed)' })
   async setStaffPick(
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: SetStaffPickDto,
+    @Ip() ip: string,
   ) {
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: `admin.staff-pick.${dto.isStaffPick ? 'set' : 'clear'}`,
-      entity: 'Project',
-      entityId: id,
-      detail: { isStaffPick: dto.isStaffPick },
-    });
-    const updated = await this.admin.setStaffPick(id, dto.isStaffPick);
+    await this.registry.execute(
+      'projects.staff-pick.set',
+      { projectId: id, value: dto.isStaffPick },
+      this.ctx(jwt, ip),
+    );
+    const updated = await this.projects.findRaw(id);
     return this.projects.toPublic(updated);
   }
 
@@ -137,26 +158,35 @@ export class AdminController {
   }
 
   @Post('users/:id/grant-role')
-  @ApiOperation({ summary: 'Grant a role (e.g. SUPPLIER) to a user — audited (Sprint 3 / P0-302)' })
+  @ApiOperation({ summary: 'Grant a role — SENSITIVE-tier operation (written reason required)' })
   async grantRole(
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: GrantRoleDto,
+    @Ip() ip: string,
   ) {
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: `admin.grant-role.${dto.role}`,
-      entity: 'User',
-      entityId: id,
-    });
-    return this.admin.grantRole(id, dto.role);
+    const out = await this.registry.execute(
+      'users.role.grant',
+      { userId: id, role: dto.role },
+      this.ctx(jwt, ip, dto.reason),
+    );
+    return out.result;
   }
 
   @Post('users/:id/force-verify')
-  @ApiOperation({ summary: 'Admin override — mark a user Nafath-verified' })
-  async forceVerify(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string) {
-    await this.audit.log({ actorId: jwt.sub, action: 'admin.kyc.force-verify', entity: 'User', entityId: id });
-    return this.admin.forceVerifyKyc(id);
+  @ApiOperation({ summary: 'Mark a user Nafath-verified — SENSITIVE-tier operation (reason required)' })
+  async forceVerify(
+    @CurrentUser() jwt: JwtPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Ip() ip: string,
+    @Body() dto?: OpsReasonDto,
+  ) {
+    const out = await this.registry.execute(
+      'users.kyc.force-verify',
+      { userId: id },
+      this.ctx(jwt, ip, dto?.reason),
+    );
+    return out.result;
   }
 
   // ── STAKES/K2 K3 — moderation queue ──────────────────────────────────────
@@ -168,33 +198,34 @@ export class AdminController {
   }
 
   @Post('comments/:id/moderate')
-  @ApiOperation({ summary: "STAKES/K2 — hide a reported comment or dismiss its flags" })
+  @ApiOperation({ summary: 'Hide a reported comment or dismiss its flags (registry-governed)' })
   async moderateComment(
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ModerateCommentDto,
+    @Ip() ip: string,
   ) {
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: `admin.comment.${dto.action}`,
-      entity: 'Comment',
-      entityId: id,
-    });
-    return this.admin.moderateComment(id, dto.action);
+    const out = await this.registry.execute(
+      'moderation.comment.moderate',
+      { commentId: id, action: dto.action },
+      this.ctx(jwt, ip, dto.reason),
+    );
+    return out.result;
   }
 
   @Post('projects/:id/reports/dismiss')
-  @ApiOperation({ summary: 'STAKES/K3 — dismiss all open reports on a project' })
+  @ApiOperation({ summary: 'Dismiss all open reports on a project (registry-governed)' })
   async dismissProjectReports(
     @CurrentUser() jwt: JwtPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
+    @Ip() ip: string,
+    @Body() dto?: OpsReasonDto,
   ) {
-    await this.audit.log({
-      actorId: jwt.sub,
-      action: 'admin.project.reports-dismiss',
-      entity: 'Project',
-      entityId: id,
-    });
-    return this.admin.dismissProjectReports(id);
+    const out = await this.registry.execute(
+      'moderation.project-reports.dismiss',
+      { projectId: id },
+      this.ctx(jwt, ip, dto?.reason),
+    );
+    return out.result;
   }
 }

@@ -1,13 +1,9 @@
 import {
-  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
+  BadRequestException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { EmailService } from '../email/email.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import {
   MilestoneStatus,
-  NotificationKind,
-  PayoutStatus,
   ProjectStatus,
   type Milestone,
   type SpendLog,
@@ -20,18 +16,13 @@ import { CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto } from './dto/mi
  *
  *   PENDING → SUBMITTED → APPROVED → RELEASED
  *
- * Release amount = `raised × releasePct / 100`. First release transitions
- * the project FUNDED → IN_PRODUCTION.
+ * OPS Part 0 — approve/release moved into the operations registry
+ * (money.milestone.approve / money.milestone.release); this service keeps
+ * the creator lifecycle (plan, evidence, spend logs) + reads.
  */
 @Injectable()
 export class MilestonesService {
-  private readonly logger = new Logger(MilestonesService.name);
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly notifications: NotificationsService,
-    private readonly email: EmailService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /** Creator sets the full milestone plan in one shot (replaces existing PENDING ones). */
   async setMilestones(
@@ -100,103 +91,9 @@ export class MilestonesService {
     });
   }
 
-  async approve(projectId: string, milestoneId: string): Promise<Milestone> {
-    const m = await this.requireMilestone(projectId, milestoneId);
-    if (m.status !== MilestoneStatus.SUBMITTED) {
-      throw new BadRequestException(`milestone is ${m.status} — only SUBMITTED can be approved`);
-    }
-    return this.prisma.milestone.update({
-      where: { id: milestoneId },
-      data: { status: MilestoneStatus.APPROVED, approvedAt: new Date() },
-    });
-  }
-
-  async release(
-    projectId: string,
-    milestoneId: string,
-  ): Promise<{ milestone: Milestone; amountHalalas: bigint }> {
-    const project = await this.prisma.project.findUnique({ where: { id: projectId } });
-    if (!project) throw new NotFoundException('project not found');
-    if (project.status !== ProjectStatus.FUNDED && project.status !== ProjectStatus.IN_PRODUCTION) {
-      throw new BadRequestException(
-        `project must be FUNDED/IN_PRODUCTION to release milestones (was ${project.status})`,
-      );
-    }
-    const m = await this.requireMilestone(projectId, milestoneId);
-    if (m.status !== MilestoneStatus.APPROVED) {
-      throw new BadRequestException(`milestone is ${m.status} — only APPROVED can be released`);
-    }
-    // Batch PAY (Part 2) — payouts compute from REALIZED (actually captured)
-    // funds only, never from the pledged-at-deadline figure.
-    const amountHalalas = (project.realizedHalalas * BigInt(m.releasePct)) / BigInt(100);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const row = await tx.milestone.update({
-        where: { id: milestoneId },
-        data: {
-          status: MilestoneStatus.RELEASED,
-          releasedAt: new Date(),
-          releasedHalalas: amountHalalas,
-        },
-      });
-      // Sprint 1 / P0-601: the release IS a payable event — record the
-      // PENDING payout in the same tx so disbursement (PayoutDisburser)
-      // can never miss a released milestone.
-      await tx.payout.create({
-        data: {
-          projectId,
-          creatorId: project.createdById,
-          milestoneId,
-          amountHalalas,
-          status: PayoutStatus.PENDING,
-        },
-      });
-      if (project.status === ProjectStatus.FUNDED) {
-        await tx.project.update({
-          where: { id: projectId },
-          data: { status: ProjectStatus.IN_PRODUCTION },
-        });
-      }
-      return row;
-    });
-    this.logger.log(
-      `Released milestone=${milestoneId} amount=${amountHalalas} halalas — payout queued (PENDING)`,
-    );
-    // STAKES/S-12 F-08 — the MILESTONE_APPROVED kind existed since Sprint 1
-    // but nothing ever created one; the creator now hears their milestone
-    // released (in-app + email, transactional → not pref-gated).
-    this.notifyReleased(
-      project.createdById,
-      project.titleAr,
-      updated.titleAr,
-      projectId,
-      Number(amountHalalas),
-    ).catch((err) => this.logger.warn(`milestone-release notify failed: ${String(err)}`));
-    return { milestone: updated, amountHalalas };
-  }
-
-  private async notifyReleased(
-    creatorId: string,
-    projectTitleAr: string,
-    milestoneTitleAr: string,
-    projectId: string,
-    amountHalalas: number,
-  ): Promise<void> {
-    await this.notifications.create({
-      userId: creatorId,
-      kind: NotificationKind.MILESTONE_APPROVED,
-      payload: { projectId, projectTitleAr, milestoneTitleAr, amountHalalas },
-    });
-    const creator = await this.prisma.user.findUnique({
-      where: { id: creatorId },
-      select: { email: true },
-    });
-    if (creator) {
-      await this.email.milestoneReleased(creator.email, {
-        projectTitle: projectTitleAr,
-        milestoneTitle: milestoneTitleAr,
-        amountHalalas,
-      });
-    }
+  /** OPS Part 0 — read helper for registry-adapter responses. */
+  async getOne(projectId: string, milestoneId: string): Promise<Milestone> {
+    return this.requireMilestone(projectId, milestoneId);
   }
 
   // -- Spend logs (Live Transparency Dashboard) -------------------------------

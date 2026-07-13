@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { LedgerService } from './ledger.service';
+import { EscrowService } from './escrow.service';
 import { AuditService } from '../identity/audit.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -47,6 +48,7 @@ export class WebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
+    private readonly escrow: EscrowService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
@@ -156,18 +158,12 @@ export class WebhookService {
       case 'payment_paid': {
         if (pledge.status === PledgeStatus.CAPTURED) return 'ignored';
         if (pledge.status !== PledgeStatus.HELD) return 'mismatch';
-        await this.prisma.pledge.update({
-          where: { id: pledge.id },
-          data: { status: PledgeStatus.CAPTURED, capturedAt: new Date() },
-        });
-        await this.ledger.record({
-          entryType: LedgerEntryType.CAPTURE,
-          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
-          pspRef,
-          pledgeId: pledge.id,
-          projectId: pledge.projectId,
-          source: 'webhook',
-        });
+        // OPS-0 correction #1 — a webhook-confirmed capture goes through the
+        // SAME markCaptured chokepoint as the sync path: realizedHalalas is
+        // credited and the ledger row written once. Before this fix, captures
+        // confirmed via payment_paid never counted toward REALIZED, so
+        // milestone releases under-paid the creator.
+        await this.escrow.markCaptured(pledge, { source: 'webhook' });
         return 'applied';
       }
 

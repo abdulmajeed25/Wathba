@@ -667,6 +667,13 @@ export class ProjectsService {
     return { items: ordered, nextCursor };
   }
 
+  /** OPS Part 0 — raw row fetch for registry-adapter responses. */
+  async findRaw(id: string): Promise<Project> {
+    const p = await this.prisma.project.findUnique({ where: { id } });
+    if (!p) throw new NotFoundException('project not found');
+    return p;
+  }
+
   toPublic(
     p: Project & { rewardTiers?: Array<Record<string, unknown>> },
   ): Record<string, unknown> {
