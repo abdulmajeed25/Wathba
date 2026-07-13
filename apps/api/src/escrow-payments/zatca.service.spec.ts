@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { PayoutStatus } from '@prisma/client';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { commissionBreakdown } from '../config/fees';
 import { ZatcaService, buildTlvQr } from './zatca.service';
 
 /**
@@ -93,5 +96,34 @@ describe('ZatcaService.generateForPayout', () => {
     expect(inv).toBe(existing);
     expect(prisma.zatcaInvoice.create).not.toHaveBeenCalled();
     expect(prisma.payout.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * OPS-0 correction #2 — one fee source of truth. The invoice math and the
+ * payout withholding share commissionBreakdown(); the rate literal lives in
+ * config/fees.ts ONLY (it used to be duplicated as COMMISSION_PCT=5n here,
+ * so a rate change silently diverged tax invoices from collected money).
+ */
+describe('OPS-0 fee source of truth', () => {
+  it('invoice total equals exactly what the disburser withholds, for awkward amounts too', async () => {
+    for (const gross of [54_000n, 5_000_000n, 999n, 1n, 123_457n]) {
+      const prisma = makePrisma();
+      const svc = new ZatcaService(prisma, cfg());
+      const inv = await svc.generateForPayout(payout(gross));
+      const fees = commissionBreakdown(gross);
+      expect(inv.commissionHalalas).toBe(fees.commissionHalalas);
+      expect(inv.vatHalalas).toBe(fees.vatHalalas);
+      expect(inv.totalHalalas).toBe(fees.withheldHalalas);
+      // and the two legs reconcile the gross release
+      expect(fees.netHalalas + fees.withheldHalalas).toBe(gross);
+    }
+  });
+
+  it('zatca.service.ts carries no commission-rate literal of its own (source scan)', () => {
+    const src = readFileSync(join(__dirname, 'zatca.service.ts'), 'utf8');
+    expect(src).not.toMatch(/COMMISSION_PCT/);
+    expect(src).not.toMatch(/=\s*5n/);
+    expect(src).toMatch(/commissionBreakdown/);
   });
 });

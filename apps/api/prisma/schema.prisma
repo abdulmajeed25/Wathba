@@ -133,6 +133,10 @@ enum BidStatus {
 
 enum PayoutStatus {
   PENDING
+  /// OPS-0 correction #3 — atomic claim state while the provider call is in
+  /// flight; closes the send→SENT crash window (a claimed row is never
+  /// re-sent by a concurrent tick; a crash leaves it visible, not re-payable).
+  SENDING
   SENT
   FAILED
 }
@@ -587,6 +591,16 @@ model Payout {
   status         PayoutStatus @default(PENDING)
   zatcaInvoiceId String?
   sentAt         DateTime?
+  /// OPS-0 correction #2 — commission+VAT withheld at disbursement (offset
+  /// settlement of the ZATCA invoice); amountHalalas stays the GROSS release.
+  feeWithheldHalalas BigInt?
+  /// What was actually transferred to the creator (gross − withheld).
+  netHalalas         BigInt?
+  /// OPS-0 correction #3 — why the provider terminally rejected this payout.
+  failureReason      String?
+  /// When the SENDING claim was taken — stale claims (crash mid-send) are
+  /// surfaced every disburse tick and never auto-resent.
+  claimedAt          DateTime?
   createdAt      DateTime     @default(now())
 
   // (creatorId, status, createdAt) → wallet view (SENT vs PENDING ordering)
@@ -958,6 +972,10 @@ enum LedgerEntryType {
   REFUND
   PAYOUT_SENT
   DISPUTE
+  /// OPS-0 correction #2 — the platform commission (+VAT) withheld from a
+  /// payout tranche. PAYOUT_SENT (net) + COMMISSION (withheld) = the gross
+  /// released amount, so the journal reconciles the milestone release.
+  COMMISSION
 }
 
 /// Append-only money journal (Sprint 1 / P1-602). One row per PSP-side
@@ -1016,6 +1034,28 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([actorId, createdAt])
   @@index([action, createdAt])
+}
+
+/// OPS Part 0 — idempotency + replay ledger for registry-executed operations.
+/// A replay with the same idempotencyKey + inputHash returns the stored
+/// result; a different inputHash under the same key is refused (409).
+/// status: CLAIMED (orchestrated op in flight) | COMPLETED | FAILED.
+model OperationExecution {
+  id             String    @id @default(uuid())
+  idempotencyKey String    @unique
+  operationKey   String
+  inputHash      String
+  actorId        String?
+  actorType      String
+  riskTier       String
+  reason         String?
+  status         String    @default("COMPLETED")
+  result         Json?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  @@index([operationKey, createdAt])
+  @@index([actorId, createdAt])
 }
 
 /// Rotating refresh tokens (Sprint 2 / P1-502). Only the SHA-256 of the

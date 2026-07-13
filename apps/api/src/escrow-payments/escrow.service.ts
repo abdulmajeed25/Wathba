@@ -123,8 +123,14 @@ export class EscrowService {
     }
   }
 
-  /** Batch PAY — a confirmed capture: pledge CAPTURED + REALIZED counter. */
-  async markCaptured(p: Pick<Pledge, 'id' | 'amountHalalas' | 'addOnsHalalas' | 'paymentRef' | 'projectId'>): Promise<void> {
+  /** Batch PAY — a confirmed capture: pledge CAPTURED + REALIZED counter.
+   *  OPS-0 correction #1 — this is THE chokepoint: every capture-confirm
+   *  path (sync settlement, grace retry, PSP webhook) must land here, or
+   *  realizedHalalas under-counts and milestone releases short the creator. */
+  async markCaptured(
+    p: Pick<Pledge, 'id' | 'amountHalalas' | 'addOnsHalalas' | 'paymentRef' | 'projectId'>,
+    opts?: { source?: 'sync-path' | 'webhook' | 'disburser' },
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       await tx.pledge.update({
         where: { id: p.id },
@@ -144,6 +150,7 @@ export class EscrowService {
       pspRef: p.paymentRef,
       pledgeId: p.id,
       projectId: p.projectId,
+      source: opts?.source,
     });
   }
 

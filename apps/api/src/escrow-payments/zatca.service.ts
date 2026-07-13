@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, type Payout, type ZatcaInvoice } from '@prisma/client';
+import { commissionBreakdown, PLATFORM_COMMISSION_BP, VAT_BP } from '../config/fees';
 
 /**
  * ZATCA e-invoicing on the platform commission (Sprint 2 / P0-701).
@@ -19,8 +20,9 @@ import { Prisma, type Payout, type ZatcaInvoice } from '@prisma/client';
  * `reportedAt = null` so a later backfill job can clear the queue.
  */
 
-const COMMISSION_PCT = 5n;
-const VAT_PCT = 15n;
+// OPS-0 correction #2 — the rate lives in config/fees.ts ONLY. This service
+// must never carry its own commission literal: the invoice math and the
+// payout withholding share commissionBreakdown() so they agree to the halala.
 
 @Injectable()
 export class ZatcaService {
@@ -45,9 +47,8 @@ export class ZatcaService {
     });
     if (existing) return existing;
 
-    const commissionHalalas = (payout.amountHalalas * COMMISSION_PCT) / 100n;
-    const vatHalalas = (commissionHalalas * VAT_PCT) / 100n;
-    const totalHalalas = commissionHalalas + vatHalalas;
+    const { commissionHalalas, vatHalalas, withheldHalalas: totalHalalas } =
+      commissionBreakdown(payout.amountHalalas);
     const issuedAt = new Date();
     const invoiceNumber = await this.nextInvoiceNumber(issuedAt);
 
@@ -66,12 +67,12 @@ export class ZatcaService {
       buyer: { id: payout.creatorId, name: creator?.name ?? 'creator' },
       lines: [
         {
-          descAr: `عمولة المنصة ${COMMISSION_PCT}٪ — دفعة ضمان مشروع`,
+          descAr: `عمولة المنصة ${PLATFORM_COMMISSION_BP / 100}٪ — دفعة ضمان مشروع`,
           payoutId: payout.id,
           milestoneId: payout.milestoneId,
           baseHalalas: payout.amountHalalas.toString(),
           commissionHalalas: commissionHalalas.toString(),
-          vatPct: Number(VAT_PCT),
+          vatPct: VAT_BP / 100,
           vatHalalas: vatHalalas.toString(),
           totalHalalas: totalHalalas.toString(),
         },
