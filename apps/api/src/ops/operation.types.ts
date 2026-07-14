@@ -16,8 +16,15 @@ export type ActorType = 'HUMAN' | 'AGENT' | 'SYSTEM';
 export interface OperationActor {
   id: string;
   type: ActorType;
-  /** Coarse UserRole[] until Part 2 lands RBAC; the PermissionPort maps it. */
+  /** Legacy coarse UserRole[] (ADMIN = "may enter the admin surfaces"). */
   roles: string[];
+  /**
+   * Part 2 — the resolved RBAC permission keys (union of the actor's
+   * OpsRoleGrant rows; '*' = OWNER). When present the PermissionPort checks
+   * ONLY this list; when absent (an unwired legacy caller) an ADMIN falls
+   * back to allow-all with a loud warning until Part 5 retires the seams.
+   */
+  permissions?: string[];
 }
 
 export interface OperationContext {
@@ -82,12 +89,23 @@ export interface OperationDef<I = unknown, R = unknown> {
   execute(tx: Prisma.TransactionClient, input: I, ctx: OperationContext): Promise<R>;
   /** Post-commit side effects (emails, notifications) — fire-and-forget. */
   afterCommit?(result: R, input: I, ctx: OperationContext): Promise<void>;
+  /**
+   * Part 2 — what gets PERSISTED as OperationExecution.result. The caller
+   * still receives the full result; ops that return sensitive values
+   * (users.pii.unmask) redact them here so the execution ledger never
+   * stores raw PII. Absent = store the result as-is.
+   */
+  redactResult?(result: R): unknown;
 }
 
 export interface ExecuteOutcome<R = unknown> {
-  executionId: string;
+  /** Null when the call was queued for four-eyes approval instead. */
+  executionId: string | null;
   replayed: boolean;
-  result: R;
+  result: R | null;
+  /** Part 2 — four-eyes: true means NOTHING executed; a proposal was filed. */
+  queued?: boolean;
+  proposalId?: string;
 }
 
 export interface DryRunOutcome {

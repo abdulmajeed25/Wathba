@@ -1105,6 +1105,70 @@ model OpsCredential {
   updatedAt        DateTime  @updatedAt
 }
 
+/// OPS Part 2 — RBAC role. `key` is stable (OWNER, FINANCE, …); permissions
+/// are string keys from src/ops/permissions.ts; '*' (OWNER only) matches all.
+/// The 8 system roles are seeded by migration 0045 and are the day-one truth —
+/// a hire needs a grant, never a code change. (The name `UserRole` was taken
+/// by the legacy coarse enum on User.roles, which stays as the "may enter the
+/// ops center at all" gate until Part 5 retires the legacy admin seams.)
+model OpsRole {
+  id          String         @id @default(uuid()) @db.Uuid
+  key         String         @unique
+  nameAr      String
+  permissions String[]       @default([])
+  /// Seeded roles are system-owned: not deletable from any surface.
+  isSystem    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  grants      OpsRoleGrant[]
+}
+
+/// OPS Part 2 — user ↔ ops-role join. Granting/revoking happens ONLY through
+/// the users.ops-role.* operations (OWNER-gated, audited). No relation to
+/// User by design (same posture as OpsSession — ops tables don't fan into
+/// the domain graph).
+model OpsRoleGrant {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  grantedBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+  role      OpsRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+}
+
+/// OPS Part 2 — the four-eyes approval queue. When FOUR_EYES_MONEY is in
+/// effect, a MONEY execute lands here instead (dryRun snapshot attached);
+/// a DIFFERENT user holding money.approve executes it. Self-approval is
+/// refused at the domain level. Status: PENDING → EXECUTED | REJECTED |
+/// CANCELLED | FAILED (terminal — a failed approval is re-proposed, never
+/// silently retried). Part 4 reuses this table for agent proposals.
+model OperationProposal {
+  id             String    @id @default(uuid()) @db.Uuid
+  operationKey   String
+  input          Json
+  inputHash      String
+  /// DryRunPreview captured at proposal time — what the proposer saw.
+  preview        Json
+  reason         String
+  riskTier       String
+  status         String    @default("PENDING")
+  proposedById   String
+  proposedByType String    @default("HUMAN")
+  /// The proposer's idempotency key — carried into the eventual execution.
+  idempotencyKey String?   @unique
+  decidedById    String?   @db.Uuid
+  decidedAt      DateTime?
+  decisionReason String?
+  executionId    String?
+  createdAt      DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([proposedById, createdAt])
+}
+
 /// One-time password-reset tokens (Sprint 3 / P1-206). SHA-256 stored,
 /// 30-minute TTL, single use; a successful reset revokes every refresh
 /// token the account holds.

@@ -8,6 +8,7 @@ import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { OperationsRegistry } from '../ops/operations.registry';
+import { OpsRbacService } from '../ops/ops-rbac.service';
 import type { OperationContext } from '../ops/operation.types';
 
 const KINDS = ['HERO_BANNER', 'ANNOUNCEMENT', 'SUCCESS_STORY', 'CREATOR_INTERVIEW', 'RESOURCE', 'TIP', 'TRUST_GUIDE'];
@@ -63,10 +64,20 @@ export class HomeAdminController {
   constructor(
     private readonly home: HomeService,
     private readonly registry: OperationsRegistry,
+    private readonly rbac: OpsRbacService,
   ) {}
 
-  private ctx(jwt: JwtPayload, ip: string): OperationContext {
-    return { actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] }, ip };
+  private async ctx(jwt: JwtPayload, ip: string): Promise<OperationContext> {
+    return {
+      actor: {
+        id: jwt.sub,
+        type: 'HUMAN',
+        roles: jwt.roles as unknown as string[],
+        // Part 2 — RBAC applies on the legacy seams too.
+        permissions: (await this.rbac.permissionsForUser(jwt.sub)).permissions,
+      },
+      ip,
+    };
   }
 
   @Get('editorial-cards')
@@ -78,7 +89,7 @@ export class HomeAdminController {
   @Post('editorial-cards')
   @ApiOperation({ summary: 'Create an editorial card (registry-governed)' })
   async create(@CurrentUser() jwt: JwtPayload, @Body() dto: UpsertCardDto, @Ip() ip: string) {
-    const out = await this.registry.execute('content.editorial.card.create', dto, this.ctx(jwt, ip));
+    const out = await this.registry.execute('content.editorial.card.create', dto, await this.ctx(jwt, ip));
     return out.result;
   }
 
@@ -93,7 +104,7 @@ export class HomeAdminController {
     const out = await this.registry.execute(
       'content.editorial.card.update',
       { id, ...dto },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     return out.result;
   }
@@ -102,7 +113,7 @@ export class HomeAdminController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Delete an editorial card' })
   async remove(@CurrentUser() jwt: JwtPayload, @Param('id', ParseUUIDPipe) id: string, @Ip() ip: string) {
-    const out = await this.registry.execute('content.editorial.card.delete', { id }, this.ctx(jwt, ip));
+    const out = await this.registry.execute('content.editorial.card.delete', { id }, await this.ctx(jwt, ip));
     return out.result;
   }
 
@@ -123,7 +134,7 @@ export class HomeAdminController {
     const out = await this.registry.execute(
       'content.homepage-section.update',
       { key, ...dto },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     return out.result;
   }
