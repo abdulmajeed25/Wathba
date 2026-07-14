@@ -16,7 +16,7 @@ const USERS = [
 async function main() {
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
   for (const u of USERS) {
-    await prisma.user.upsert({
+    const row = await prisma.user.upsert({
       where: { email: u.email },
       update: { roles: u.roles, nafathVerified: true, passwordHash },
       create: {
@@ -30,6 +30,24 @@ async function main() {
         consentAt: new Date(),
       },
     });
+    // OPS Part 2 — the demo admin holds OPS_MANAGER (full day-to-day ops,
+    // NO money): the dev DB must carry exactly ONE money admin (the e2e
+    // owner), or FOUR_EYES_MONEY auto-enables and every money flow queues.
+    // That mirrors production truth — there is one OWNER, the real owner.
+    if (u.roles.includes('ADMIN')) {
+      const mgrRole = await prisma.opsRole.findUnique({ where: { key: 'OPS_MANAGER' } });
+      if (mgrRole) {
+        // Drop any money-bearing grant (incl. migration 0045's OWNER backfill).
+        await prisma.opsRoleGrant.deleteMany({
+          where: { userId: row.id, roleId: { not: mgrRole.id } },
+        });
+        await prisma.opsRoleGrant.upsert({
+          where: { userId_roleId: { userId: row.id, roleId: mgrRole.id } },
+          update: {},
+          create: { userId: row.id, roleId: mgrRole.id },
+        });
+      }
+    }
     console.log(`[seed-demo-users] ${u.email} (${u.roles.join('+')}) = ${PASSWORD}`);
   }
 }
