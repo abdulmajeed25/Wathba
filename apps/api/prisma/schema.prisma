@@ -1074,6 +1074,37 @@ model RefreshToken {
   @@index([userId, revokedAt])
 }
 
+/// OPS Part 1 — the SEPARATE admin session for مركز العمليات. Opaque token
+/// (SHA-256 stored), fully independent of the public session: 60-minute
+/// IDLE window (lastSeenAt slides on use) + 8-hour absolute cap + explicit
+/// revocation. stepUpAt records the last password/TOTP re-entry — MONEY and
+/// SENSITIVE operations demand it within the last 10 minutes.
+model OpsSession {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  tokenHash   String    @unique
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  /// Null when TOTP is required but not yet enrolled — the session can browse
+  /// /ops and enroll, but step-up (and therefore MONEY/SENSITIVE) is refused.
+  stepUpAt    DateTime?
+  revokedAt   DateTime?
+  ip          String?
+
+  @@index([userId, revokedAt])
+}
+
+/// OPS Part 1 — TOTP (2FA) enrollment for admin accounts. The secret is
+/// AES-256-GCM encrypted at rest (key derived from JWT_SECRET); backup codes
+/// are stored as SHA-256 hashes and are single-use (removed when consumed).
+model OpsCredential {
+  userId           String    @id @db.Uuid
+  totpSecretEnc    String?
+  totpEnabledAt    DateTime?
+  backupCodeHashes String[]  @default([])
+  updatedAt        DateTime  @updatedAt
+}
+
 /// One-time password-reset tokens (Sprint 3 / P1-206). SHA-256 stored,
 /// 30-minute TTL, single use; a successful reset revokes every refresh
 /// token the account holds.

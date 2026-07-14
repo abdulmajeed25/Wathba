@@ -9,6 +9,7 @@ import type { JwtPayload } from '../identity/auth.service';
 import { MilestonesService } from './milestones.service';
 import { AuditService } from '../identity/audit.service';
 import { OperationsRegistry } from '../ops/operations.registry';
+import { OpsAuthService } from '../ops/ops-auth.service';
 import {
   CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto,
 } from './dto/milestone.dto';
@@ -20,6 +21,7 @@ export class MilestonesController {
     private readonly svc: MilestonesService,
     private readonly audit: AuditService,
     private readonly registry: OperationsRegistry,
+    private readonly opsAuth: OpsAuthService,
   ) {}
 
   @Get('milestones')
@@ -77,11 +79,12 @@ export class MilestonesController {
     @Ip() ip: string,
     @Body() dto?: { reason?: string },
     @Headers('x-idempotency-key') idemKey?: string,
+    @Headers('x-ops-token') opsToken?: string,
   ) {
     await this.registry.execute(
       'money.milestone.approve',
       { projectId, milestoneId },
-      this.opsCtx(jwt, ip, dto?.reason, idemKey),
+      await this.opsCtx(jwt, ip, dto?.reason, idemKey, opsToken),
     );
     const m = await this.svc.getOne(projectId, milestoneId);
     return this.svc.toPublic(m);
@@ -99,21 +102,25 @@ export class MilestonesController {
     @Ip() ip: string,
     @Body() dto?: { reason?: string },
     @Headers('x-idempotency-key') idemKey?: string,
+    @Headers('x-ops-token') opsToken?: string,
   ) {
     const out = await this.registry.execute<{ amountHalalas: string }>(
       'money.milestone.release',
       { projectId, milestoneId },
-      this.opsCtx(jwt, ip, dto?.reason, idemKey),
+      await this.opsCtx(jwt, ip, dto?.reason, idemKey, opsToken),
     );
     const m = await this.svc.getOne(projectId, milestoneId);
     return { milestone: this.svc.toPublic(m), amountHalalas: Number(out.result.amountHalalas) };
   }
 
-  private opsCtx(jwt: JwtPayload, ip: string, reason?: string, idemKey?: string) {
+  private async opsCtx(jwt: JwtPayload, ip: string, reason?: string, idemKey?: string, opsToken?: string) {
     return {
       actor: { id: jwt.sub, type: 'HUMAN' as const, roles: jwt.roles as unknown as string[] },
       ip,
       reason,
+      // Part 1 — legacy surface: MONEY step-up proven via x-ops-token.
+      surface: 'legacy' as const,
+      stepUpVerifiedAt: await this.opsAuth.stepUpFromToken(opsToken),
       idempotencyKey: idemKey || `legacy-${crypto.randomUUID()}`,
     };
   }

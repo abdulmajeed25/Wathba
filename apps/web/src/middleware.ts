@@ -78,6 +78,57 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(new URL('/projects', req.url));
   }
 
+  // OPS Part 1 — /ops is its own hardened surface. Middleware enforces, in
+  // order: (1) a public session exists, (2) the account holds ADMIN (checked
+  // against the API — the /ops layout re-checks server-side as the backstop),
+  // (3) beyond /ops/enter, the SEPARATE ops-session cookie exists. Every
+  // /ops response also carries X-Robots-Tag (robots.ts already disallows).
+  if (pathname === '/ops' || pathname.startsWith('/ops/')) {
+    if (!session) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/sign-in';
+      url.searchParams.set('next', pathname + (search || ''));
+      return NextResponse.redirect(url);
+    }
+    try {
+      const meRes = await fetch(`${API_BASE}/v1/users/me`, {
+        headers: { Authorization: `Bearer ${session}` },
+        cache: 'no-store',
+      });
+      if (!meRes.ok) {
+        const url = req.nextUrl.clone();
+        url.pathname = '/sign-in';
+        url.searchParams.set('next', pathname + (search || ''));
+        const res = NextResponse.redirect(url);
+        res.cookies.delete('wathba_session');
+        res.cookies.delete('wathba_refresh');
+        return res;
+      }
+      const me = (await meRes.json()) as { roles: string[] };
+      if (!me.roles.includes('ADMIN')) {
+        const url = req.nextUrl.clone();
+        url.pathname = '/projects';
+        url.search = '';
+        return NextResponse.redirect(url);
+      }
+    } catch {
+      // API unreachable — REFUSE rather than degrade on the ops surface.
+      const url = req.nextUrl.clone();
+      url.pathname = '/projects';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+    if (!pathname.startsWith('/ops/enter') && !req.cookies.get('wathba_ops_session')?.value) {
+      const url = req.nextUrl.clone();
+      url.pathname = '/ops/enter';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+    const res = NextResponse.next();
+    res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    return res;
+  }
+
   // Sprint 2 / P1-502 — rotate a lapsing access token transparently.
   if (session && refresh) {
     const expMs = jwtExpMs(session);
