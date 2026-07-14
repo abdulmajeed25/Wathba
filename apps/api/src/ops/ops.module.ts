@@ -11,6 +11,9 @@ import { OperationsRegistry } from './operations.registry';
 import { OpsController } from './ops.controller';
 import { OpsAuthService } from './ops-auth.service';
 import { OpsAuthController } from './ops-auth.controller';
+import { OpsRbacService } from './ops-rbac.service';
+import { OpsProposalsService } from './ops-proposals.service';
+import { OpsProposalsController } from './ops-proposals.controller';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
 import { moderationOps } from './operations/moderation.ops';
@@ -38,9 +41,16 @@ import { PayoutDisburser } from '../escrow-payments/payout.disburser';
     FundingModule,
     EscrowPaymentsModule,
   ],
-  controllers: [OpsController, OpsAuthController],
-  providers: [OperationsRegistry, OpsAuthService, OpsSessionGuard, OpsIpAllowlistGuard],
-  exports: [OperationsRegistry, OpsAuthService],
+  controllers: [OpsController, OpsAuthController, OpsProposalsController],
+  providers: [
+    OperationsRegistry,
+    OpsAuthService,
+    OpsRbacService,
+    OpsProposalsService,
+    OpsSessionGuard,
+    OpsIpAllowlistGuard,
+  ],
+  exports: [OperationsRegistry, OpsAuthService, OpsRbacService],
 })
 export class OpsModule implements OnModuleInit {
   constructor(
@@ -50,9 +60,14 @@ export class OpsModule implements OnModuleInit {
     private readonly email: EmailService,
     private readonly funding: FundingService,
     private readonly disburser: PayoutDisburser,
+    private readonly rbac: OpsRbacService,
   ) {}
 
   onModuleInit(): void {
+    // Part 2 — swap the fail-safe default ports for the live RBAC matrix
+    // and the four-eyes switch (auto-on at the 2nd money admin).
+    this.registry.permissionPort = this.rbac;
+    this.registry.fourEyesPort = this.rbac;
     const defs = [
       ...projectsOps({
         prisma: this.prisma,

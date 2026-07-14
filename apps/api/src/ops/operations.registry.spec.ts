@@ -29,6 +29,7 @@ interface MockDb {
   user: MockModel; comment: MockModel; commentReport: MockModel; projectReport: MockModel;
   editorialCard: MockModel; homepageSection: MockModel; collection: MockModel;
   projectCollection: MockModel; operationExecution: MockModel; auditLog: MockModel;
+  operationProposal: MockModel; opsRole: MockModel; opsRoleGrant: MockModel;
   $transaction: Mock;
 }
 
@@ -53,6 +54,7 @@ function buildPrisma(): MockDb {
     user: model(), comment: model(), commentReport: model(), projectReport: model(),
     editorialCard: model(), homepageSection: model(), collection: model(),
     projectCollection: model(), operationExecution: model(), auditLog: model(),
+    operationProposal: model(), opsRole: model(), opsRoleGrant: model(),
     $transaction: jest.fn(),
   };
   prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
@@ -176,14 +178,58 @@ describe('OperationsRegistry — gates', () => {
     expect(ok.result).toEqual({ done: true });
   });
 
-  it('four-eyes queueing intercepts MONEY execution when the port says so', async () => {
+  it('four-eyes intercepts MONEY execution: a proposal is filed with the dryRun snapshot, NOTHING executes', async () => {
     const prisma = buildPrisma();
     const reg = new OperationsRegistry(asPrisma(prisma));
     reg.fourEyesPort = { mustQueue: async () => true };
     reg.register(simpleOp({ key: 'test.money', riskTier: 'MONEY' }));
-    await expect(
-      reg.execute('test.money', { id: 'a' }, ctx({ reason: 'سبب مالي مكتوب وواضح', idempotencyKey: 'k2' })),
-    ).rejects.toThrow(/العيون الأربع/);
+    prisma.operationExecution.findUnique.mockResolvedValue(null);
+    prisma.operationProposal.findUnique.mockResolvedValue(null);
+    const out = await reg.execute(
+      'test.money',
+      { id: 'a' },
+      ctx({ reason: 'سبب مالي مكتوب وواضح', idempotencyKey: 'k2' }),
+    );
+    expect(out.queued).toBe(true);
+    expect(out.result).toBeNull();
+    expect(out.executionId).toBeNull();
+    expect(out.proposalId).toBeTruthy();
+    // Nothing mutated, no execution row — only the proposal + its audit row.
+    expect(prisma.project.update).not.toHaveBeenCalled();
+    expect(prisma.operationExecution.create).not.toHaveBeenCalled();
+    expect(prisma.operationProposal.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        operationKey: 'test.money',
+        riskTier: 'MONEY',
+        proposedById: 'admin-1',
+        idempotencyKey: 'k2',
+        preview: expect.objectContaining({ summaryAr: 'ok' }),
+      }),
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'ops.proposal.create' }),
+    });
+  });
+
+  it('replaying the queued idempotencyKey returns the SAME proposal, no duplicate', async () => {
+    const prisma = buildPrisma();
+    const reg = new OperationsRegistry(asPrisma(prisma));
+    reg.fourEyesPort = { mustQueue: async () => true };
+    reg.register(simpleOp({ key: 'test.money', riskTier: 'MONEY' }));
+    prisma.operationExecution.findUnique.mockResolvedValue(null);
+    prisma.operationProposal.findUnique.mockResolvedValue({
+      id: 'prop-1',
+      operationKey: 'test.money',
+      inputHash: inputHashOf({ id: 'a' }),
+      status: 'PENDING',
+    });
+    const out = await reg.execute(
+      'test.money',
+      { id: 'a' },
+      ctx({ reason: 'سبب مالي مكتوب وواضح', idempotencyKey: 'k2' }),
+    );
+    expect(out).toMatchObject({ queued: true, replayed: true, proposalId: 'prop-1' });
+    expect(prisma.operationProposal.create).not.toHaveBeenCalled();
   });
 
   it('a failing precondition refuses with its Arabic reason (422)', async () => {
@@ -356,7 +402,7 @@ describe('money.milestone.release — realized-basis proof (ported from mileston
       { projectId: PROJECT_ID, milestoneId: MILESTONE_ID },
       ctx({ reason: 'صرف المرحلة الأولى بعد التحقق من الدليل', idempotencyKey: 'REL-1' }),
     );
-    expect(out.result.amountHalalas).toBe('27000000'); // 30% of REALIZED 90M
+    expect(out.result!.amountHalalas).toBe('27000000'); // 30% of REALIZED 90M
     expect(prisma.payout.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         projectId: PROJECT_ID, creatorId: 'u1', milestoneId: MILESTONE_ID,

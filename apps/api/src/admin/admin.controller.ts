@@ -9,6 +9,7 @@ import { AdminService } from './admin.service';
 import { OperationsRegistry } from '../ops/operations.registry';
 import type { OperationContext } from '../ops/operation.types';
 import { OpsAuthService } from '../ops/ops-auth.service';
+import { OpsRbacService } from '../ops/ops-rbac.service';
 import { DeadlineOverrideDto, GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto, OpsReasonDto } from './dto/admin.dto';
 
 /**
@@ -29,6 +30,7 @@ export class AdminController {
     private readonly projects: ProjectsService,
     private readonly registry: OperationsRegistry,
     private readonly opsAuth: OpsAuthService,
+    private readonly rbac: OpsRbacService,
   ) {}
 
   private async ctx(
@@ -39,7 +41,13 @@ export class AdminController {
     opsToken?: string,
   ): Promise<OperationContext> {
     return {
-      actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] },
+      actor: {
+        id: jwt.sub,
+        type: 'HUMAN',
+        roles: jwt.roles as unknown as string[],
+        // Part 2 — RBAC applies on the legacy seams too.
+        permissions: (await this.rbac.permissionsForUser(jwt.sub)).permissions,
+      },
       ip,
       reason,
       // Part 1 — these seams are the LEGACY surface: MONEY ops still require a
@@ -70,6 +78,7 @@ export class AdminController {
       { projectId: id },
       await this.ctx(jwt, ip, dto?.reason, idemKey, opsToken),
     );
+    if (out.queued) return { queued: true, proposalId: out.proposalId };
     return out.result;
   }
 
@@ -87,6 +96,7 @@ export class AdminController {
       {},
       await this.ctx(jwt, ip, dto?.reason, idemKey, opsToken),
     );
+    if (out.queued) return { queued: true, proposalId: out.proposalId };
     return out.result;
   }
 
@@ -137,6 +147,7 @@ export class AdminController {
       { projectId: id, deadline: dto.deadline },
       await this.ctx(jwt, ip, dto.reason, idemKey, opsToken),
     );
+    if (out.queued) return { queued: true, proposalId: out.proposalId };
     return out.result;
   }
 

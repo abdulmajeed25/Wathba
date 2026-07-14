@@ -47,24 +47,9 @@ async function backfill(prisma) {
     if (r.count) console.log(`[seed-categories] backfilled ${r.count} ${enumVal} → ${slug}`);
   }
 
-  // Music removed: reassign any legacy MUSIC projects to Film & Video → Music Videos.
-  const filmVideo = await prisma.category.findFirst({ where: { slug: 'film-video', parentId: null } });
-  if (filmVideo) {
-    const musicVideos = await prisma.category.findFirst({
-      where: { slug: 'music-videos', parentId: filmVideo.id },
-    });
-    if (musicVideos) {
-      const r = await prisma.project.updateMany({
-        where: { category: 'MUSIC' },
-        data: { categoryId: musicVideos.id },
-      });
-      if (r.count) {
-        console.log(
-          `[seed-categories] reassigned ${r.count} legacy MUSIC project(s) → film-video/music-videos`,
-        );
-      }
-    }
-  }
+  // Music removed (0040 purge; BUG-2 permanent exclusion): legacy MUSIC
+  // projects land on the film-video TOP-LEVEL node — the LEGACY_TOPLEVEL_MAP
+  // above already routes MUSIC → 'film-video', nothing more to do here.
 
   const orphans = await prisma.project.count({ where: { categoryId: null } });
   if (orphans) console.log(`[seed-categories] ${orphans} project(s) still without a category (legacy category was null)`);

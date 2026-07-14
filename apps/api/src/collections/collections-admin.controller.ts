@@ -6,6 +6,7 @@ import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { CollectionsService } from './collections.service';
 import { OperationsRegistry } from '../ops/operations.registry';
+import { OpsRbacService } from '../ops/ops-rbac.service';
 import type { OperationContext } from '../ops/operation.types';
 import { AssignProjectDto, CreateCollectionDto, UpdateCollectionDto } from './dto/collection.dto';
 
@@ -20,10 +21,20 @@ export class CollectionsAdminController {
   constructor(
     private readonly collections: CollectionsService,
     private readonly registry: OperationsRegistry,
+    private readonly rbac: OpsRbacService,
   ) {}
 
-  private ctx(jwt: JwtPayload, ip: string): OperationContext {
-    return { actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] }, ip };
+  private async ctx(jwt: JwtPayload, ip: string): Promise<OperationContext> {
+    return {
+      actor: {
+        id: jwt.sub,
+        type: 'HUMAN',
+        roles: jwt.roles as unknown as string[],
+        // Part 2 — RBAC applies on the legacy seams too.
+        permissions: (await this.rbac.permissionsForUser(jwt.sub)).permissions,
+      },
+      ip,
+    };
   }
 
   @Get()
@@ -35,7 +46,7 @@ export class CollectionsAdminController {
   @Post()
   @ApiOperation({ summary: 'Create a collection (registry-governed)' })
   async create(@CurrentUser() jwt: JwtPayload, @Body() dto: CreateCollectionDto, @Ip() ip: string) {
-    const out = await this.registry.execute('content.collections.create', dto, this.ctx(jwt, ip));
+    const out = await this.registry.execute('content.collections.create', dto, await this.ctx(jwt, ip));
     return out.result;
   }
 
@@ -50,7 +61,7 @@ export class CollectionsAdminController {
     const out = await this.registry.execute(
       'content.collections.update',
       { id, ...dto },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     return out.result;
   }
@@ -58,7 +69,7 @@ export class CollectionsAdminController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a collection' })
   async remove(@CurrentUser() jwt: JwtPayload, @Param('id', new ParseUUIDPipe()) id: string, @Ip() ip: string) {
-    const out = await this.registry.execute('content.collections.delete', { id }, this.ctx(jwt, ip));
+    const out = await this.registry.execute('content.collections.delete', { id }, await this.ctx(jwt, ip));
     return out.result;
   }
 
@@ -73,7 +84,7 @@ export class CollectionsAdminController {
     const out = await this.registry.execute(
       'content.collections.assign',
       { collectionId: id, projectId: dto.projectId },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     return out.result;
   }
@@ -89,7 +100,7 @@ export class CollectionsAdminController {
     const out = await this.registry.execute(
       'content.collections.unassign',
       { collectionId: id, projectId },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     return out.result;
   }

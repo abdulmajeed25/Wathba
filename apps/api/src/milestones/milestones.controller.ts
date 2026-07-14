@@ -10,6 +10,7 @@ import { MilestonesService } from './milestones.service';
 import { AuditService } from '../identity/audit.service';
 import { OperationsRegistry } from '../ops/operations.registry';
 import { OpsAuthService } from '../ops/ops-auth.service';
+import { OpsRbacService } from '../ops/ops-rbac.service';
 import {
   CreateSpendLogDto, SetMilestonesDto, SubmitEvidenceDto,
 } from './dto/milestone.dto';
@@ -22,6 +23,7 @@ export class MilestonesController {
     private readonly audit: AuditService,
     private readonly registry: OperationsRegistry,
     private readonly opsAuth: OpsAuthService,
+    private readonly rbac: OpsRbacService,
   ) {}
 
   @Get('milestones')
@@ -109,13 +111,21 @@ export class MilestonesController {
       { projectId, milestoneId },
       await this.opsCtx(jwt, ip, dto?.reason, idemKey, opsToken),
     );
+    // Part 2 — four-eyes: nothing executed, a proposal was filed instead.
+    if (out.queued) return { queued: true, proposalId: out.proposalId };
     const m = await this.svc.getOne(projectId, milestoneId);
-    return { milestone: this.svc.toPublic(m), amountHalalas: Number(out.result.amountHalalas) };
+    return { milestone: this.svc.toPublic(m), amountHalalas: Number(out.result!.amountHalalas) };
   }
 
   private async opsCtx(jwt: JwtPayload, ip: string, reason?: string, idemKey?: string, opsToken?: string) {
     return {
-      actor: { id: jwt.sub, type: 'HUMAN' as const, roles: jwt.roles as unknown as string[] },
+      actor: {
+        id: jwt.sub,
+        type: 'HUMAN' as const,
+        roles: jwt.roles as unknown as string[],
+        // Part 2 — RBAC applies on the legacy seams too.
+        permissions: (await this.rbac.permissionsForUser(jwt.sub)).permissions,
+      },
       ip,
       reason,
       // Part 1 — legacy surface: MONEY step-up proven via x-ops-token.

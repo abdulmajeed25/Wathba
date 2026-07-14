@@ -70,7 +70,12 @@ describe('OPS governance — the registry is the only mutation path', () => {
           entry.name !== 'ops.module.ts' &&
           // Part 1 — the ops-session/TOTP service owns its OWN auth tables
           // (OpsSession/OpsCredential), never a governed business entity.
-          entry.name !== 'ops-auth.service.ts'
+          entry.name !== 'ops-auth.service.ts' &&
+          // Part 2 — same carve-out for the governance tables: RBAC owns
+          // OpsRole/OpsRoleGrant, proposals owns OperationProposal. Neither
+          // may touch a business entity (asserted separately below).
+          entry.name !== 'ops-rbac.service.ts' &&
+          entry.name !== 'ops-proposals.service.ts'
         ) {
           const src = readFileSync(p, 'utf8');
           const valueImport = src
@@ -85,5 +90,26 @@ describe('OPS governance — the registry is the only mutation path', () => {
     };
     walk(dir);
     expect(offenders).toEqual([]);
+  });
+
+  it('RULE 5: the carve-out services mutate ONLY their own governance tables', () => {
+    // The RULE-4 exceptions exist because these services own governance
+    // infrastructure. This rule keeps the carve-out honest: a business
+    // entity (user, project, pledge, payout, …) may never be WRITTEN here.
+    const allowed: Record<string, string[]> = {
+      'ops/ops-auth.service.ts': ['opsSession', 'opsCredential'],
+      'ops/ops-rbac.service.ts': [],
+      'ops/ops-proposals.service.ts': ['operationProposal', 'auditLog'],
+    };
+    for (const [rel, models] of Object.entries(allowed)) {
+      const src = read(rel);
+      const writes = [
+        ...src.matchAll(
+          /(?:this\.prisma|tx)\.([a-zA-Z]+)\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\(/g,
+        ),
+      ].map((m) => m[1]!);
+      const offenders = writes.filter((w) => !models.includes(w));
+      expect({ file: rel, offenders }).toEqual({ file: rel, offenders: [] });
+    }
   });
 });

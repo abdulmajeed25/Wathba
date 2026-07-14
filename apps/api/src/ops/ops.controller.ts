@@ -85,7 +85,9 @@ export class OpsController {
 
   private ctxOf(p: OpsPrincipal, ip: string): OperationContext {
     return {
-      actor: { id: p.userId, type: 'HUMAN', roles: p.roles },
+      // Part 2 — the resolved RBAC permissions ride on the actor; the
+      // registry's PermissionPort checks nothing else on this surface.
+      actor: { id: p.userId, type: 'HUMAN', roles: p.roles, permissions: p.permissions },
       ip,
       surface: 'ops',
       stepUpVerifiedAt: p.session.stepUpAt,

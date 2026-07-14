@@ -30,7 +30,10 @@ export const LEGACY_TOPLEVEL_MAP = {
   FASHION: 'fashion',
   ART: 'art',
   SOCIAL: 'social-impact',
-  // MUSIC is handled specially (category removed) → film-video / music-videos.
+  // MUSIC is handled specially: the category (and every music subcategory)
+  // is permanently excluded (0040 purge) — legacy MUSIC projects land on
+  // film-video, the top-level node.
+  MUSIC: 'film-video',
 };
 
 const c = (en, ar) => ({ en, ar });
@@ -99,8 +102,8 @@ export const TREE = [
       c('Documentary', 'وثائقي'), c('Drama', 'دراما'), c('Experimental', 'تجريبي'),
       c('Family', 'عائلي'), c('Fantasy', 'فانتازيا'), c('Festivals', 'المهرجانات'),
       c('Horror', 'رعب'), c('Movie Theaters', 'دور السينما'),
-      c('Music Videos', 'الفيديوهات الموسيقية'), c('Narrative Film', 'الأفلام الروائية'),
-      c('Romance', 'رومانسي'), c('Science Fiction', 'الخيال العلمي'),
+      c('Narrative Film', 'الأفلام الروائية'),
+      c('Science Fiction', 'الخيال العلمي'),
       c('Shorts', 'الأفلام القصيرة'), c('Television', 'التلفزيون'),
       c('Thrillers', 'الإثارة'), c('Webseries', 'المسلسلات الرقمية'),
     ],
@@ -168,7 +171,7 @@ export const TREE = [
     slug: 'theater', nameEn: 'Theater', nameAr: 'المسرح',
     children: [
       c('Comedy', 'كوميدي'), c('Experimental', 'تجريبي'), c('Festivals', 'المهرجانات'),
-      c('Immersive', 'الغامر'), c('Musical', 'الاستعراضي'), c('Plays', 'المسرحيات'),
+      c('Immersive', 'الغامر'), c('Plays', 'المسرحيات'),
     ],
   },
   // ─── Saudi / Vision-2030 extensions (7) ───────────────────────────────────

@@ -18,6 +18,7 @@ import { Roles, RolesGuard } from '../identity/roles.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { OpsAuthService, STEP_UP_WINDOW_MS, type OpsPrincipal } from './ops-auth.service';
+import { OpsRbacService } from './ops-rbac.service';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 
 class EnterDto {
@@ -58,7 +59,10 @@ type OpsRequest = Request & { opsPrincipal: OpsPrincipal };
 @Throttle({ default: { ttl: 60_000, limit: Number(process.env.OPS_AUTH_THROTTLE_LIMIT ?? 10) } })
 @Controller('ops/auth')
 export class OpsAuthController {
-  constructor(private readonly opsAuth: OpsAuthService) {}
+  constructor(
+    private readonly opsAuth: OpsAuthService,
+    private readonly rbac: OpsRbacService,
+  ) {}
 
   @Post('enter')
   @HttpCode(200)
@@ -79,13 +83,19 @@ export class OpsAuthController {
 
   @Get('session')
   @UseGuards(OpsSessionGuard)
-  @ApiOperation({ summary: 'Ops-session introspection (roles, step-up freshness, TOTP state)' })
-  session(@Req() req: OpsRequest) {
+  @ApiOperation({ summary: 'Ops-session introspection (roles, step-up freshness, TOTP, four-eyes)' })
+  async session(@Req() req: OpsRequest) {
     const p = req.opsPrincipal;
     const stepUpMs = p.session.stepUpAt?.getTime() ?? 0;
     return {
+      // Part 2 — the live four-eyes state (auto-on at the 2nd money admin);
+      // the Part-5 settings screen renders this read-only.
+      fourEyes: await this.rbac.fourEyesEffective(),
+      moneyAdmins: await this.rbac.moneyAdminCount(),
       email: p.email,
       roles: p.roles,
+      roleKeys: p.roleKeys,
+      permissions: p.permissions,
       totpEnabled: p.totpEnabled,
       totpRequired: p.totpRequired,
       totpPending: p.totpRequired && !p.totpEnabled,

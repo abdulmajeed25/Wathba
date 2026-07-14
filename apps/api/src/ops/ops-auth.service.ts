@@ -18,6 +18,7 @@ import type { OpsSession } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
+import { OpsRbacService } from './ops-rbac.service';
 
 /**
  * OPS Part 1 — the SEPARATE admin session + step-up + TOTP.
@@ -47,6 +48,10 @@ export interface OpsPrincipal {
   userId: string;
   email: string;
   roles: string[];
+  /** Part 2 — granted ops-role keys (OWNER, FINANCE, …) and the union of
+   *  their permissions; attached to every OperationActor on this surface. */
+  roleKeys: string[];
+  permissions: string[];
   session: OpsSession;
   totpEnabled: boolean;
   totpRequired: boolean;
@@ -60,10 +65,20 @@ export class OpsAuthService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly cfg: ConfigService,
+    private readonly rbac: OpsRbacService,
   ) {}
 
-  private get totpRequired(): boolean {
-    return this.cfg.get<string>('OPS_TOTP_REQUIRED') === '1';
+  /**
+   * Part 2 refinement of the Part-1 flag: TOTP is NOT optional for a payouts
+   * surface. OPS_TOTP_REQUIRED='1' → required for every admin;
+   * '0' → explicit dev/e2e escape hatch; unset (production default) →
+   * required for any account holding a MONEY permission ('*' counts).
+   */
+  private totpRequiredFor(permissions: readonly string[]): boolean {
+    const flag = this.cfg.get<string>('OPS_TOTP_REQUIRED');
+    if (flag === '1') return true;
+    if (flag === '0') return false;
+    return this.rbac.hasMoneyPermission(permissions);
   }
 
   /** AES-256-GCM key derived from JWT_SECRET — no new required env in dev. */
@@ -160,7 +175,8 @@ export class OpsAuthService {
         throw new UnauthorizedException('رمز التحقق الثنائي غير صحيح');
       }
     }
-    const totpPending = this.totpRequired && !enrolled;
+    const { permissions } = await this.rbac.permissionsForUser(input.userId);
+    const totpPending = this.totpRequiredFor(permissions) && !enrolled;
 
     const raw = randomBytes(48).toString('hex');
     const now = new Date();
@@ -218,13 +234,16 @@ export class OpsAuthService {
       });
       throw new UnauthorizedException('صلاحية المشرف أُلغيت — الجلسة أُنهيت');
     }
+    const { roleKeys, permissions } = await this.rbac.permissionsForUser(session.userId);
     return {
       userId: session.userId,
       email: user.email,
       roles: user.roles as string[],
+      roleKeys,
+      permissions,
       session,
       totpEnabled: await this.totpEnabled(session.userId),
-      totpRequired: this.totpRequired,
+      totpRequired: this.totpRequiredFor(permissions),
     };
   }
 
@@ -337,8 +356,10 @@ export class OpsAuthService {
       await this.anomaly('ops.auth.totp-disable.failed', {}, p.userId);
       throw new UnauthorizedException('رمز التحقق غير صحيح');
     }
-    if (this.totpRequired) {
-      throw new ForbiddenException('التحقق الثنائي إلزامي بسياسة المنصة (OPS_TOTP_REQUIRED) — لا يمكن تعطيله');
+    if (this.totpRequiredFor(p.permissions)) {
+      throw new ForbiddenException(
+        'التحقق الثنائي إلزامي لهذا الحساب (سياسة المنصة أو صلاحية مالية) — لا يمكن تعطيله',
+      );
     }
     await this.prisma.opsCredential.update({
       where: { userId: p.userId },

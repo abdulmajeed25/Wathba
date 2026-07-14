@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectStatus, type Project } from '@prisma/client';
+import { maskEmail, maskPhone } from '../ops/pii';
 
 /**
  * OPS Part 0 — this service is READ-ONLY now. Every mutation it used to own
@@ -27,11 +28,13 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+    // Part 2 — PDPL: PII is masked by default on every admin surface;
+    // revealing a value goes through the users.pii.unmask operation.
     return users.map((u) => ({
       id: u.id,
       name: u.name,
-      email: u.email,
-      phone: u.phone,
+      email: maskEmail(u.email),
+      phone: maskPhone(u.phone),
       createdAt: u.createdAt.toISOString(),
     }));
   }

@@ -120,7 +120,9 @@ const defaultStepUpPort: StepUpPort = {
 };
 
 const defaultFourEyesPort: FourEyesPort = {
-  // Part 2 wires the approval queue + the auto-on rule at the 2nd money admin.
+  // Replaced at boot by OpsRbacService (Part 2): auto-on at the 2nd money
+  // admin, config-on before that. Default stays fail-open only for unit
+  // tests that construct the registry bare.
   mustQueue: async () => false,
 };
 
@@ -199,11 +201,6 @@ export class OperationsRegistry {
 
     this.stepUpPort.assertFresh(ctx, op.riskTier);
 
-    if (op.riskTier === 'MONEY' && (await this.fourEyesPort.mustQueue(op.riskTier, ctx))) {
-      // Part 2 replaces this throw with proposal-queue insertion.
-      throw new ConflictException('مبدأ العيون الأربع مفعّل — تُقترح العملية للطابور ولا تُنفَّذ مباشرة');
-    }
-
     const inputHash = inputHashOf(input);
     const idemKey = ctx.idempotencyKey;
     if (idemKey) {
@@ -228,6 +225,14 @@ export class OperationsRegistry {
       if (!(await pre.check(roDb, input, ctx))) {
         throw new UnprocessableEntityException({ code: pre.code, reasonAr: pre.reasonAr });
       }
+    }
+
+    // Part 2 — four-eyes: when the switch is in effect, a MONEY execute
+    // files a PROPOSAL (with the dryRun snapshot the proposer saw) instead
+    // of executing. A DIFFERENT user with money.approve executes it later
+    // through executeProposal(); self-approval is refused there.
+    if (op.riskTier === 'MONEY' && (await this.fourEyesPort.mustQueue(op.riskTier, ctx))) {
+      return this.queueProposal<R>(op, input, ctx, inputHash);
     }
 
     const outcome = op.orchestrated
@@ -258,6 +263,7 @@ export class OperationsRegistry {
         }
       }
       const result = await op.execute(tx, input, ctx);
+      const stored = op.redactResult ? op.redactResult(result) : result;
       const execution = await tx.operationExecution.create({
         data: {
           idempotencyKey: ctx.idempotencyKey ?? `auto-${crypto.randomUUID()}`,
@@ -268,7 +274,7 @@ export class OperationsRegistry {
           riskTier: op.riskTier,
           reason: ctx.reason ?? null,
           status: 'COMPLETED',
-          result: (result ?? null) as Prisma.InputJsonValue,
+          result: (stored ?? null) as Prisma.InputJsonValue,
           completedAt: new Date(),
         },
       });
@@ -346,11 +352,12 @@ export class OperationsRegistry {
         input,
         ctx,
       );
+      const stored = op.redactResult ? op.redactResult(result) : result;
       await this.prisma.operationExecution.update({
         where: { id: claim.id },
         data: {
           status: 'COMPLETED',
-          result: (result ?? null) as Prisma.InputJsonValue,
+          result: (stored ?? null) as Prisma.InputJsonValue,
           completedAt: new Date(),
         },
       });
@@ -358,6 +365,157 @@ export class OperationsRegistry {
     } catch (err) {
       await this.prisma.operationExecution
         .update({ where: { id: claim.id }, data: { status: 'FAILED', completedAt: new Date() } })
+        .catch(() => undefined);
+      throw err;
+    }
+  }
+
+  /**
+   * Part 2 — file a four-eyes proposal instead of executing. The dryRun
+   * snapshot (what the proposer saw) is attached; the proposal row and its
+   * audit entry commit together. Replaying the same idempotencyKey while
+   * the proposal is PENDING returns the same proposal, not a duplicate.
+   */
+  private async queueProposal<R>(
+    op: OperationDef<unknown, unknown>,
+    input: unknown,
+    ctx: OperationContext,
+    inputHash: string,
+  ): Promise<ExecuteOutcome<R>> {
+    if (ctx.idempotencyKey) {
+      const prior = await this.prisma.operationProposal.findUnique({
+        where: { idempotencyKey: ctx.idempotencyKey },
+      });
+      if (prior) {
+        if (prior.inputHash !== inputHash || prior.operationKey !== op.key) {
+          throw new ConflictException('idempotencyKey مستخدم سابقاً بمدخلات مختلفة');
+        }
+        return { executionId: null, replayed: true, result: null, queued: true, proposalId: prior.id };
+      }
+    }
+    const preview = await op.dryRun(readOnlyDb(this.prisma), input, ctx);
+    const proposal = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.operationProposal.create({
+        data: {
+          operationKey: op.key,
+          input: JSON.parse(JSON.stringify(input, (_k, v: unknown) =>
+            typeof v === 'bigint' ? v.toString() : v)) as Prisma.InputJsonValue,
+          inputHash,
+          preview: JSON.parse(JSON.stringify(preview)) as Prisma.InputJsonValue,
+          reason: ctx.reason ?? '',
+          riskTier: op.riskTier,
+          proposedById: ctx.actor.id,
+          proposedByType: ctx.actor.type,
+          idempotencyKey: ctx.idempotencyKey ?? null,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: this.uuidOrNull(ctx.actor.id),
+          action: 'ops.proposal.create',
+          entity: 'OperationProposal',
+          entityId: row.id,
+          detail: {
+            operationKey: op.key,
+            riskTier: op.riskTier,
+            actorType: ctx.actor.type,
+            reason: ctx.reason ?? null,
+            inputHash,
+            ip: ctx.ip ?? null,
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return row;
+    });
+    this.logger.log(`four-eyes: ${op.key} queued as proposal ${proposal.id} by ${ctx.actor.id}`);
+    return { executionId: null, replayed: false, result: null, queued: true, proposalId: proposal.id };
+  }
+
+  /**
+   * Part 2 — execute an approved proposal. The approver is the second pair
+   * of eyes: a DIFFERENT user holding money.approve, with a fresh step-up
+   * and a written decision reason. Preconditions re-run against the current
+   * state (a stale proposal refuses cleanly); the execution carries the
+   * proposer's idempotencyKey so retries replay instead of double-paying.
+   */
+  async executeProposal<R = unknown>(
+    proposalId: string,
+    ctx: OperationContext,
+  ): Promise<ExecuteOutcome<R>> {
+    const proposal = await this.prisma.operationProposal.findUnique({ where: { id: proposalId } });
+    if (!proposal) throw new NotFoundException('الاقتراح غير موجود');
+    const op = this.mustGet(proposal.operationKey);
+
+    // The same hard rule as execute(): an agent is never the second pair of
+    // eyes on money — checked before any permission.
+    if (ctx.actor.type === 'AGENT' && op.riskTier === 'MONEY') {
+      throw new ForbiddenException(
+        'وكلاء الذكاء الاصطناعي لا يُنفّذون عمليات مالية أبداً — المسموح: dryRun واقتراح للطابور',
+      );
+    }
+    if (!this.permissionPort.has(ctx.actor, 'money.approve')) {
+      throw new ForbiddenException('تفتقد الصلاحية المطلوبة: money.approve');
+    }
+    // Self-approval refused at the domain level — no role combination
+    // allows the proposer to be their own second pair of eyes.
+    if (proposal.proposedById === ctx.actor.id) {
+      throw new ForbiddenException('لا يجوز اعتماد اقتراحك بنفسك — مبدأ العيون الأربع يتطلب شخصاً آخر');
+    }
+    if ((ctx.reason?.trim().length ?? 0) < 10) {
+      throw new BadRequestException(
+        'اعتماد عملية مالية يتطلب سبباً مكتوباً (١٠ أحرف على الأقل) يُسجَّل في سجل التدقيق',
+      );
+    }
+    this.stepUpPort.assertFresh(ctx, op.riskTier);
+
+    const input = this.parseInput(op, proposal.input);
+    if (inputHashOf(input) !== proposal.inputHash) {
+      throw new ConflictException('بصمة المدخلات لا تطابق الاقتراح — يُرفض التنفيذ');
+    }
+
+    // Atomic claim: two simultaneous approvers → exactly one proceeds.
+    const claimed = await this.prisma.operationProposal.updateMany({
+      where: { id: proposal.id, status: 'PENDING' },
+      data: { status: 'EXECUTING', decidedById: this.uuidOrNull(ctx.actor.id), decidedAt: new Date(), decisionReason: ctx.reason },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException(`الاقتراح ليس معلّقاً (الحالة: ${proposal.status}) — لا يُنفَّذ`);
+    }
+
+    const execCtx: OperationContext = {
+      ...ctx,
+      reason: `[اعتماد عيون-أربع للاقتراح ${proposal.id}] ${ctx.reason ?? ''} | سبب الاقتراح: ${proposal.reason}`,
+      idempotencyKey: proposal.idempotencyKey ?? `proposal-${proposal.id}`,
+    };
+    try {
+      const roDb = readOnlyDb(this.prisma);
+      for (const pre of op.preconditions) {
+        if (!(await pre.check(roDb, input, execCtx))) {
+          throw new UnprocessableEntityException({ code: pre.code, reasonAr: pre.reasonAr });
+        }
+      }
+      const inputHash = proposal.inputHash;
+      const outcome = op.orchestrated
+        ? await this.executeOrchestrated<R>(op, input, execCtx, inputHash)
+        : await this.executeTransactional<R>(op, input, execCtx, inputHash);
+      await this.prisma.operationProposal.update({
+        where: { id: proposal.id },
+        data: { status: 'EXECUTED', executionId: outcome.executionId },
+      });
+      if (op.afterCommit) {
+        op.afterCommit(outcome.result, input, execCtx).catch((err) =>
+          this.logger.warn(`afterCommit(${op.key}) failed: ${String(err)}`),
+        );
+      }
+      return { ...outcome, proposalId: proposal.id };
+    } catch (err) {
+      // Terminal — a failed approval is visible and re-proposed, never
+      // silently retried (money-safe).
+      await this.prisma.operationProposal
+        .update({
+          where: { id: proposal.id },
+          data: { status: 'FAILED', decisionReason: `${ctx.reason ?? ''} | فشل التنفيذ: ${String(err).slice(0, 300)}` },
+        })
         .catch(() => undefined);
       throw err;
     }
