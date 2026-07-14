@@ -14,6 +14,8 @@ import { OpsAuthController } from './ops-auth.controller';
 import { OpsRbacService } from './ops-rbac.service';
 import { OpsProposalsService } from './ops-proposals.service';
 import { OpsProposalsController } from './ops-proposals.controller';
+import { OpsAuditService } from './ops-audit.service';
+import { OpsAuditController } from './ops-audit.controller';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
 import { moderationOps } from './operations/moderation.ops';
@@ -41,12 +43,13 @@ import { PayoutDisburser } from '../escrow-payments/payout.disburser';
     FundingModule,
     EscrowPaymentsModule,
   ],
-  controllers: [OpsController, OpsAuthController, OpsProposalsController],
+  controllers: [OpsController, OpsAuthController, OpsProposalsController, OpsAuditController],
   providers: [
     OperationsRegistry,
     OpsAuthService,
     OpsRbacService,
     OpsProposalsService,
+    OpsAuditService,
     OpsSessionGuard,
     OpsIpAllowlistGuard,
   ],

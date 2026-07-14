@@ -1022,18 +1022,35 @@ model ZatcaInvoice {
 
 /// Immutable audit trail for privileged + money-critical actions
 /// (Sprint 2 / P1-503). Append-only; never UPDATE or DELETE.
+/// OPS Part 3 — append-only + hash-chained. chainSeq/prevHash/hash are
+/// assigned by the audit_chain DB trigger (migration 0046) under an advisory
+/// lock; hash = sha256(prevHash || canonical(entry)) via audit_row_hash().
+/// UPDATE/DELETE/TRUNCATE raise at the DB level (proven by audit-chain.spec).
 model AuditLog {
-  id        String   @id @default(uuid()) @db.Uuid
-  actorId   String?  @db.Uuid
-  action    String
-  entity    String
-  entityId  String?
-  detail    Json?
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  actorId        String?  @db.Uuid
+  /// HUMAN | AGENT | SYSTEM — SYSTEM inferred by the trigger when actorId is null.
+  actorType      String   @default(dbgenerated())
+  agentId        String?
+  action         String
+  entity         String
+  entityId       String?
+  riskTier       String?
+  reason         String?
+  inputHash      String?
+  idempotencyKey String?
+  ip             String?
+  userAgent      String?
+  detail         Json?
+  createdAt      DateTime @default(now())
+  chainSeq       BigInt   @unique @default(dbgenerated())
+  prevHash       String   @default(dbgenerated())
+  hash           String   @default(dbgenerated())
 
   @@index([entity, entityId])
   @@index([actorId, createdAt])
   @@index([action, createdAt])
+  @@index([createdAt])
 }
 
 /// OPS Part 0 — idempotency + replay ledger for registry-executed operations.
