@@ -78,7 +78,10 @@ describe('OPS governance — the registry is the only mutation path', () => {
           entry.name !== 'ops-proposals.service.ts' &&
           // Part 3 — the audit browser/verifier is READ-ONLY over AuditLog
           // (RULE 5 pins it to zero mutating calls).
-          entry.name !== 'ops-audit.service.ts'
+          entry.name !== 'ops-audit.service.ts' &&
+          // Part 4 — agent identity owns AgentAccount/AgentDryRun (tokens,
+          // the no-blind-writes ledger); creation/rotation stay operations.
+          entry.name !== 'ops-agents.service.ts'
         ) {
           const src = readFileSync(p, 'utf8');
           const valueImport = src
@@ -104,6 +107,7 @@ describe('OPS governance — the registry is the only mutation path', () => {
       'ops/ops-rbac.service.ts': [],
       'ops/ops-proposals.service.ts': ['operationProposal', 'auditLog'],
       'ops/ops-audit.service.ts': [],
+      'ops/ops-agents.service.ts': ['agentAccount', 'agentDryRun'],
     };
     for (const [rel, models] of Object.entries(allowed)) {
       const src = read(rel);

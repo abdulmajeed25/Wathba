@@ -16,27 +16,28 @@ import type { Request } from 'express';
 
 import { OperationsRegistry } from './operations.registry';
 import type { OperationContext } from './operation.types';
-import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
+import { OpsIpAllowlistGuard } from './ops-session.guard';
+import { OpsOperationsGuard } from './ops-agents.guard';
 import type { OpsPrincipal } from './ops-auth.service';
+import type { AgentPrincipal } from './ops-agents.service';
 
-type OpsRequest = Request & { opsPrincipal: OpsPrincipal };
+type OpsRequest = Request & { opsPrincipal?: OpsPrincipal; agentPrincipal?: AgentPrincipal };
 
 /**
- * OPS Part 0/1 — the registry's HTTP surface:
+ * OPS Part 0/1/2/4 — the registry's HTTP surface:
  *   GET  /v1/ops/operations            machine-readable capability manifest
  *   GET  /v1/ops/operations/:key       describe one operation
  *   POST /v1/ops/operations/:key/dry-run
  *   POST /v1/ops/operations/:key/execute
+ *   POST /v1/ops/operations/:key/propose   (Part 4 — SENSITIVE/MONEY → queue)
  *
- * Part 1 hardening: the surface now requires the SEPARATE ops session
- * (OpsSessionGuard — the public bearer JWT is not accepted), sits behind
- * the optional IP allowlist, and carries the session's step-up state into
- * the registry, which enforces the 10-minute window on MONEY/SENSITIVE.
- * Part 2 swaps the coarse ADMIN gate for per-permission RBAC inside the
- * registry.
+ * Two principals (Part 4): a human ops session (x-ops-token) or an agent
+ * service token (x-agent-token). The registry enforces what each may do —
+ * an agent's MONEY/SENSITIVE executes are refused there regardless of role,
+ * and its CONTENT/STANDARD executes demand a preceding matching dryRun.
  */
 @ApiTags('ops')
-@UseGuards(OpsIpAllowlistGuard, OpsSessionGuard)
+@UseGuards(OpsIpAllowlistGuard, OpsOperationsGuard)
 @Throttle({ default: { ttl: 60_000, limit: 60 } })
 @Controller('ops/operations')
 export class OpsController {
@@ -63,7 +64,7 @@ export class OpsController {
     @Body() body: { input?: unknown },
     @Ip() ip: string,
   ) {
-    return this.registry.dryRun(key, body?.input ?? {}, this.ctxOf(req.opsPrincipal, ip));
+    return this.registry.dryRun(key, body?.input ?? {}, this.ctxOf(req, ip));
   }
 
   @Post(':key/execute')
@@ -77,20 +78,48 @@ export class OpsController {
     @Headers('x-idempotency-key') idempotencyKey?: string,
   ) {
     return this.registry.execute(key, body?.input ?? {}, {
-      ...this.ctxOf(req.opsPrincipal, ip),
+      ...this.ctxOf(req, ip),
       reason: body?.reason,
       idempotencyKey: idempotencyKey || undefined,
     });
   }
 
-  private ctxOf(p: OpsPrincipal, ip: string): OperationContext {
+  @Post(':key/propose')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'File a proposal (SENSITIVE/MONEY) — a human executes it from the queue' })
+  async propose(
+    @Req() req: OpsRequest,
+    @Param('key') key: string,
+    @Body() body: { input?: unknown; reason?: string },
+    @Ip() ip: string,
+    @Headers('x-idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.registry.propose(key, body?.input ?? {}, {
+      ...this.ctxOf(req, ip),
+      reason: body?.reason,
+      idempotencyKey: idempotencyKey || undefined,
+    });
+  }
+
+  private ctxOf(req: OpsRequest, ip: string): OperationContext {
+    if (req.opsPrincipal) {
+      const p = req.opsPrincipal;
+      return {
+        actor: { id: p.userId, type: 'HUMAN', roles: p.roles, permissions: p.permissions },
+        ip,
+        surface: 'ops',
+        stepUpVerifiedAt: p.session.stepUpAt,
+      };
+    }
+    const a = req.agentPrincipal!;
     return {
-      // Part 2 — the resolved RBAC permissions ride on the actor; the
-      // registry's PermissionPort checks nothing else on this surface.
-      actor: { id: p.userId, type: 'HUMAN', roles: p.roles, permissions: p.permissions },
+      // Part 4 — the agent principal: audit attributes actorType=AGENT, the
+      // registry's hard rules key off it, RBAC comes from the agent's role.
+      actor: { id: a.agent.id, type: 'AGENT', roles: [a.roleKey], permissions: a.permissions },
       ip,
       surface: 'ops',
-      stepUpVerifiedAt: p.session.stepUpAt,
+      stepUpVerifiedAt: null,
+      userAgent: `agent:${a.agent.nameAr}`,
     };
   }
 }

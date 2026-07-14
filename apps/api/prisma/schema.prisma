@@ -1138,6 +1138,7 @@ model OpsRole {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
   grants      OpsRoleGrant[]
+  agents      AgentAccount[]
 }
 
 /// OPS Part 2 — user ↔ ops-role join. Granting/revoking happens ONLY through
@@ -1154,6 +1155,40 @@ model OpsRoleGrant {
 
   @@unique([userId, roleId])
   @@index([userId])
+}
+
+/// OPS Part 4 — an agent is a first-class principal with a ROLE like any
+/// teammate (least privilege, NEVER owner — enforced as a precondition on
+/// agents.create/agents.role — and NEVER money, enforced in the registry
+/// before permissions are even consulted). Auth: opaque service token,
+/// SHA-256 stored, short TTL, rotatable; AGENTS_ENABLED=false kills every
+/// token instantly at the guard.
+model AgentAccount {
+  id             String    @id @default(uuid()) @db.Uuid
+  nameAr         String
+  isActive       Boolean   @default(true)
+  roleId         String    @db.Uuid
+  tokenHash      String?   @unique
+  tokenExpiresAt DateTime?
+  lastUsedAt     DateTime?
+  createdBy      String?   @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  role           OpsRole   @relation(fields: [roleId], references: [id])
+}
+
+/// OPS Part 4 — every agent execution requires a PRECEDING successful
+/// dryRun whose inputHash matches (no blind writes). This is the durable
+/// record the registry checks.
+model AgentDryRun {
+  id           String   @id @default(uuid()) @db.Uuid
+  agentId      String   @db.Uuid
+  operationKey String
+  inputHash    String
+  ok           Boolean
+  createdAt    DateTime @default(now())
+
+  @@index([agentId, operationKey, inputHash, createdAt])
 }
 
 /// OPS Part 2 — the four-eyes approval queue. When FOUR_EYES_MONEY is in
