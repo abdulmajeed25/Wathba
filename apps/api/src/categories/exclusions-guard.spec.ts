@@ -30,6 +30,26 @@ function migrationsInOrder(): Array<{ name: string; sql: string }> {
 describe('permanent-exclusions seed guard', () => {
   const migrations = migrationsInOrder();
 
+  it('the seed DATA file (categories.data.mjs) carries no excluded category', () => {
+    // OPS Part 2 aftermath: the 0040 purge cleaned the DB but the seed data
+    // still generated music-videos/musical/romance, so any re-seed silently
+    // regressed BUG-2 (caught live by policy-guards e2e). The guard now
+    // watches the data source itself, not just the migration chain.
+    const src = readFileSync(join(__dirname, '..', '..', 'prisma', 'categories.data.mjs'), 'utf8');
+    const kebab = (s: string): string =>
+      s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const leaks: string[] = [];
+    for (const [, q] of src.matchAll(/'([^']+)'/g)) {
+      if (EXCLUDED_SLUGS.includes(kebab(q!))) {
+        leaks.push(`quoted literal '${q}' → excluded slug '${kebab(q!)}'`);
+      }
+      for (const frag of EXCLUDED_NAME_FRAGMENTS) {
+        if (q!.includes(frag)) leaks.push(`quoted literal '${q}' contains «${frag}»`);
+      }
+    }
+    expect(leaks).toEqual([]);
+  });
+
   const deletedBy = (term: string, afterIdx: number): boolean =>
     migrations
       .slice(afterIdx + 1)
