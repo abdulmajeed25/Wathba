@@ -16,12 +16,16 @@ import { OpsProposalsService } from './ops-proposals.service';
 import { OpsProposalsController } from './ops-proposals.controller';
 import { OpsAuditService } from './ops-audit.service';
 import { OpsAuditController } from './ops-audit.controller';
+import { OpsAgentsService } from './ops-agents.service';
+import { OpsAgentsController } from './ops-agents.controller';
+import { OpsOperationsGuard } from './ops-agents.guard';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
 import { moderationOps } from './operations/moderation.ops';
 import { usersOps } from './operations/users.ops';
 import { moneyOps } from './operations/money.ops';
 import { contentOps } from './operations/content.ops';
+import { agentsOps } from './operations/agents.ops';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -43,15 +47,23 @@ import { PayoutDisburser } from '../escrow-payments/payout.disburser';
     FundingModule,
     EscrowPaymentsModule,
   ],
-  controllers: [OpsController, OpsAuthController, OpsProposalsController, OpsAuditController],
+  controllers: [
+    OpsController,
+    OpsAuthController,
+    OpsProposalsController,
+    OpsAuditController,
+    OpsAgentsController,
+  ],
   providers: [
     OperationsRegistry,
     OpsAuthService,
     OpsRbacService,
     OpsProposalsService,
     OpsAuditService,
+    OpsAgentsService,
     OpsSessionGuard,
     OpsIpAllowlistGuard,
+    OpsOperationsGuard,
   ],
   exports: [OperationsRegistry, OpsAuthService, OpsRbacService],
 })
@@ -64,6 +76,7 @@ export class OpsModule implements OnModuleInit {
     private readonly funding: FundingService,
     private readonly disburser: PayoutDisburser,
     private readonly rbac: OpsRbacService,
+    private readonly agents: OpsAgentsService,
   ) {}
 
   onModuleInit(): void {
@@ -71,6 +84,8 @@ export class OpsModule implements OnModuleInit {
     // and the four-eyes switch (auto-on at the 2nd money admin).
     this.registry.permissionPort = this.rbac;
     this.registry.fourEyesPort = this.rbac;
+    // Part 4 — the no-blind-writes gate reads the durable AgentDryRun ledger.
+    this.registry.agentGatePort = this.agents;
     const defs = [
       ...projectsOps({
         prisma: this.prisma,
@@ -87,6 +102,7 @@ export class OpsModule implements OnModuleInit {
         email: this.email,
       }),
       ...contentOps(),
+      ...agentsOps(),
     ];
     for (const def of defs) this.registry.register(def);
   }

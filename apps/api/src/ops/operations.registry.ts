@@ -14,6 +14,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 
 import { PrismaService } from '../prisma/prisma.service';
 import type {
+  AgentGatePort,
   DryRunOutcome,
   DryRunPreview,
   ExecuteOutcome,
@@ -127,6 +128,13 @@ const defaultFourEyesPort: FourEyesPort = {
   mustQueue: async () => false,
 };
 
+const defaultAgentGatePort: AgentGatePort = {
+  // Part 4 wires OpsAgentsService. The default REFUSES agent executes
+  // (fail-safe: no ledger = no proof of a preceding dryRun).
+  recordDryRun: async () => undefined,
+  hasFreshDryRun: async () => false,
+};
+
 @Injectable()
 export class OperationsRegistry {
   private readonly logger = new Logger(OperationsRegistry.name);
@@ -135,6 +143,7 @@ export class OperationsRegistry {
   permissionPort: PermissionPort = defaultPermissionPort;
   stepUpPort: StepUpPort = defaultStepUpPort;
   fourEyesPort: FourEyesPort = defaultFourEyesPort;
+  agentGatePort: AgentGatePort = defaultAgentGatePort;
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -166,8 +175,51 @@ export class OperationsRegistry {
         blockers.push({ code: pre.code, reasonAr: pre.reasonAr });
       }
     }
-    if (blockers.length > 0) return { ok: false, blockers, preview: null };
-    return { ok: true, blockers: [], preview: await op.dryRun(db, input, ctx) };
+    const outcome: DryRunOutcome =
+      blockers.length > 0
+        ? { ok: false, blockers, preview: null }
+        : { ok: true, blockers: [], preview: await op.dryRun(db, input, ctx) };
+    // Part 4 — the no-blind-writes ledger: an agent's successful dryRun is
+    // what licenses its later execute with the SAME inputHash.
+    if (ctx.actor.type === 'AGENT') {
+      await this.agentGatePort
+        .recordDryRun(ctx.actor.id, op.key, inputHashOf(input), outcome.ok)
+        .catch((err) => this.logger.warn(`agent dryRun ledger write failed: ${String(err)}`));
+    }
+    return outcome;
+  }
+
+  /**
+   * Part 4 — PROPOSE without executing: the only write path an agent has
+   * for SENSITIVE and MONEY tiers (humans may use it too). Preconditions
+   * must pass and the dryRun snapshot is attached; a HUMAN with the right
+   * permission executes it later through the approval queue.
+   */
+  async propose(
+    key: string,
+    rawInput: unknown,
+    ctx: OperationContext,
+  ): Promise<ExecuteOutcome<never>> {
+    const op = this.mustGet(key);
+    if (op.riskTier !== 'SENSITIVE' && op.riskTier !== 'MONEY') {
+      throw new BadRequestException(
+        'الاقتراح مخصص للمستويين SENSITIVE وMONEY — هذه العملية تُنفَّذ مباشرة',
+      );
+    }
+    this.assertPermission(op, ctx);
+    if ((ctx.reason?.trim().length ?? 0) < 10) {
+      throw new BadRequestException(
+        'الاقتراح يتطلب سبباً مكتوباً (١٠ أحرف على الأقل) يُسجَّل في سجل التدقيق',
+      );
+    }
+    const input = this.parseInput(op, rawInput);
+    const roDb = readOnlyDb(this.prisma);
+    for (const pre of op.preconditions) {
+      if (!(await pre.check(roDb, input, ctx))) {
+        throw new UnprocessableEntityException({ code: pre.code, reasonAr: pre.reasonAr });
+      }
+    }
+    return this.queueProposal<never>(op, input, ctx, inputHashOf(input));
   }
 
   async execute<R = unknown>(
@@ -182,6 +234,12 @@ export class OperationsRegistry {
     if (ctx.actor.type === 'AGENT' && op.riskTier === 'MONEY') {
       throw new ForbiddenException(
         'وكلاء الذكاء الاصطناعي لا يُنفّذون عمليات مالية أبداً — المسموح: dryRun واقتراح للطابور',
+      );
+    }
+    // Part 4 — SENSITIVE is propose-only for agents, regardless of role.
+    if (ctx.actor.type === 'AGENT' && op.riskTier === 'SENSITIVE') {
+      throw new ForbiddenException(
+        'المستوى SENSITIVE للوكلاء: dryRun واقتراح فقط — التنفيذ لإنسان يحمل الصلاحية',
       );
     }
 
@@ -203,6 +261,18 @@ export class OperationsRegistry {
     this.stepUpPort.assertFresh(ctx, op.riskTier);
 
     const inputHash = inputHashOf(input);
+
+    // Part 4 — no blind writes: an agent execute (CONTENT/STANDARD only,
+    // the higher tiers were refused above) requires a preceding successful
+    // dryRun with the SAME inputHash, recent enough to still mean something.
+    if (
+      ctx.actor.type === 'AGENT' &&
+      !(await this.agentGatePort.hasFreshDryRun(ctx.actor.id, op.key, inputHash))
+    ) {
+      throw new ForbiddenException(
+        'لا تنفيذ أعمى: نفّذ dryRun ناجحاً بالمدخلات نفسها أولاً (خلال ١٥ دقيقة) ثم أعد التنفيذ',
+      );
+    }
     const idemKey = ctx.idempotencyKey;
     if (idemKey) {
       const prior = await this.prisma.operationExecution.findUnique({
@@ -483,14 +553,18 @@ export class OperationsRegistry {
     const op = this.mustGet(proposal.operationKey);
 
     // The same hard rule as execute(): an agent is never the second pair of
-    // eyes on money — checked before any permission.
-    if (ctx.actor.type === 'AGENT' && op.riskTier === 'MONEY') {
+    // eyes — on money OR on anything else. Approval is a human act.
+    if (ctx.actor.type === 'AGENT') {
       throw new ForbiddenException(
-        'وكلاء الذكاء الاصطناعي لا يُنفّذون عمليات مالية أبداً — المسموح: dryRun واقتراح للطابور',
+        'وكلاء الذكاء الاصطناعي لا يعتمدون الاقتراحات أبداً — الاعتماد فعل بشري',
       );
     }
-    if (!this.permissionPort.has(ctx.actor, 'money.approve')) {
-      throw new ForbiddenException('تفتقد الصلاحية المطلوبة: money.approve');
+    // MONEY proposals need the dedicated approver permission; SENSITIVE
+    // proposals (agent-proposed identity/moderation work) need the
+    // operation's OWN permission.
+    const approvePermission = op.riskTier === 'MONEY' ? 'money.approve' : op.permission;
+    if (!this.permissionPort.has(ctx.actor, approvePermission)) {
+      throw new ForbiddenException(`تفتقد الصلاحية المطلوبة: ${approvePermission}`);
     }
     // Self-approval refused at the domain level — no role combination
     // allows the proposer to be their own second pair of eyes.

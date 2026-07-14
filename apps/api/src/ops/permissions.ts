@@ -13,6 +13,7 @@ export const PERMISSIONS = {
   users: ['users.lifecycle', 'users.pii.unmask', 'users.roles.assign'],
   money: ['money.execute', 'money.approve'],
   content: ['content.editorial', 'content.collections', 'content.categories'],
+  agents: ['agents.manage'],
   settings: ['settings.write'],
   support: ['support.tickets'],
   analytics: ['analytics.read'],

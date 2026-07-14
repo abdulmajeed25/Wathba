@@ -142,3 +142,11 @@ export interface FourEyesPort {
   /** True → the op must enter the approval queue instead of executing. */
   mustQueue(tier: RiskTier, ctx: OperationContext): Promise<boolean>;
 }
+
+/** Part 4 — the no-blind-writes gate for agents: an agent may execute a
+ *  CONTENT/STANDARD operation only after a fresh successful dryRun with the
+ *  SAME inputHash. Default port refuses everything (fail-safe). */
+export interface AgentGatePort {
+  recordDryRun(agentId: string, operationKey: string, inputHash: string, ok: boolean): Promise<void>;
+  hasFreshDryRun(agentId: string, operationKey: string, inputHash: string): Promise<boolean>;
+}
