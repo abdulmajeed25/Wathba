@@ -49,7 +49,15 @@ export default async function OpsHomePage() {
             بعد ٦٠ دقيقة من الخمول
           </p>
         </div>
-        <LeaveButton />
+        <div className="flex items-center gap-3">
+          <a
+            href="/ops/audit"
+            className="rounded border border-[#30363d] bg-[#161b22] px-3 py-1.5 text-sm hover:bg-[#21262d]"
+          >
+            سجل التدقيق
+          </a>
+          <LeaveButton />
+        </div>
       </section>
 
       {info.totpPending ? (

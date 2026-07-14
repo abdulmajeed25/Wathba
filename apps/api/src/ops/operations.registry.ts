@@ -15,6 +15,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   DryRunOutcome,
+  DryRunPreview,
   ExecuteOutcome,
   FourEyesPort,
   OperationContext,
@@ -235,9 +236,14 @@ export class OperationsRegistry {
       return this.queueProposal<R>(op, input, ctx, inputHash);
     }
 
+    // Part 3 — the audit row carries a before/after diff: the dryRun preview
+    // taken right before execution. Best-effort — a preview failure must not
+    // block a valid execute.
+    const preview = await op.dryRun(roDb, input, ctx).catch(() => null);
+
     const outcome = op.orchestrated
-      ? await this.executeOrchestrated<R>(op, input, ctx, inputHash)
-      : await this.executeTransactional<R>(op, input, ctx, inputHash);
+      ? await this.executeOrchestrated<R>(op, input, ctx, inputHash, preview)
+      : await this.executeTransactional<R>(op, input, ctx, inputHash, preview);
 
     if (op.afterCommit) {
       op.afterCommit(outcome.result, input, ctx).catch((err) =>
@@ -253,6 +259,7 @@ export class OperationsRegistry {
     input: unknown,
     ctx: OperationContext,
     inputHash: string,
+    preview: DryRunPreview | null = null,
   ): Promise<ExecuteOutcome<R>> {
     return this.prisma.$transaction(async (tx) => {
       // Re-check inside the tx: the read-only pass above closes UX latency,
@@ -280,26 +287,59 @@ export class OperationsRegistry {
       });
       // No audit = no commit: this create is INSIDE the same transaction and
       // is not caught — an audit failure rolls the mutation back.
+      const subject = this.subjectOf(input);
       await tx.auditLog.create({
         data: {
-          actorId: this.uuidOrNull(ctx.actor.id),
+          ...this.auditColumns(op, ctx, inputHash),
           action: `ops.${op.key}`,
-          entity: 'Operation',
-          entityId: execution.id,
+          entity: subject?.entity ?? 'Operation',
+          entityId: subject?.entityId ?? execution.id,
           detail: {
-            riskTier: op.riskTier,
-            actorType: ctx.actor.type,
-            reason: ctx.reason ?? null,
-            inputHash,
+            executionId: execution.id,
             input: JSON.parse(JSON.stringify(input, (_k, v: unknown) =>
               typeof v === 'bigint' ? v.toString() : v)) as Prisma.InputJsonValue,
-            idempotencyKey: ctx.idempotencyKey ?? null,
-            ip: ctx.ip ?? null,
+            // Part 3 — the before/after diff from the pre-execution preview.
+            diff: preview ? { before: preview.before, after: preview.after } : null,
           } as Prisma.InputJsonValue,
         },
       });
       return { executionId: execution.id, replayed: false, result: result as R };
     });
+  }
+
+  /** Part 3 — the typed audit columns every registry-written row carries. */
+  private auditColumns(op: OperationDef<unknown, unknown>, ctx: OperationContext, inputHash: string) {
+    return {
+      actorId: this.uuidOrNull(ctx.actor.id),
+      actorType: ctx.actor.type,
+      agentId: ctx.actor.type === 'AGENT' ? ctx.actor.id : null,
+      riskTier: op.riskTier,
+      reason: ctx.reason ?? null,
+      inputHash,
+      idempotencyKey: ctx.idempotencyKey ?? null,
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    };
+  }
+
+  /** Subject inference: audit rows anchor to the DOMAIN entity the input
+   *  names, so per-entity history panels see every operation that touched
+   *  them. Content ops with a bare {id} stay anchored to the execution. */
+  private subjectOf(input: unknown): { entity: string; entityId: string } | null {
+    const KEYS: Array<[string, string]> = [
+      ['projectId', 'Project'],
+      ['userId', 'User'],
+      ['milestoneId', 'Milestone'],
+      ['payoutId', 'Payout'],
+      ['pledgeId', 'Pledge'],
+      ['commentId', 'Comment'],
+      ['collectionId', 'Collection'],
+    ];
+    for (const [key, entity] of KEYS) {
+      const v = (input as Record<string, unknown> | null)?.[key];
+      if (typeof v === 'string' && v) return { entity, entityId: v };
+    }
+    return null;
   }
 
   /**
@@ -312,6 +352,7 @@ export class OperationsRegistry {
     input: unknown,
     ctx: OperationContext,
     inputHash: string,
+    preview: DryRunPreview | null = null,
   ): Promise<ExecuteOutcome<R>> {
     const claim = await this.prisma.$transaction(async (tx) => {
       const row = await tx.operationExecution.create({
@@ -326,20 +367,19 @@ export class OperationsRegistry {
           status: 'CLAIMED',
         },
       });
+      const subject = this.subjectOf(input);
       await tx.auditLog.create({
         data: {
-          actorId: this.uuidOrNull(ctx.actor.id),
+          ...this.auditColumns(op, ctx, inputHash),
           action: `ops.${op.key}`,
-          entity: 'Operation',
-          entityId: row.id,
+          entity: subject?.entity ?? 'Operation',
+          entityId: subject?.entityId ?? row.id,
           detail: {
-            riskTier: op.riskTier,
-            actorType: ctx.actor.type,
-            reason: ctx.reason ?? null,
-            inputHash,
+            executionId: row.id,
             orchestrated: true,
-            idempotencyKey: ctx.idempotencyKey ?? null,
-            ip: ctx.ip ?? null,
+            input: JSON.parse(JSON.stringify(input, (_k, v: unknown) =>
+              typeof v === 'bigint' ? v.toString() : v)) as Prisma.InputJsonValue,
+            diff: preview ? { before: preview.before, after: preview.after } : null,
           } as Prisma.InputJsonValue,
         },
       });
@@ -411,17 +451,13 @@ export class OperationsRegistry {
       });
       await tx.auditLog.create({
         data: {
-          actorId: this.uuidOrNull(ctx.actor.id),
+          ...this.auditColumns(op, ctx, inputHash),
           action: 'ops.proposal.create',
           entity: 'OperationProposal',
           entityId: row.id,
           detail: {
             operationKey: op.key,
-            riskTier: op.riskTier,
-            actorType: ctx.actor.type,
-            reason: ctx.reason ?? null,
-            inputHash,
-            ip: ctx.ip ?? null,
+            diff: { before: preview.before, after: preview.after },
           } as Prisma.InputJsonValue,
         },
       });
@@ -495,9 +531,11 @@ export class OperationsRegistry {
         }
       }
       const inputHash = proposal.inputHash;
+      // The proposal's stored preview is exactly what the approver reviewed.
+      const storedPreview = proposal.preview as unknown as DryRunPreview | null;
       const outcome = op.orchestrated
-        ? await this.executeOrchestrated<R>(op, input, execCtx, inputHash)
-        : await this.executeTransactional<R>(op, input, execCtx, inputHash);
+        ? await this.executeOrchestrated<R>(op, input, execCtx, inputHash, storedPreview)
+        : await this.executeTransactional<R>(op, input, execCtx, inputHash, storedPreview);
       await this.prisma.operationProposal.update({
         where: { id: proposal.id },
         data: { status: 'EXECUTED', executionId: outcome.executionId },

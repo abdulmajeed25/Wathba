@@ -75,7 +75,10 @@ describe('OPS governance — the registry is the only mutation path', () => {
           // OpsRole/OpsRoleGrant, proposals owns OperationProposal. Neither
           // may touch a business entity (asserted separately below).
           entry.name !== 'ops-rbac.service.ts' &&
-          entry.name !== 'ops-proposals.service.ts'
+          entry.name !== 'ops-proposals.service.ts' &&
+          // Part 3 — the audit browser/verifier is READ-ONLY over AuditLog
+          // (RULE 5 pins it to zero mutating calls).
+          entry.name !== 'ops-audit.service.ts'
         ) {
           const src = readFileSync(p, 'utf8');
           const valueImport = src
@@ -100,6 +103,7 @@ describe('OPS governance — the registry is the only mutation path', () => {
       'ops/ops-auth.service.ts': ['opsSession', 'opsCredential'],
       'ops/ops-rbac.service.ts': [],
       'ops/ops-proposals.service.ts': ['operationProposal', 'auditLog'],
+      'ops/ops-audit.service.ts': [],
     };
     for (const [rel, models] of Object.entries(allowed)) {
       const src = read(rel);
