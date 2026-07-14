@@ -9,6 +9,9 @@ import { EscrowPaymentsModule } from '../escrow-payments/escrow-payments.module'
 
 import { OperationsRegistry } from './operations.registry';
 import { OpsController } from './ops.controller';
+import { OpsAuthService } from './ops-auth.service';
+import { OpsAuthController } from './ops-auth.controller';
+import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
 import { moderationOps } from './operations/moderation.ops';
 import { usersOps } from './operations/users.ops';
@@ -35,9 +38,9 @@ import { PayoutDisburser } from '../escrow-payments/payout.disburser';
     FundingModule,
     EscrowPaymentsModule,
   ],
-  controllers: [OpsController],
-  providers: [OperationsRegistry],
-  exports: [OperationsRegistry],
+  controllers: [OpsController, OpsAuthController],
+  providers: [OperationsRegistry, OpsAuthService, OpsSessionGuard, OpsIpAllowlistGuard],
+  exports: [OperationsRegistry, OpsAuthService],
 })
 export class OpsModule implements OnModuleInit {
   constructor(

@@ -26,8 +26,13 @@ export interface OperationContext {
   reason?: string;
   /** Mandatory for MONEY; unique per intent — replay returns the stored result. */
   idempotencyKey?: string;
-  /** Stamped by the Part-1 step-up guard; enforcement is env-gated until then. */
+  /** Part 1 — the ops session's last password/TOTP re-entry. MONEY requires
+   *  it fresh (≤10 min) on EVERY surface; SENSITIVE requires it on the ops
+   *  surface (legacy admin seams warn until Part 5 retires them). */
   stepUpVerifiedAt?: Date | null;
+  /** 'ops' = the hardened /v1/ops surface (ops session); 'legacy' = the old
+   *  admin seams kept for the pre-ops admin screen + e2e. */
+  surface?: 'ops' | 'legacy';
   ip?: string;
   userAgent?: string;
 }

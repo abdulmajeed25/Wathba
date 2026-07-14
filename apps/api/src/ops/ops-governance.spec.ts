@@ -67,7 +67,10 @@ describe('OPS governance — the registry is the only mutation path', () => {
           entry.name.endsWith('.ts') &&
           !entry.name.endsWith('.spec.ts') &&
           entry.name !== 'operations.registry.ts' &&
-          entry.name !== 'ops.module.ts'
+          entry.name !== 'ops.module.ts' &&
+          // Part 1 — the ops-session/TOTP service owns its OWN auth tables
+          // (OpsSession/OpsCredential), never a governed business entity.
+          entry.name !== 'ops-auth.service.ts'
         ) {
           const src = readFileSync(p, 'utf8');
           const valueImport = src

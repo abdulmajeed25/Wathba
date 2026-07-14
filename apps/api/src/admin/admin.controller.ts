@@ -8,6 +8,7 @@ import { ProjectsService } from '../projects/projects.service';
 import { AdminService } from './admin.service';
 import { OperationsRegistry } from '../ops/operations.registry';
 import type { OperationContext } from '../ops/operation.types';
+import { OpsAuthService } from '../ops/ops-auth.service';
 import { DeadlineOverrideDto, GrantRoleDto, ReviewProjectDto, SetPlatformPartnerDto, SetStaffPickDto, ModerateCommentDto, OpsReasonDto } from './dto/admin.dto';
 
 /**
@@ -27,13 +28,24 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly projects: ProjectsService,
     private readonly registry: OperationsRegistry,
+    private readonly opsAuth: OpsAuthService,
   ) {}
 
-  private ctx(jwt: JwtPayload, ip: string, reason?: string, idemKey?: string): OperationContext {
+  private async ctx(
+    jwt: JwtPayload,
+    ip: string,
+    reason?: string,
+    idemKey?: string,
+    opsToken?: string,
+  ): Promise<OperationContext> {
     return {
       actor: { id: jwt.sub, type: 'HUMAN', roles: jwt.roles as unknown as string[] },
       ip,
       reason,
+      // Part 1 — these seams are the LEGACY surface: MONEY ops still require a
+      // fresh step-up, proven by the caller's ops-session token (x-ops-token).
+      surface: 'legacy',
+      stepUpVerifiedAt: await this.opsAuth.stepUpFromToken(opsToken),
       // MONEY ops demand an idempotency key; legacy seams that don't send one
       // get single-shot semantics via a generated key.
       idempotencyKey: idemKey || `legacy-${crypto.randomUUID()}`,
@@ -51,8 +63,13 @@ export class AdminController {
     @Ip() ip: string,
     @Body() dto?: OpsReasonDto,
     @Headers('x-idempotency-key') idemKey?: string,
+    @Headers('x-ops-token') opsToken?: string,
   ) {
-    const out = await this.registry.execute('money.settle.run', { projectId: id }, this.ctx(jwt, ip, dto?.reason, idemKey));
+    const out = await this.registry.execute(
+      'money.settle.run',
+      { projectId: id },
+      await this.ctx(jwt, ip, dto?.reason, idemKey, opsToken),
+    );
     return out.result;
   }
 
@@ -63,8 +80,13 @@ export class AdminController {
     @Ip() ip: string,
     @Body() dto?: OpsReasonDto,
     @Headers('x-idempotency-key') idemKey?: string,
+    @Headers('x-ops-token') opsToken?: string,
   ) {
-    const out = await this.registry.execute('money.payout.disburse', {}, this.ctx(jwt, ip, dto?.reason, idemKey));
+    const out = await this.registry.execute(
+      'money.payout.disburse',
+      {},
+      await this.ctx(jwt, ip, dto?.reason, idemKey, opsToken),
+    );
     return out.result;
   }
 
@@ -87,13 +109,13 @@ export class AdminController {
       await this.registry.execute(
         'projects.review.approve',
         { projectId: id, ...(dto.approvedDurationDays ? { approvedDurationDays: dto.approvedDurationDays } : {}) },
-        this.ctx(jwt, ip, dto.reason),
+        await this.ctx(jwt, ip, dto.reason),
       );
     } else {
       await this.registry.execute(
         'projects.review.reject',
         { projectId: id, ...(dto.reason?.trim() ? { feedbackAr: dto.reason.trim() } : {}) },
-        this.ctx(jwt, ip, dto.reason),
+        await this.ctx(jwt, ip, dto.reason),
       );
     }
     const updated = await this.projects.findRaw(id);
@@ -108,11 +130,12 @@ export class AdminController {
     @Body() dto: DeadlineOverrideDto,
     @Ip() ip: string,
     @Headers('x-idempotency-key') idemKey?: string,
+    @Headers('x-ops-token') opsToken?: string,
   ) {
     const out = await this.registry.execute(
       'money.deadline.override',
       { projectId: id, deadline: dto.deadline },
-      this.ctx(jwt, ip, dto.reason, idemKey),
+      await this.ctx(jwt, ip, dto.reason, idemKey, opsToken),
     );
     return out.result;
   }
@@ -128,7 +151,7 @@ export class AdminController {
     await this.registry.execute(
       'projects.platform-partner.set',
       { projectId: id, value: dto.platformPartner },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     const updated = await this.projects.findRaw(id);
     return this.projects.toPublic(updated);
@@ -145,7 +168,7 @@ export class AdminController {
     await this.registry.execute(
       'projects.staff-pick.set',
       { projectId: id, value: dto.isStaffPick },
-      this.ctx(jwt, ip),
+      await this.ctx(jwt, ip),
     );
     const updated = await this.projects.findRaw(id);
     return this.projects.toPublic(updated);
@@ -168,7 +191,7 @@ export class AdminController {
     const out = await this.registry.execute(
       'users.role.grant',
       { userId: id, role: dto.role },
-      this.ctx(jwt, ip, dto.reason),
+      await this.ctx(jwt, ip, dto.reason),
     );
     return out.result;
   }
@@ -184,7 +207,7 @@ export class AdminController {
     const out = await this.registry.execute(
       'users.kyc.force-verify',
       { userId: id },
-      this.ctx(jwt, ip, dto?.reason),
+      await this.ctx(jwt, ip, dto?.reason),
     );
     return out.result;
   }
@@ -208,7 +231,7 @@ export class AdminController {
     const out = await this.registry.execute(
       'moderation.comment.moderate',
       { commentId: id, action: dto.action },
-      this.ctx(jwt, ip, dto.reason),
+      await this.ctx(jwt, ip, dto.reason),
     );
     return out.result;
   }
@@ -224,7 +247,7 @@ export class AdminController {
     const out = await this.registry.execute(
       'moderation.project-reports.dismiss',
       { projectId: id },
-      this.ctx(jwt, ip, dto?.reason),
+      await this.ctx(jwt, ip, dto?.reason),
     );
     return out.result;
   }

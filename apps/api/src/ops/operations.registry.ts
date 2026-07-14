@@ -96,19 +96,26 @@ const defaultPermissionPort: PermissionPort = {
 };
 
 const STEP_UP_WINDOW_MS = 10 * 60_000;
+const stepUpLogger = new Logger('StepUpPort');
 const defaultStepUpPort: StepUpPort = {
+  // Part 1 — ENFORCED. MONEY demands a fresh re-auth on every surface (the
+  // ops session's stepUpAt, carried in ctx). SENSITIVE demands it on the ops
+  // surface; the legacy admin seams (pre-ops admin screen + e2e) warn loudly
+  // until Part 5 retires that screen — money never got the grace period.
   assertFresh(ctx, tier) {
-    // Part 1 delivers the step-up mechanism; enforcement is env-gated until
-    // then so the existing admin seams keep working. The logic itself is
-    // final and unit-tested with the flag forced on.
-    if (process.env.OPS_STEPUP_ENFORCED !== '1') return;
     if (tier !== 'MONEY' && tier !== 'SENSITIVE') return;
     const at = ctx.stepUpVerifiedAt?.getTime() ?? 0;
-    if (Date.now() - at > STEP_UP_WINDOW_MS) {
-      throw new ForbiddenException(
-        'هذه العملية تتطلب إعادة توثيق حديثة (خلال ١٠ دقائق) — أعد إدخال كلمة المرور',
+    if (Date.now() - at <= STEP_UP_WINDOW_MS) return;
+    if (tier === 'SENSITIVE' && ctx.surface !== 'ops') {
+      stepUpLogger.warn(
+        `SENSITIVE operation without step-up on the legacy surface (actor=${ctx.actor.id}) — ` +
+          'tolerated until Part 5 retires the old admin screen; the /v1/ops surface already enforces',
       );
+      return;
     }
+    throw new ForbiddenException(
+      'هذه العملية تتطلب إعادة توثيق حديثة (خلال ١٠ دقائق) — ادخل مركز العمليات وأعد إدخال كلمة المرور',
+    );
   },
 };
 

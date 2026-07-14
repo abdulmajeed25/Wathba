@@ -64,6 +64,9 @@ const asPrisma = (db: MockDb): PrismaService => db as unknown as PrismaService;
 const HUMAN_ADMIN: OperationContext['actor'] = { id: 'admin-1', type: 'HUMAN', roles: ['ADMIN'] };
 const ctx = (over: Partial<OperationContext> = {}): OperationContext => ({
   actor: HUMAN_ADMIN,
+  // Part 1 — step-up is enforced unconditionally; tests carry a fresh
+  // re-auth by default and override it to prove the refusal.
+  stepUpVerifiedAt: new Date(),
   ...over,
 });
 
@@ -153,27 +156,24 @@ describe('OperationsRegistry — gates', () => {
     expect(dry.ok).toBe(true);
   });
 
-  it('step-up window enforced when the flag is on (Part-1 logic, final now)', async () => {
-    process.env.OPS_STEPUP_ENFORCED = '1';
-    try {
-      const prisma = buildPrisma();
-      const reg = new OperationsRegistry(asPrisma(prisma));
-      reg.register(simpleOp({ key: 'test.money', riskTier: 'MONEY' }));
-      const base = { reason: 'سبب مالي مكتوب وواضح', idempotencyKey: 'k-step' };
-      await expect(reg.execute('test.money', { id: 'a' }, ctx(base))).rejects.toThrow(/إعادة توثيق/);
-      await expect(
-        reg.execute('test.money', { id: 'a' }, ctx({ ...base, stepUpVerifiedAt: new Date(Date.now() - 11 * 60_000) })),
-      ).rejects.toThrow(/إعادة توثيق/);
-      prisma.operationExecution.findUnique.mockResolvedValue(null);
-      const ok = await reg.execute(
-        'test.money',
-        { id: 'a' },
-        ctx({ ...base, idempotencyKey: 'k-step-2', stepUpVerifiedAt: new Date() }),
-      );
-      expect(ok.result).toEqual({ done: true });
-    } finally {
-      delete process.env.OPS_STEPUP_ENFORCED;
-    }
+  it('step-up window enforced unconditionally on MONEY (Part 1 — no flag)', async () => {
+    const prisma = buildPrisma();
+    const reg = new OperationsRegistry(asPrisma(prisma));
+    reg.register(simpleOp({ key: 'test.money', riskTier: 'MONEY' }));
+    const base = { reason: 'سبب مالي مكتوب وواضح', idempotencyKey: 'k-step' };
+    await expect(
+      reg.execute('test.money', { id: 'a' }, ctx({ ...base, stepUpVerifiedAt: null })),
+    ).rejects.toThrow(/إعادة توثيق/);
+    await expect(
+      reg.execute('test.money', { id: 'a' }, ctx({ ...base, stepUpVerifiedAt: new Date(Date.now() - 11 * 60_000) })),
+    ).rejects.toThrow(/إعادة توثيق/);
+    prisma.operationExecution.findUnique.mockResolvedValue(null);
+    const ok = await reg.execute(
+      'test.money',
+      { id: 'a' },
+      ctx({ ...base, idempotencyKey: 'k-step-2', stepUpVerifiedAt: new Date() }),
+    );
+    expect(ok.result).toEqual({ done: true });
   });
 
   it('four-eyes queueing intercepts MONEY execution when the port says so', async () => {
