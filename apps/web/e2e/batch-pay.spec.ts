@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { API, apiSignin, signUpAndVerify, uniqueEmail } from './helpers';
+import { API, apiSignin, opsEnter, signUpAndVerify, uniqueEmail } from './helpers';
 
 const E2E_PASS = 'E2eStrongPass!7';
 const SMOKE = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
@@ -13,9 +13,18 @@ const SMOKE = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
  * Deadline manipulation uses the audited admin deadline-override ops tool.
  */
 
+// OPS Part 1 — MONEY seams (deadline-override, settle) now demand a fresh
+// step-up proven via x-ops-token; one ops session is minted per worker.
+let opsTokenPromise: Promise<string> | null = null;
 async function smokeAuth() {
   const tok = await apiSignin(SMOKE.email, SMOKE.pass);
-  return { authorization: `Bearer ${tok}`, 'content-type': 'application/json' } as Record<string, string>;
+  opsTokenPromise ??= opsEnter(SMOKE.email, SMOKE.pass);
+  const ops = await opsTokenPromise;
+  return {
+    authorization: `Bearer ${tok}`,
+    'x-ops-token': ops,
+    'content-type': 'application/json',
+  } as Record<string, string>;
 }
 
 async function createLiveProject(auth: Record<string, string>, goalHalalas: number): Promise<{ id: string; tierId: string }> {

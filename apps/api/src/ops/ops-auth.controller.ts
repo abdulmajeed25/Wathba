@@ -53,7 +53,9 @@ type OpsRequest = Request & { opsPrincipal: OpsPrincipal };
  */
 @ApiTags('ops-auth')
 @UseGuards(OpsIpAllowlistGuard)
-@Throttle({ default: { ttl: 60_000, limit: 10 } })
+// Stricter than any public route; e2e raises the cap via env (same pattern
+// as AUTH_SIGNIN_THROTTLE_LIMIT).
+@Throttle({ default: { ttl: 60_000, limit: Number(process.env.OPS_AUTH_THROTTLE_LIMIT ?? 10) } })
 @Controller('ops/auth')
 export class OpsAuthController {
   constructor(private readonly opsAuth: OpsAuthService) {}

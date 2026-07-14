@@ -2,7 +2,7 @@ import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
 
-import { OpsAuthService, OPS_ABSOLUTE_MS, OPS_IDLE_MS, type OpsPrincipal } from './ops-auth.service';
+import { OpsAuthService, OPS_ABSOLUTE_MS, OPS_IDLE_MS } from './ops-auth.service';
 import { ipAllowed, normalizeIp } from './ops-session.guard';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../identity/audit.service';
@@ -53,10 +53,11 @@ function build(env: Record<string, string> = {}) {
           id: `sess-${sessions.length + 1}`,
           createdAt: new Date(),
           lastSeenAt: new Date(),
-          stepUpAt: null,
           revokedAt: null,
-          ip: null,
-          ...(data as SessionRow),
+          userId: data.userId!,
+          tokenHash: data.tokenHash!,
+          stepUpAt: data.stepUpAt ?? null,
+          ip: data.ip ?? null,
         };
         sessions.push(row);
         return row;
@@ -79,7 +80,12 @@ function build(env: Record<string, string> = {}) {
       }) => {
         const existing = creds.get(where.userId);
         if (existing) { Object.assign(existing, update); return existing; }
-        const row = { userId: where.userId, totpSecretEnc: null, totpEnabledAt: null, backupCodeHashes: [] as string[], ...create };
+        const row = {
+          totpEnabledAt: null,
+          backupCodeHashes: [] as string[],
+          userId: where.userId,
+          totpSecretEnc: create.totpSecretEnc ?? null,
+        };
         creds.set(where.userId, row);
         return row;
       }),

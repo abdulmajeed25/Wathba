@@ -66,6 +66,22 @@ export async function apiSignin(email: string, password: string): Promise<string
 }
 export const E2E_PASSWORD = PASS;
 
+/**
+ * OPS Part 1 — mint a SEPARATE ops session for an ADMIN account: the public
+ * JWT alone is never enough for MONEY operations anymore; the ops token
+ * (passed as `x-ops-token`) carries the fresh step-up the registry demands.
+ */
+export async function opsEnter(email: string, password: string): Promise<string> {
+  const jwt = await apiSignin(email, password);
+  const r = await fetch(`${API}/v1/ops/auth/enter`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ password }),
+  });
+  if (!r.ok) throw new Error(`ops enter failed: ${r.status}`);
+  return ((await r.json()) as { token: string }).token;
+}
+
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
