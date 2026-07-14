@@ -3,6 +3,7 @@ import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
 
 import { OpsAuthService, OPS_ABSOLUTE_MS, OPS_IDLE_MS } from './ops-auth.service';
+import type { OpsRbacService } from './ops-rbac.service';
 import { ipAllowed, normalizeIp } from './ops-session.guard';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../identity/audit.service';
@@ -101,12 +102,21 @@ function build(env: Record<string, string> = {}) {
   };
   const audit = { log: jest.fn().mockResolvedValue(undefined) };
   const cfg = { get: jest.fn((k: string) => env[k]) };
+  // Part 2 — RBAC stub: no grants by default; specs that exercise the
+  // money-holder TOTP rule override `rbacPermissions`.
+  const rbacPermissions: string[] = [];
+  const rbac = {
+    permissionsForUser: jest.fn(async () => ({ roleKeys: [], permissions: rbacPermissions })),
+    hasMoneyPermission: (perms: readonly string[]) =>
+      perms.some((p) => ['*', 'money.execute', 'money.approve'].includes(p)),
+  };
   const svc = new OpsAuthService(
     prisma as unknown as PrismaService,
     audit as unknown as AuditService,
     cfg as unknown as ConfigService,
+    rbac as unknown as OpsRbacService,
   );
-  return { svc, prisma, audit, sessions, users, env };
+  return { svc, prisma, audit, sessions, users, env, rbacPermissions };
 }
 
 const enterInput = (extra: Partial<{ password: string; totp: string }> = {}) => ({
