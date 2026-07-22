@@ -319,4 +319,32 @@ describe('ROLE_MATRIX sanity', () => {
     }
     expect(ROLE_MATRIX.find((r) => r.key === 'REVIEWER')!.permissions).toEqual(['projects.review']);
   });
+
+  /* ── OPS-360 Phase B Unit 1 — census A6 RBAC gap closures ─────────────── */
+  const perms = (key: string) => ROLE_MATRIX.find((r) => r.key === key)!.permissions;
+
+  it('A6.1: MODERATOR is no longer blind — holds analytics.read (dashboard) alongside moderation.queue', () => {
+    expect(perms('MODERATOR')).toEqual(expect.arrayContaining(['moderation.queue', 'analytics.read']));
+    // still non-money, non-wildcard
+    expect(holdsMoneyPermission(perms('MODERATOR'))).toBe(false);
+    expect(perms('MODERATOR')).not.toContain('*');
+  });
+
+  it('A6.3: OPS_MANAGER can staff-pick and merge/grant-ops-roles — holds projects.feature + users.roles.assign (never money)', () => {
+    expect(perms('OPS_MANAGER')).toEqual(expect.arrayContaining(['projects.feature', 'users.roles.assign']));
+    expect(holdsMoneyPermission(perms('OPS_MANAGER'))).toBe(false);
+  });
+
+  it('A6.2: destructive/procurement perms re-homed OFF SUPPORT — SUPPORT lacks users.roles.assign (pdpl.erase) and cannot reach projects.lifecycle (suppliers.verify)', () => {
+    expect(perms('SUPPORT')).not.toContain('users.roles.assign');
+    expect(perms('SUPPORT')).not.toContain('projects.lifecycle');
+    // SUPPORT keeps its legitimate lifecycle powers
+    expect(perms('SUPPORT')).toEqual(expect.arrayContaining(['users.lifecycle', 'support.tickets']));
+  });
+
+  it('A6.4: procurement.read is a distinct catalog key held by OPS_MANAGER, NOT by REVIEWER', () => {
+    expect(ALL_PERMISSIONS).toContain('procurement.read');
+    expect(perms('OPS_MANAGER')).toContain('procurement.read');
+    expect(perms('REVIEWER')).not.toContain('procurement.read');
+  });
 });

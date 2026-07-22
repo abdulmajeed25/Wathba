@@ -44,6 +44,21 @@ interface MockDb {
   commentReport: MockModel;
   refreshToken: MockModel;
   rFQ: MockModel;
+  comment: MockModel;
+  projectUpdate: MockModel;
+  rewardTier: MockModel;
+  addOn: MockModel;
+  spendLog: MockModel;
+  projectCollaborator: MockModel;
+  faqQuestion: MockModel;
+  contest: MockModel;
+  supplierBid: MockModel;
+  payoutBeneficiary: MockModel;
+  webhookEvent: MockModel;
+  zatcaInvoice: MockModel;
+  opsRole: MockModel;
+  opsRoleGrant: MockModel;
+  knownDevice: MockModel;
 }
 function buildPrisma(): MockDb {
   return {
@@ -59,6 +74,21 @@ function buildPrisma(): MockDb {
     commentReport: model(),
     refreshToken: model(),
     rFQ: model(),
+    comment: model(),
+    projectUpdate: model(),
+    rewardTier: model(),
+    addOn: model(),
+    spendLog: model(),
+    projectCollaborator: model(),
+    faqQuestion: model(),
+    contest: model(),
+    supplierBid: model(),
+    payoutBeneficiary: model(),
+    webhookEvent: model(),
+    zatcaInvoice: model(),
+    opsRole: model(),
+    opsRoleGrant: model(),
+    knownDevice: model(),
   };
 }
 
@@ -74,12 +104,14 @@ function svc(db: MockDb): OpsReadService {
 
 const RAW_EMAIL = 'aisha.almutairi@example.com';
 const RAW_PHONE = '+966501234567';
+const RAW_IBAN = 'SA0380000000608010167519';
 
 /** Deep scan: fail if any raw PII string survives into a response. */
 function assertNoRawPII(payload: unknown): void {
   const json = JSON.stringify(payload);
   expect(json).not.toContain(RAW_EMAIL);
   expect(json).not.toContain(RAW_PHONE);
+  expect(json).not.toContain(RAW_IBAN);
 }
 
 describe('OpsReadService', () => {
@@ -352,12 +384,321 @@ describe('OpsReadService', () => {
       const out = await svc(db).dashboard();
       expect(out.vitals.liveRaisedHalalas).toBe('9000000');
       expect(out.vitals.gmvHalalas).toBe('7000000');
-      // net is null for PENDING payouts → liability falls back to gross.
-      expect(out.vitals.pendingPayoutLiabilityHalalas).toBe('500000');
+      // BUG FIX — PENDING payouts have net=null. The OLD tile fell back to the
+      // GROSS (500000) and overstated the liability by the withheld commission
+      // +VAT. It now derives the truthful NET via commissionBreakdown():
+      //   commission = 500000·5% = 25000; VAT = 25000·15% = 3750;
+      //   withheld = 28750 → net = 471250. Gross is exposed alongside.
+      expect(out.vitals.grossPendingPayoutHalalas).toBe('500000');
+      expect(out.vitals.estimatedNetPayoutLiabilityHalalas).toBe('471250');
+      expect(out.vitals.pendingPayoutLiabilityHalalas).toBe('471250');
+      expect(out.vitals.pendingPayoutLiabilityHalalas).not.toBe('500000'); // no longer gross
       expect(out.vitals.usersCount).toBe(1234);
       expect(out.workQueue.reportsOpen).toBe(3); // 1 project + 2 comment
       expect(typeof out.vitals.gmvHalalas).toBe('string');
       expect(typeof out.generatedAt).toBe('string');
+    });
+  });
+
+  /* ── Unit-1 read-layer expansion ───────────────────────────────────────── */
+
+  describe('listUsers — ops-role join in the DTO', () => {
+    it('attaches each user\'s ops-role keys (OpsRoleGrant→OpsRole)', async () => {
+      const db = buildPrisma();
+      db.user.findMany.mockResolvedValue([
+        {
+          id: 'u1', name: 'Ops', email: 'ops@example.com', phone: null, handle: 'ops',
+          roles: ['ADMIN'], suspendedAt: null, suspendedKind: null, nafathVerified: true,
+          supplierVerifiedAt: null, totalPledgedHalalas: 0n, createdAt: new Date(),
+        },
+      ]);
+      db.opsRoleGrant.findMany.mockResolvedValue([
+        { userId: 'u1', role: { key: 'FINANCE' } },
+        { userId: 'u1', role: { key: 'ANALYST' } },
+      ]);
+      const out = await svc(db).listUsers({});
+      expect(out.items[0]!.opsRoleKeys).toEqual(['FINANCE', 'ANALYST']);
+      // the join is scoped to the page's user ids
+      expect(db.opsRoleGrant.findMany.mock.calls[0]![0].where).toEqual({ userId: { in: ['u1'] } });
+    });
+  });
+
+  describe('moderation queue — merges both report types', () => {
+    it('interleaves open ProjectReport + CommentReport, reporter pseudonymised', async () => {
+      const db = buildPrisma();
+      db.projectReport.findMany.mockResolvedValue([
+        {
+          id: 'pr1', projectId: 'proj1', reporterId: 'reporter-uuid-1111', reasonAr: 'مخالفة',
+          createdAt: new Date('2026-03-02T00:00:00Z'),
+          project: { titleAr: 'مشروع', hiddenAt: null },
+        },
+      ]);
+      db.commentReport.findMany.mockResolvedValue([
+        {
+          id: 'cr1', commentId: 'c1', reporterId: 'reporter-uuid-2222', reasonAr: 'إساءة',
+          createdAt: new Date('2026-03-01T00:00:00Z'),
+          comment: { projectId: 'proj1', bodyAr: 'نص التعليق', hidden: false },
+        },
+      ]);
+      const out = await svc(db).listModerationReports({});
+      expect(out.items).toHaveLength(2);
+      const kinds = out.items.map((i) => i.kind);
+      expect(kinds).toContain('project');
+      expect(kinds).toContain('comment');
+      // newest-first interleave (project report is later)
+      expect(out.items[0]!.kind).toBe('project');
+      // only OPEN project reports are queued
+      expect(db.projectReport.findMany.mock.calls[0]![0].where.resolvedAt).toBeNull();
+      // reporter identity is masked, never the full uuid
+      const proj = out.items.find((i) => i.kind === 'project')!;
+      expect(proj.reporterMasked).toBe('reporter…');
+      expect(JSON.stringify(out)).not.toContain('reporter-uuid-1111');
+      expect(proj.subjectTitleAr).toBe('مشروع');
+      const cmt = out.items.find((i) => i.kind === 'comment')!;
+      expect(cmt.subjectSnippet).toBe('نص التعليق');
+    });
+  });
+
+  describe('listComments — masked author + snippet', () => {
+    it('masks the comment author email and orders by `date`', async () => {
+      const db = buildPrisma();
+      db.comment.findMany.mockResolvedValue([
+        {
+          id: 'c1', projectId: 'proj1',
+          user: { id: 'u1', name: 'Aisha', email: RAW_EMAIL },
+          bodyAr: 'تعليق', hidden: false, pinned: false, likeCount: 0, reportCount: 3,
+          parentId: null, date: new Date(),
+        },
+      ]);
+      const out = await svc(db).listComments({ reported: true });
+      expect(out.items[0]!.author.email).toBe('a***@e***.com');
+      expect(out.items[0]!.reportCount).toBe(3);
+      assertNoRawPII(out);
+      // `reported` → reportCount > 0 filter, keyset on `date`
+      expect(db.comment.findMany.mock.calls[0]![0].where.reportCount).toEqual({ gt: 0 });
+      expect(db.comment.findMany.mock.calls[0]![0].orderBy[0].date).toBe('desc');
+    });
+  });
+
+  describe('listBeneficiaries — masked IBAN + mobile', () => {
+    it('masks the IBAN and mobile, never leaking the raw bank record', async () => {
+      const db = buildPrisma();
+      db.payoutBeneficiary.findMany.mockResolvedValue([
+        {
+          id: 'b1', userId: 'u1', type: 'BANK_ACCOUNT', iban: RAW_IBAN, name: 'Creator',
+          mobile: RAW_PHONE, country: 'SA', city: 'Riyadh', moyasarAccountId: 'acc_123',
+          verifiedAt: new Date(), createdAt: new Date(),
+          user: { id: 'u1', name: 'Creator', handle: 'creator' },
+        },
+      ]);
+      const out = await svc(db).listBeneficiaries({});
+      const row = out.items[0]!;
+      expect(row.ibanMasked).toBe('SA03****19');
+      expect(row.ibanMasked).not.toBe(RAW_IBAN);
+      expect(row.mobileMasked).not.toBe(RAW_PHONE);
+      // the account id itself is never exposed — only its presence
+      expect(row.moyasarAccountRegistered).toBe(true);
+      expect(JSON.stringify(out)).not.toContain('acc_123');
+      assertNoRawPII(out);
+    });
+  });
+
+  describe('listZatcaInvoices — money strings + orphan flag', () => {
+    it('stringifies commission/vat/total and flags reportedAt-null orphans', async () => {
+      const db = buildPrisma();
+      db.zatcaInvoice.findMany.mockResolvedValue([
+        {
+          id: 'z1', invoiceNumber: 'ZTC-1', payoutId: 'po1', creatorId: 'u1',
+          commissionHalalas: 25000n, vatHalalas: 3750n, totalHalalas: 28750n,
+          issuedAt: new Date(), reportedAt: null,
+        },
+      ]);
+      const out = await svc(db).listZatcaInvoices({ reported: false });
+      const row = out.items[0]!;
+      expect(row.commissionHalalas).toBe('25000');
+      expect(row.vatHalalas).toBe('3750');
+      expect(row.totalHalalas).toBe('28750');
+      expect(row.orphan).toBe(true);
+      // keyset on issuedAt; `reported:false` → orphan-only filter
+      expect(db.zatcaInvoice.findMany.mock.calls[0]![0].orderBy[0].issuedAt).toBe('desc');
+      expect(db.zatcaInvoice.findMany.mock.calls[0]![0].where.reportedAt).toBeNull();
+    });
+  });
+
+  describe('listWebhookEvents — outcome filter (unblocks webhooks.replay)', () => {
+    it('lists event ids and threads the outcome filter', async () => {
+      const db = buildPrisma();
+      db.webhookEvent.findMany.mockResolvedValue([
+        {
+          id: 'w1', provider: 'moyasar', eventType: 'payment_paid', pspRef: 'psp_1',
+          outcome: 'mismatch', processedAt: new Date(), createdAt: new Date(),
+        },
+      ]);
+      const out = await svc(db).listWebhookEvents({ outcome: 'mismatch' });
+      expect(out.items[0]!.id).toBe('w1');
+      expect(out.items[0]!.outcome).toBe('mismatch');
+      expect(db.webhookEvent.findMany.mock.calls[0]![0].where.outcome).toBe('mismatch');
+    });
+  });
+
+  describe('listMilestoneQueue — cross-project submitted queue', () => {
+    it('defaults to SUBMITTED, joins project title, money as strings', async () => {
+      const db = buildPrisma();
+      db.milestone.findMany.mockResolvedValue([
+        {
+          id: 'm1', projectId: 'proj1', order: 1, titleAr: 'مرحلة', releasePct: 50,
+          status: 'SUBMITTED', releasedHalalas: 0n, evidenceUrl: 'url',
+          submittedAt: new Date(), approvedAt: null, releasedAt: null,
+          project: { titleAr: 'مشروع' },
+        },
+      ]);
+      const out = await svc(db).listMilestoneQueue({});
+      expect(out.items[0]!.projectTitleAr).toBe('مشروع');
+      expect(out.items[0]!.releasedHalalas).toBe('0');
+      expect(typeof out.items[0]!.releasedHalalas).toBe('string');
+      expect(db.milestone.findMany.mock.calls[0]![0].where.status).toBe('SUBMITTED');
+      expect(db.milestone.findMany.mock.calls[0]![0].orderBy[0].submittedAt).toBe('desc');
+    });
+  });
+
+  describe('listProjectBackers — full roster with rewardStatus', () => {
+    it('masks the backer and exposes rewardStatus/backerNo (string money)', async () => {
+      const db = buildPrisma();
+      db.pledge.findMany.mockResolvedValue([
+        {
+          id: 'p1', projectId: 'proj1', backerNo: 7,
+          backer: { id: 'u1', name: 'Aisha', email: RAW_EMAIL },
+          amountHalalas: 50000n, addOnsHalalas: 0n, status: 'CAPTURED',
+          rewardStatus: 'IN_PROGRESS', tierId: 't1', createdAt: new Date(),
+        },
+      ]);
+      const out = await svc(db).listProjectBackers('proj1', {});
+      expect(out.items[0]!.backer.email).toBe('a***@e***.com');
+      expect(out.items[0]!.rewardStatus).toBe('IN_PROGRESS');
+      expect(out.items[0]!.amountHalalas).toBe('50000');
+      expect(db.pledge.findMany.mock.calls[0]![0].where.projectId).toBe('proj1');
+      assertNoRawPII(out);
+    });
+  });
+
+  describe('listUserSessions — merged RefreshToken + KnownDevice, no hashes', () => {
+    it('merges both sources, withholds token/device hashes', async () => {
+      const db = buildPrisma();
+      db.refreshToken.findMany.mockResolvedValue([
+        {
+          id: 'rt1', userId: 'u1', tokenHash: 'SECRET_TOKEN_HASH',
+          expiresAt: new Date(Date.now() + 86_400_000), revokedAt: null,
+          createdAt: new Date('2026-03-02T00:00:00Z'),
+        },
+      ]);
+      db.knownDevice.findMany.mockResolvedValue([
+        {
+          id: 'kd1', userId: 'u1', deviceHash: 'DEVICE_HASH_SECRET',
+          lastSeenAt: new Date(), createdAt: new Date('2026-03-01T00:00:00Z'),
+        },
+      ]);
+      const out = await svc(db).listUserSessions('u1', {});
+      expect(out.items).toHaveLength(2);
+      expect(out.items[0]!.kind).toBe('token'); // newer first
+      expect(out.items[0]!.active).toBe(true);
+      const json = JSON.stringify(out);
+      expect(json).not.toContain('SECRET_TOKEN_HASH');
+      expect(json).not.toContain('DEVICE_HASH_SECRET');
+    });
+  });
+
+  describe('supplierProfile — masked user + bids + won/lost', () => {
+    it('masks PII, tallies won/lost, stringifies bid money', async () => {
+      const db = buildPrisma();
+      db.user.findUnique.mockResolvedValue({
+        id: 'u9', name: 'Supplier', email: RAW_EMAIL, phone: RAW_PHONE, handle: 'sup',
+        city: 'Jeddah', roles: ['SUPPLIER'], supplierVerifiedAt: new Date(),
+        supplierVerifiedById: 'ops1', supplierVerifyNote: 'ok', createdAt: new Date(),
+      });
+      db.supplierBid.groupBy.mockResolvedValue([
+        { status: 'AWARDED', _count: { _all: 2 } },
+        { status: 'REJECTED', _count: { _all: 1 } },
+      ]);
+      db.supplierBid.findMany.mockResolvedValue([
+        {
+          id: 'b1', rfqId: 'r1', amountHalalas: 900000n, leadTimeDays: 30, status: 'AWARDED',
+          createdAt: new Date(), rfq: { id: 'r1', projectId: 'proj1', status: 'AWARDED' },
+        },
+      ]);
+      const out = await svc(db).supplierProfile('u9');
+      expect(out.email).toBe('a***@e***.com');
+      expect(out.phone).not.toBe(RAW_PHONE);
+      expect(out.isSupplier).toBe(true);
+      expect(out.verification.verified).toBe(true);
+      expect(out.wonCount).toBe(2);
+      expect(out.lostCount).toBe(1);
+      expect(out.bids[0]!.amountHalalas).toBe('900000');
+      assertNoRawPII(out);
+    });
+
+    it('throws NotFound for a missing supplier', async () => {
+      const db = buildPrisma();
+      db.user.findUnique.mockResolvedValue(null);
+      await expect(svc(db).supplierProfile('nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('status aggregates — cross-page count-by-status', () => {
+    it('projectStats rolls groupBy into a statusCounts object + total', async () => {
+      const db = buildPrisma();
+      db.project.groupBy.mockResolvedValue([
+        { status: 'LIVE', _count: { _all: 3 } },
+        { status: 'DRAFT', _count: { _all: 2 } },
+      ]);
+      const out = await svc(db).projectStats();
+      expect(out.statusCounts).toEqual({ LIVE: 3, DRAFT: 2 });
+      expect(out.total).toBe(5);
+    });
+
+    it('userStats derives active = total − suspended − banned', async () => {
+      const db = buildPrisma();
+      db.user.count
+        .mockResolvedValueOnce(100) // total
+        .mockResolvedValueOnce(10) // suspended
+        .mockResolvedValueOnce(5) // banned
+        .mockResolvedValueOnce(60) // nafathVerified
+        .mockResolvedValueOnce(20); // supplierVerified
+      const out = await svc(db).userStats();
+      expect(out.statusCounts).toEqual({ active: 85, suspended: 10, banned: 5 });
+      expect(out.nafathVerified).toBe(60);
+      expect(out.total).toBe(100);
+    });
+
+    it('ticketStats rolls groupBy into a statusCounts object', async () => {
+      const db = buildPrisma();
+      db.supportTicket.groupBy.mockResolvedValue([
+        { status: 'OPEN', _count: { _all: 4 } },
+        { status: 'RESOLVED', _count: { _all: 6 } },
+      ]);
+      const out = await svc(db).ticketStats();
+      expect(out.statusCounts).toEqual({ OPEN: 4, RESOLVED: 6 });
+      expect(out.total).toBe(10);
+    });
+  });
+
+  describe('listProjects — openReportCount on the row', () => {
+    it('attaches the open-report count from a grouped count', async () => {
+      const db = buildPrisma();
+      db.project.findMany.mockResolvedValue([
+        {
+          id: 'proj1', titleAr: 'مشروع', status: 'LIVE', categoryId: null, categoryRef: null,
+          fundingGoalHalalas: 1000000n, raisedHalalas: 500000n, realizedHalalas: 0n,
+          backersCount: 3, createdBy: { handle: 'creator' }, createdById: 'u1',
+          hiddenAt: null, createdAt: new Date(),
+        },
+      ]);
+      db.projectReport.groupBy.mockResolvedValue([{ projectId: 'proj1', _count: { _all: 4 } }]);
+      const out = await svc(db).listProjects({});
+      expect(out.items[0]!.openReportCount).toBe(4);
+      expect(out.items[0]!.raisedHalalas).toBe('500000');
+      // the grouped count is scoped to OPEN reports for the page's ids
+      const gb = db.projectReport.groupBy.mock.calls[0]![0];
+      expect(gb.where).toEqual({ projectId: { in: ['proj1'] }, resolvedAt: null });
     });
   });
 

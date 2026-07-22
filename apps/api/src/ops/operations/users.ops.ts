@@ -846,7 +846,9 @@ export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<
     descriptionAr:
       'حق المحو: يجهّل هوية المستخدم ويحذف التوابع الشخصية مع إبقاء السجلات المالية (احتفاظ تجاري/مكافحة غسل). يُرفض ومال المستخدم محجوز أو حملته نشطة — الشروط هنا تعكس رفض PdplService نفسه ليكون dryRun صادقاً. غير قابل للعكس.',
     inputSchema: userRef,
-    permission: 'users.lifecycle',
+    // OPS-360 A6 — irreversible erasure must NOT sit on users.lifecycle
+    // (held by SUPPORT). Raised to users.roles.assign (OWNER + OPS_MANAGER).
+    permission: 'users.roles.assign',
     riskTier: 'SENSITIVE',
     reversible: false,
     requiresReason: true,

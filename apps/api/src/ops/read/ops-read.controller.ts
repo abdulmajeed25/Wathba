@@ -68,11 +68,137 @@ export class OpsReadController {
     });
   }
 
+  // Static route BEFORE the parametric `projects/:id` so it isn't shadowed.
+  @Get('projects/stats')
+  @ApiOperation({ summary: 'Project count-by-status (cross-page) — filter category' })
+  projectStats(@Req() req: OpsRequest, @Query('categoryId') categoryId?: string) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.projectStats({ categoryId });
+  }
+
   @Get('projects/:id')
   @ApiOperation({ summary: 'Project detail — milestones, payout summary, recent (masked) pledges' })
   project(@Req() req: OpsRequest, @Param('id') id: string) {
     this.read.assertPermission(req.opsPrincipal, 'projects.review');
     return this.read.projectDetail(id);
+  }
+
+  /* ── 2b. project sub-resources (projects.review) ───────────────────────── */
+
+  @Get('projects/:id/updates')
+  @ApiOperation({ summary: 'Project updates — snippeted body, cursor-paged' })
+  projectUpdates(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listProjectUpdates(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/comments')
+  @ApiOperation({ summary: 'Project comments — masked author, snippet, cursor-paged' })
+  projectComments(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('hidden') hidden?: string,
+    @Query('reported') reported?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listComments({
+      projectId: id,
+      hidden: toBool(hidden),
+      reported: toBool(reported),
+      cursor,
+      limit: toNum(limit),
+    });
+  }
+
+  @Get('projects/:id/reward-tiers')
+  @ApiOperation({ summary: 'Project reward tiers — money as strings, cursor-paged' })
+  projectRewardTiers(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listRewardTiers(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/addons')
+  @ApiOperation({ summary: 'Project add-ons — money as strings, cursor-paged' })
+  projectAddOns(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listAddOns(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/spend-logs')
+  @ApiOperation({ summary: 'Project spend logs — transparency ledger, cursor-paged' })
+  projectSpendLogs(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listSpendLogs(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/collaborators')
+  @ApiOperation({ summary: 'Project collaborators — content-access grants, cursor-paged' })
+  projectCollaborators(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listCollaborators(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/faq-questions')
+  @ApiOperation({ summary: 'Project FAQ questions — masked asker, snippet, cursor-paged' })
+  projectFaqQuestions(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listFaqQuestions(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/contests')
+  @ApiOperation({ summary: 'Project contests — FSM state + prize refs, cursor-paged' })
+  projectContests(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listContests(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('projects/:id/backers')
+  @ApiOperation({ summary: 'Full backer roster — masked backer, rewardStatus, cursor-paged' })
+  projectBackers(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listProjectBackers(id, { cursor, limit: toNum(limit) });
   }
 
   /* ── 3. users ──────────────────────────────────────────────────────────── */
@@ -97,11 +223,92 @@ export class OpsReadController {
     });
   }
 
+  // Static routes BEFORE the parametric `users/:id` so they aren't shadowed.
+  @Get('users/stats')
+  @ApiOperation({ summary: 'User count-by-status (active/suspended/banned) + verification' })
+  userStats(@Req() req: OpsRequest) {
+    this.read.assertPermission(req.opsPrincipal, 'users.lifecycle');
+    return this.read.userStats();
+  }
+
+  @Get('users/kyc-queue')
+  @ApiOperation({ summary: 'KYC/Nafath queue — unverified users; supplierUnverified filter' })
+  kycQueue(
+    @Req() req: OpsRequest,
+    @Query('supplierUnverified') supplierUnverified?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'users.lifecycle');
+    return this.read.listKycQueue({
+      supplierUnverified: toBool(supplierUnverified),
+      cursor,
+      limit: toNum(limit),
+    });
+  }
+
   @Get('users/:id')
-  @ApiOperation({ summary: 'Masked user profile — roles, counts, suspension state (no raw PII)' })
+  @ApiOperation({ summary: 'Masked user profile — roles, ops-roles, counts, suspension (no raw PII)' })
   user(@Req() req: OpsRequest, @Param('id') id: string) {
     this.read.assertPermission(req.opsPrincipal, 'users.lifecycle');
     return this.read.userDetail(id);
+  }
+
+  @Get('users/:id/pledges')
+  @ApiOperation({ summary: 'A user\'s pledges — masked backer, string money, cursor-paged' })
+  userPledges(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'users.lifecycle');
+    return this.read.listUserPledges(id, { cursor, limit: toNum(limit) });
+  }
+
+  @Get('users/:id/sessions')
+  @ApiOperation({ summary: 'A user\'s sessions — RefreshToken + KnownDevice, hashes withheld' })
+  userSessions(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'users.lifecycle');
+    return this.read.listUserSessions(id, { cursor, limit: toNum(limit) });
+  }
+
+  /* ── 3b. moderation queue (moderation.queue) ───────────────────────────── */
+
+  @Get('moderation/reports')
+  @ApiOperation({ summary: 'Unified moderation queue — open project + comment reports merged' })
+  moderationReports(
+    @Req() req: OpsRequest,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'moderation.queue');
+    return this.read.listModerationReports({ cursor, limit: toNum(limit) });
+  }
+
+  @Get('moderation/comments')
+  @ApiOperation({ summary: 'Comments browser — filter projectId/hidden/reported, masked author' })
+  moderationComments(
+    @Req() req: OpsRequest,
+    @Query('projectId') projectId?: string,
+    @Query('hidden') hidden?: string,
+    @Query('reported') reported?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'moderation.queue');
+    return this.read.listComments({
+      projectId,
+      hidden: toBool(hidden),
+      reported: toBool(reported),
+      cursor,
+      limit: toNum(limit),
+    });
   }
 
   /* ── 4/5. money ────────────────────────────────────────────────────────── */
@@ -167,6 +374,82 @@ export class OpsReadController {
     return this.read.listReconciliation({ cursor, limit: toNum(limit) });
   }
 
+  /* ── 5b. money observability (money.execute) ───────────────────────────── */
+
+  @Get('money/beneficiaries')
+  @ApiOperation({ summary: 'Payout beneficiaries — masked IBAN/mobile, verified filter' })
+  beneficiaries(
+    @Req() req: OpsRequest,
+    @Query('verified') verified?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'money.execute');
+    return this.read.listBeneficiaries({ verified: toBool(verified), cursor, limit: toNum(limit) });
+  }
+
+  @Get('money/beneficiaries/:userId')
+  @ApiOperation({ summary: 'Payout beneficiary detail — masked IBAN/mobile for one creator' })
+  beneficiary(@Req() req: OpsRequest, @Param('userId') userId: string) {
+    this.read.assertPermission(req.opsPrincipal, 'money.execute');
+    return this.read.beneficiaryDetail(userId);
+  }
+
+  @Get('money/zatca-invoices')
+  @ApiOperation({ summary: 'ZATCA invoice browser — includes reportedAt-null orphans' })
+  zatcaInvoices(
+    @Req() req: OpsRequest,
+    @Query('reported') reported?: string,
+    @Query('creatorId') creatorId?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'money.execute');
+    return this.read.listZatcaInvoices({
+      reported: toBool(reported),
+      creatorId,
+      cursor,
+      limit: toNum(limit),
+    });
+  }
+
+  @Get('money/webhook-events')
+  @ApiOperation({ summary: 'Webhook event browser — outcome filter (unblocks webhooks.replay)' })
+  webhookEvents(
+    @Req() req: OpsRequest,
+    @Query('outcome') outcome?: string,
+    @Query('provider') provider?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'money.execute');
+    return this.read.listWebhookEvents({ outcome, provider, cursor, limit: toNum(limit) });
+  }
+
+  @Get('money/disputes')
+  @ApiOperation({ summary: 'Dispute queue — pledges in DISPUTED, masked backer' })
+  disputes(
+    @Req() req: OpsRequest,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'money.execute');
+    return this.read.listDisputes({ cursor, limit: toNum(limit) });
+  }
+
+  @Get('money/milestones')
+  @ApiOperation({ summary: 'Cross-project milestones queue — defaults status=SUBMITTED' })
+  milestoneQueue(
+    @Req() req: OpsRequest,
+    @Query('status') status?: string,
+    @Query('projectId') projectId?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'money.execute');
+    return this.read.listMilestoneQueue({ status, projectId, cursor, limit: toNum(limit) });
+  }
+
   /* ── 6. tickets ────────────────────────────────────────────────────────── */
 
   @Get('tickets')
@@ -181,6 +464,14 @@ export class OpsReadController {
   ) {
     this.read.assertPermission(req.opsPrincipal, 'support.tickets');
     return this.read.listTickets({ status, assignedToId, q, cursor, limit: toNum(limit) });
+  }
+
+  // Static route BEFORE the parametric `tickets/:id` so it isn't shadowed.
+  @Get('tickets/stats')
+  @ApiOperation({ summary: 'Support ticket count-by-status (cross-page)' })
+  ticketStats(@Req() req: OpsRequest) {
+    this.read.assertPermission(req.opsPrincipal, 'support.tickets');
+    return this.read.ticketStats();
   }
 
   @Get('tickets/:id')
@@ -201,15 +492,27 @@ export class OpsReadController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
-    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    // OPS-360 A6 — procurement reads split off projects.review so a pure
+    // REVIEWER no longer browses all supplier bids. procurement.read = OWNER/OPS_MANAGER.
+    this.read.assertPermission(req.opsPrincipal, 'procurement.read');
     return this.read.listRfqs({ status, projectId, cursor, limit: toNum(limit) });
   }
 
   @Get('procurement/rfqs/:id')
   @ApiOperation({ summary: 'RFQ detail — bids with masked supplier' })
   rfq(@Req() req: OpsRequest, @Param('id') id: string) {
-    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    this.read.assertPermission(req.opsPrincipal, 'procurement.read');
     return this.read.rfqDetail(id);
+  }
+
+  /* ── 7b. supplier entity profile (projects.review) ─────────────────────── */
+
+  @Get('suppliers/:userId')
+  @ApiOperation({ summary: 'Supplier profile — masked user + bids + verification + won/lost' })
+  supplier(@Req() req: OpsRequest, @Param('userId') userId: string) {
+    // OPS-360 A6 — follows the RFQ reads onto procurement.read.
+    this.read.assertPermission(req.opsPrincipal, 'procurement.read');
+    return this.read.supplierProfile(userId);
   }
 
   /* ── 8. settings ───────────────────────────────────────────────────────── */

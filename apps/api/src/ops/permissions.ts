@@ -9,6 +9,7 @@
 
 export const PERMISSIONS = {
   projects: ['projects.review', 'projects.feature', 'projects.lifecycle'],
+  procurement: ['procurement.read'],
   moderation: ['moderation.queue'],
   users: ['users.lifecycle', 'users.pii.unmask', 'users.roles.assign'],
   money: ['money.execute', 'money.approve'],
@@ -41,8 +42,10 @@ export const ROLE_MATRIX: readonly SeedRole[] = [
       'projects.review',
       'projects.feature',
       'projects.lifecycle',
+      'procurement.read',
       'moderation.queue',
       'users.lifecycle',
+      'users.roles.assign',
       'content.editorial',
       'content.collections',
       'content.categories',
@@ -62,7 +65,7 @@ export const ROLE_MATRIX: readonly SeedRole[] = [
     nameAr: 'الدعم',
     permissions: ['users.lifecycle', 'users.pii.unmask', 'support.tickets'],
   },
-  { key: 'MODERATOR', nameAr: 'الثقة والسلامة', permissions: ['moderation.queue'] },
+  { key: 'MODERATOR', nameAr: 'الثقة والسلامة', permissions: ['moderation.queue', 'analytics.read'] },
   {
     key: 'CONTENT_EDITOR',
     nameAr: 'محرر المحتوى',
