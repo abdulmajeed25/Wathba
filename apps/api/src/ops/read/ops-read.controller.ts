@@ -44,6 +44,32 @@ export class OpsReadController {
     return this.read.dashboard();
   }
 
+  /* ── 1b. OPS-360 alerts center + name resolution ───────────────────────── */
+
+  @Get('alerts')
+  @ApiOperation({ summary: 'Global anomaly center — live alerts, sorted critical→warn→info' })
+  alerts(@Req() req: OpsRequest) {
+    this.read.assertPermission(req.opsPrincipal, 'analytics.read');
+    return this.read.alerts();
+  }
+
+  @Get('resolve/actors')
+  @ApiOperation({ summary: 'Batch name resolution — ?ids=uuid,uuid → {id:{name,kind}} (no PII)' })
+  resolveActors(@Req() req: OpsRequest, @Query('ids') ids?: string) {
+    // Either an auditor (audit.read) or an analyst (analytics.read) may resolve
+    // the actor/assignee names their screens render.
+    const p = req.opsPrincipal;
+    if (
+      !p.permissions.includes('*') &&
+      !p.permissions.includes('audit.read') &&
+      !p.permissions.includes('analytics.read')
+    ) {
+      this.read.assertPermission(p, 'audit.read');
+    }
+    const list = (ids ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    return this.read.resolveActors(list);
+  }
+
   /* ── 2. projects ───────────────────────────────────────────────────────── */
 
   @Get('projects')

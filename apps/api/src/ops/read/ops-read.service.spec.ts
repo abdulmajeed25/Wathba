@@ -98,8 +98,18 @@ const settingsStub = {
   ]),
 } as unknown as SettingsService;
 
-function svc(db: MockDb): OpsReadService {
-  return new OpsReadService(db as unknown as PrismaService, settingsStub);
+/** Audit verifier stub — the alerts center reuses OpsAuditService.verify(). */
+function auditStub(verdict?: { ok: boolean; brokenAtSeq: string | null } | Error) {
+  return {
+    verify: jest.fn().mockImplementation(async () => {
+      if (verdict instanceof Error) throw verdict;
+      return verdict ?? { ok: true, checked: 0, brokenAtSeq: null, verifiedAt: '' };
+    }),
+  } as unknown as import('../ops-audit.service').OpsAuditService;
+}
+
+function svc(db: MockDb, audit = auditStub()): OpsReadService {
+  return new OpsReadService(db as unknown as PrismaService, settingsStub, audit);
 }
 
 const RAW_EMAIL = 'aisha.almutairi@example.com';
@@ -706,6 +716,129 @@ describe('OpsReadService', () => {
     it('delegates to SettingsService.getAll()', async () => {
       const out = await svc(buildPrisma()).effectiveSettings();
       expect(out.items[0]!.key).toBe('pledges.minHalalas');
+    });
+  });
+
+  /* ── OPS-360 Unit-2 — alerts, name resolution, view-as snapshot ─────────── */
+
+  describe('alerts — the global anomaly center', () => {
+    it('emits only firing alerts, sorted critical→warn→info, chain intact', async () => {
+      const db = buildPrisma();
+      // payout.count is called twice (stuck-SENDING, then SENT-orphan).
+      db.payout.count.mockResolvedValueOnce(2).mockResolvedValueOnce(3);
+      db.webhookEvent.count.mockResolvedValue(1); // mismatch → critical
+      db.zatcaInvoice.count.mockResolvedValue(0); // no backfill → suppressed
+      // pledge.count: DISPUTED, PENDING_REAUTH, FAILED_CAPTURE
+      db.pledge.count.mockResolvedValueOnce(4).mockResolvedValueOnce(0).mockResolvedValueOnce(5);
+      db.projectReport.count.mockResolvedValue(1);
+      db.commentReport.count.mockResolvedValue(2);
+
+      const out = await svc(db).alerts();
+      const keys = out.items.map((a) => a.key);
+      // firing: stuck_sending(crit), webhooks.mismatch(crit), zatca_orphan(warn),
+      // disputed(warn), failed_capture(warn), reports_open(info=3).
+      expect(keys).toContain('payouts.stuck_sending');
+      expect(keys).toContain('webhooks.mismatch');
+      expect(keys).toContain('payouts.zatca_orphan');
+      expect(keys).toContain('pledges.disputed');
+      expect(keys).toContain('pledges.failed_capture');
+      expect(keys).toContain('moderation.reports_open');
+      // suppressed (count 0): fatoora backfill + pending_reauth
+      expect(keys).not.toContain('zatca.fatoora_backfill');
+      expect(keys).not.toContain('pledges.pending_reauth');
+      // sorted critical first, info last
+      expect(out.items[0]!.severity).toBe('critical');
+      expect(out.items[out.items.length - 1]!.severity).toBe('info');
+      expect(out.items.find((a) => a.key === 'moderation.reports_open')!.count).toBe(3);
+      expect(out.chainOk).toBe(true);
+      // stuck-SENDING predicate matches the disburser's 15-min staleness gate
+      const stuckWhere = db.payout.count.mock.calls[0]![0].where;
+      expect(stuckWhere.status).toBe('SENDING');
+      expect(stuckWhere.claimedAt.lt).toBeInstanceOf(Date);
+    });
+
+    it('adds a critical audit.chain_broken alert when the chain fails to verify', async () => {
+      const db = buildPrisma();
+      const out = await svc(db, auditStub({ ok: false, brokenAtSeq: '42' })).alerts();
+      const broken = out.items.find((a) => a.key === 'audit.chain_broken')!;
+      expect(broken).toBeDefined();
+      expect(broken.severity).toBe('critical');
+      expect(broken.detailAr).toContain('42');
+      expect(out.chainOk).toBe(false);
+    });
+
+    it('treats a verifier throw as a broken chain (critical), not a crash', async () => {
+      const db = buildPrisma();
+      const out = await svc(db, auditStub(new Error('db down'))).alerts();
+      expect(out.chainOk).toBe(false);
+      expect(out.items.some((a) => a.key === 'audit.chain_broken')).toBe(true);
+    });
+  });
+
+  describe('resolveActors — batch name resolution, no PII', () => {
+    it('maps ids → {name, kind}, dedupes, caps at 100, and never leaks email', async () => {
+      const db = buildPrisma();
+      db.user.findMany.mockResolvedValue([
+        { id: 'u1', name: 'Aisha', handle: 'aisha', roles: ['BACKER'] },
+        { id: 'u2', name: null, handle: 'ops', roles: ['ADMIN'] },
+        { id: 'u3', name: 'Supp', handle: 'supp', roles: ['SUPPLIER'] },
+      ]);
+      const out = await svc(db).resolveActors(['u1', 'u1', 'u2', 'u3']);
+      expect(out.u1).toEqual({ name: 'Aisha', kind: 'user' });
+      expect(out.u2).toEqual({ name: 'ops', kind: 'operator' }); // falls back to handle
+      expect(out.u3!.kind).toBe('supplier');
+      // deduped ids passed to the query
+      expect(db.user.findMany.mock.calls[0]![0].where.id.in).toEqual(['u1', 'u2', 'u3']);
+      // select never asks for email/phone
+      const select = db.user.findMany.mock.calls[0]![0].select;
+      expect(select.email).toBeUndefined();
+      expect(select.phone).toBeUndefined();
+    });
+
+    it('returns an empty map for no ids without hitting the db', async () => {
+      const db = buildPrisma();
+      const out = await svc(db).resolveActors([]);
+      expect(out).toEqual({});
+      expect(db.user.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('viewAsSnapshot — read-only view-as, masked PII', () => {
+    it('returns a masked profile + pledges + projects, flagged readOnly', async () => {
+      const db = buildPrisma();
+      db.user.findUnique.mockResolvedValue({
+        id: 'u1', name: 'Aisha', handle: 'aisha', city: 'Riyadh', email: RAW_EMAIL,
+        phone: RAW_PHONE, roles: ['BACKER', 'CREATOR'], reputationTier: 'BRONZE',
+        emailVerified: true, nafathVerified: false, totalPledgedHalalas: 250000n,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      });
+      db.pledge.findMany.mockResolvedValue([
+        {
+          id: 'p1', projectId: 'proj1', amountHalalas: 50000n, addOnsHalalas: 0n,
+          status: 'CAPTURED', rewardStatus: 'PENDING', createdAt: new Date(),
+          project: { id: 'proj1', titleAr: 'مشروع' },
+        },
+      ]);
+      db.project.findMany.mockResolvedValue([
+        {
+          id: 'proj2', titleAr: 'مشروعي', status: 'LIVE', fundingGoalHalalas: 1000000n,
+          raisedHalalas: 300000n, backersCount: 5, createdAt: new Date(),
+        },
+      ]);
+      const out = await svc(db).viewAsSnapshot('u1');
+      expect(out.readOnly).toBe(true);
+      expect(out.profile.email).toBe('a***@e***.com');
+      expect(out.profile.totalPledgedHalalas).toBe('250000');
+      expect(out.pledges[0]!.projectTitleAr).toBe('مشروع');
+      expect(out.pledges[0]!.amountHalalas).toBe('50000');
+      expect(out.projects[0]!.raisedHalalas).toBe('300000');
+      assertNoRawPII(out);
+    });
+
+    it('throws NotFound for a missing user', async () => {
+      const db = buildPrisma();
+      db.user.findUnique.mockResolvedValue(null);
+      await expect(svc(db).viewAsSnapshot('nope')).rejects.toThrow(NotFoundException);
     });
   });
 });

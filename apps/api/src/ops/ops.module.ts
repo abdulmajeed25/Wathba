@@ -22,6 +22,8 @@ import { OpsAgentsService } from './ops-agents.service';
 import { OpsAgentsController } from './ops-agents.controller';
 import { OpsReadService } from './read/ops-read.service';
 import { OpsReadController } from './read/ops-read.controller';
+import { ImpersonationService } from './impersonation/impersonation.service';
+import { OpsImpersonationController } from './impersonation/impersonation.controller';
 import { OpsOperationsGuard } from './ops-agents.guard';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
@@ -76,6 +78,7 @@ import { SettingsService } from '../settings/settings.service';
     OpsAuditController,
     OpsAgentsController,
     OpsReadController,
+    OpsImpersonationController,
   ],
   providers: [
     OperationsRegistry,
@@ -85,6 +88,7 @@ import { SettingsService } from '../settings/settings.service';
     OpsAuditService,
     OpsAgentsService,
     OpsReadService,
+    ImpersonationService,
     OpsSessionGuard,
     OpsIpAllowlistGuard,
     OpsOperationsGuard,

@@ -14,6 +14,7 @@ import {
 import { commissionBreakdown } from '../../config/fees';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
+import { OpsAuditService } from '../ops-audit.service';
 import { permissionMatches } from '../permissions';
 import { maskEmail, maskPhone } from '../pii';
 
@@ -154,11 +155,33 @@ export interface KycQueueFilter extends CursorFilter {
   supplierUnverified?: boolean;
 }
 
+/** A live anomaly-center alert — one firing condition, screen-ready. */
+export interface OpsAlert {
+  key: string;
+  severity: 'critical' | 'warn' | 'info';
+  titleAr: string;
+  count: number;
+  detailAr: string;
+  href: string;
+}
+
+/** actor-kind classification for name resolution (no PII, just a role hint). */
+function actorKind(roles: readonly string[]): string {
+  if (roles.includes('ADMIN')) return 'operator';
+  if (roles.includes('SUPPLIER')) return 'supplier';
+  if (roles.includes('CREATOR')) return 'creator';
+  return 'user';
+}
+
 @Injectable()
 export class OpsReadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
+    // OPS-360 Unit-2 — the alerts center reuses the audit chain verifier
+    // (READ-ONLY) so the anomaly board and the audit browser can never
+    // disagree on whether the log is intact.
+    private readonly audit: OpsAuditService,
   ) {}
 
   /**
@@ -1391,6 +1414,238 @@ export class OpsReadService {
         createdAt: iso(b.createdAt),
       })),
       createdAt: iso(u.createdAt),
+    };
+  }
+
+  /* ── OPS-360 U2.A ALERTS CENTER (analytics.read) ───────────────────────── */
+
+  /**
+   * The global anomaly center — a flat list of LIVE alerts (each condition
+   * that is currently firing), sorted critical→warn→info. Every leg is a cheap
+   * count/exists over an indexed predicate; the conditions mirror the census
+   * A4 anomaly list and the exact detectors in the money code
+   * (payout.disburser stuck-SENDING, webhook mismatch, ZATCA orphans, the
+   * DISPUTED/PENDING_REAUTH/FAILED_CAPTURE cohorts, the moderation backlog),
+   * plus the audit chain verdict. Only firing rows are returned — a quiet
+   * platform yields an empty list.
+   *
+   * DELIBERATELY OMITTED (census A4 "heavier scans"): the journal-gap
+   * anti-join (CAPTURED pledges missing a CAPTURE ledger row) and the
+   * platform counter-drift recompute. Pledge has no relation to LedgerEntry
+   * and no status-only index, so a cheap Prisma `none` filter is unavailable;
+   * a raw NOT-EXISTS scan over every CAPTURED pledge is NOT count/exists-cheap
+   * and would violate the "keep each query cheap" rule. These belong on the
+   * reconciliation cron / a dedicated integrity job, not the live board.
+   */
+  async alerts(): Promise<{ items: OpsAlert[]; chainOk: boolean; generatedAt: string }> {
+    const stuckBefore = new Date(Date.now() - 15 * 60_000);
+    const [
+      stuckSending,
+      webhookMismatch,
+      zatcaOrphanPayouts,
+      fatooraBackfill,
+      disputed,
+      pendingReauth,
+      failedCapture,
+      projectReportsOpen,
+      commentReportsOpen,
+    ] = await Promise.all([
+      this.prisma.payout.count({ where: { status: 'SENDING', claimedAt: { lt: stuckBefore } } }),
+      this.prisma.webhookEvent.count({ where: { outcome: 'mismatch' } }),
+      this.prisma.payout.count({ where: { status: 'SENT', zatcaInvoiceId: null } }),
+      this.prisma.zatcaInvoice.count({ where: { reportedAt: null } }),
+      this.prisma.pledge.count({ where: { status: 'DISPUTED' } }),
+      this.prisma.pledge.count({ where: { status: 'PENDING_REAUTH' } }),
+      this.prisma.pledge.count({ where: { status: 'FAILED_CAPTURE' } }),
+      this.prisma.projectReport.count({ where: { resolvedAt: null } }),
+      this.prisma.commentReport.count(),
+    ]);
+
+    // Chain verdict — a broken/failed verification is itself a critical alert.
+    let chainOk = true;
+    let chainBrokenAt: string | null = null;
+    try {
+      const v = await this.audit.verify();
+      chainOk = v.ok;
+      chainBrokenAt = v.brokenAtSeq;
+    } catch {
+      chainOk = false;
+    }
+
+    const reportsOpen = projectReportsOpen + commentReportsOpen;
+    const raw: OpsAlert[] = [
+      {
+        key: 'payouts.stuck_sending',
+        severity: 'critical',
+        count: stuckSending,
+        titleAr: 'مدفوعات عالقة في الإرسال',
+        detailAr: 'دفعات بحالة SENDING منذ أكثر من ١٥ دقيقة — تحتاج تسوية يدوية (خطر ازدواج الدفع).',
+        href: '/ops/money?tab=payouts&status=SENDING',
+      },
+      {
+        key: 'webhooks.mismatch',
+        severity: 'critical',
+        count: webhookMismatch,
+        titleAr: 'أحداث ويبهوك غير متطابقة',
+        detailAr: 'أحداث ويبهوك بنتيجة mismatch لم تُعالَج — راجعها وأعد تشغيلها.',
+        href: '/ops/money/webhook-events',
+      },
+      {
+        key: 'payouts.zatca_orphan',
+        severity: 'warn',
+        count: zatcaOrphanPayouts,
+        titleAr: 'مدفوعات دون فاتورة ZATCA',
+        detailAr: 'مدفوعات بحالة SENT دون فاتورة ضريبية مرتبطة (zatcaInvoiceId فارغ).',
+        href: '/ops/money?tab=payouts',
+      },
+      {
+        key: 'zatca.fatoora_backfill',
+        severity: 'warn',
+        count: fatooraBackfill,
+        titleAr: 'فواتير بانتظار الإبلاغ لفاتورة',
+        detailAr: 'فواتير ZATCA لم تُبلَّغ لهيئة الزكاة والضريبة بعد (reportedAt فارغ).',
+        href: '/ops/money/zatca-invoices',
+      },
+      {
+        key: 'pledges.disputed',
+        severity: 'warn',
+        count: disputed,
+        titleAr: 'تعهّدات متنازع عليها',
+        detailAr: 'تعهّدات بحالة DISPUTED وصلت عبر اعتراض بنكي — تحتاج قراراً.',
+        href: '/ops/money?tab=refunds',
+      },
+      {
+        key: 'pledges.pending_reauth',
+        severity: 'warn',
+        count: pendingReauth,
+        titleAr: 'تعهّدات بانتظار إعادة التفويض',
+        detailAr: 'تعهّدات بحالة PENDING_REAUTH بانتظار إعادة تفويض البطاقة.',
+        href: '/ops/money?tab=pledges&status=PENDING_REAUTH',
+      },
+      {
+        key: 'pledges.failed_capture',
+        severity: 'warn',
+        count: failedCapture,
+        titleAr: 'تعهّدات فشل تحصيلها',
+        detailAr: 'تعهّدات بحالة FAILED_CAPTURE بعد انتهاء مهلة السماح.',
+        href: '/ops/money?tab=pledges&status=FAILED_CAPTURE',
+      },
+      {
+        key: 'moderation.reports_open',
+        severity: 'info',
+        count: reportsOpen,
+        titleAr: 'بلاغات مفتوحة',
+        detailAr: 'بلاغات مشاريع وتعليقات بانتظار المراجعة في قائمة الإشراف.',
+        href: '/ops/moderation/reports',
+      },
+    ];
+
+    const items = raw.filter((a) => a.count > 0);
+    if (!chainOk) {
+      items.push({
+        key: 'audit.chain_broken',
+        severity: 'critical',
+        count: 1,
+        titleAr: 'سلسلة التدقيق مكسورة',
+        detailAr: chainBrokenAt
+          ? `أول رابط مكسور عند التسلسل ${chainBrokenAt} — تلاعب محتمل بالسجل أو كتابة تجاوزت المُحفِّز. تحقّق فوراً.`
+          : 'تعذّر التحقق من سلامة سلسلة التدقيق — عاملها كحادثة أمنية.',
+        href: '/ops/audit',
+      });
+    }
+    const rank: Record<OpsAlert['severity'], number> = { critical: 0, warn: 1, info: 2 };
+    items.sort((a, b) => rank[a.severity] - rank[b.severity]);
+
+    return { items, chainOk, generatedAt: new Date().toISOString() };
+  }
+
+  /* ── OPS-360 U2.B NAME RESOLUTION (audit.read OR analytics.read) ────────── */
+
+  /**
+   * Batch actor/assignee name resolution — turns raw User UUIDs (as they
+   * appear in audit rows, ticket assignees, agent proposers) into
+   * `{ id: { name, kind } }` so the screens render names, not UUIDs. Returns
+   * ONLY name/handle + a role-kind hint — NEVER email/phone (that stays behind
+   * users.pii.unmask). Batch is deduped and hard-capped at 100 ids; unknown
+   * ids are simply absent from the map.
+   */
+  async resolveActors(ids: string[]): Promise<Record<string, { name: string | null; kind: string }>> {
+    const unique = [...new Set(ids.map((s) => s.trim()).filter(Boolean))].slice(0, 100);
+    if (unique.length === 0) return {};
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, name: true, handle: true, roles: true },
+    });
+    const out: Record<string, { name: string | null; kind: string }> = {};
+    for (const u of users) {
+      out[u.id] = { name: u.name ?? u.handle ?? null, kind: actorKind(u.roles) };
+    }
+    return out;
+  }
+
+  /* ── OPS-360 U2.C VIEW-AS SNAPSHOT (impersonation) ─────────────────────── */
+
+  /**
+   * The READ-ONLY "view-as" snapshot the impersonation flow inspects — the
+   * product data a support operator needs to see AS the user, WITHOUT a real
+   * session swap and WITHOUT any write capability. PII stays masked (an
+   * operator inspecting a support case does not need the user's raw
+   * email/phone); money is stringified; pledges/projects are capped. This is
+   * the truthful minimal impersonation surface — full cookie-level session
+   * impersonation is a documented follow-up.
+   */
+  async viewAsSnapshot(userId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!u) throw new NotFoundException('المستخدم غير موجود');
+    const [pledges, projects] = await Promise.all([
+      this.prisma.pledge.findMany({
+        where: { backerId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+        include: { project: { select: { id: true, titleAr: true } } },
+      }),
+      this.prisma.project.findMany({
+        where: { createdById: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 25,
+      }),
+    ]);
+    return {
+      readOnly: true as const,
+      profile: {
+        id: u.id,
+        name: u.name,
+        handle: u.handle,
+        city: u.city,
+        // Masked even here: view-as is for support triage, not PII disclosure.
+        email: maskEmail(u.email),
+        phone: maskPhone(u.phone),
+        roles: u.roles,
+        reputationTier: u.reputationTier,
+        emailVerified: u.emailVerified,
+        nafathVerified: u.nafathVerified,
+        totalPledgedHalalas: h(u.totalPledgedHalalas),
+        memberSince: iso(u.createdAt),
+      },
+      pledges: pledges.map((p) => ({
+        id: p.id,
+        projectId: p.projectId,
+        projectTitleAr: p.project?.titleAr ?? null,
+        amountHalalas: h(p.amountHalalas),
+        addOnsHalalas: h(p.addOnsHalalas),
+        status: p.status,
+        rewardStatus: p.rewardStatus,
+        createdAt: iso(p.createdAt),
+      })),
+      projects: projects.map((p) => ({
+        id: p.id,
+        titleAr: p.titleAr,
+        status: p.status,
+        goalHalalas: h(p.fundingGoalHalalas),
+        raisedHalalas: h(p.raisedHalalas),
+        backersCount: p.backersCount,
+        createdAt: iso(p.createdAt),
+      })),
     };
   }
 
