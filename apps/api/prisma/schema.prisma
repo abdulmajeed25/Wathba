@@ -1516,6 +1516,21 @@ model ReconciliationRun {
   @@index([createdAt])
 }
 
+/// Batch OPS-GAPS Y2 — operator override of a transactional email template.
+/// key = the EmailService template name (e.g. 'verification', 'payoutSent').
+/// When a row exists, EmailService swaps in subjectAr/bodyAr (wrapped in the
+/// shared layout, same {{VAR}} interpolation); absent = the code default is
+/// used, so behaviour is unchanged until an operator edits. Governed by an
+/// audited settings.write-class op.
+model EmailTemplateOverride {
+  key         String   @id
+  subjectAr   String
+  bodyAr      String   @db.Text
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @default(now()) @updatedAt
+  createdAt   DateTime @default(now())
+}
+
 /// Batch OPS-GAPS R1 — the appeals workflow. An appellant (a banned user, or
 /// a rejected project's creator) submits ONE appeal per decision; a DIFFERENT
 /// operator than the original decider reviews it (four-eyes, enforced against

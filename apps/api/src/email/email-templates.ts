@@ -38,6 +38,15 @@ export interface EmailContent {
   html: string;
 }
 
+/**
+ * OPS-GAPS Y2 — render an operator override into the shared brand layout.
+ * The stored bodyAr is the inner HTML (the operator edits copy, not the shell);
+ * {{APP_URL}} / {{PREFS_URL}} tokens are hydrated by EmailService as usual.
+ */
+export function renderOverride(subjectAr: string, bodyAr: string): EmailContent {
+  return { subject: subjectAr, html: layout(bodyAr) };
+}
+
 export const emailTemplates = {
   // ---- account (transactional-critical: no prefs link) ----
   verification(link: string): EmailContent {
