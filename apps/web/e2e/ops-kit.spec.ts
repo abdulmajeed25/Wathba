@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { API } from './helpers';
+import { rowsToCsv, toCsv } from '../src/app/ops/_lib/csv';
+import { reconcileColumnState, visibleKeys, type ColumnState } from '../src/app/ops/_lib/views';
 
 const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 
@@ -111,4 +113,82 @@ test('op-runner: dry-run → preview → reason → MONEY confirm gates «تنف
   }
 
   await page.keyboard.press('Escape');
+});
+
+/* ── OPS-360 Unit 2 — power-table infra ───────────────────────────────────
+ * The reusable kit (CSV serialization + column-state reconciliation) is pure
+ * and needs no live stack — asserted directly. The on-screen controls (gear,
+ * CSV button, saved-views) are wired per-screen by Unit 3; the UI probes below
+ * exercise them where present and gate-skip until a screen adopts them, so the
+ * suite stays green through the rollout.
+ */
+
+test.describe('Unit 2 — CSV serialization (pure, PDPL-masked/no re-fetch)', () => {
+  test('toCsv escapes commas, quotes and newlines per RFC-4180 with CRLF rows', () => {
+    const csv = toCsv(
+      ['المشروع', 'الحالة'],
+      [
+        ['مشروع، عادي', 'LIVE'],
+        ['قال "مرحبا"', 'HELD'],
+        ['سطر\nثانٍ', 'FAILED'],
+      ],
+    );
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toBe('المشروع,الحالة');
+    expect(lines[1]).toBe('"مشروع، عادي",LIVE'); // comma → quoted
+    expect(lines[2]).toBe('"قال ""مرحبا""",HELD'); // inner quotes doubled
+    expect(csv).toContain('"سطر\nثانٍ"'); // newline preserved inside a quoted field
+  });
+
+  test('rowsToCsv honors column order and keeps money as the displayed SAR string', () => {
+    interface Row { id: string; title: string; sar: string }
+    const rows: Row[] = [
+      { id: '1', title: 'أ', sar: '١٢٣٫٤٥ ر.س.' },
+      { id: '2', title: 'ب', sar: '٠٫٠٠ ر.س.' },
+    ];
+    const csv = rowsToCsv(
+      [
+        { label: 'العنوان', cell: (r) => r.title },
+        { label: 'المبلغ', cell: (r) => r.sar },
+      ],
+      rows,
+    );
+    const [header, first] = csv.split('\r\n');
+    expect(header).toBe('العنوان,المبلغ');
+    expect(first).toBe('أ,١٢٣٫٤٥ ر.س.'); // money verbatim, not re-derived
+  });
+});
+
+test.describe('Unit 2 — column-state reconciliation (pure)', () => {
+  test('a null saved state defaults to declared order, nothing hidden', () => {
+    const s = reconcileColumnState(['a', 'b', 'c'], null);
+    expect(s.order).toEqual(['a', 'b', 'c']);
+    expect(s.hidden).toEqual([]);
+    expect(visibleKeys(s)).toEqual(['a', 'b', 'c']);
+  });
+
+  test('keeps saved order, appends new columns, drops stale keys + stale hides', () => {
+    const saved: ColumnState = { order: ['c', 'a', 'gone'], hidden: ['a', 'gone'] };
+    const s = reconcileColumnState(['a', 'b', 'c'], saved);
+    expect(s.order).toEqual(['c', 'a', 'b']); // saved order first, 'b' appended, 'gone' dropped
+    expect(s.hidden).toEqual(['a']); // 'gone' dropped from hidden too
+    expect(visibleKeys(s)).toEqual(['c', 'b']);
+  });
+});
+
+test('column-manager + CSV + saved-views controls (gated on a screen adopting them)', async ({ page }) => {
+  test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
+  await enterOps(page);
+  await page.goto('/ops/projects');
+
+  const gear = page.getByRole('button', { name: 'إدارة الأعمدة' });
+  test.skip((await gear.count()) === 0, 'no DataTable exposes tableKey yet — Unit 3 wires the toolbar');
+
+  // Gear opens a column popover with per-column visibility checkboxes.
+  await gear.first().click();
+  const panel = page.getByRole('group', { name: /أعمدة الجدول/ });
+  await expect(panel).toBeVisible();
+  expect(await panel.getByRole('checkbox').count()).toBeGreaterThan(1);
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
 });

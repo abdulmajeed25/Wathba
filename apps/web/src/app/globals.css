@@ -112,3 +112,112 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===========================================================================
+ * OPS Center — theme + density (Phase B, Unit 2)
+ *
+ * APPROACH (pragmatic scoped overrides, NOT a full CSS-variable refactor):
+ * every ops screen is painted with the fixed GitHub-dark palette baked into
+ * Tailwind arbitrary values (`bg-[#0d1117]`, `text-[#8b949e]`, …). Those
+ * screens are out of this unit's file ownership, so rather than rewrite each
+ * one to reference variables, we REMAP the finite palette here, keyed off
+ * `data-theme`/`data-density` on the ops root (`#ops-root`). These rules are
+ * unlayered, so they win over the layered Tailwind utilities regardless of
+ * specificity. Dark is the default look and stays byte-for-byte identical
+ * except for the ONE contrast fix below; light is a full, WCAG-1.4.3 remap.
+ *
+ * DENSITY rides Tailwind v4's dynamic spacing: every p-/gap-/space-/m- utility
+ * resolves through `--spacing`, so overriding it on the ops root tightens the
+ * whole surface for «compact» without touching a single screen.
+ * ------------------------------------------------------------------------- */
+
+/* Density — comfortable inherits the global 0.25rem; compact tightens ~20%. */
+[data-ops-root][data-density='compact'] {
+  --spacing: 0.2rem;
+}
+
+/* ---- DARK (default): fix ONLY the failing muted-hint token ----
+ * #484f58 on #0d1117/#161b22 is ~1.7:1 — fails WCAG 1.4.3. Lift it to a token
+ * that clears 4.5:1 on both ops surfaces while staying visibly "faint". */
+[data-ops-root][data-theme='dark'] {
+  color-scheme: dark;
+}
+[data-ops-root][data-theme='dark'] .text-\[\#484f58\] {
+  color: #848d97;
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#484f58\]::placeholder {
+  color: #848d97;
+}
+
+/* ---- LIGHT: full palette remap (GitHub-light, all foregrounds ≥ 4.5:1) ---- */
+[data-ops-root][data-theme='light'] {
+  color-scheme: light;
+}
+
+/* backgrounds: canvas/inset → subtle grey; cards/header → white; hovers */
+[data-ops-root][data-theme='light'] .bg-\[\#0d1117\] {
+  background-color: #f6f8fa;
+}
+[data-ops-root][data-theme='light'] .bg-\[\#010409\] {
+  background-color: #ffffff;
+}
+[data-ops-root][data-theme='light'] .bg-\[\#161b22\] {
+  background-color: #ffffff;
+}
+[data-ops-root][data-theme='light'] .bg-\[\#21262d\] {
+  background-color: #eaeef2;
+}
+[data-ops-root][data-theme='light'] .hover\:bg-\[\#161b22\]:hover {
+  background-color: #eef1f4;
+}
+[data-ops-root][data-theme='light'] .hover\:bg-\[\#1c2128\]:hover {
+  background-color: #eaeef2;
+}
+[data-ops-root][data-theme='light'] .hover\:bg-\[\#21262d\]:hover {
+  background-color: #e1e6eb;
+}
+[data-ops-root][data-theme='light'] .focus-visible\:bg-\[\#161b22\]:focus-visible {
+  background-color: #eef1f4;
+}
+
+/* borders */
+[data-ops-root][data-theme='light'] .border-\[\#21262d\] {
+  border-color: #d0d7de;
+}
+[data-ops-root][data-theme='light'] .border-\[\#30363d\] {
+  border-color: #d0d7de;
+}
+[data-ops-root][data-theme='light'] .hover\:border-\[\#30363d\]:hover {
+  border-color: #afb8c1;
+}
+[data-ops-root][data-theme='light'] .divide-\[\#21262d\] > * {
+  border-color: #d0d7de;
+}
+
+/* foregrounds — every value below clears 4.5:1 on #ffffff and #f6f8fa */
+[data-ops-root][data-theme='light'] .text-\[\#e6edf3\] {
+  color: #1f2328;
+}
+[data-ops-root][data-theme='light'] .hover\:text-\[\#e6edf3\]:hover {
+  color: #1f2328;
+}
+[data-ops-root][data-theme='light'] .text-\[\#8b949e\] {
+  color: #59636e;
+}
+[data-ops-root][data-theme='light'] .text-\[\#484f58\] {
+  color: #636c76;
+}
+[data-ops-root][data-theme='light'] .placeholder\:text-\[\#484f58\]::placeholder {
+  color: #6e7781;
+}
+[data-ops-root][data-theme='light'] .text-\[\#30363d\] {
+  color: #d0d7de;
+}
+
+/* accent (links + focus ring) → GitHub-light accent */
+[data-ops-root][data-theme='light'] .text-\[\#58a6ff\] {
+  color: #0969da;
+}
+[data-ops-root][data-theme='light'] .focus-visible\:ring-\[\#58a6ff\]:focus-visible {
+  --tw-ring-color: #0969da;
+}

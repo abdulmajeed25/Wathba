@@ -4,14 +4,22 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { OPS_SECTIONS } from '../_lib/sections';
-import { OpRunner } from './op-runner';
+import { OpRunner, useFocusTrap } from './op-runner';
 
 /**
- * OPS Part 5 — Ctrl/⌘+K command palette. Arabic substring search over the 16
- * sections + the live operations manifest (fetched once, lazily, on first
- * open). Choosing a section navigates; choosing an operation launches its
- * <OpRunner> (dry-run → reason → execute) inline. Fully keyboard-driven:
- * ↑/↓ move, Enter selects, Esc closes. Mounted once in layout.tsx.
+ * OPS Part 5 / Phase B — Ctrl/⌘+K command palette. Arabic substring search
+ * over the operator sections + the live operations manifest (fetched once,
+ * lazily, on first open). Choosing a section navigates; choosing an operation
+ * launches its <OpRunner> (dry-run → reason → execute) inline.
+ *
+ * Phase B adds JUMP-TO-RECORD: a pasted UUID offers deep links to open that
+ * project / user / supplier directly, and any free-text query offers a
+ * "search users/projects for ‹q›" deep link — so the palette is also the way
+ * an operator reaches a specific record, not just a section. (Full server-side
+ * entity search is a follow-up; this is the UUID + query-deeplink layer.)
+ *
+ * Fully keyboard-driven: ↑/↓ move, Enter selects, Esc closes; focus is trapped
+ * within the panel and restored on close (WCAG 2.4.3 / 2.1.2).
  */
 
 type RiskTier = 'CONTENT' | 'STANDARD' | 'SENSITIVE' | 'MONEY';
@@ -25,7 +33,28 @@ interface ManifestItem {
 
 type Entry =
   | { kind: 'section'; id: string; labelAr: string; hintAr: string; href: string }
-  | { kind: 'op'; id: string; labelAr: string; hintAr: string; op: ManifestItem };
+  | { kind: 'op'; id: string; labelAr: string; hintAr: string; op: ManifestItem }
+  | { kind: 'jump'; id: string; labelAr: string; hintAr: string; href: string };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Build the jump-to-record entries for the current query (top of the list). */
+function jumpEntries(raw: string): Entry[] {
+  const q = raw.trim();
+  if (q.length < 2) return [];
+  if (UUID_RE.test(q)) {
+    return [
+      { kind: 'jump', id: `jump:project:${q}`, labelAr: 'افتح المشروع', hintAr: q, href: `/ops/projects/${q}` },
+      { kind: 'jump', id: `jump:user:${q}`, labelAr: 'افتح المستخدم', hintAr: q, href: `/ops/users?q=${encodeURIComponent(q)}` },
+      { kind: 'jump', id: `jump:supplier:${q}`, labelAr: 'افتح المورّد', hintAr: q, href: `/ops/suppliers/${q}` },
+    ];
+  }
+  const enc = encodeURIComponent(q);
+  return [
+    { kind: 'jump', id: `jump:users:${q}`, labelAr: `ابحث عن مستخدم «${q}»`, hintAr: 'المستخدمون', href: `/ops/users?q=${enc}` },
+    { kind: 'jump', id: `jump:projects:${q}`, labelAr: `ابحث عن مشروع «${q}»`, hintAr: 'المشاريع', href: `/ops/projects?q=${enc}` },
+  ];
+}
 
 /** Normalise Arabic for forgiving matching (strip tashkeel, unify alef/ya). */
 function norm(s: string): string {
@@ -46,7 +75,11 @@ export function CommandPalette() {
   const [ops, setOps] = useState<ManifestItem[]>([]);
   const [pendingOp, setPendingOp] = useState<ManifestItem | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
+
+  // Trap + restore focus while the palette is open (WCAG 2.4.3 / 2.1.2).
+  useFocusTrap(open, panelRef);
 
   // Global Ctrl/⌘+K toggle.
   useEffect(() => {
@@ -99,8 +132,11 @@ export function CommandPalette() {
     }));
     const all = [...sections, ...opEntries];
     const q = norm(query);
-    if (!q) return all;
-    return all.filter((e) => norm(`${e.labelAr} ${e.hintAr}`).includes(q));
+    const filtered = !q ? all : all.filter((e) => norm(`${e.labelAr} ${e.hintAr}`).includes(q));
+    // Known sections/ops rank first; the jump-to-record entries follow as an
+    // "…or open/search this record" affordance. A pasted UUID matches no
+    // section/op, so its deep links are then the only (top) results.
+    return [...filtered, ...jumpEntries(query)];
   }, [ops, query]);
 
   useEffect(() => {
@@ -110,7 +146,7 @@ export function CommandPalette() {
   const choose = useCallback(
     (e: Entry) => {
       setOpen(false);
-      if (e.kind === 'section') {
+      if (e.kind === 'section' || e.kind === 'jump') {
         router.push(e.href);
       } else {
         setPendingOp(e.op);
@@ -152,6 +188,7 @@ export function CommandPalette() {
           }}
         >
           <div
+            ref={panelRef}
             dir="rtl"
             className="w-full max-w-xl overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] shadow-2xl"
           >
@@ -160,7 +197,7 @@ export function CommandPalette() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="اقفز إلى قسم أو ابحث عن عملية… (Ctrl+K)"
+              placeholder="قسم، عملية، أو معرّف سجل (UUID)… (Ctrl+K)"
               aria-label="ابحث في الأقسام والعمليات"
               className="w-full border-b border-[#30363d] bg-transparent px-4 py-3 text-sm outline-none placeholder:text-[#484f58]"
             />
@@ -183,14 +220,16 @@ export function CommandPalette() {
                           className={`rounded px-1.5 py-0.5 text-[10px] ${
                             e.kind === 'section'
                               ? 'border border-[#30363d] text-[#8b949e]'
-                              : e.op.riskTier === 'MONEY'
-                                ? 'border border-red-500/40 text-red-300'
-                                : e.op.riskTier === 'SENSITIVE'
-                                  ? 'border border-amber-500/40 text-amber-300'
-                                  : 'border border-sky-500/40 text-sky-300'
+                              : e.kind === 'jump'
+                                ? 'border border-emerald-500/40 text-emerald-300'
+                                : e.op.riskTier === 'MONEY'
+                                  ? 'border border-red-500/40 text-red-300'
+                                  : e.op.riskTier === 'SENSITIVE'
+                                    ? 'border border-amber-500/40 text-amber-300'
+                                    : 'border border-sky-500/40 text-sky-300'
                           }`}
                         >
-                          {e.kind === 'section' ? 'قسم' : e.op.riskTier}
+                          {e.kind === 'section' ? 'قسم' : e.kind === 'jump' ? 'انتقال' : e.op.riskTier}
                         </span>
                         {e.labelAr}
                       </span>

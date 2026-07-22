@@ -1,8 +1,64 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
 import { formatSar, isNonZeroHalalas } from '../_lib/money';
+
+/**
+ * Shared focus trap for the ops modals (OpRunner + command palette).
+ *
+ * WCAG 2.4.3 (focus order) + 2.1.2 (no keyboard trap escape hatch): while
+ * `active`, Tab/Shift-Tab cycle ONLY within `ref`; focus moves into the dialog
+ * on open and RESTORES to the previously-focused element (the trigger) on
+ * close. Esc handling stays with each caller. Listener is capture-phase so it
+ * wins over inner handlers; RTL doesn't affect Tab semantics.
+ */
+export function useFocusTrap(active: boolean, ref: RefObject<HTMLElement | null>): void {
+  useEffect(() => {
+    if (!active) return;
+    const el = ref.current;
+    if (!el) return;
+    const restoreTo = document.activeElement as HTMLElement | null;
+
+    const focusable = (): HTMLElement[] =>
+      Array.from(
+        el.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((n) => n.offsetParent !== null || n === document.activeElement);
+
+    // Move focus in: first focusable child, else the container itself.
+    (focusable()[0] ?? el).focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const items = focusable();
+      if (items.length === 0) {
+        e.preventDefault();
+        el.focus();
+        return;
+      }
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const current = document.activeElement;
+      if (e.shiftKey) {
+        if (current === first || !el.contains(current)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (current === last || !el.contains(current)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('keydown', onKey, true);
+      restoreTo?.focus?.();
+    };
+  }, [active, ref]);
+}
 
 /**
  * OPS Part 5 — THE governed-mutation control. Every destructive/money button
@@ -193,10 +249,12 @@ export function OpRunner(props: OpRunnerProps) {
     }
   }, [props.autoStart, start]);
 
-  // Focus the dialog and wire Esc-to-close while open.
+  // Trap + restore focus while open (WCAG 2.4.3 / 2.1.2).
+  useFocusTrap(open, dialogRef);
+
+  // Esc-to-close (except mid-execute, when the flow must not be interrupted).
   useEffect(() => {
     if (!open) return;
-    dialogRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && phase !== 'executing') close();
     };
@@ -239,6 +297,16 @@ export function OpRunner(props: OpRunnerProps) {
                 {opKey}
               </code>
             </div>
+
+            {/* SR live region: announces the op outcome to assistive tech
+                (the visual result banners below are not read on state change). */}
+            <p role="status" aria-live="polite" className="sr-only">
+              {phase === 'done'
+                ? '✓ نُفِّذت العملية وسُجّلت في التدقيق'
+                : phase === 'error'
+                  ? `خطأ: ${error ?? 'فشل التنفيذ'}`
+                  : ''}
+            </p>
 
             {phase === 'loading' ? (
               <p className="py-6 text-center text-sm text-[#8b949e]">جارٍ المعاينة…</p>
