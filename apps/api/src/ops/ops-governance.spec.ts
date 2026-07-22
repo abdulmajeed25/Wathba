@@ -81,7 +81,11 @@ describe('OPS governance — the registry is the only mutation path', () => {
           entry.name !== 'ops-audit.service.ts' &&
           // Part 4 — agent identity owns AgentAccount/AgentDryRun (tokens,
           // the no-blind-writes ledger); creation/rotation stay operations.
-          entry.name !== 'ops-agents.service.ts'
+          entry.name !== 'ops-agents.service.ts' &&
+          // OPS-PRO Part 5 — the read layer for the operator screens is
+          // READ-ONLY over every business entity (RULE 5 pins it to zero
+          // mutating calls); it injects PrismaService only to query.
+          entry.name !== 'ops-read.service.ts'
         ) {
           const src = readFileSync(p, 'utf8');
           const valueImport = src
@@ -108,6 +112,8 @@ describe('OPS governance — the registry is the only mutation path', () => {
       'ops/ops-proposals.service.ts': ['operationProposal', 'auditLog'],
       'ops/ops-audit.service.ts': [],
       'ops/ops-agents.service.ts': ['agentAccount', 'agentDryRun'],
+      // OPS-PRO Part 5 — the screen read layer: zero mutations, ever.
+      'ops/read/ops-read.service.ts': [],
     };
     for (const [rel, models] of Object.entries(allowed)) {
       const src = read(rel);

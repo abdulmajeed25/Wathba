@@ -20,6 +20,8 @@ import { OpsAuditService } from './ops-audit.service';
 import { OpsAuditController } from './ops-audit.controller';
 import { OpsAgentsService } from './ops-agents.service';
 import { OpsAgentsController } from './ops-agents.controller';
+import { OpsReadService } from './read/ops-read.service';
+import { OpsReadController } from './read/ops-read.controller';
 import { OpsOperationsGuard } from './ops-agents.guard';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
@@ -73,6 +75,7 @@ import { SettingsService } from '../settings/settings.service';
     OpsProposalsController,
     OpsAuditController,
     OpsAgentsController,
+    OpsReadController,
   ],
   providers: [
     OperationsRegistry,
@@ -81,6 +84,7 @@ import { SettingsService } from '../settings/settings.service';
     OpsProposalsService,
     OpsAuditService,
     OpsAgentsService,
+    OpsReadService,
     OpsSessionGuard,
     OpsIpAllowlistGuard,
     OpsOperationsGuard,
