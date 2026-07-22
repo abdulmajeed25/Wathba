@@ -10,6 +10,9 @@ import { RefundsPanel } from './refunds-panel';
 import { LedgerBrowser } from './ledger-browser';
 import { ReconciliationPanel } from './reconciliation-panel';
 import { MilestonesPanel } from './milestones-panel';
+import { BeneficiariesPanel } from './beneficiaries-panel';
+import { ZatcaPanel } from './zatca-panel';
+import { WebhooksPanel } from './webhooks-panel';
 
 /**
  * OPS-PRO Part 5 §4 — «الخزنة» (the vault). The crown screen, built LAST so
@@ -21,14 +24,26 @@ import { MilestonesPanel } from './milestones-panel';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'overview' | 'milestones' | 'payouts' | 'refunds' | 'ledger' | 'reconciliation';
+type Tab =
+  | 'overview'
+  | 'milestones'
+  | 'payouts'
+  | 'refunds'
+  | 'beneficiaries'
+  | 'ledger'
+  | 'zatca'
+  | 'webhooks'
+  | 'reconciliation';
 
 const TABS: Array<{ key: Tab; labelAr: string }> = [
   { key: 'overview', labelAr: 'نظرة عامة' },
   { key: 'milestones', labelAr: 'المعالم' },
   { key: 'payouts', labelAr: 'الدفعات' },
   { key: 'refunds', labelAr: 'الاستردادات' },
+  { key: 'beneficiaries', labelAr: 'المستفيدون' },
   { key: 'ledger', labelAr: 'دفتر الأستاذ' },
+  { key: 'zatca', labelAr: 'الفواتير الضريبية' },
+  { key: 'webhooks', labelAr: 'أحداث الويبهوك' },
   { key: 'reconciliation', labelAr: 'المطابقة' },
 ];
 
@@ -71,7 +86,10 @@ export default async function MoneyVaultPage({
   const sp = await searchParams;
   const tab: Tab = (TABS.find((t) => t.key === sp.tab)?.key ?? 'overview') as Tab;
 
-  const dash = await opsGet<DashboardPayload>('dashboard', opsToken);
+  const [dash, alertsRes] = await Promise.all([
+    opsGet<DashboardPayload>('dashboard', opsToken),
+    opsGet<{ items: Array<{ key: string; severity: string; titleAr: string; count: number; href: string }> }>('alerts', opsToken),
+  ]);
 
   if (dash.refused) {
     return (
@@ -83,6 +101,12 @@ export default async function MoneyVaultPage({
 
   const wq = dash.data?.workQueue ?? {};
   const vit = dash.data?.vitals ?? {};
+  // Money-relevant firing alerts (from the Unit-2 anomaly center) — surface
+  // DISPUTED / PENDING_REAUTH / stuck-SENDING / ZATCA orphans right in the vault.
+  const moneyAlerts = (alertsRes.data?.items ?? []).filter(
+    (a) => a.key.startsWith('payouts.') || a.key.startsWith('pledges.') || a.key.startsWith('zatca.') || a.key.startsWith('webhooks.'),
+  );
+  const alertCount = (k: string): number => moneyAlerts.find((a) => a.key === k)?.count ?? 0;
 
   return (
     <div className="space-y-6">
@@ -126,7 +150,40 @@ export default async function MoneyVaultPage({
 
       {tab === 'overview' && (
         <section className="space-y-4">
+          {moneyAlerts.length > 0 && (
+            <div className="space-y-1.5">
+              {moneyAlerts.map((a) => (
+                <Link
+                  key={a.key}
+                  href={a.href}
+                  className={
+                    'flex items-center justify-between rounded border px-3 py-2 text-sm ' +
+                    (a.severity === 'critical'
+                      ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                      : a.severity === 'warn'
+                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                        : 'border-[#30363d] bg-[#161b22] text-[#8b949e]')
+                  }
+                >
+                  <span>{a.titleAr}</span>
+                  <span className="tabular-nums font-bold">{a.count}</span>
+                </Link>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <StatTile
+              label="نزاعات مفتوحة (DISPUTED)"
+              value={String(alertCount('pledges.disputed'))}
+              href="/ops/money?tab=refunds&status=DISPUTED"
+              intent={alertCount('pledges.disputed') > 0 ? 'danger' : 'default'}
+            />
+            <StatTile
+              label="بانتظار إعادة التفويض"
+              value={String(alertCount('pledges.pending_reauth'))}
+              href="/ops/money?tab=refunds&status=PENDING_REAUTH"
+              intent={alertCount('pledges.pending_reauth') > 0 ? 'warn' : 'default'}
+            />
             <StatTile label="إجمالي المبيعات (GMV)" value={formatSar(vit.gmvHalalas)} />
             <StatTile
               label="التزام الدفعات المعلّقة"
@@ -160,12 +217,15 @@ export default async function MoneyVaultPage({
         </section>
       )}
 
-      {tab === 'milestones' && <MilestonesPanel opsToken={opsToken} />}
+      {tab === 'milestones' && <MilestonesPanel opsToken={opsToken} status={sp.status} />}
       {tab === 'payouts' && <PayoutsPanel opsToken={opsToken} cursor={sp.cursor} status={sp.status} />}
       {tab === 'refunds' && <RefundsPanel opsToken={opsToken} cursor={sp.cursor} status={sp.status} projectId={sp.projectId} />}
+      {tab === 'beneficiaries' && <BeneficiariesPanel opsToken={opsToken} cursor={sp.cursor} />}
       {tab === 'ledger' && (
         <LedgerBrowser opsToken={opsToken} cursor={sp.cursor} entryType={sp.entryType} projectId={sp.projectId} from={sp.from} to={sp.to} />
       )}
+      {tab === 'zatca' && <ZatcaPanel opsToken={opsToken} cursor={sp.cursor} reported={sp.reported} />}
+      {tab === 'webhooks' && <WebhooksPanel opsToken={opsToken} cursor={sp.cursor} outcome={sp.outcome} />}
       {tab === 'reconciliation' && <ReconciliationPanel opsToken={opsToken} />}
     </div>
   );

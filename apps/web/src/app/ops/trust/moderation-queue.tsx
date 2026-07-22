@@ -3,69 +3,262 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+import { ActorName } from '../_components/actor-name';
 import { StatusBadge } from '../_components/badge';
+import { BulkBar } from '../_components/bulk-bar';
 import { DataTable, type Column } from '../_components/data-table';
 import { OpRunner } from '../_components/op-runner';
-import { formatSar } from '../_lib/money';
 
 /**
- * OPS Phase 2 — «الثقة والسلامة» moderation surface (client island). The
- * project queue rows are fetched server-side and handed here as plain data;
- * this file owns the per-row moderation OpRunners plus a set of id-targeted
- * ops (comment / user / FAQ) that have no list endpoint yet — the operator
- * pastes the subject id. Every action is a governed <OpRunner>.
+ * OPS-360 Unit 3 — «الثقة والسلامة» moderation surface (client island).
+ *
+ * This REPLACES the old blind "paste an id" cards. Both datasets are fetched
+ * server-side from the moderation-only read endpoints (moderation/reports +
+ * moderation/comments?reported=true) — never /ops/projects, which the
+ * MODERATOR role (analytics.read + moderation.queue) cannot read — and handed
+ * here as plain rows. Every subject an operator acts on is a REAL row:
+ *
+ *   • Reports tab   → per-report governed OpRunners keyed to the report kind
+ *                     (project → hide/unhide + dismiss; comment → moderate).
+ *   • Comments tab  → the reported-comments browser, with moderate ops AND
+ *                     ban/unban of the comment's (real) author id via ActorName.
+ *
+ * DataTable power features (tableKey column-persist + gear, savedViews, CSV,
+ * sortable headers, governed BulkBar) are all wired. Every mutation is a
+ * governed <OpRunner> / <BulkBar> — no blind execution, no raw id paste.
  */
 
-export interface TrustProjectRow {
+export interface TrustReportRow {
   id: string;
-  titleAr: string;
-  status: string;
-  categoryNameAr: string | null;
-  raisedHalalas: string | null;
-  backersCount: number;
-  createdBy: string | null;
-  hiddenAt: string | null;
-  createdAt: string;
+  kind: 'project' | 'comment';
+  subjectId: string;
+  subjectTitleAr: string | null;
+  subjectSnippet: string | null;
+  reporterMasked: string | null;
+  reasonAr: string | null;
+  subjectHiddenAt: string | null;
+  createdAt: string | null;
 }
 
-function projectColumns(): Column<TrustProjectRow>[] {
+export interface TrustCommentRow {
+  id: string;
+  projectId: string;
+  author: { id: string; name: string | null; email: string | null };
+  bodyAr: string | null;
+  hidden: boolean;
+  pinned: boolean;
+  likeCount: number;
+  reportCount: number;
+  parentId: string | null;
+  createdAt: string | null;
+}
+
+const arDate = (iso: string | null): string =>
+  iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+
+function KindBadge({ kind }: { kind: TrustReportRow['kind'] }) {
+  return kind === 'project' ? (
+    <StatusBadge intent="info">مشروع</StatusBadge>
+  ) : (
+    <StatusBadge intent="warn">تعليق</StatusBadge>
+  );
+}
+
+/* ── Reports queue ──────────────────────────────────────────────────────── */
+
+function reportColumns(): Column<TrustReportRow>[] {
   return [
     {
-      key: 'titleAr',
+      key: 'kind',
+      label: 'النوع',
+      sortable: true,
+      csv: (r) => r.kind,
+      render: (r) => <KindBadge kind={r.kind} />,
+    },
+    {
+      key: 'subject',
+      label: 'المُبلَّغ عنه',
+      csv: (r) => r.subjectTitleAr ?? r.subjectSnippet ?? r.subjectId,
+      render: (r) =>
+        r.kind === 'project' ? (
+          <Link
+            href={`/ops/projects/${r.subjectId}`}
+            className="text-[#58a6ff] hover:underline"
+          >
+            {r.subjectTitleAr ?? r.subjectId}
+          </Link>
+        ) : (
+          <span className="block max-w-[22rem] truncate" title={r.subjectSnippet ?? undefined}>
+            {r.subjectSnippet ?? <code dir="ltr" className="text-xs text-[#8b949e]">{r.subjectId}</code>}
+          </span>
+        ),
+    },
+    {
+      key: 'reporterMasked',
+      label: 'المُبلِّغ',
+      // API pre-masks the reporter id (8-char prefix), so it is NOT a resolvable
+      // full user id — render the mask verbatim rather than through <ActorName>.
+      render: (r) =>
+        r.reporterMasked ? (
+          <code dir="ltr" className="text-xs text-[#8b949e]" title="مُعرّف مُقنّع">
+            {r.reporterMasked}
+          </code>
+        ) : (
+          <span className="text-[#484f58]">نظام</span>
+        ),
+    },
+    {
+      key: 'reasonAr',
+      label: 'السبب',
+      render: (r) => r.reasonAr ?? <span className="text-[#484f58]">—</span>,
+    },
+    {
+      key: 'state',
+      label: 'الحالة',
+      render: (r) =>
+        r.subjectHiddenAt ? <StatusBadge intent="danger">مخفيّ</StatusBadge> : <span className="text-[#484f58]">ظاهر</span>,
+    },
+    {
+      key: 'createdAt',
+      label: 'تاريخ البلاغ',
+      sortable: true,
+      sortValue: (r) => r.createdAt ?? '',
+      csv: (r) => r.createdAt ?? '',
+      render: (r) => <span className="text-xs text-[#8b949e]">{arDate(r.createdAt)}</span>,
+    },
+    {
+      key: 'actions',
+      label: 'الإشراف',
+      render: (r) =>
+        r.kind === 'project' ? (
+          <div className="flex flex-wrap gap-2">
+            {r.subjectHiddenAt ? (
+              <OpRunner
+                opKey="moderation.project.unhide"
+                input={{ projectId: r.subjectId }}
+                triggerLabel="إظهار"
+                requiresReason={false}
+                riskTier="STANDARD"
+                variant="ghost"
+              />
+            ) : (
+              <OpRunner
+                opKey="moderation.project.hide"
+                input={{ projectId: r.subjectId }}
+                triggerLabel="إخفاء"
+                requiresReason
+                riskTier="STANDARD"
+                variant="danger"
+              />
+            )}
+            <OpRunner
+              opKey="moderation.project-reports.dismiss"
+              input={{ projectId: r.subjectId }}
+              triggerLabel="رفض البلاغات"
+              requiresReason={false}
+              riskTier="STANDARD"
+              variant="ghost"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            <OpRunner
+              opKey="moderation.comment.moderate"
+              input={{ commentId: r.subjectId, action: 'hide' }}
+              triggerLabel="إخفاء"
+              requiresReason={false}
+              riskTier="STANDARD"
+              variant="danger"
+            />
+            <OpRunner
+              opKey="moderation.comment.moderate"
+              input={{ commentId: r.subjectId, action: 'unhide' }}
+              triggerLabel="إظهار"
+              requiresReason={false}
+              riskTier="STANDARD"
+              variant="ghost"
+            />
+            <OpRunner
+              opKey="moderation.comment.moderate"
+              input={{ commentId: r.subjectId, action: 'dismiss' }}
+              triggerLabel="رفض البلاغات"
+              requiresReason={false}
+              riskTier="STANDARD"
+              variant="ghost"
+            />
+          </div>
+        ),
+    },
+  ];
+}
+
+/* ── Reported-comments browser ──────────────────────────────────────────── */
+
+function commentColumns(): Column<TrustCommentRow>[] {
+  return [
+    {
+      key: 'author',
+      label: 'الكاتب',
+      csv: (c) => c.author.name ?? c.author.id,
+      render: (c) => <ActorName id={c.author.id} />,
+    },
+    {
+      key: 'bodyAr',
+      label: 'التعليق',
+      csv: (c) => c.bodyAr ?? '',
+      render: (c) => (
+        <span className="block max-w-[26rem] truncate" title={c.bodyAr ?? undefined}>
+          {c.bodyAr ?? <span className="text-[#484f58]">—</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'project',
       label: 'المشروع',
-      render: (p) => (
-        <Link href={`/ops/projects/${p.id}`} className="text-[#58a6ff] hover:underline">
-          {p.titleAr}
+      render: (c) => (
+        <Link href={`/ops/projects/${c.projectId}`} className="text-[#58a6ff] hover:underline">
+          فتح
         </Link>
       ),
     },
     {
-      key: 'status',
+      key: 'hidden',
       label: 'الحالة',
-      render: (p) => (
-        <span className="flex flex-wrap gap-1">
-          <StatusBadge intent="muted">{p.status}</StatusBadge>
-          {p.hiddenAt ? <StatusBadge intent="danger">مخفيّ</StatusBadge> : null}
+      sortable: true,
+      sortValue: (c) => (c.hidden ? 1 : 0),
+      csv: (c) => (c.hidden ? 'hidden' : 'visible'),
+      render: (c) =>
+        c.hidden ? <StatusBadge intent="danger">مخفيّ</StatusBadge> : <span className="text-[#484f58]">ظاهر</span>,
+    },
+    {
+      key: 'reportCount',
+      label: 'البلاغات',
+      align: 'center',
+      sortable: true,
+      sortValue: (c) => c.reportCount,
+      render: (c) => (
+        <span className={`tabular-nums ${c.reportCount > 0 ? 'font-bold text-amber-300' : 'text-[#8b949e]'}`}>
+          {c.reportCount.toLocaleString('ar-SA')}
         </span>
       ),
     },
-    { key: 'categoryNameAr', label: 'الفئة', render: (p) => p.categoryNameAr ?? '—' },
     {
-      key: 'raisedHalalas',
-      label: 'المجموع',
-      align: 'left',
-      render: (p) => <span className="tabular-nums">{formatSar(p.raisedHalalas)}</span>,
+      key: 'createdAt',
+      label: 'التاريخ',
+      sortable: true,
+      sortValue: (c) => c.createdAt ?? '',
+      csv: (c) => c.createdAt ?? '',
+      render: (c) => <span className="text-xs text-[#8b949e]">{arDate(c.createdAt)}</span>,
     },
-    { key: 'backersCount', label: 'الداعمون', align: 'center' },
     {
       key: 'actions',
       label: 'الإشراف',
-      render: (p) => (
+      render: (c) => (
         <div className="flex flex-wrap gap-2">
-          {p.hiddenAt ? (
+          {c.hidden ? (
             <OpRunner
-              opKey="moderation.project.unhide"
-              input={{ projectId: p.id }}
+              opKey="moderation.comment.moderate"
+              input={{ commentId: c.id, action: 'unhide' }}
               triggerLabel="إظهار"
               requiresReason={false}
               riskTier="STANDARD"
@@ -73,20 +266,36 @@ function projectColumns(): Column<TrustProjectRow>[] {
             />
           ) : (
             <OpRunner
-              opKey="moderation.project.hide"
-              input={{ projectId: p.id }}
+              opKey="moderation.comment.moderate"
+              input={{ commentId: c.id, action: 'hide' }}
               triggerLabel="إخفاء"
-              requiresReason
+              requiresReason={false}
               riskTier="STANDARD"
               variant="danger"
             />
           )}
           <OpRunner
-            opKey="moderation.project-reports.dismiss"
-            input={{ projectId: p.id }}
+            opKey="moderation.comment.moderate"
+            input={{ commentId: c.id, action: 'dismiss' }}
             triggerLabel="رفض البلاغات"
             requiresReason={false}
             riskTier="STANDARD"
+            variant="ghost"
+          />
+          <OpRunner
+            opKey="moderation.user.ban"
+            input={{ userId: c.author.id }}
+            triggerLabel="حظر الكاتب"
+            requiresReason
+            riskTier="SENSITIVE"
+            variant="danger"
+          />
+          <OpRunner
+            opKey="moderation.user.unban"
+            input={{ userId: c.author.id }}
+            triggerLabel="رفع الحظر"
+            requiresReason
+            riskTier="SENSITIVE"
             variant="ghost"
           />
         </div>
@@ -95,142 +304,152 @@ function projectColumns(): Column<TrustProjectRow>[] {
   ];
 }
 
-function TargetedCard({
-  title,
-  hint,
-  placeholder,
-  children,
+/* ── Tabbed shell ───────────────────────────────────────────────────────── */
+
+type Tab = 'reports' | 'comments';
+
+export function ModerationQueue({
+  reports,
+  comments,
+  initialTab = 'reports',
 }: {
-  title: string;
-  hint: string;
-  placeholder?: string;
-  children: (id: string) => React.ReactNode;
+  reports: TrustReportRow[];
+  comments: TrustCommentRow[];
+  initialTab?: Tab;
 }) {
-  const [id, setId] = useState('');
-  return (
-    <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-4">
-      <h3 className="text-sm font-bold">{title}</h3>
-      <p className="mt-0.5 text-xs text-[#8b949e]">{hint}</p>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input
-          value={id}
-          onChange={(e) => setId(e.target.value.trim())}
-          placeholder={placeholder ?? 'المعرّف'}
-          dir="ltr"
-          aria-label={placeholder ?? 'المعرّف'}
-          className="min-w-[20rem] flex-1 rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 font-mono text-xs outline-none focus:border-emerald-500"
-        />
-        {children(id)}
-      </div>
-    </div>
+  const [tab, setTab] = useState<Tab>(initialTab);
+
+  const tabBtn = (id: Tab, labelAr: string, count: number) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={tab === id}
+      onClick={() => setTab(id)}
+      className={`rounded-t border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
+        tab === id
+          ? 'border-emerald-500 text-[#e6edf3]'
+          : 'border-transparent text-[#8b949e] hover:text-[#e6edf3]'
+      }`}
+    >
+      {labelAr}
+      <span className="ms-2 rounded bg-[#21262d] px-1.5 py-0.5 text-xs tabular-nums text-[#8b949e]">
+        {count.toLocaleString('ar-SA')}
+      </span>
+    </button>
   );
-}
-
-export function ModerationQueue({ projects }: { projects: TrustProjectRow[] }) {
-  const [commentAction, setCommentAction] = useState<'hide' | 'unhide' | 'dismiss'>('hide');
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold text-[#8b949e]">طابور المشاريع المُبلَّغ عنها / المُشرَف عليها</h2>
-        <DataTable
-          columns={projectColumns()}
-          rows={projects}
-          emptyAr="لا مشاريع في هذا العرض"
-          minWidth={880}
-        />
-      </section>
+    <div className="space-y-4">
+      <div role="tablist" aria-label="أقسام الإشراف" className="flex flex-wrap gap-1 border-b border-[#21262d]">
+        {tabBtn('reports', 'البلاغات المفتوحة', reports.length)}
+        {tabBtn('comments', 'تعليقات مُبلَّغ عنها', comments.length)}
+      </div>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-bold text-[#8b949e]">إشراف مُوجَّه بالمعرّف</h2>
-        <p className="text-xs text-[#8b949e]">
-          لا توجد نقطة نهاية لقائمة البلاغات المُوحَّدة بعد — تُنفَّذ هذه العمليات بلصق معرّف الهدف.
-        </p>
-
-        <TargetedCard
-          title="إشراف على تعليق"
-          hint="إخفاء / إظهار / رفض البلاغات عن تعليق محدد."
-          placeholder="معرّف التعليق (commentId)"
-        >
-          {(id) => (
-            <>
-              <label className="inline-flex items-center gap-1 text-xs text-[#8b949e]">
-                الإجراء
-                <select
-                  value={commentAction}
-                  onChange={(e) => setCommentAction(e.target.value as typeof commentAction)}
-                  aria-label="إجراء التعليق"
-                  className="rounded border border-[#30363d] bg-[#0d1117] px-2 py-1 text-sm outline-none focus:border-emerald-500"
-                >
-                  <option value="hide">إخفاء</option>
-                  <option value="unhide">إظهار</option>
-                  <option value="dismiss">رفض البلاغات</option>
-                </select>
-              </label>
-              <OpRunner
-                key={`comment-${id}-${commentAction}`}
-                opKey="moderation.comment.moderate"
-                input={{ commentId: id, action: commentAction }}
-                triggerLabel="تنفيذ"
-                requiresReason={false}
-                riskTier="STANDARD"
-                variant="ghost"
-                disabled={id.length < 10}
+      {tab === 'reports' ? (
+        <section role="tabpanel" aria-label="البلاغات المفتوحة" className="space-y-3">
+          <DataTable
+            columns={reportColumns()}
+            rows={reports}
+            emptyAr="لا بلاغات مفتوحة"
+            minWidth={960}
+            selectable
+            tableKey="trust-reports"
+            savedViews
+            csvFileName="moderation-reports"
+            csvLabelAr="تصدير البلاغات"
+            bulk={({ rows, clear }) => (
+              <BulkBar
+                rows={rows}
+                onClear={clear}
+                labelForRow={(r) => r.subjectTitleAr ?? r.subjectSnippet ?? r.subjectId}
+                ops={[
+                  {
+                    opKey: 'moderation.project-reports.dismiss',
+                    label: 'رفض بلاغات المشاريع',
+                    applicable: (r) => r.kind === 'project',
+                    input: (r) => ({ projectId: r.subjectId }),
+                    riskTier: 'STANDARD',
+                    variant: 'ghost',
+                    describeAr: 'يرفض كل البلاغات المفتوحة على المشاريع المحددة (يُبقيها ظاهرة).',
+                  },
+                  {
+                    opKey: 'moderation.project.hide',
+                    label: 'إخفاء المشاريع',
+                    applicable: (r) => r.kind === 'project' && !r.subjectHiddenAt,
+                    input: (r) => ({ projectId: r.subjectId }),
+                    riskTier: 'STANDARD',
+                    requiresReason: true,
+                    variant: 'danger',
+                    describeAr: 'يُخفي المشاريع المحددة من كل القراءات العامة.',
+                  },
+                  {
+                    opKey: 'moderation.comment.moderate',
+                    label: 'إخفاء التعليقات',
+                    applicable: (r) => r.kind === 'comment',
+                    input: (r) => ({ commentId: r.subjectId, action: 'hide' }),
+                    riskTier: 'STANDARD',
+                    variant: 'danger',
+                    describeAr: 'يُخفي التعليقات المُبلَّغ عنها المحددة.',
+                  },
+                ]}
               />
-            </>
-          )}
-        </TargetedCard>
-
-        <TargetedCard
-          title="حظر / رفع حظر مستخدم"
-          hint="إجراء إشراف على حساب — يُلغي كل الجلسات النشطة عند الحظر."
-          placeholder="معرّف المستخدم (userId)"
-        >
-          {(id) => (
-            <>
-              <OpRunner
-                key={`ban-${id}`}
-                opKey="moderation.user.ban"
-                input={{ userId: id }}
-                triggerLabel="حظر"
-                requiresReason
-                riskTier="SENSITIVE"
-                variant="danger"
-                disabled={id.length < 10}
+            )}
+          />
+        </section>
+      ) : (
+        <section role="tabpanel" aria-label="تعليقات مُبلَّغ عنها" className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            تعليقات لديها بلاغ واحد على الأقل (reportCount &gt; 0) — الكاتب مُعرَّف عبر ActorName،
+            وكل إجراء عملية محكومة.
+          </p>
+          <DataTable
+            columns={commentColumns()}
+            rows={comments}
+            emptyAr="لا تعليقات مُبلَّغ عنها"
+            minWidth={960}
+            selectable
+            tableKey="trust-comments"
+            savedViews
+            csvFileName="moderation-comments"
+            csvLabelAr="تصدير التعليقات"
+            bulk={({ rows, clear }) => (
+              <BulkBar
+                rows={rows}
+                onClear={clear}
+                labelForRow={(c) => c.author.name ?? c.id}
+                ops={[
+                  {
+                    opKey: 'moderation.comment.moderate',
+                    label: 'إخفاء',
+                    applicable: (c) => !c.hidden,
+                    input: (c) => ({ commentId: c.id, action: 'hide' }),
+                    riskTier: 'STANDARD',
+                    variant: 'danger',
+                    describeAr: 'يُخفي التعليقات المحددة الظاهرة.',
+                  },
+                  {
+                    opKey: 'moderation.comment.moderate',
+                    label: 'إظهار',
+                    applicable: (c) => c.hidden,
+                    input: (c) => ({ commentId: c.id, action: 'unhide' }),
+                    riskTier: 'STANDARD',
+                    variant: 'ghost',
+                    describeAr: 'يُعيد إظهار التعليقات المحددة المخفية.',
+                  },
+                  {
+                    opKey: 'moderation.comment.moderate',
+                    label: 'رفض البلاغات',
+                    input: (c) => ({ commentId: c.id, action: 'dismiss' }),
+                    riskTier: 'STANDARD',
+                    variant: 'ghost',
+                    describeAr: 'يمسح بلاغات التعليقات المحددة دون إخفائها.',
+                  },
+                ]}
               />
-              <OpRunner
-                key={`unban-${id}`}
-                opKey="moderation.user.unban"
-                input={{ userId: id }}
-                triggerLabel="رفع الحظر"
-                requiresReason
-                riskTier="SENSITIVE"
-                variant="ghost"
-                disabled={id.length < 10}
-              />
-            </>
-          )}
-        </TargetedCard>
-
-        <TargetedCard
-          title="إخفاء سؤال شائع"
-          hint="إشراف على الأسئلة المُرسلة من المستخدمين (→HIDDEN)."
-          placeholder="معرّف السؤال (questionId)"
-        >
-          {(id) => (
-            <OpRunner
-              key={`faq-${id}`}
-              opKey="faq.question.hide"
-              input={{ questionId: id }}
-              triggerLabel="إخفاء السؤال"
-              requiresReason={false}
-              riskTier="STANDARD"
-              variant="ghost"
-              disabled={id.length < 10}
-            />
-          )}
-        </TargetedCard>
-      </section>
+            )}
+          />
+        </section>
+      )}
     </div>
   );
 }

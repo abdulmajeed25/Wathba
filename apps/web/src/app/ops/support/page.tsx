@@ -6,10 +6,12 @@ import { StatTile } from '../_components/stat-tile';
 import { TicketsTable, type TicketRow } from './tickets-table';
 
 /**
- * OPS Phase 2 — «الدعم» ticketing inbox. Server-first list with a FilterForm
- * (status / assignee / free text) and per-status volume tiles drawn from the
- * current page. Every governed action (assign / status / note / reply) lives
- * on the ticket detail page. Emails arrive masked from the API.
+ * OPS Phase 2 + OPS-360 Unit 3 — «الدعم» ticketing inbox. Server-first list
+ * with a FilterForm (status / assignee / free text). Unit 3 draws the per-status
+ * volume tiles from GET /v1/ops/tickets/stats (cross-page, not the old ≤50
+ * page-local count) and resolves assignee UUIDs via <ActorName>. Every governed
+ * action (assign / status / note / reply) lives on the ticket detail page.
+ * Emails arrive masked from the API.
  */
 
 function qs(params: Record<string, string | undefined>): string {
@@ -37,21 +39,29 @@ export default async function OpsSupportPage({
   const sp = await searchParams;
 
   const filters = { status: sp.status, assignedToId: sp.assignedToId, q: sp.q };
+  const headers = { 'x-ops-token': opsToken };
 
   let rows: TicketRow[] = [];
   let nextCursor: string | null = null;
   let refused = false;
+  let stats: { statusCounts: Record<string, number>; total: number } | null = null;
 
   try {
-    const r = await fetch(
-      `${API_BASE}/v1/ops/tickets${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`,
-      { headers: { 'x-ops-token': opsToken }, cache: 'no-store' },
-    );
+    const [r, statsRes] = await Promise.all([
+      fetch(`${API_BASE}/v1/ops/tickets${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`, {
+        headers,
+        cache: 'no-store',
+      }),
+      fetch(`${API_BASE}/v1/ops/tickets/stats`, { headers, cache: 'no-store' }),
+    ]);
     if (r.status === 403) refused = true;
     if (r.ok) {
       const body = (await r.json()) as { items: TicketRow[]; nextCursor: string | null };
       rows = body.items;
       nextCursor = body.nextCursor;
+    }
+    if (statsRes.ok) {
+      stats = (await statsRes.json()) as { statusCounts: Record<string, number>; total: number };
     }
   } catch {
     /* API unreachable — refused/empty states render below */
@@ -59,7 +69,7 @@ export default async function OpsSupportPage({
 
   const counts = STATUSES.map((s) => ({
     status: s,
-    count: rows.filter((t) => t.status === s).length,
+    count: stats?.statusCounts[s] ?? 0,
   }));
 
   return (
@@ -87,8 +97,8 @@ export default async function OpsSupportPage({
         ))}
       </div>
       <p className="text-[11px] text-[#484f58]">
-        الأعداد محسوبة من الصفحة الحالية (٥٠ تذكرة كحدٍّ أقصى) — لا مجموع عام عبر الصفحات من واجهة
-        القراءة الحالية.
+        الأعداد إجمالية عبر كل الصفحات (GET /v1/ops/tickets/stats)
+        {stats ? ` — الإجمالي ${stats.total.toLocaleString('ar-SA')} تذكرة` : ''}.
       </p>
 
       <FilterForm

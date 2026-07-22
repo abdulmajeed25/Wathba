@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { ActorName } from '../../_components/actor-name';
 import { API_BASE, requireAdmin, requireOpsSession } from '../../_lib/guard';
 import { StatusBadge, type StatusIntent } from '../../_components/badge';
 import { TicketActions } from '../ticket-actions';
@@ -139,8 +140,12 @@ export default async function OpsTicketDetailPage({
         </div>
         <div>
           <dt className="text-xs text-[#8b949e]">المُسنَد إليه</dt>
-          <dd className="mt-0.5 font-mono text-xs">
-            {ticket.assignedToId ? ticket.assignedToId.slice(0, 8) + '…' : 'غير مُسنَدة'}
+          <dd className="mt-0.5 text-sm">
+            {ticket.assignedToId ? (
+              <ActorName id={ticket.assignedToId} className="text-sm text-[#e6edf3]" />
+            ) : (
+              <span className="text-[#484f58]">غير مُسنَدة</span>
+            )}
           </dd>
         </div>
         <div>
@@ -182,7 +187,7 @@ export default async function OpsTicketDetailPage({
                 <li key={n.id} className="border-r-2 border-[#30363d] pr-3">
                   <p className="whitespace-pre-wrap text-sm">{n.noteAr}</p>
                   <p className="mt-1 text-[11px] text-[#8b949e]">
-                    {n.authorId.slice(0, 8)}… ·{' '}
+                    <ActorName id={n.authorId} className="text-[11px] text-[#8b949e]" /> ·{' '}
                     {n.createdAt
                       ? new Date(n.createdAt).toLocaleString('ar-SA', {
                           dateStyle: 'short',

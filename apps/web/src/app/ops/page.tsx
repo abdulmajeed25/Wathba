@@ -41,6 +41,32 @@ interface Dashboard {
   generatedAt: string;
 }
 
+interface OpsAlert {
+  key: string;
+  severity: 'critical' | 'warn' | 'info';
+  titleAr: string;
+  count: number;
+  detailAr: string;
+  href: string;
+}
+interface AlertsBody {
+  items: OpsAlert[];
+  chainOk: boolean;
+  generatedAt: string;
+}
+
+/** Alert-row palette: critical=red, warn=amber, info=neutral. */
+const ALERT_ROW: Record<OpsAlert['severity'], string> = {
+  critical: 'border-red-500/40 bg-red-500/10 text-red-200 hover:bg-red-500/20',
+  warn: 'border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20',
+  info: 'border-[#30363d] bg-[#161b22] text-[#8b949e] hover:bg-[#1c2128]',
+};
+const ALERT_COUNT: Record<OpsAlert['severity'], string> = {
+  critical: 'bg-red-500/20 text-red-200',
+  warn: 'bg-amber-500/20 text-amber-200',
+  info: 'bg-[#21262d] text-[#8b949e]',
+};
+
 /** Non-failure queue: neutral until it has any items, then amber. */
 const pending = (n: number): 'muted' | 'warn' => (n > 0 ? 'warn' : 'muted');
 /** Failure-bearing queue: red the moment a failure count is non-zero. */
@@ -54,14 +80,22 @@ export default async function OpsHomePage() {
   const { opsToken, info } = await requireOpsSession();
 
   let data: Dashboard | null = null;
+  let alerts: AlertsBody | null = null;
   let refused = false;
   try {
-    const r = await fetch(`${API_BASE}/v1/ops/dashboard`, {
-      headers: { 'x-ops-token': opsToken },
-      cache: 'no-store',
-    });
-    if (r.status === 403) refused = true;
-    if (r.ok) data = (await r.json()) as Dashboard;
+    const [dashRes, alertsRes] = await Promise.all([
+      fetch(`${API_BASE}/v1/ops/dashboard`, {
+        headers: { 'x-ops-token': opsToken },
+        cache: 'no-store',
+      }),
+      fetch(`${API_BASE}/v1/ops/alerts`, {
+        headers: { 'x-ops-token': opsToken },
+        cache: 'no-store',
+      }),
+    ]);
+    if (dashRes.status === 403) refused = true;
+    if (dashRes.ok) data = (await dashRes.json()) as Dashboard;
+    if (alertsRes.ok) alerts = (await alertsRes.json()) as AlertsBody;
   } catch {
     /* API unreachable — the board renders its empty/refused states below. */
   }
@@ -120,6 +154,55 @@ export default async function OpsHomePage() {
           تعذّر جلب لوحة القيادة الآن — تحقّق من اتصال واجهة العمليات ثم أعد التحميل.
         </p>
       ) : null}
+
+      {/* ── Anomaly strip: firing alerts, critical → info ─────────────────── */}
+      <section aria-labelledby="alerts-h">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 id="alerts-h" className="text-base font-bold">
+            التنبيهات
+          </h2>
+          <Link href="/ops/alerts" className="text-sm text-[#58a6ff] hover:underline">
+            مركز التنبيهات ←
+          </Link>
+        </div>
+
+        {alerts && alerts.chainOk === false ? (
+          <Link
+            href="/ops/audit"
+            className="mb-3 flex items-center gap-3 rounded-lg border border-red-500/50 bg-red-500/15 px-4 py-3 text-sm font-bold text-red-200 hover:bg-red-500/25"
+          >
+            <span aria-hidden className="text-lg">⛓️‍💥</span>
+            سلسلة التدقيق مكسورة — تلاعب محتمل بالسجل. عاملها كحادثة أمنية وتحقّق فوراً.
+          </Link>
+        ) : null}
+
+        {alerts && alerts.items.length > 0 ? (
+          <ul className="space-y-2">
+            {alerts.items.map((a) => (
+              <li key={a.key}>
+                <Link
+                  href={a.href}
+                  className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-sm transition-colors ${ALERT_ROW[a.severity]}`}
+                >
+                  <span className="min-w-0">
+                    <span className="font-bold">{a.titleAr}</span>
+                    <span className="mt-0.5 block truncate text-xs opacity-80">{a.detailAr}</span>
+                  </span>
+                  <span
+                    className={`shrink-0 rounded px-2 py-0.5 text-sm font-bold tabular-nums ${ALERT_COUNT[a.severity]}`}
+                  >
+                    {a.count.toLocaleString('ar-SA')}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : alerts ? (
+          <p className="rounded-lg border border-[#21262d] bg-[#161b22] px-4 py-2.5 text-sm text-[#8b949e]">
+            لا تنبيهات — كل المؤشرات ضمن الحدود الطبيعية.
+          </p>
+        ) : null}
+      </section>
 
       {/* ── Work queues: what to triage first ─────────────────────────────── */}
       <section aria-labelledby="queues-h">

@@ -1,35 +1,37 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
 
 import { StatusBadge } from '../../_components/badge';
+import { BulkBar } from '../../_components/bulk-bar';
 import { DataTable, type Column } from '../../_components/data-table';
-import { OpRunner } from '../../_components/op-runner';
 import { formatSar } from '../../_lib/money';
 import { statusIntent, statusLabel, type ProjectRow } from './status';
 
 /**
- * OPS Phase 2 — «المشاريع» list island. Owns the DataTable (its column
- * renderers must live client-side), multi-select, and the bulk bar. Bulk is
- * expressed as ONE governed OpRunner per selected project — every blast still
- * flows through dry-run → preview → reason → execute individually, so an
- * operator never fires a hidden fan-out. The selected set drives which
- * per-id runners render.
+ * OPS Phase 2 + OPS-360 Unit 3 — «المشاريع» list island. Owns the DataTable
+ * (its column renderers must live client-side) and the governed bulk flow.
+ *
+ * Unit-3 adoptions:
+ *  • DataTable power features — `tableKey` (column show/hide + reorder, gear),
+ *    `savedViews`, CSV export of the visible page, and sortable headers on the
+ *    money / backers / reports / status columns.
+ *  • The new `openReportCount` column — sortable, and each non-zero count links
+ *    to the trust/moderation queue filtered to this project.
+ *  • The hand-rolled "one OpRunner per selected row" bulk is replaced by the
+ *    generic <BulkBar>: hide + staff-pick on/off, each still individually
+ *    dry-run→execute→audited per id (no blind fan-out).
  */
 
-type BulkMode = 'hide' | 'staff-pick-on' | 'staff-pick-off' | null;
+const numeric = (v: string | null): number => Number(String(v ?? '0').replace(/[^\d-]/g, '') || '0');
 
 export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [mode, setMode] = useState<BulkMode>(null);
-
-  const selected = rows.filter((r) => selectedIds.includes(r.id));
-
   const columns: Column<ProjectRow>[] = [
     {
       key: 'titleAr',
       label: 'المشروع',
+      sortable: true,
+      csv: (r) => r.titleAr,
       render: (r) => (
         <Link href={`/ops/projects/${r.id}`} className="text-[#58a6ff] hover:underline">
           {r.titleAr}
@@ -39,16 +41,22 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
     {
       key: 'status',
       label: 'الحالة',
+      sortable: true,
+      csv: (r) => statusLabel(r.status),
       render: (r) => <StatusBadge intent={statusIntent(r.status)}>{statusLabel(r.status)}</StatusBadge>,
     },
     {
       key: 'category',
       label: 'الفئة',
+      csv: (r) => r.categoryNameAr ?? '',
       render: (r) => r.categoryNameAr ?? <span className="text-[#484f58]">—</span>,
     },
     {
       key: 'money',
       label: 'المجموع / الهدف',
+      sortable: true,
+      sortValue: (r) => numeric(r.raisedHalalas),
+      csv: (r) => `${formatSar(r.raisedHalalas)} / ${formatSar(r.goalHalalas)}`,
       render: (r) => (
         <span className="tabular-nums">
           {formatSar(r.raisedHalalas)}
@@ -61,11 +69,35 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
       key: 'backersCount',
       label: 'الداعمون',
       align: 'center',
+      sortable: true,
+      sortValue: (r) => r.backersCount,
+      csv: (r) => String(r.backersCount),
       render: (r) => <span className="tabular-nums">{r.backersCount.toLocaleString('ar-SA')}</span>,
+    },
+    {
+      key: 'openReportCount',
+      label: 'بلاغات مفتوحة',
+      align: 'center',
+      sortable: true,
+      sortValue: (r) => r.openReportCount,
+      csv: (r) => String(r.openReportCount),
+      render: (r) =>
+        r.openReportCount > 0 ? (
+          <Link
+            href="/ops/trust"
+            title="فتح طابور الثقة والبلاغات"
+            className="inline-block rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-300 hover:bg-amber-500/20"
+          >
+            {r.openReportCount.toLocaleString('ar-SA')}
+          </Link>
+        ) : (
+          <span className="text-[#484f58]">—</span>
+        ),
     },
     {
       key: 'createdBy',
       label: 'المبدع',
+      csv: (r) => (r.createdBy ? `@${r.createdBy}` : ''),
       render: (r) =>
         r.createdBy ? (
           <span className="font-mono text-xs" dir="ltr">
@@ -79,6 +111,7 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
       key: 'hidden',
       label: 'الظهور',
       align: 'center',
+      csv: (r) => (r.hiddenAt ? 'مخفي' : 'ظاهر'),
       render: (r) =>
         r.hiddenAt ? (
           <StatusBadge intent="danger">مخفي</StatusBadge>
@@ -89,99 +122,51 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
   ];
 
   return (
-    <div className="space-y-4">
-      <DataTable
-        columns={columns}
-        rows={rows}
-        emptyAr="لا مشاريع مطابقة للمرشحات"
-        minWidth={900}
-        selectable
-        onSelectionChange={(ids) => {
-          setSelectedIds(ids);
-          if (ids.length === 0) setMode(null);
-        }}
-      />
-
-      {selected.length > 0 ? (
-        <div className="space-y-3 rounded-lg border border-[#30363d] bg-[#161b22] p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-bold">
-              محدَّد: {selected.length.toLocaleString('ar-SA')} مشروع
-            </span>
-            <button
-              type="button"
-              onClick={() => setMode('hide')}
-              className={`rounded border px-3 py-1.5 text-sm ${
-                mode === 'hide'
-                  ? 'border-red-500/50 bg-red-500/10 text-red-300'
-                  : 'border-[#30363d] hover:bg-[#21262d]'
-              }`}
-            >
-              إخفاء المحدَّد
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('staff-pick-on')}
-              className={`rounded border px-3 py-1.5 text-sm ${
-                mode === 'staff-pick-on'
-                  ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300'
-                  : 'border-[#30363d] hover:bg-[#21262d]'
-              }`}
-            >
-              تمييز ضمن مختارات وثبة
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('staff-pick-off')}
-              className={`rounded border px-3 py-1.5 text-sm ${
-                mode === 'staff-pick-off'
-                  ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
-                  : 'border-[#30363d] hover:bg-[#21262d]'
-              }`}
-            >
-              إزالة التمييز
-            </button>
-          </div>
-
-          {mode ? (
-            <div className="space-y-2">
-              <p className="text-xs text-[#8b949e]">
-                لا تنفيذ جماعي أعمى — كل مشروع يمرّ بمعاينته وسببه وتنفيذه المستقل عبر القناة المحكومة.
-                نفّذ كلاً على حدة:
-              </p>
-              <ul className="space-y-1.5">
-                {selected.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center justify-between gap-3 rounded border border-[#30363d] bg-[#0d1117] px-3 py-2"
-                  >
-                    <span className="truncate text-sm">{p.titleAr}</span>
-                    {mode === 'hide' ? (
-                      <OpRunner
-                        opKey="moderation.project.hide"
-                        input={{ projectId: p.id }}
-                        triggerLabel="إخفاء"
-                        variant="danger"
-                        requiresReason
-                        riskTier="STANDARD"
-                      />
-                    ) : (
-                      <OpRunner
-                        opKey="projects.staff-pick.set"
-                        input={{ projectId: p.id, value: mode === 'staff-pick-on' }}
-                        triggerLabel={mode === 'staff-pick-on' ? 'تمييز' : 'إزالة'}
-                        variant="ghost"
-                        requiresReason={false}
-                        riskTier="STANDARD"
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
+    <DataTable
+      columns={columns}
+      rows={rows}
+      emptyAr="لا مشاريع مطابقة للمرشحات"
+      minWidth={980}
+      selectable
+      tableKey="ops-projects"
+      savedViews
+      csvFileName="wathba-projects"
+      csvLabelAr="تصدير CSV"
+      bulk={({ rows: selected, clear }) => (
+        <BulkBar
+          rows={selected}
+          labelForRow={(r) => r.titleAr}
+          onClear={clear}
+          ops={[
+            {
+              opKey: 'moderation.project.hide',
+              label: 'إخفاء المحدَّد',
+              input: (r) => ({ projectId: r.id }),
+              applicable: (r) => !r.hiddenAt,
+              requiresReason: true,
+              riskTier: 'STANDARD',
+              variant: 'danger',
+              describeAr: 'يُخفي المشاريع من القراءات العامة مع بقاء السجل. لا يشمل المخفية أصلاً.',
+            },
+            {
+              opKey: 'projects.staff-pick.set',
+              label: 'تمييز ضمن مختارات وثبة',
+              input: (r) => ({ projectId: r.id, value: true }),
+              riskTier: 'STANDARD',
+              variant: 'primary',
+              describeAr: 'يُدرج المشاريع ضمن مختارات وثبة.',
+            },
+            {
+              opKey: 'projects.staff-pick.set',
+              label: 'إزالة التمييز',
+              input: (r) => ({ projectId: r.id, value: false }),
+              riskTier: 'STANDARD',
+              variant: 'ghost',
+              describeAr: 'يُزيل المشاريع من مختارات وثبة.',
+            },
+          ]}
+        />
+      )}
+    />
   );
 }

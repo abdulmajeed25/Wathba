@@ -132,7 +132,12 @@ export default async function OpsSuppliersPage({
                   unverified.map((u) => (
                     <tr key={u.id} className="align-top">
                       <td className="px-3 py-2">
-                        {u.name}
+                        <Link
+                          href={`/ops/suppliers/profile/${u.id}`}
+                          className="text-[#58a6ff] hover:underline"
+                        >
+                          {u.name}
+                        </Link>
                         {u.handle ? (
                           <span className="block font-mono text-[11px] text-[#8b949e]">
                             @{u.handle}
