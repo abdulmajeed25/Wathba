@@ -12,6 +12,7 @@ import { FundingGateway } from './funding.gateway';
 import { CommunityService } from '../community/community.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   NotificationKind, Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
@@ -30,9 +31,6 @@ import { CreatePledgeDto } from './dto/pledge.dto';
  */
 @Injectable()
 export class FundingService {
-  /** Batch PAY (Part 3) — platform minimum pledge (10 SAR), configurable. */
-  static readonly MIN_PLEDGE_HALALAS = Number(process.env.MIN_PLEDGE_HALALAS ?? 1000);
-
   private readonly logger = new Logger(FundingService.name);
   /** CC-14 — cumulative pause cap per campaign (policy §5 amendment: 7 days). */
   private static readonly PAUSE_CAP_MS = 7 * 24 * 60 * 60 * 1000;
@@ -48,6 +46,7 @@ export class FundingService {
     private readonly email: EmailService,
     private readonly notifications: NotificationsService,
       private readonly captcha: CaptchaService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -157,8 +156,24 @@ export class FundingService {
     if (dto.tierId && (!tier || tier.projectId !== dto.projectId)) {
       throw new BadRequestException('invalid tier for this project');
     }
+    // Batch OPS (registry completion) — pledge bounds + payment-method
+    // availability are governed platform settings (SETTINGS_CATALOG), read
+    // through the cached SettingsService. The former static env constant
+    // MIN_PLEDGE_HALALAS survives as the catalog default's override — a DB
+    // row written via settings.update takes precedence over both.
+    const minPledgeHalalas = await this.settings.get('pledges.minHalalas');
+    const maxPledgeHalalas = await this.settings.get('pledges.maxHalalas');
+    const methodsEnabled = await this.settings.get('payments.methodsEnabled');
+    const wantsBnpl = dto.paymentMethod === 'TABBY' || dto.paymentMethod === 'TAMARA';
+    if (wantsBnpl ? !methodsEnabled.bnpl : !methodsEnabled.card) {
+      throw new BadRequestException('وسيلة الدفع غير متاحة حالياً');
+    }
+    // Governed cap on any single pledge amount (null = uncapped, the default).
+    if (maxPledgeHalalas !== null && dto.amountHalalas > maxPledgeHalalas) {
+      throw new BadRequestException('قيمة التعهد تتجاوز الحد الأقصى');
+    }
     if (!tier) {
-      if (dto.amountHalalas < FundingService.MIN_PLEDGE_HALALAS) {
+      if (dto.amountHalalas < minPledgeHalalas) {
         throw new BadRequestException('الحد الأدنى للدعم ١٠ ريالات');
       }
     } else {

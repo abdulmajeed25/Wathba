@@ -10,11 +10,13 @@ import { join } from 'path';
  * seed that re-introduces one fails this suite — it cannot regress silently.
  */
 
+import { EXCLUDED_NAME_FRAGMENTS, EXCLUDED_SLUGS } from './excluded';
+
 const MIGRATIONS_DIR = join(__dirname, '..', '..', 'prisma', 'migrations');
 
 // Excluded slugs (exact) + name fragments (Arabic) that must never survive.
-const EXCLUDED_SLUGS = ['music', 'music-videos', 'musical', 'romance', 'lgbt', 'lgbtq', 'queer', 'tarot', 'occult', 'astrology', 'divination'];
-const EXCLUDED_NAME_FRAGMENTS = ['موسيق', 'رومانس', 'تنجيم', 'تاروت', 'أبراج', 'مثلي'];
+// The list itself lives in ./excluded.ts (Batch OPS) so the runtime
+// content.categories.* guard and this seed guard can never drift apart.
 
 function migrationsInOrder(): Array<{ name: string; sql: string }> {
   return readdirSync(MIGRATIONS_DIR, { withFileTypes: true })

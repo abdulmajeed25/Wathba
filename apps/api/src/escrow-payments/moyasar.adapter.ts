@@ -107,6 +107,25 @@ export class MoyasarAdapter {
     return { ok: res['status'] === 'voided' };
   }
 
+  /**
+   * Batch OPS (money.reconcile.run) — read the PSP's view of a payment so the
+   * ledger can be compared against it. In stub mode there is no PSP truth to
+   * fetch, so we return status:null and the reconciler counts the row as
+   * SKIPPED (never as matched — a stub must not fake a clean reconciliation).
+   */
+  async fetchPayment(paymentRef: string): Promise<{ status: string | null; amountHalalas: number | null; raw?: Record<string, unknown> }> {
+    if (this.isStub) {
+      this.logger.warn(`[STUB] Fetch payment=${paymentRef} — no PSP truth in stub mode`);
+      return { status: null, amountHalalas: null };
+    }
+    const res = await this.req('GET', `/payments/${paymentRef}`, undefined);
+    return {
+      status: typeof res['status'] === 'string' ? res['status'] : null,
+      amountHalalas: typeof res['amount'] === 'number' ? res['amount'] : null,
+      raw: res,
+    };
+  }
+
   private async req(method: string, path: string, body: unknown): Promise<Record<string, unknown>> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
@@ -114,7 +133,7 @@ export class MoyasarAdapter {
         'content-type': 'application/json',
         authorization: `Basic ${Buffer.from(`${this.apiKey}:`).toString('base64')}`,
       },
-      body: JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const json = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {

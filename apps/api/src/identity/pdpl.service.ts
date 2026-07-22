@@ -131,6 +131,12 @@ export class PdplService {
       await tx.payoutBeneficiary.deleteMany({ where: { userId } });
       await tx.notification.deleteMany({ where: { userId } });
       await tx.creatorFollow.deleteMany({ where: { followerId: userId } });
+      // Support tickets keep the thread (ops history) but lose the
+      // requester's identity — same anonymous shell as the user row.
+      await tx.supportTicket.updateMany({
+        where: { userId },
+        data: { name: 'مستخدم محذوف', email: `erased-${userId}@erased.wathba.sa` },
+      });
     });
 
     await this.audit.log({ actorId: userId, action: 'pdpl.erase', entity: 'User', entityId: userId });

@@ -86,6 +86,38 @@ export const emailTemplates = {
         <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن لم تكن أنت من طلب ذلك، تواصل فوراً مع support@wathba.sa.</p>`),
     };
   },
+  /** Batch OPS — account suspended/banned by the platform (users.suspend /
+   *  moderation.user.ban). Transactional-critical: no prefs link. */
+  accountSuspended(d: { banned: boolean; reasonAr?: string | null }): EmailContent {
+    const what = d.banned ? 'حُظر' : 'عُلّق';
+    return {
+      subject: `${BRAND} — ${d.banned ? 'حُظر حسابك' : 'عُلّق حسابك مؤقتاً'}`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">${what} حسابك</h1>
+        <p>${what} حسابك على ${BRAND}، وسُجّل خروجك من جميع الأجهزة ولن تتمكن من تسجيل الدخول.</p>
+        ${d.reasonAr ? `<p><strong>السبب:</strong> ${d.reasonAr}</p>` : ''}
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن كنت ترى أن ذلك حدث خطأً، تواصل مع support@wathba.sa.</p>`),
+    };
+  },
+  /** Batch OPS — account reactivated (users.reactivate / moderation.user.unban). */
+  accountReactivated(name: string): EmailContent {
+    return {
+      subject: `${BRAND} — أُعيد تفعيل حسابك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">أهلاً بعودتك يا ${name}</h1>
+        <p>أُعيد تفعيل حسابك على ${BRAND} ويمكنك تسجيل الدخول الآن كالمعتاد.</p>
+        ${cta('{{APP_URL}}/signin', 'تسجيل الدخول')}`),
+    };
+  },
+  /** Batch OPS — a reply from the support team on a ticket
+   *  (support.ticket.reply). Sent to the address on the ticket. */
+  supportReply(d: { name: string; topic: string; replyAr: string }): EmailContent {
+    return {
+      subject: `${BRAND} — ردّ فريق الدعم على رسالتك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">مرحباً ${d.name}</h1>
+        <p>بخصوص رسالتك (${d.topic})، هذا ردّ فريق الدعم:</p>
+        <div style="background:#f4f6f1;border-radius:12px;padding:14px 16px;margin:10px 0">${d.replyAr}</div>
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">يمكنك الرد بمراسلة support@wathba.sa مباشرة.</p>`),
+    };
+  },
   /** STAKES/S-15 (A7/hybrid) — sent when the emailed link activates the
    *  account (baseline tier). The KYC-tier notice below stays on Nafath. */
   accountActivated(name: string): EmailContent {

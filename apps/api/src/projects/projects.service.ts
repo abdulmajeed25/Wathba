@@ -439,6 +439,8 @@ export class ProjectsService {
     const base = {
       status: ProjectStatus.LIVE,
       publishedAt: { not: null },
+      // Batch OPS — moderation takedowns never surface in public rails.
+      hiddenAt: null,
     };
 
     const items = proj.categoryId
@@ -485,16 +487,26 @@ export class ProjectsService {
     };
   }
 
-  /** STAKES/N6 — detail lookup by UUID or human-readable slug (/p/[slug]). */
-  async findByIdOrSlug(idOrSlug: string): Promise<Project> {
+  /**
+   * STAKES/N6 — detail lookup by UUID or human-readable slug (/p/[slug]).
+   * Batch OPS — this is the PUBLIC detail path: a project under a moderation
+   * takedown (hiddenAt) answers the same 404 as a missing one, for everyone
+   * except its own creator (who must keep seeing it — the takedown reason is
+   * surfaced on the creator dashboard, not by disappearing the page).
+   */
+  async findByIdOrSlug(idOrSlug: string, viewerId?: string): Promise<Project> {
     const isUuid =
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
-    if (isUuid) return this.findById(idOrSlug);
-    const proj = await this.prisma.project.findUnique({
-      where: { slug: idOrSlug.toLowerCase() },
-      include: { rewardTiers: { orderBy: { sortOrder: 'asc' } } },
-    });
+    const proj = isUuid
+      ? await this.findById(idOrSlug)
+      : await this.prisma.project.findUnique({
+          where: { slug: idOrSlug.toLowerCase() },
+          include: { rewardTiers: { orderBy: { sortOrder: 'asc' } } },
+        });
     if (!proj) throw new NotFoundException('project not found');
+    if (proj.hiddenAt && proj.createdById !== viewerId) {
+      throw new NotFoundException('project not found');
+    }
     return proj;
   }
 
@@ -535,7 +547,9 @@ export class ProjectsService {
 
   async list(q: ListProjectsQueryDto): Promise<{ items: Project[]; nextCursor: string | null }> {
     const take = q.take ?? 20;
-    const where: Prisma.ProjectWhereInput = {};
+    // Batch OPS — this is the PUBLIC listing: projects under a moderation
+    // takedown (hiddenAt) are excluded regardless of the requested filters.
+    const where: Prisma.ProjectWhereInput = { hiddenAt: null };
 
     // Canonical taxonomy filter (categorySlug/subSlug) takes precedence over the
     // legacy enum, which stays for back-compat.

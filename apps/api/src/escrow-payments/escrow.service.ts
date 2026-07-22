@@ -2,7 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MoyasarAdapter } from './moyasar.adapter';
 import { LedgerService } from './ledger.service';
-import { LedgerEntryType, PledgeStatus, type Pledge } from '@prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
+import { LedgerEntryType, NotificationKind, PledgeStatus, Prisma, type Pledge } from '@prisma/client';
+
+/** Batch OPS (registry completion) — outcome of an ops-surface refund. */
+export interface AdminRefundResult {
+  ok: boolean;
+  /** HELD/PENDING_REAUTH → the authorization is voided; CAPTURED → refunded. */
+  mode: 'void' | 'refund';
+  amountHalalas: bigint;
+  failureReason?: string;
+}
 
 /**
  * Escrow facade — internal-only. The funding context calls these from
@@ -19,6 +30,10 @@ export class EscrowService {
     private readonly prisma: PrismaService,
     private readonly moyasar: MoyasarAdapter,
     private readonly ledger: LedgerService,
+    // Batch OPS (registry completion) — the ops refund tells the backer
+    // directly instead of waiting on a PSP webhook that may never arrive.
+    private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
   ) {}
 
   async hold(input: {
@@ -230,5 +245,298 @@ export class EscrowService {
       this.logger.error(`refund failed for pledge=${p.id}`, err as Error);
       return false;
     }
+  }
+
+  /**
+   * Batch OPS (registry completion) — the single-pledge ADMIN refund
+   * (money.refund.pledge). Unlike settlement's refundAllHeld this also
+   * handles CAPTURED pledges (first caller of MoyasarAdapter.refund) and
+   * compensates every live counter the pledge ever incremented:
+   *   raised (always), REALIZED (captured only — refunding captured money
+   *   without leaving REALIZED would let milestone releases pay the creator
+   *   from clawed-back funds), backersCount (last-active-pledge rule, mirror
+   *   of FundingService.cancelPledge), tier stock and the backer's
+   *   totalPledgedHalalas. PSP-first: a PSP failure mutates nothing.
+   */
+  async adminRefundPledge(pledgeId: string): Promise<AdminRefundResult> {
+    const pledge = await this.prisma.pledge.findUnique({ where: { id: pledgeId } });
+    if (!pledge) {
+      return { ok: false, mode: 'void', amountHalalas: 0n, failureReason: 'pledge-missing' };
+    }
+    const captured = pledge.status === PledgeStatus.CAPTURED;
+    const held =
+      pledge.status === PledgeStatus.HELD || pledge.status === PledgeStatus.PENDING_REAUTH;
+    const mode: 'void' | 'refund' = captured ? 'refund' : 'void';
+    const amount = pledge.amountHalalas + pledge.addOnsHalalas;
+    if (!captured && !held) {
+      return {
+        ok: false,
+        mode,
+        amountHalalas: amount,
+        failureReason: `not-refundable:${pledge.status}`,
+      };
+    }
+
+    // PSP first — the DB flip rides on PSP success; failure mutates nothing.
+    try {
+      const { ok } = await this.withRetry(`admin-${mode} pledge=${pledge.id}`, () =>
+        captured ? this.moyasar.refund(pledge.paymentRef) : this.moyasar.void(pledge.paymentRef),
+      );
+      if (!ok) {
+        return { ok: false, mode, amountHalalas: amount, failureReason: `psp-${mode}-declined` };
+      }
+    } catch (err) {
+      return { ok: false, mode, amountHalalas: amount, failureReason: String(err) };
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pledge.update({
+        where: { id: pledge.id },
+        data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
+      });
+      // Journal row rides the SAME transaction as the counter compensation
+      // (LedgerService.record commits on its own client), so a rollback
+      // never leaves a ledger row describing counters that didn't move.
+      // Column shape mirrors LedgerService.record / the webhook writer.
+      await tx.ledgerEntry.create({
+        data: {
+          entryType: captured ? LedgerEntryType.REFUND : LedgerEntryType.VOID,
+          amountHalalas: amount,
+          pspRef: pledge.paymentRef,
+          pledgeId: pledge.id,
+          payoutId: null,
+          projectId: pledge.projectId,
+          source: 'ops-refund',
+        },
+      });
+      // backersCount drops only when this was the backer's LAST active
+      // pledge on the project (cancelPledge's rule) — this pledge is already
+      // REFUNDED inside this tx, so it no longer counts itself.
+      const remaining = await tx.pledge.count({
+        where: {
+          projectId: pledge.projectId,
+          backerId: pledge.backerId,
+          status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_BNPL, PledgeStatus.CAPTURED] },
+        },
+      });
+      await tx.project.update({
+        where: { id: pledge.projectId },
+        data: {
+          raisedHalalas: { decrement: amount },
+          // Post-capture refund leaves REALIZED too — milestone releases
+          // compute from realizedHalalas and must never see refunded money.
+          ...(captured ? { realizedHalalas: { decrement: amount } } : {}),
+          ...(remaining === 0 ? { backersCount: { decrement: 1 } } : {}),
+        },
+      });
+      if (pledge.tierId) {
+        // Stock release, floored at 0 via the guarded WHERE.
+        await tx.rewardTier.updateMany({
+          where: { id: pledge.tierId, claimedQty: { gt: 0 } },
+          data: { claimedQty: { decrement: 1 } },
+        });
+      }
+      await tx.user.update({
+        where: { id: pledge.backerId },
+        data: { totalPledgedHalalas: { decrement: amount } },
+      });
+    });
+
+    // Post-commit comms — best-effort; a comms glitch never undoes a refund.
+    await this.notifyAdminRefund(pledge, mode).catch((err) =>
+      this.logger.warn(`ops-refund comms failed pledge=${pledge.id}: ${String(err)}`),
+    );
+    this.logger.log(`ops ${mode} pledge=${pledge.id} amount=${amount} project=${pledge.projectId}`);
+    return { ok: true, mode, amountHalalas: amount };
+  }
+
+  /**
+   * Tell the backer their money is back — WITHOUT waiting for the PSP's
+   * `payment_voided`/`payment_refunded` webhook (it may never arrive in stub
+   * mode). Double-notify is prevented from both sides: the webhook processor
+   * ignores a pledge already REFUNDED (its FSM guard → 'ignored', no
+   * notification), and our own side claims a unique dedupKey row on the same
+   * table the webhook dedups through, so a replayed ops refund is silent.
+   */
+  private async notifyAdminRefund(p: Pledge, mode: 'void' | 'refund'): Promise<void> {
+    try {
+      await this.prisma.webhookEvent.create({
+        data: {
+          provider: 'wathba-ops',
+          eventType: mode === 'refund' ? 'ops.pledge.refunded' : 'ops.pledge.voided',
+          pspRef: p.paymentRef,
+          dedupKey: `ops-refund-notify:${p.id}`,
+          payload: { pledgeId: p.id, mode, source: 'ops-refund' },
+          processedAt: new Date(),
+          outcome: 'applied',
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') return;
+      throw err;
+    }
+    const row = await this.prisma.pledge.findUnique({
+      where: { id: p.id },
+      select: {
+        backer: { select: { id: true, email: true } },
+        project: { select: { id: true, titleAr: true } },
+      },
+    });
+    if (!row) return;
+    const amountHalalas = Number(p.amountHalalas + p.addOnsHalalas);
+    await this.notifications.create({
+      userId: row.backer.id,
+      kind: NotificationKind.REFUND_COMPLETED,
+      payload: { projectId: row.project.id, projectTitleAr: row.project.titleAr, amountHalalas },
+    });
+    await this.email.refundCompleted(row.backer.email, {
+      projectTitle: row.project.titleAr,
+      amountHalalas,
+    });
+  }
+
+  /**
+   * Batch OPS (registry completion) — the whole-project refund sweep
+   * (money.refund.project): every HELD/PENDING_REAUTH/CAPTURED pledge goes
+   * through adminRefundPledge with partial-failure isolation — one PSP
+   * refusal never halts the sweep (refundAllHeld's batching style).
+   */
+  async adminRefundProject(
+    projectId: string,
+  ): Promise<{ refunded: number; failed: number; totalHalalas: bigint }> {
+    const pledges = await this.prisma.pledge.findMany({
+      where: {
+        projectId,
+        status: {
+          in: [PledgeStatus.HELD, PledgeStatus.PENDING_REAUTH, PledgeStatus.CAPTURED],
+        },
+      },
+      select: { id: true },
+    });
+    let refunded = 0;
+    let failed = 0;
+    let totalHalalas = 0n;
+    for (let i = 0; i < pledges.length; i += EscrowService.BATCH_CONCURRENCY) {
+      const slice = pledges.slice(i, i + EscrowService.BATCH_CONCURRENCY);
+      const results = await Promise.allSettled(slice.map((p) => this.adminRefundPledge(p.id)));
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value.ok) {
+          refunded++;
+          totalHalalas += r.value.amountHalalas;
+        } else {
+          failed++;
+        }
+      }
+    }
+    this.logger.log(
+      `ops refund sweep project=${projectId}: refunded=${refunded} failed=${failed} total=${totalHalalas}`,
+    );
+    return { refunded, failed, totalHalalas };
+  }
+
+  /**
+   * Batch OPS (registry completion) — operator-triggered capture retry
+   * (money.capture.retry-cohort):
+   *   · CAPTURE_GRACE — immediate capture attempt (the operator IS the
+   *     retry; no waiting on the +6h/+24h/+48h marks), success lands on the
+   *     markCaptured chokepoint, failure bumps captureAttempts only.
+   *   · FAILED_CAPTURE (opt-in) — grace expiry released the tier stock, so
+   *     the claim is re-taken ATOMICALLY before any PSP call; a sold-out
+   *     tier skips the pledge (never charge a backer for a reward that can
+   *     no longer be honored). PSP failure rolls the re-claim back.
+   */
+  async retryCaptureCohort(
+    projectId: string,
+    opts: { includeFailed: boolean },
+  ): Promise<{ attempted: number; captured: number; stillFailed: number }> {
+    let attempted = 0;
+    let captured = 0;
+    let stillFailed = 0;
+
+    const inGrace = await this.prisma.pledge.findMany({
+      where: { projectId, status: PledgeStatus.CAPTURE_GRACE },
+    });
+    for (const p of inGrace) {
+      attempted++;
+      let ok = false;
+      try {
+        ok = (await this.moyasar.capture(p.paymentRef)).ok;
+      } catch (err) {
+        this.logger.warn(`retry-cohort capture failed pledge=${p.id}: ${String(err)}`);
+      }
+      if (ok) {
+        await this.markCaptured(p);
+        captured++;
+      } else {
+        await this.prisma.pledge.update({
+          where: { id: p.id },
+          data: { captureAttempts: { increment: 1 } },
+        });
+        stillFailed++;
+      }
+    }
+
+    if (opts.includeFailed) {
+      const dead = await this.prisma.pledge.findMany({
+        where: { projectId, status: PledgeStatus.FAILED_CAPTURE },
+      });
+      for (const p of dead) {
+        attempted++;
+        if (!(await this.reclaimTierStock(p))) {
+          this.logger.warn(`retry-cohort pledge=${p.id} skipped: tier-stock-exhausted`);
+          stillFailed++;
+          continue;
+        }
+        let ok = false;
+        try {
+          // The old authorization died with the grace window — re-authorize,
+          // then capture immediately (the campaign already succeeded).
+          const re = await this.moyasar.reauthorize(p.paymentRef);
+          if (re.ok) ok = (await this.moyasar.capture(p.paymentRef)).ok;
+        } catch (err) {
+          this.logger.warn(`retry-cohort reauth+capture failed pledge=${p.id}: ${String(err)}`);
+        }
+        if (ok) {
+          await this.markCaptured(p);
+          captured++;
+        } else {
+          // Give the re-claimed stock back — the pledge stays FAILED_CAPTURE.
+          if (p.tierId) {
+            await this.prisma.rewardTier.updateMany({
+              where: { id: p.tierId, claimedQty: { gt: 0 } },
+              data: { claimedQty: { decrement: 1 } },
+            });
+          }
+          stillFailed++;
+        }
+      }
+    }
+    return { attempted, captured, stillFailed };
+  }
+
+  /**
+   * Atomic tier-stock re-claim for a FAILED_CAPTURE retry. limitQty null =
+   * unlimited tier; otherwise the guarded updateMany claims a unit only
+   * while stock remains (0 rows matched = exhausted → caller skips).
+   */
+  private async reclaimTierStock(p: Pledge): Promise<boolean> {
+    if (!p.tierId) return true;
+    const tier = await this.prisma.rewardTier.findUnique({
+      where: { id: p.tierId },
+      select: { limitQty: true },
+    });
+    if (!tier) return false; // tier deleted — cannot honor the reward
+    if (tier.limitQty == null) {
+      await this.prisma.rewardTier.update({
+        where: { id: p.tierId },
+        data: { claimedQty: { increment: 1 } },
+      });
+      return true;
+    }
+    const claim = await this.prisma.rewardTier.updateMany({
+      where: { id: p.tierId, claimedQty: { lt: tier.limitQty } },
+      data: { claimedQty: { increment: 1 } },
+    });
+    return claim.count > 0;
   }
 }

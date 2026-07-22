@@ -373,6 +373,8 @@ describe('money.milestone.release — realized-basis proof (ported from mileston
       prisma: asPrisma(prisma),
       funding: {} as never,
       disburser: {} as never,
+      escrow: {} as never,
+      moyasar: {} as never,
       notifications: { create: jest.fn().mockResolvedValue(null) } as never,
       email: { milestoneReleased: jest.fn().mockResolvedValue({}) } as never,
     }))

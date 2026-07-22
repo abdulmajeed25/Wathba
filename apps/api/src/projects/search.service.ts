@@ -94,6 +94,7 @@ export class SearchService {
       LEFT JOIN "User" u ON u."id" = p."createdById"
       WHERE
         p."status" IN ('LIVE', 'SUCCESSFUL', 'FUNDED')
+        AND p."hiddenAt" IS NULL
         AND (
           p."searchVector" @@
             websearch_to_tsquery('simple', wathba_strip_arabic_diacritics(${cleaned}))
@@ -148,7 +149,9 @@ export class SearchService {
       this.prisma.user.findMany({
         where: {
           profilePublic: true,
-          projects: { some: { publishedAt: { not: null } } },
+          // Batch OPS — a creator whose only published work is hidden by
+          // moderation doesn't surface in public suggestions.
+          projects: { some: { publishedAt: { not: null }, hiddenAt: null } },
           OR: [
             { name: { contains: cleaned, mode: 'insensitive' } },
             { handle: { contains: cleaned.toLowerCase() } },
@@ -156,7 +159,7 @@ export class SearchService {
         },
         select: {
           id: true, name: true, handle: true, avatarUrl: true,
-          _count: { select: { projects: { where: { publishedAt: { not: null } } } } },
+          _count: { select: { projects: { where: { publishedAt: { not: null }, hiddenAt: null } } } },
         },
         take: 3,
       }),
