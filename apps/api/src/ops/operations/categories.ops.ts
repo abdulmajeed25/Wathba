@@ -261,6 +261,22 @@ export function categoriesOps(deps: CategoriesOpsDeps): Array<OperationDef<never
           })),
       },
       {
+        // OPS-GAPS Y1 — دفاع في العمق: فئة يشير إليها الاستبعاد الثقافي الدائم
+        // (موسيقى/LGBTQIA+/تنجيم/رومانس) لا يمكن إعادة تفعيلها حتى لو بقي صف
+        // غير مُفعَّل شارد. إلغاء التفعيل يبقى مسموحاً دائماً.
+        code: 'excluded-category',
+        reasonAr: 'فئة مستثناة دائماً — لا يمكن تفعيلها',
+        check: async (db, input) => {
+          if (input.isActive !== true) return true; // الإخفاء مسموح دائماً
+          const cat = await db.category.findUnique({
+            where: { id: input.categoryId },
+            select: { slug: true, nameAr: true, nameEn: true },
+          });
+          if (!cat) return true; // category-missing يرفض قبلنا
+          return !isExcludedCategory({ slug: cat.slug, nameAr: cat.nameAr, nameEn: cat.nameEn });
+        },
+      },
+      {
         code: 'no-change',
         reasonAr: 'الفئة على هذه الحالة بالفعل — لا تغيير',
         check: async (db, input) => {

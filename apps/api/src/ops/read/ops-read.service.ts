@@ -16,6 +16,7 @@ import {
   type UserRole,
 } from '@prisma/client';
 
+import { isExcludedCategory } from '../../categories/excluded';
 import { commissionBreakdown } from '../../config/fees';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
@@ -2162,6 +2163,67 @@ export class OpsReadService {
         createdAt: iso(p.createdAt),
       })),
     };
+  }
+
+  /* ── 7f. CONTENT — categories incl. hidden (content.categories) ────────── */
+
+  /**
+   * OPS-GAPS Y1 — the FULL category list, INCLUDING inactive/hidden nodes.
+   *
+   * The public reader (CategoriesService.getTree) filters `isActive:true`, so
+   * an operator who deactivated a category could never LIST it to reactivate
+   * it. This read intentionally omits that filter: every node — active or
+   * hidden — surfaces as a flat list carrying `parentId` (the screen builds the
+   * two-level tree). Zero writes (RULE-5): one findMany + one groupBy.
+   *
+   * `projectCount` = a LIVE (freshly computed, uncached) count of projects
+   * DIRECTLY attached to that exact node — NOT rolled up to the parent and
+   * counting ALL project statuses (incl. draft/hidden/rejected), because the
+   * operator deciding whether to retire/reactivate a node needs the true
+   * attachment total, not just the public LIVE subset.
+   *
+   * `excluded` flags a node the permanent cultural-exclusion list bars
+   * (isExcludedCategory) so the screen can lock it: it may be deactivated but
+   * never reactivated (the set-active op enforces the same, defense-in-depth).
+   */
+  async listAllCategories() {
+    const [rows, counts] = await Promise.all([
+      this.prisma.category.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          slug: true,
+          nameAr: true,
+          nameEn: true,
+          parentId: true,
+          sortOrder: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.project.groupBy({
+        by: ['categoryId'],
+        where: { categoryId: { not: null } },
+        _count: { _all: true },
+      }),
+    ]);
+
+    const own = new Map<string, number>();
+    for (const c of counts) {
+      if (c.categoryId) own.set(c.categoryId, c._count._all);
+    }
+
+    const items = rows.map((r) => ({
+      id: r.id,
+      slug: r.slug,
+      nameAr: r.nameAr,
+      nameEn: r.nameEn,
+      parentId: r.parentId,
+      sortOrder: r.sortOrder,
+      isActive: r.isActive,
+      projectCount: own.get(r.id) ?? 0,
+      excluded: isExcludedCategory({ slug: r.slug, nameAr: r.nameAr, nameEn: r.nameEn }),
+    }));
+    return { items };
   }
 
   /* ── 8. SETTINGS (settings.write OR analytics.read) ────────────────────── */

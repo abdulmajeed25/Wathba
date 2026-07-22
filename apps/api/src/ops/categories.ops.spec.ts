@@ -252,6 +252,59 @@ describe('content.categories.set-active', () => {
     await settled();
     expect(deps.categories.invalidate).toHaveBeenCalledTimes(1);
   });
+
+  // OPS-GAPS Y1 — defense-in-depth: an excluded node can never be REACTIVATED
+  // even if a stray inactive row exists, but deactivation stays always allowed.
+  it('refuses ACTIVATING an excluded node (isActive:true), leaving the cache untouched', async () => {
+    const { prisma, reg, deps } = build();
+    prisma.category.findUnique.mockResolvedValue({
+      id: CAT_ID, slug: 'music', nameAr: 'موسيقى', nameEn: 'Music', isActive: false,
+    });
+    await expect(
+      reg.execute('content.categories.set-active', { categoryId: CAT_ID, isActive: true }, ctx()),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'excluded-category' }),
+    });
+    expect(prisma.category.update).not.toHaveBeenCalled();
+    await settled();
+    expect(deps.categories.invalidate).not.toHaveBeenCalled();
+  });
+
+  it('still ALLOWS activating a normal hidden node (isActive:true)', async () => {
+    const { prisma, reg, deps } = build();
+    prisma.category.findUnique.mockResolvedValue({
+      id: CAT_ID, slug: 'crafts', nameAr: 'الحِرف', nameEn: 'Crafts', isActive: false, parentId: null,
+    });
+    const out = await reg.execute(
+      'content.categories.set-active',
+      { categoryId: CAT_ID, isActive: true },
+      ctx(),
+    );
+    expect(out.result).toEqual({ id: CAT_ID, isActive: true });
+    expect(prisma.category.update).toHaveBeenCalledWith({
+      where: { id: CAT_ID },
+      data: { isActive: true },
+    });
+    await settled();
+    expect(deps.categories.invalidate).toHaveBeenCalledTimes(1);
+  });
+
+  it('still ALLOWS deactivating an excluded node (isActive:false)', async () => {
+    const { prisma, reg } = build();
+    prisma.category.findUnique.mockResolvedValue({
+      id: CAT_ID, slug: 'music', nameAr: 'موسيقى', nameEn: 'Music', isActive: true, parentId: null,
+    });
+    const out = await reg.execute(
+      'content.categories.set-active',
+      { categoryId: CAT_ID, isActive: false },
+      ctx(),
+    );
+    expect(out.result).toEqual({ id: CAT_ID, isActive: false });
+    expect(prisma.category.update).toHaveBeenCalledWith({
+      where: { id: CAT_ID },
+      data: { isActive: false },
+    });
+  });
 });
 
 describe('content.categories.reorder', () => {
