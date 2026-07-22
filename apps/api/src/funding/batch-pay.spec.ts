@@ -175,12 +175,14 @@ describe('Batch PAY — grace machine (72h)', () => {
     const moyasar = { capture: jest.fn().mockResolvedValue({ ok: captureOk }) };
     const email = { captureFailed: jest.fn().mockResolvedValue({}) };
     const notifications = { create: jest.fn().mockResolvedValue(null) };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
     const sched = new GraceScheduler(
       prisma,
       escrow as never,
       moyasar as never,
       email as never,
       notifications as never,
+      audit as never,
     );
     return { sched, prisma, escrow, moyasar, email, notifications };
   }
@@ -243,7 +245,8 @@ describe('Batch PAY — BNPL webhooks (idempotent, replay-safe)', () => {
   function bnplWith(pledge: any) {
     const prisma: any = { pledge: { findUnique: jest.fn().mockResolvedValue(pledge) } };
     const escrow = { markCaptured: jest.fn().mockResolvedValue(undefined) };
-    return { svc: new BnplService(prisma, escrow as never), escrow };
+    const audit = { log: jest.fn().mockResolvedValue(undefined) };
+    return { svc: new BnplService(prisma, escrow as never, audit as never), escrow };
   }
   const due = {
     id: 'pl-b', paymentMethod: 'TABBY', status: PledgeStatus.CAPTURE_GRACE,

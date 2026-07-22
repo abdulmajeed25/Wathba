@@ -428,6 +428,101 @@ const userRef = z.object({ userId: z.string().uuid() });
 const RESET_TTL_MS = 30 * 60 * 1000;
 const sha256 = (raw: string): string => createHash('sha256').update(raw).digest('hex');
 
+/* ── OPS-PRO Phase 1 — account merge repoint plan ───────────────────────
+ * users.merge absorbs a SOURCE account into a TARGET, then anonymizes the
+ * source like a PDPL erase. Every relation the source owns is repointed to
+ * the target. The plan is data-driven so the dryRun preview and the execute
+ * transaction walk the SAME list — a preview can never diverge from what runs.
+ *
+ * AuditLog.actorId is DELIBERATELY absent: the ledger is append-only (a DB
+ * trigger blocks UPDATE), and the source's audit history must stay under the
+ * old id — immutable history is not rewritten by a merge. */
+
+/** Repoint with no unique-collision risk on the user FK alone — a plain
+ *  updateMany moves every source row to the target. */
+const MERGE_SIMPLE: ReadonlyArray<readonly [model: string, field: string]> = [
+  ['pledge', 'backerId'],
+  ['project', 'createdById'],
+  ['comment', 'userId'],
+  ['supplierBid', 'supplierId'],
+  ['payout', 'creatorId'],
+  ['faqQuestion', 'askerId'],
+  ['notification', 'userId'],
+  ['address', 'userId'],
+  ['refreshToken', 'userId'],
+  ['passwordResetToken', 'userId'],
+  ['emailVerifyToken', 'userId'],
+  ['analyticsEvent', 'userId'],
+  ['supportTicket', 'userId'],
+  ['supportTicket', 'assignedToId'],
+  ['supportTicketNote', 'authorId'],
+  ['projectChangeLog', 'actorId'],
+  ['zatcaInvoice', 'creatorId'],
+];
+
+/** A composite unique (userField, otherField): moving a source row onto a
+ *  target that already holds the same otherField would violate the constraint.
+ *  Postgres aborts the whole tx on a P2002, so we CANNOT catch-and-continue —
+ *  we pre-compute the colliding keys, move the rest, and DROP the source's
+ *  duplicates (the target's copy is the survivor). */
+const MERGE_GUARDED: ReadonlyArray<
+  readonly [model: string, userField: string, otherField: string]
+> = [
+  ['contestWinner', 'backerId', 'contestId'],
+  ['knownDevice', 'userId', 'deviceHash'],
+  ['commentReport', 'reporterId', 'commentId'],
+  ['projectReport', 'reporterId', 'projectId'],
+  ['creatorFollow', 'followerId', 'creatorProfileId'],
+  ['updateLike', 'userId', 'updateId'],
+  ['savedProject', 'userId', 'projectId'],
+  ['opsRoleGrant', 'userId', 'roleId'],
+  ['projectCollaborator', 'userId', 'projectId'],
+];
+
+/** Exactly one row per user (unique userId): move the source's only if the
+ *  target has none; otherwise leave the source's on the anonymized shell. */
+const MERGE_ONE_PER_USER: ReadonlyArray<readonly [model: string]> = [
+  ['creatorProfile'],
+  ['payoutBeneficiary'],
+];
+
+interface RepointDelegate {
+  count(args: { where: Record<string, unknown> }): Promise<number>;
+  findMany(args: {
+    where: Record<string, unknown>;
+    select: Record<string, boolean>;
+  }): Promise<Array<Record<string, unknown>>>;
+  findUnique(args: {
+    where: Record<string, unknown>;
+    select: Record<string, boolean>;
+  }): Promise<Record<string, unknown> | null>;
+  updateMany(args: {
+    where: Record<string, unknown>;
+    data: Record<string, unknown>;
+  }): Promise<{ count: number }>;
+  deleteMany(args: { where: Record<string, unknown> }): Promise<{ count: number }>;
+}
+type RepointClient = Record<string, RepointDelegate>;
+
+/** The source's otherField values that ALREADY exist on the target — the rows
+ *  that would collide on the composite unique and must be skipped. */
+async function mergeCollidingKeys(
+  db: RepointClient,
+  model: string,
+  userField: string,
+  otherField: string,
+  source: string,
+  target: string,
+): Promise<unknown[]> {
+  const d = db[model]!;
+  const [targetRows, sourceRows] = await Promise.all([
+    d.findMany({ where: { [userField]: target }, select: { [otherField]: true } }),
+    d.findMany({ where: { [userField]: source }, select: { [otherField]: true } }),
+  ]);
+  const targetKeys = new Set(targetRows.map((r) => r[otherField]));
+  return sourceRows.map((r) => r[otherField]).filter((k) => targetKeys.has(k));
+}
+
 export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<never, unknown>> {
   const suspend: OperationDef<
     z.infer<typeof userRef>,
@@ -826,6 +921,198 @@ export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<
     },
   };
 
+  /* ── OPS-PRO Phase 1 — account merge (absorb source INTO target) ─────── */
+
+  const mergeInput = z.object({
+    sourceUserId: z.string().uuid(),
+    targetUserId: z.string().uuid(),
+  });
+
+  const merge: OperationDef<
+    z.infer<typeof mergeInput>,
+    { merged: true; repointed: Record<string, number> }
+  > = {
+    key: 'users.merge',
+    titleAr: 'دمج حسابين',
+    descriptionAr:
+      'يُذيب حساب المصدر في حساب الهدف: تُنقل كل توابع المصدر (تعهدات، مشاريع، تعليقات، عناوين، …) إلى الهدف، وما يتعارض مع صفٍّ يملكه الهدف أصلاً يُسقط بدل أن يفشل الدمج، ثم يُجهَّل حساب المصدر (PDPL erase) بعد إتمام النقل. سجل التدقيق لا يُعاد توجيهه — تاريخ المصدر يبقى تحت هويته القديمة (سجل غير قابل للتعديل). أعلى صلاحيات المستخدمين، غير قابل للعكس.',
+    inputSchema: mergeInput,
+    permission: 'users.roles.assign',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: true,
+    // The repoint is one big multi-table tx; the erase (afterCommit) owns its
+    // own tx — so this op orchestrates rather than riding the registry's tx.
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'same-user',
+        reasonAr: 'المصدر والهدف هما الحساب نفسه — لا شيء يُدمج',
+        check: async (_db, input) => input.sourceUserId !== input.targetUserId,
+      },
+      {
+        code: 'user-missing',
+        reasonAr: 'أحد الحسابين (المصدر أو الهدف) غير موجود',
+        check: async (db, input) => {
+          const [s, t] = await Promise.all([
+            db.user.findUnique({ where: { id: input.sourceUserId }, select: { id: true } }),
+            db.user.findUnique({ where: { id: input.targetUserId }, select: { id: true } }),
+          ]);
+          return !!s && !!t;
+        },
+      },
+      {
+        code: 'target-erased',
+        reasonAr: 'الحساب الهدف ممحو (PDPL) — لا يجوز الدمج في قوقعة مجهّلة',
+        check: async (db, input) => {
+          const t = await db.user.findUnique({
+            where: { id: input.targetUserId },
+            select: { email: true },
+          });
+          return !(t?.email ?? '').startsWith('erased-');
+        },
+      },
+      {
+        // Same guard PdplService.eraseAccount enforces — the erase in
+        // afterCommit would refuse otherwise, so we refuse up-front to keep
+        // the dryRun honest and never half-merge.
+        code: 'source-has-held-pledges',
+        reasonAr: 'لحساب المصدر تعهدات محجوزة (HELD) — سوِّها قبل الدمج',
+        check: async (db, input) =>
+          (await db.pledge.count({
+            where: { backerId: input.sourceUserId, status: PledgeStatus.HELD },
+          })) === 0,
+      },
+      {
+        code: 'source-active-campaigns',
+        reasonAr: 'لحساب المصدر حملات نشطة — تُسلَّم أو تُستكمل قبل الدمج',
+        check: async (db, input) =>
+          (await db.project.count({
+            where: {
+              createdById: input.sourceUserId,
+              status: {
+                in: [
+                  ProjectStatus.UNDER_REVIEW,
+                  ProjectStatus.LIVE,
+                  ProjectStatus.SUCCESSFUL,
+                  ProjectStatus.FUNDED,
+                  ProjectStatus.IN_PRODUCTION,
+                ],
+              },
+            },
+          })) === 0,
+      },
+    ],
+    async dryRun(db, input) {
+      const source = input.sourceUserId;
+      const target = input.targetUserId;
+      const client = db as unknown as RepointClient;
+      const [su, tu] = await Promise.all([
+        db.user.findUnique({ where: { id: source }, select: { name: true, email: true } }),
+        db.user.findUnique({ where: { id: target }, select: { name: true } }),
+      ]);
+      const counts: Record<string, number> = {};
+      let skipped = 0;
+      for (const [model, field] of MERGE_SIMPLE) {
+        counts[`${model}.${field}`] = await client[model]!.count({ where: { [field]: source } });
+      }
+      for (const [model, userField, otherField] of MERGE_GUARDED) {
+        const colliding = await mergeCollidingKeys(
+          client,
+          model,
+          userField,
+          otherField,
+          source,
+          target,
+        );
+        const total = await client[model]!.count({ where: { [userField]: source } });
+        counts[`${model}.${userField}`] = Math.max(0, total - colliding.length);
+        skipped += colliding.length;
+      }
+      for (const [model] of MERGE_ONE_PER_USER) {
+        const has = await client[model]!.findUnique({
+          where: { userId: target },
+          select: { userId: true },
+        });
+        if (has) skipped += 1;
+        else counts[`${model}.userId`] = await client[model]!.count({ where: { userId: source } });
+      }
+      counts.collisionsSkipped = skipped;
+      return {
+        summaryAr: `سيُدمج «${su?.name ?? source}» في «${tu?.name ?? target}»: تُنقل توابع المصدر إلى الهدف (${skipped} تعارضاً يُسقط)، ثم يُجهَّل حساب المصدر (PDPL) — غير قابل للعكس`,
+        before: { source: su?.name ?? null, target: tu?.name ?? null },
+        after: { merged: true, sourceAnonymized: true },
+        counts,
+      };
+    },
+    async execute(_tx, input) {
+      const source = input.sourceUserId;
+      const target = input.targetUserId;
+      // One multi-table transaction: the whole repoint commits or none of it.
+      const repointed = await deps.prisma.$transaction(async (tx) => {
+        const db = tx as unknown as RepointClient;
+        const counts: Record<string, number> = {};
+        for (const [model, field] of MERGE_SIMPLE) {
+          const { count } = await db[model]!.updateMany({
+            where: { [field]: source },
+            data: { [field]: target },
+          });
+          counts[`${model}.${field}`] = count;
+        }
+        let skipped = 0;
+        for (const [model, userField, otherField] of MERGE_GUARDED) {
+          const colliding = await mergeCollidingKeys(
+            db,
+            model,
+            userField,
+            otherField,
+            source,
+            target,
+          );
+          // Move every non-colliding row (notIn [] matches all rows).
+          const moved = await db[model]!.updateMany({
+            where: { [userField]: source, [otherField]: { notIn: colliding } },
+            data: { [userField]: target },
+          });
+          counts[`${model}.${userField}`] = moved.count;
+          if (colliding.length) {
+            const dropped = await db[model]!.deleteMany({
+              where: { [userField]: source, [otherField]: { in: colliding } },
+            });
+            skipped += dropped.count;
+          }
+        }
+        for (const [model] of MERGE_ONE_PER_USER) {
+          const has = await db[model]!.findUnique({
+            where: { userId: target },
+            select: { userId: true },
+          });
+          if (!has) {
+            const { count } = await db[model]!.updateMany({
+              where: { userId: source },
+              data: { userId: target },
+            });
+            counts[`${model}.userId`] = count;
+          } else {
+            skipped += 1;
+          }
+        }
+        counts.collisionsSkipped = skipped;
+        return counts;
+      });
+      return { merged: true as const, repointed };
+    },
+    // PdplService.eraseAccount owns its own $transaction and re-checks the same
+    // held/active guards; it runs ONLY after the repoint commits, so it merely
+    // anonymizes the now-empty source shell (its satellite deletes hit rows
+    // that already moved to the target — a harmless no-op).
+    async afterCommit(_result, input) {
+      await deps.pdpl.eraseAccount(input.sourceUserId);
+    },
+    // Counts are non-PII; store them as-is (identity redaction for symmetry).
+    redactResult: (r) => ({ merged: r.merged, repointed: r.repointed }),
+  };
+
   return [
     roleGrant,
     roleRevoke,
@@ -839,5 +1126,6 @@ export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<
     sessionsRevoke,
     pdplExport,
     pdplErase,
+    merge,
   ] as unknown as Array<OperationDef<never, unknown>>;
 }

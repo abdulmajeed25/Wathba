@@ -37,6 +37,7 @@ function makePrisma(over: Record<string, any> = {}): any {
     webhookEvent: {
       create: jest.fn().mockResolvedValue({ id: 'evt-row-1' }),
       update: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn(),
     },
     pledge: {
       findFirst: jest.fn(),
@@ -219,5 +220,71 @@ describe('WebhookService.process — event branches', () => {
     const r = await svc.process(payload('payment_some_future_event'));
     expect(r.outcome).toBe('ignored');
     expect(prisma.pledge.update).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * OPS-INTEGRITY — replayStored re-runs a STORED event through the FSM without
+ * the dedup claim, healing a 'mismatch'-class event that is now applicable,
+ * and stays idempotent once the transition has already been applied.
+ */
+describe('WebhookService.replayStored', () => {
+  const storedEvent = { id: 'evt-row-1', provider: 'moyasar', eventType: 'payment_paid', pspRef: REF };
+
+  it('re-applies a stored mismatch event now that the pledge is HELD (heals + re-stamps outcome)', async () => {
+    const escrow = escrowMock();
+    const prisma = makePrisma({
+      webhookEvent: {
+        create: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ ...storedEvent, outcome: 'mismatch' }),
+      },
+      pledge: {
+        findFirst: jest.fn().mockResolvedValue(pledge(PledgeStatus.HELD)),
+        update: jest.fn(),
+      },
+    });
+    const svc = new WebhookService(prisma, ledgerMock(), escrow, auditMock(), notificationsMock(), emailMock(), cfg());
+    const r = await svc.replayStored('evt-row-1');
+    expect(r.outcome).toBe('applied');
+    // Same chokepoint as the live path; no new dedup row is claimed on replay.
+    expect(escrow.markCaptured).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'pl-1' }),
+      { source: 'webhook' },
+    );
+    expect(prisma.webhookEvent.create).not.toHaveBeenCalled();
+    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'evt-row-1' },
+        data: expect.objectContaining({ outcome: 'applied' }),
+      }),
+    );
+  });
+
+  it('is idempotent: replaying an already-CAPTURED pledge is ignored, no re-capture', async () => {
+    const escrow = escrowMock();
+    const prisma = makePrisma({
+      webhookEvent: {
+        create: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue({ ...storedEvent, outcome: 'applied' }),
+      },
+      pledge: {
+        findFirst: jest.fn().mockResolvedValue(pledge(PledgeStatus.CAPTURED)),
+        update: jest.fn(),
+      },
+    });
+    const svc = new WebhookService(prisma, ledgerMock(), escrow, auditMock(), notificationsMock(), emailMock(), cfg());
+    const r = await svc.replayStored('evt-row-1');
+    expect(r.outcome).toBe('ignored');
+    expect(escrow.markCaptured).not.toHaveBeenCalled();
+  });
+
+  it('throws when the stored event row is gone', async () => {
+    const prisma = makePrisma({
+      webhookEvent: { create: jest.fn(), update: jest.fn(), findUnique: jest.fn().mockResolvedValue(null) },
+    });
+    const svc = new WebhookService(prisma, ledgerMock(), escrowMock(), auditMock(), notificationsMock(), emailMock(), cfg());
+    await expect(svc.replayStored('missing')).rejects.toThrow();
   });
 });

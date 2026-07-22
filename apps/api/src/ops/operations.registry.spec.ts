@@ -375,6 +375,7 @@ describe('money.milestone.release — realized-basis proof (ported from mileston
       disburser: {} as never,
       escrow: {} as never,
       moyasar: {} as never,
+      zatca: {} as never,
       notifications: { create: jest.fn().mockResolvedValue(null) } as never,
       email: { milestoneReleased: jest.fn().mockResolvedValue({}) } as never,
     }))

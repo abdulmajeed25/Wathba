@@ -18,6 +18,6 @@ import { BnplWebhookController } from './bnpl.controller';
   imports: [IdentityModule],
   controllers: [PayoutsController, WebhookController, BnplWebhookController, PayoutBeneficiaryController],
   providers: [MoyasarAdapter, EscrowService, BnplService, WebhookService, LedgerService, PayoutDisburser, ZatcaService, PayoutBeneficiaryService],
-  exports: [EscrowService, MoyasarAdapter, BnplService, LedgerService, PayoutDisburser, PayoutBeneficiaryService],
+  exports: [EscrowService, MoyasarAdapter, BnplService, LedgerService, PayoutDisburser, PayoutBeneficiaryService, ZatcaService, WebhookService],
 })
 export class EscrowPaymentsModule {}

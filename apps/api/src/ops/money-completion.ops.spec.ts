@@ -86,6 +86,7 @@ function buildReg(prisma: any, escrow: any = escrowMock(), moyasar: any = { fetc
     disburser: {} as never,
     escrow,
     moyasar,
+    zatca: {} as never,
     notifications: { create: jest.fn().mockResolvedValue(null) } as never,
     email: { milestoneReleased: jest.fn().mockResolvedValue({}) } as never,
   }))

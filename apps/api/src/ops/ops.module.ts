@@ -31,6 +31,11 @@ import { agentsOps } from './operations/agents.ops';
 import { categoriesOps } from './operations/categories.ops';
 import { settingsOps } from './operations/settings.ops';
 import { supportOps } from './operations/support.ops';
+import { integrityOps } from './operations/integrity.ops';
+import { projectsLifecycleOps } from './operations/projects-lifecycle.ops';
+import { procurementOps } from './operations/procurement.ops';
+import { milestonesOps } from './operations/milestones.ops';
+import { maintenanceOps } from './operations/maintenance.ops';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -39,6 +44,9 @@ import { FundingService } from '../funding/funding.service';
 import { PayoutDisburser } from '../escrow-payments/payout.disburser';
 import { EscrowService } from '../escrow-payments/escrow.service';
 import { MoyasarAdapter } from '../escrow-payments/moyasar.adapter';
+import { ZatcaService } from '../escrow-payments/zatca.service';
+import { WebhookService } from '../escrow-payments/webhook.service';
+import { LedgerService } from '../escrow-payments/ledger.service';
 import { PdplService } from '../identity/pdpl.service';
 import { CategoriesService } from '../categories/categories.service';
 import { SettingsService } from '../settings/settings.service';
@@ -89,6 +97,9 @@ export class OpsModule implements OnModuleInit {
     private readonly disburser: PayoutDisburser,
     private readonly escrow: EscrowService,
     private readonly moyasar: MoyasarAdapter,
+    private readonly zatca: ZatcaService,
+    private readonly webhook: WebhookService,
+    private readonly ledger: LedgerService,
     private readonly pdpl: PdplService,
     private readonly categories: CategoriesService,
     private readonly settings: SettingsService,
@@ -126,6 +137,7 @@ export class OpsModule implements OnModuleInit {
         disburser: this.disburser,
         escrow: this.escrow,
         moyasar: this.moyasar,
+        zatca: this.zatca,
         notifications: this.notifications,
         email: this.email,
       }),
@@ -136,6 +148,27 @@ export class OpsModule implements OnModuleInit {
       ...categoriesOps({ categories: this.categories }),
       ...settingsOps({ settings: this.settings }),
       ...supportOps({ prisma: this.prisma, email: this.email }),
+      // Batch OPS-PRO Phase 1 — the last ~17 census operations: money
+      // integrity (dispute/revive/backfill/replay/reconcile-siblings),
+      // project & user lifecycle, procurement oversight, and maintenance.
+      ...integrityOps({ prisma: this.prisma, webhook: this.webhook, ledger: this.ledger }),
+      ...projectsLifecycleOps({
+        prisma: this.prisma,
+        escrow: this.escrow,
+        notifications: this.notifications,
+        email: this.email,
+      }),
+      ...procurementOps({
+        prisma: this.prisma,
+        notifications: this.notifications,
+        email: this.email,
+      }),
+      ...milestonesOps({
+        prisma: this.prisma,
+        notifications: this.notifications,
+        email: this.email,
+      }),
+      ...maintenanceOps({ prisma: this.prisma }),
     ];
     for (const def of defs) this.registry.register(def);
   }

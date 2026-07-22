@@ -539,4 +539,156 @@ export class EscrowService {
     });
     return claim.count > 0;
   }
+
+  /**
+   * Batch OPS-PRO Phase 1 — operator resolution of a chargeback dispute
+   * (money.dispute.resolve). A pledge reaches DISPUTED via the chargeback
+   * webhook, which flips status ONLY (raised/realized/backersCount stay put
+   * and a reversing DISPUTE ledger row is written). The operator's ruling
+   * closes it:
+   *   · WON  — the bank sided with the platform; funds are retained. Pledge
+   *     returns DISPUTED→CAPTURED, no counter moves (they were never
+   *     decremented), a positive DISPUTE ledger note records the win.
+   *   · LOST — the chargeback stands; the money already left externally, so
+   *     there is NO PSP call. Pledge DISPUTED→REFUNDED with the SAME
+   *     captured-branch compensation as adminRefundPledge (raised + realized +
+   *     last-pledge backersCount + tier stock + backer totalPledged) and a
+   *     REFUND ledger row (source dispute-lost). All in one transaction.
+   */
+  async resolveDispute(
+    pledgeId: string,
+    outcome: 'WON' | 'LOST',
+  ): Promise<{ ok: true; outcome: 'WON' | 'LOST'; status: PledgeStatus; amountHalalas: bigint }> {
+    const pledge = await this.prisma.pledge.findUniqueOrThrow({ where: { id: pledgeId } });
+    const amount = pledge.amountHalalas + pledge.addOnsHalalas;
+    const now = new Date();
+
+    if (outcome === 'WON') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.pledge.update({
+          where: { id: pledge.id },
+          data: {
+            status: PledgeStatus.CAPTURED,
+            disputeOutcome: 'WON',
+            disputeResolvedAt: now,
+          },
+        });
+        // Append-only journal: a DISPUTE note recording the win. No counter
+        // moved (the webhook never decremented them), so this is purely a
+        // reconciling ledger row against the earlier reversing DISPUTE entry.
+        await tx.ledgerEntry.create({
+          data: {
+            entryType: LedgerEntryType.DISPUTE,
+            amountHalalas: amount,
+            pspRef: pledge.paymentRef,
+            pledgeId: pledge.id,
+            payoutId: null,
+            projectId: pledge.projectId,
+            source: 'dispute-won',
+          },
+        });
+      });
+      this.logger.log(`dispute WON pledge=${pledge.id} amount=${amount} — funds retained`);
+      return { ok: true, outcome, status: PledgeStatus.CAPTURED, amountHalalas: amount };
+    }
+
+    // LOST — chargeback stands. The money moved externally; compensate the
+    // counters exactly like a captured-money refund. No moyasar call.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.pledge.update({
+        where: { id: pledge.id },
+        data: {
+          status: PledgeStatus.REFUNDED,
+          disputeOutcome: 'LOST',
+          disputeResolvedAt: now,
+          refundedAt: now,
+        },
+      });
+      await tx.ledgerEntry.create({
+        data: {
+          entryType: LedgerEntryType.REFUND,
+          amountHalalas: amount,
+          pspRef: pledge.paymentRef,
+          pledgeId: pledge.id,
+          payoutId: null,
+          projectId: pledge.projectId,
+          source: 'dispute-lost',
+        },
+      });
+      // backersCount drops only when this was the backer's LAST active pledge
+      // (the disputed pledge itself is not in the active set).
+      const remaining = await tx.pledge.count({
+        where: {
+          projectId: pledge.projectId,
+          backerId: pledge.backerId,
+          status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_BNPL, PledgeStatus.CAPTURED] },
+        },
+      });
+      await tx.project.update({
+        where: { id: pledge.projectId },
+        data: {
+          raisedHalalas: { decrement: amount },
+          // Captured money left the platform — REALIZED must drop too, or a
+          // later milestone release would pay the creator from clawed funds.
+          realizedHalalas: { decrement: amount },
+          ...(remaining === 0 ? { backersCount: { decrement: 1 } } : {}),
+        },
+      });
+      if (pledge.tierId) {
+        await tx.rewardTier.updateMany({
+          where: { id: pledge.tierId, claimedQty: { gt: 0 } },
+          data: { claimedQty: { decrement: 1 } },
+        });
+      }
+      await tx.user.update({
+        where: { id: pledge.backerId },
+        data: { totalPledgedHalalas: { decrement: amount } },
+      });
+    });
+    this.logger.log(`dispute LOST pledge=${pledge.id} amount=${amount} — refunded + compensated`);
+    return { ok: true, outcome, status: PledgeStatus.REFUNDED, amountHalalas: amount };
+  }
+
+  /**
+   * Batch OPS-PRO Phase 1 — revive a single terminally-failed capture
+   * (money.pledge.revive). The single-pledge form of retryCaptureCohort's
+   * includeFailed branch: re-claim the tier stock ATOMICALLY (grace expiry
+   * released it) before any PSP call, then re-authorize + capture. A sold-out
+   * tier short-circuits with tier-stock-exhausted (never charge for a reward
+   * that can no longer be honored); a PSP refusal rolls the re-claim back and
+   * leaves the pledge FAILED_CAPTURE.
+   */
+  async reviveFailedPledge(
+    pledgeId: string,
+  ): Promise<{ ok: boolean; reason?: string; status: PledgeStatus }> {
+    const p = await this.prisma.pledge.findUniqueOrThrow({ where: { id: pledgeId } });
+
+    if (!(await this.reclaimTierStock(p))) {
+      this.logger.warn(`revive pledge=${p.id} skipped: tier-stock-exhausted`);
+      return { ok: false, reason: 'tier-stock-exhausted', status: PledgeStatus.FAILED_CAPTURE };
+    }
+
+    let ok = false;
+    try {
+      const re = await this.moyasar.reauthorize(p.paymentRef);
+      if (re.ok) ok = (await this.moyasar.capture(p.paymentRef)).ok;
+    } catch (err) {
+      this.logger.warn(`revive reauth+capture failed pledge=${p.id}: ${String(err)}`);
+    }
+
+    if (ok) {
+      await this.markCaptured(p);
+      this.logger.log(`revive pledge=${p.id} — re-authorized + captured`);
+      return { ok: true, status: PledgeStatus.CAPTURED };
+    }
+
+    // Give the re-claimed stock back; the pledge stays FAILED_CAPTURE.
+    if (p.tierId) {
+      await this.prisma.rewardTier.updateMany({
+        where: { id: p.tierId, claimedQty: { gt: 0 } },
+        data: { claimedQty: { decrement: 1 } },
+      });
+    }
+    return { ok: false, reason: 'psp-declined', status: PledgeStatus.FAILED_CAPTURE };
+  }
 }
