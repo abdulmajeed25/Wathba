@@ -162,6 +162,26 @@ enum NotificationKind {
   ACCOUNT_REACTIVATED
   MILESTONE_REJECTED
   SUPPLIER_VERIFIED
+  APPEAL_RECEIVED
+  APPEAL_DECIDED
+}
+
+/// Batch OPS-GAPS R1 — the two appealable decisions.
+enum AppealKind {
+  ACCOUNT_BAN
+  PROJECT_REJECTION
+}
+
+/// Batch OPS-GAPS R1 — appeal lifecycle. SUBMITTED→UNDER_REVIEW (claimed by a
+/// reviewer who is NOT the original decider — four-eyes) → one of the three
+/// terminal outcomes. OVERTURNED fires the compensating transition
+/// (unban / project back to review) inside the governed appeals.decide op.
+enum AppealStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  UPHELD
+  OVERTURNED
+  PARTIALLY_GRANTED
 }
 
 /// Batch OPS (registry completion) — account lifecycle enforcement.
@@ -1493,6 +1513,36 @@ model ReconciliationRun {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// Batch OPS-GAPS R1 — the appeals workflow. An appellant (a banned user, or
+/// a rejected project's creator) submits ONE appeal per decision; a DIFFERENT
+/// operator than the original decider reviews it (four-eyes, enforced against
+/// the AuditLog actor of the original ban/rejection). subjectId is the userId
+/// (ACCOUNT_BAN) or projectId (PROJECT_REJECTION); actor ids are plain uuids —
+/// the hash-chained AuditLog is the authority, no FK needed (matches the other
+/// ops governance tables). One active appeal per subject is enforced in the
+/// service; the index supports that lookup.
+model Appeal {
+  id             String       @id @default(uuid()) @db.Uuid
+  kind           AppealKind
+  /// userId (ACCOUNT_BAN) or projectId (PROJECT_REJECTION).
+  subjectId      String       @db.Uuid
+  /// The appellant (the banned user, or the rejected project's creator).
+  submittedById  String       @db.Uuid
+  /// The appellant's written case (min length enforced in the DTO/op).
+  reasonAr       String       @db.Text
+  status         AppealStatus @default(SUBMITTED)
+  /// The operator who decided — MUST differ from the original decider.
+  decidedById    String?      @db.Uuid
+  decisionReason String?      @db.Text
+  decidedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+
+  @@index([kind, subjectId])
+  @@index([status, createdAt])
+  @@index([submittedById])
 }
 
 /// Batch HOME — editorial content powering the magazine homepage. kind:

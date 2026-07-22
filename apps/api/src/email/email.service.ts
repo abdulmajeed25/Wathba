@@ -110,4 +110,11 @@ export class EmailService {
   supportReply(to: string, d: { name: string; topic: string; replyAr: string }) {
     return this.deliver(to, emailTemplates.supportReply(d));
   }
+  // OPS-GAPS R1 — appeals lifecycle.
+  appealReceived(to: string, d: { kindAr: string }) {
+    return this.deliver(to, emailTemplates.appealReceived(d));
+  }
+  appealDecided(to: string, d: { kindAr: string; outcomeAr: string; reasonAr: string }) {
+    return this.deliver(to, emailTemplates.appealDecided(d));
+  }
 }
