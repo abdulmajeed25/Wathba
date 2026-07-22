@@ -59,6 +59,7 @@ interface MockDb {
   opsRole: MockModel;
   opsRoleGrant: MockModel;
   knownDevice: MockModel;
+  notification: MockModel;
 }
 function buildPrisma(): MockDb {
   return {
@@ -89,6 +90,7 @@ function buildPrisma(): MockDb {
     opsRole: model(),
     opsRoleGrant: model(),
     knownDevice: model(),
+    notification: model(),
   };
 }
 
@@ -839,6 +841,181 @@ describe('OpsReadService', () => {
       const db = buildPrisma();
       db.user.findUnique.mockResolvedValue(null);
       await expect(svc(db).viewAsSnapshot('nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  /* ── OPS-360 Unit-4 — notifications, contests, fulfillment ──────────────── */
+
+  describe('listUserNotifications — allowlisted payload summary, no secrets', () => {
+    it('projects only safe scalar fields, dropping deepLink / actor names / tokens', async () => {
+      const db = buildPrisma();
+      db.notification.findMany.mockResolvedValue([
+        {
+          id: 'n1',
+          userId: 'u1',
+          kind: 'UPDATE_POSTED',
+          readAt: null,
+          createdAt: new Date('2026-03-02T00:00:00Z'),
+          payload: {
+            projectId: 'proj1',
+            projectTitleAr: 'مشروع',
+            updateId: 'up1',
+            updateTitleAr: 'تحديث',
+            // must be dropped — a link is never echoed
+            deepLink: '/projects/proj1/updates/up1?token=SECRET_LINK_TOKEN',
+            // actor identity must be dropped
+            byUserId: 'actor-uuid',
+            byName: 'Actor Name',
+            byHandle: 'actorhandle',
+            // arbitrary future secret must be dropped (allowlist, not denylist)
+            resetToken: 'SUPER_SECRET_TOKEN',
+            amountHalalas: 50000,
+          },
+        },
+      ]);
+      const out = await svc(db).listUserNotifications('u1', {});
+      const row = out.items[0]!;
+      expect(row.kind).toBe('UPDATE_POSTED');
+      expect(row.readAt).toBeNull();
+      // safe fields survive
+      expect(row.payloadSummary.projectId).toBe('proj1');
+      expect(row.payloadSummary.updateTitleAr).toBe('تحديث');
+      // money stringified
+      expect(row.payloadSummary.amountHalalas).toBe('50000');
+      // secrets / links / actor identity are gone
+      expect(row.payloadSummary).not.toHaveProperty('deepLink');
+      expect(row.payloadSummary).not.toHaveProperty('byName');
+      expect(row.payloadSummary).not.toHaveProperty('byHandle');
+      expect(row.payloadSummary).not.toHaveProperty('byUserId');
+      expect(row.payloadSummary).not.toHaveProperty('resetToken');
+      const json = JSON.stringify(out);
+      expect(json).not.toContain('SECRET_LINK_TOKEN');
+      expect(json).not.toContain('SUPER_SECRET_TOKEN');
+      expect(json).not.toContain('Actor Name');
+    });
+
+    it('threads the kind filter and keysets on (createdAt, id)', async () => {
+      const db = buildPrisma();
+      await svc(db).listUserNotifications('u1', { kind: 'PLEDGE_RECEIVED' });
+      const args = db.notification.findMany.mock.calls[0]![0];
+      expect(args.where.userId).toBe('u1');
+      expect(args.where.kind).toBe('PLEDGE_RECEIVED');
+      expect(args.orderBy[0].createdAt).toBe('desc');
+    });
+
+    it('refuses nested objects/arrays in the payload', async () => {
+      const db = buildPrisma();
+      db.notification.findMany.mockResolvedValue([
+        {
+          id: 'n2', userId: 'u1', kind: 'PLEDGE_RECEIVED', readAt: new Date(),
+          createdAt: new Date(),
+          payload: { projectId: 'proj1', method: { nested: 'obj' }, reason: ['a', 'b'] },
+        },
+      ]);
+      const out = await svc(db).listUserNotifications('u1', {});
+      expect(out.items[0]!.payloadSummary.projectId).toBe('proj1');
+      expect(out.items[0]!.payloadSummary).not.toHaveProperty('method');
+      expect(out.items[0]!.payloadSummary).not.toHaveProperty('reason');
+    });
+  });
+
+  describe('notificationStats — count-by-kind over a recent window', () => {
+    it('rolls groupBy into kindCounts + total over a 30-day window', async () => {
+      const db = buildPrisma();
+      db.notification.groupBy.mockResolvedValue([
+        { kind: 'PLEDGE_RECEIVED', _count: { _all: 12 } },
+        { kind: 'UPDATE_POSTED', _count: { _all: 8 } },
+      ]);
+      const out = await svc(db).notificationStats();
+      expect(out.windowDays).toBe(30);
+      expect(out.kindCounts).toEqual({ PLEDGE_RECEIVED: 12, UPDATE_POSTED: 8 });
+      expect(out.total).toBe(20);
+      // the aggregate is windowed on createdAt >= since
+      const where = db.notification.groupBy.mock.calls[0]![0].where;
+      expect(where.createdAt.gte).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('listAllContests — cross-project FSM oversight', () => {
+    it('joins project title, exposes winner tally + FSM status, filters by status', async () => {
+      const db = buildPrisma();
+      db.contest.findMany.mockResolvedValue([
+        {
+          id: 'ct1', projectId: 'proj1', roundNum: 2, status: 'ANNOUNCED',
+          prizeCustomAr: 'جائزة خاصة', prizeRewardTierId: null, prizeAddOnId: null,
+          winnersCount: 3, startsAt: new Date(), endsAt: new Date(), announcedAt: new Date(),
+          createdAt: new Date(),
+          project: { id: 'proj1', titleAr: 'مشروع' },
+          _count: { winners: 3 },
+        },
+      ]);
+      const out = await svc(db).listAllContests({ status: 'ANNOUNCED' });
+      const row = out.items[0]!;
+      expect(row.projectTitleAr).toBe('مشروع');
+      expect(row.status).toBe('ANNOUNCED');
+      expect(row.prizeDescAr).toBe('جائزة خاصة');
+      expect(row.targetWinnersCount).toBe(3);
+      expect(row.winnerCount).toBe(3);
+      expect(db.contest.findMany.mock.calls[0]![0].where.status).toBe('ANNOUNCED');
+    });
+  });
+
+  describe('contestDetail — winners roster with masked backer', () => {
+    it('masks each winner backer email and reflects the announced state', async () => {
+      const db = buildPrisma();
+      db.contest.findUnique.mockResolvedValue({
+        id: 'ct1', projectId: 'proj1', roundNum: 1, promptAr: 'اكتب شعاراً',
+        status: 'ANNOUNCED', prizeCustomAr: null, prizeRewardTierId: 't1', prizeAddOnId: null,
+        winnersCount: 2, startsAt: new Date(), endsAt: new Date(), announcedAt: new Date(),
+        createdAt: new Date(),
+        project: { id: 'proj1', titleAr: 'مشروع' },
+        winners: [
+          {
+            id: 'w1', backerNo: 7, createdAt: new Date(),
+            backer: { id: 'u1', name: 'Aisha', email: RAW_EMAIL },
+          },
+        ],
+      });
+      const out = await svc(db).contestDetail('ct1');
+      expect(out.announced).toBe(true);
+      expect(out.winnerCount).toBe(1);
+      expect(out.winners[0]!.backer.email).toBe('a***@e***.com');
+      expect(out.winners[0]!.backerNo).toBe(7);
+      assertNoRawPII(out);
+    });
+
+    it('throws NotFound for a missing contest', async () => {
+      const db = buildPrisma();
+      db.contest.findUnique.mockResolvedValue(null);
+      await expect(svc(db).contestDetail('nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('listFulfillment — cross-project reward roster, rewardStatus filter', () => {
+    it('filters to tier-bearing pledges by rewardStatus, masks backer, joins titles', async () => {
+      const db = buildPrisma();
+      db.pledge.findMany.mockResolvedValue([
+        {
+          id: 'p1', projectId: 'proj1', backerNo: 4, tierId: 't1',
+          rewardStatus: 'IN_PROGRESS', createdAt: new Date(),
+          backer: { id: 'u1', name: 'Aisha', email: RAW_EMAIL },
+          project: { id: 'proj1', titleAr: 'مشروع' },
+          tier: { id: 't1', titleAr: 'المكافأة' },
+        },
+      ]);
+      const out = await svc(db).listFulfillment({ rewardStatus: 'IN_PROGRESS' });
+      const row = out.items[0]!;
+      expect(row.pledgeId).toBe('p1');
+      expect(row.projectTitleAr).toBe('مشروع');
+      expect(row.tierTitleAr).toBe('المكافأة');
+      expect(row.rewardStatus).toBe('IN_PROGRESS');
+      expect(row.backer.email).toBe('a***@e***.com');
+      expect(row.backerNo).toBe(4);
+      // only pledges carrying a reward tier, filtered by rewardStatus
+      const where = db.pledge.findMany.mock.calls[0]![0].where;
+      expect(where.tierId).toEqual({ not: null });
+      expect(where.rewardStatus).toBe('IN_PROGRESS');
+      assertNoRawPII(out);
     });
   });
 });

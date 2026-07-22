@@ -8,7 +8,7 @@ const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 /**
  * OPS Part 5 — the SHARED ops-UI kit (nav + command palette + op-runner).
  * These prove the reusable pieces every operator screen depends on:
- *  1. The side nav lists all 16 sections.
+ *  1. The side nav lists all 20 sections.
  *  2. Ctrl+K opens the command palette and filters live.
  *  3. The op-runner drives dry-run → preview → reason → (MONEY) typed
  *     confirm, keeping «تنفيذ» disabled until the contract is satisfied —
@@ -44,19 +44,19 @@ async function enterOps(page: import('@playwright/test').Page): Promise<void> {
 }
 
 const NAV_LABELS = [
-  'المركز', 'المشاريع', 'المراجعة', 'المال', 'المستخدمون', 'الثقة والأمان',
-  'الفئات', 'التحرير', 'المجموعات', 'المورّدون', 'التحليلات', 'الإعدادات',
-  'سجل التدقيق', 'الدعم', 'الوكلاء', 'الفريق',
+  'المركز', 'التنبيهات', 'المشاريع', 'المراجعة', 'المال', 'المستخدمون', 'الثقة والأمان',
+  'الفئات', 'التحرير', 'المجموعات', 'المورّدون', 'التحليلات', 'الإشعارات',
+  'تسليم المكافآت', 'المسابقات', 'الإعدادات', 'سجل التدقيق', 'الدعم', 'الوكلاء', 'الفريق',
 ];
 
-test('the side nav renders all 16 sections', async ({ page }) => {
+test('the side nav renders all 20 sections', async ({ page }) => {
   test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
   await enterOps(page);
   const nav = page.getByRole('navigation', { name: 'أقسام مركز العمليات' });
   for (const label of NAV_LABELS) {
     await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
   }
-  await expect(nav.getByRole('link')).toHaveCount(16);
+  await expect(nav.getByRole('link')).toHaveCount(20);
 });
 
 test('Ctrl+K opens the command palette and filters', async ({ page }) => {
@@ -68,8 +68,8 @@ test('Ctrl+K opens the command palette and filters', async ({ page }) => {
   await expect(palette).toBeVisible();
 
   const search = palette.getByRole('textbox', { name: 'ابحث في الأقسام والعمليات' });
-  // At least the 16 sections are listed before any query (ops manifest adds more).
-  expect(await palette.getByRole('option').count()).toBeGreaterThanOrEqual(16);
+  // At least the 20 sections are listed before any query (ops manifest adds more).
+  expect(await palette.getByRole('option').count()).toBeGreaterThanOrEqual(20);
   await search.fill('التدقيق');
   await expect(palette.getByRole('option', { name: /سجل التدقيق/ })).toBeVisible();
   await expect(palette.getByRole('option', { name: /الوكلاء/ })).toHaveCount(0);

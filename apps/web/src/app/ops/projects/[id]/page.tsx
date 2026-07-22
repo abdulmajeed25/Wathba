@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { ActorName } from '../../_components/actor-name';
 import { StatusBadge } from '../../_components/badge';
 import { OpRunner } from '../../_components/op-runner';
 import { API_BASE, requireAdmin, requireOpsSession } from '../../_lib/guard';
@@ -128,6 +129,26 @@ interface SpendLog {
   proofUrl: string | null;
   createdAt: string | null;
 }
+interface Collaborator {
+  id: string;
+  userId: string | null;
+  name: string | null;
+  handle: string | null;
+  role: string | null;
+  status: string | null;
+  invitedAt: string | null;
+  acceptedAt: string | null;
+}
+interface FaqQuestion {
+  id: string;
+  questionAr: string | null;
+  answerAr: string | null;
+  askedById: string | null;
+  answeredById: string | null;
+  isPublic: boolean;
+  answeredAt: string | null;
+  createdAt: string | null;
+}
 
 type SubResource = { items: unknown[]; nextCursor: string | null };
 
@@ -139,6 +160,8 @@ const TABS: Array<{ key: string; labelAr: string }> = [
   { key: 'comments', labelAr: 'التعليقات' },
   { key: 'catalog', labelAr: 'المكافآت والإضافات' },
   { key: 'spend', labelAr: 'سجل الإنفاق' },
+  { key: 'collaborators', labelAr: 'المتعاونون' },
+  { key: 'faq', labelAr: 'الأسئلة الشائعة' },
   { key: 'timeline', labelAr: 'الخط الزمني' },
   { key: 'operations', labelAr: 'العمليات' },
 ];
@@ -149,6 +172,8 @@ const SUB_ENDPOINT: Record<string, string> = {
   updates: 'updates',
   comments: 'comments',
   spend: 'spend-logs',
+  collaborators: 'collaborators',
+  faq: 'faq-questions',
 };
 
 function fmtDate(iso: string | null): string {
@@ -189,6 +214,8 @@ export default async function OpsProjectDetailPage({
   let rewardTiers: RewardTier[] = [];
   let addons: AddOn[] = [];
   let spendLogs: SpendLog[] = [];
+  let collaborators: Collaborator[] = [];
+  let faqQuestions: FaqQuestion[] = [];
   let subCursor: string | null = null;
 
   const opts = { headers: { 'x-ops-token': opsToken }, cache: 'no-store' as const };
@@ -225,6 +252,8 @@ export default async function OpsProjectDetailPage({
           else if (tab === 'updates') updates = body.items as ProjectUpdate[];
           else if (tab === 'comments') comments = body.items as CommentRow[];
           else if (tab === 'spend') spendLogs = body.items as SpendLog[];
+          else if (tab === 'collaborators') collaborators = body.items as Collaborator[];
+          else if (tab === 'faq') faqQuestions = body.items as FaqQuestion[];
         }
       }
     } catch {
@@ -301,6 +330,14 @@ export default async function OpsProjectDetailPage({
               @{d.createdBy.handle ?? d.createdBy.id.slice(0, 8)}
             </span>{' '}
             · <Link href={`/projects/${d.id}`} className="text-[#58a6ff] hover:underline">الصفحة العامة ↗</Link>
+            {' · '}
+            <Link href={`/ops/contests?projectId=${d.id}`} className="text-[#58a6ff] hover:underline">
+              المسابقات
+            </Link>
+            {' · '}
+            <Link href={`/ops/fulfillment`} className="text-[#58a6ff] hover:underline">
+              تسليم المكافآت
+            </Link>
           </p>
         </div>
         {back}
@@ -645,6 +682,114 @@ export default async function OpsProjectDetailPage({
               </tbody>
             </table>
           </div>
+          {subMore}
+        </section>
+      ) : null}
+
+      {tab === 'collaborators' ? (
+        <section className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            المتعاونون على هذا المشروع (فريق صاحب المشروع) — للقراءة فقط؛ لا عمليات إدارية على
+            التعاون بعد.
+          </p>
+          {collaborators.length === 0 ? (
+            <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-6 text-center text-sm text-[#8b949e]">
+              لا متعاونون على هذا المشروع
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-[#21262d]">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-[#161b22] text-right text-[#8b949e]">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">المتعاون</th>
+                    <th className="px-3 py-2 font-medium">الدور</th>
+                    <th className="px-3 py-2 font-medium">الحالة</th>
+                    <th className="px-3 py-2 font-medium">دُعي</th>
+                    <th className="px-3 py-2 font-medium">قَبِل</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#21262d] bg-[#0d1117]">
+                  {collaborators.map((c) => (
+                    <tr key={c.id} className="align-top">
+                      <td className="px-3 py-2">
+                        {c.name ? (
+                          <>
+                            {c.name}
+                            {c.handle ? (
+                              <span className="text-[#8b949e]"> @{c.handle}</span>
+                            ) : null}
+                          </>
+                        ) : (
+                          <ActorName id={c.userId} className="text-sm" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusBadge intent="info">{c.role ?? '—'}</StatusBadge>
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusBadge intent={c.acceptedAt ? 'ok' : 'muted'}>
+                          {c.status ?? (c.acceptedAt ? 'مقبول' : 'بانتظار القبول')}
+                        </StatusBadge>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs text-[#8b949e]">
+                        {fmtDate(c.invitedAt)}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-xs text-[#8b949e]">
+                        {fmtDate(c.acceptedAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {subMore}
+        </section>
+      ) : null}
+
+      {tab === 'faq' ? (
+        <section className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            أسئلة الداعمين وإجابات صاحب المشروع — للقراءة فقط؛ الإشراف على المحتوى يتم من تبويب
+            التعليقات/البلاغات.
+          </p>
+          {faqQuestions.length === 0 ? (
+            <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-6 text-center text-sm text-[#8b949e]">
+              لا أسئلة على هذا المشروع
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {faqQuestions.map((q) => (
+                <li
+                  key={q.id}
+                  className="space-y-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <StatusBadge intent={q.isPublic ? 'muted' : 'info'}>
+                      {q.isPublic ? 'عام' : 'خاص'}
+                    </StatusBadge>
+                    <StatusBadge intent={q.answeredAt ? 'ok' : 'warn'}>
+                      {q.answeredAt ? 'مُجاب' : 'بلا إجابة'}
+                    </StatusBadge>
+                    <span className="text-xs text-[#8b949e]">· {fmtDate(q.createdAt)}</span>
+                  </div>
+                  <p className="font-bold">{q.questionAr ?? '—'}</p>
+                  {q.answerAr ? (
+                    <p className="border-r-2 border-[#30363d] pr-3 text-[#8b949e]">{q.answerAr}</p>
+                  ) : null}
+                  <p className="text-[11px] text-[#484f58]">
+                    سأل: <ActorName id={q.askedById} className="text-[11px] text-[#484f58]" />
+                    {q.answeredById ? (
+                      <>
+                        {' · '}أجاب:{' '}
+                        <ActorName id={q.answeredById} className="text-[11px] text-[#484f58]" />
+                      </>
+                    ) : null}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
           {subMore}
         </section>
       ) : null}

@@ -39,7 +39,9 @@ export const OPS_GROUPS: OpsGroup[] = [
     labelAr: 'المراقبة',
     items: [
       { href: '/ops', labelAr: 'المركز', hintAr: 'لوحة القيادة والجلسة' },
+      { href: '/ops/alerts', labelAr: 'التنبيهات', hintAr: 'الشذوذات والمخاطر الحيّة' },
       { href: '/ops/analytics', labelAr: 'التحليلات', hintAr: 'المؤشرات والتقارير' },
+      { href: '/ops/notifications', labelAr: 'الإشعارات', hintAr: 'ما أرسلته المنصّة للمستخدمين' },
       { href: '/ops/audit', labelAr: 'سجل التدقيق', hintAr: 'سلسلة الهاش غير القابلة للتعديل' },
     ],
   },
@@ -52,6 +54,8 @@ export const OPS_GROUPS: OpsGroup[] = [
     items: [
       { href: '/ops/projects', labelAr: 'المشاريع', hintAr: 'الاعتماد والرفض ودورة الحياة', badgeKey: 'projectsUnderReview' },
       { href: '/ops/review', labelAr: 'المراجعة', hintAr: 'طابور مراجعة المحتوى' },
+      { href: '/ops/fulfillment', labelAr: 'تسليم المكافآت', hintAr: 'حالة تسليم مكافآت الداعمين' },
+      { href: '/ops/contests', labelAr: 'المسابقات', hintAr: 'مراقبة مسابقات علّق واربح' },
     ],
   },
   {

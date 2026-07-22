@@ -1,11 +1,14 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Prisma,
+  type ContestStatus,
   type LedgerEntryType,
   type MilestoneStatus,
+  type NotificationKind,
   type PayoutStatus,
   type PledgeStatus,
   type ProjectStatus,
+  type RewardFulfillmentStatus,
   type RFQStatus,
   type SupportTicketStatus,
   type UserRole,
@@ -76,6 +79,69 @@ function maskIban(iban: string | null | undefined): string | null {
 function maskId(id: string | null | undefined): string | null {
   if (!id) return null;
   return `${id.slice(0, 8)}…`;
+}
+
+/**
+ * Notification payloads are free-form Json written by many producers. The
+ * inspector NEVER echoes a payload verbatim — a notification can carry a
+ * `deepLink`, an actor's raw name, or (in future producers) a token. Instead
+ * we project a strict ALLOWLIST of known-safe SCALAR fields; anything not on
+ * the list (deepLink, byName/byHandle/byUserId, any url/token) is dropped, and
+ * nested objects/arrays are refused wholesale. Money is stringified; long
+ * title/body free-text is snippeted. This is what makes the write-heavy,
+ * zero-ops-surface Notification model observable without leaking secrets.
+ */
+const SAFE_NOTIFICATION_PAYLOAD_KEYS = [
+  'projectId',
+  'projectTitleAr',
+  'updateId',
+  'updateTitleAr',
+  'commentId',
+  'parentCommentId',
+  'questionId',
+  'faqItemId',
+  'pledgeId',
+  'payoutId',
+  'milestoneId',
+  'contestId',
+  'backerNo',
+  'method',
+  'reason',
+  'reminder',
+  'reauth',
+  'graceExpiresAt',
+  'title',
+  'body',
+  'amountHalalas',
+] as const;
+
+function notificationPayloadSummary(
+  payload: Prisma.JsonValue | null | undefined,
+): Record<string, unknown> {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return {};
+  const src = payload as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of SAFE_NOTIFICATION_PAYLOAD_KEYS) {
+    if (!(k in src)) continue;
+    const v = src[k];
+    if (v === null) {
+      out[k] = null;
+      continue;
+    }
+    // Refuse nested objects/arrays — only flat scalars ever surface.
+    if (typeof v === 'object') continue;
+    if (k === 'amountHalalas') {
+      // Money as a string, matching the rest of the read layer.
+      out[k] = String(v);
+      continue;
+    }
+    if ((k === 'title' || k === 'body') && typeof v === 'string') {
+      out[k] = snippet(v);
+      continue;
+    }
+    out[k] = v;
+  }
+  return out;
 }
 
 export interface Page<T> {
@@ -153,6 +219,21 @@ export interface MilestoneQueueFilter extends CursorFilter {
 export interface KycQueueFilter extends CursorFilter {
   /** true → SUPPLIER-role accounts still awaiting suppliers.verify. */
   supplierUnverified?: boolean;
+}
+
+/* ── OPS-360 Unit-4 read-layer expansion filters ───────────────────────── */
+
+export interface NotificationListFilter extends CursorFilter {
+  /** NotificationKind filter (PLEDGE_RECEIVED, UPDATE_POSTED, …). */
+  kind?: string;
+}
+export interface ContestListFilter extends CursorFilter {
+  /** ContestStatus filter (DRAFT | OPEN | CLOSED | ANNOUNCED). */
+  status?: string;
+}
+export interface FulfillmentListFilter extends CursorFilter {
+  /** RewardFulfillmentStatus filter (PENDING | IN_PROGRESS | SENT). */
+  rewardStatus?: string;
 }
 
 /** A live anomaly-center alert — one firing condition, screen-ready. */
@@ -1415,6 +1496,179 @@ export class OpsReadService {
       })),
       createdAt: iso(u.createdAt),
     };
+  }
+
+  /* ── OPS-360 U4.A NOTIFICATIONS INSPECTOR (users.lifecycle / analytics.read) ── */
+
+  /**
+   * A user's notifications — makes the write-heavy, zero-ops-surface
+   * Notification model observable. The payload is NEVER echoed verbatim; only
+   * an allowlisted, snippeted, money-stringified summary is exposed
+   * (notificationPayloadSummary drops deepLink / actor names / any token).
+   * Filter by kind; newest-first keyset on (createdAt, id).
+   */
+  async listUserNotifications(userId: string, f: NotificationListFilter) {
+    const where: Prisma.NotificationWhereInput = {
+      userId,
+      ...(f.kind ? { kind: f.kind as NotificationKind } : {}),
+    };
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.notification.findMany({ where, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      kind: r.kind,
+      readAt: iso(r.readAt),
+      createdAt: iso(r.createdAt),
+      payloadSummary: notificationPayloadSummary(r.payload),
+    }));
+  }
+
+  /**
+   * Delivery-mix — count-by-kind over a recent window (default 30 days) so an
+   * operator sees which notification kinds are actually being sent. Pure
+   * groupBy aggregate; no PII, no payloads.
+   */
+  async notificationStats(windowDays = 30) {
+    const since = new Date(Date.now() - windowDays * 24 * 60 * 60_000);
+    const grouped = await this.prisma.notification.groupBy({
+      by: ['kind'],
+      where: { createdAt: { gte: since } },
+      _count: { _all: true },
+    });
+    const kindCounts: Record<string, number> = {};
+    let total = 0;
+    for (const g of grouped) {
+      kindCounts[g.kind] = g._count._all;
+      total += g._count._all;
+    }
+    return { windowDays, since: since.toISOString(), kindCounts, total };
+  }
+
+  /* ── OPS-360 U4.B CONTESTS OVERSIGHT (projects.review) ─────────────────── */
+
+  /**
+   * Cross-project contest list — makes the full-FSM, zero-ops-surface Contest
+   * model observable. Filter by ContestStatus. `winnerCount` is the actual
+   * announced winners (relation _count); `targetWinnersCount` is the contest's
+   * configured winners target.
+   *
+   * NOTE: contests have NO governed ops yet — creation, editing and announce
+   * are entirely CREATOR-driven (contests.service). This surface is
+   * OVERSIGHT-ONLY (read); award/management ops are a Unit-6 follow-up. There
+   * is also no ContestEntry model in the schema, so a per-round "entryCount"
+   * (participants) has no backing table and is deliberately not fabricated —
+   * only the winners tally is real.
+   */
+  async listAllContests(f: ContestListFilter) {
+    const where: Prisma.ContestWhereInput = {
+      ...(f.status ? { status: f.status as ContestStatus } : {}),
+    };
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.contest.findMany({
+      where,
+      ...extra,
+      include: {
+        project: { select: { id: true, titleAr: true } },
+        _count: { select: { winners: true } },
+      },
+    });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      projectTitleAr: r.project?.titleAr ?? null,
+      roundNum: r.roundNum,
+      status: r.status,
+      prizeDescAr: r.prizeCustomAr ?? null,
+      prizeRewardTierId: r.prizeRewardTierId,
+      prizeAddOnId: r.prizeAddOnId,
+      targetWinnersCount: r.winnersCount,
+      winnerCount: r._count.winners,
+      startsAt: iso(r.startsAt),
+      endsAt: iso(r.endsAt),
+      announcedAt: iso(r.announcedAt),
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  /**
+   * Contest detail incl the announced winners roster. Each ContestWinner joins
+   * its backer — PII masked exactly like the rest of the read layer (email
+   * masked, no phone exposed). `announced` reflects the FSM ANNOUNCED state.
+   */
+  async contestDetail(id: string) {
+    const c = await this.prisma.contest.findUnique({
+      where: { id },
+      include: {
+        project: { select: { id: true, titleAr: true } },
+        winners: {
+          orderBy: { backerNo: 'asc' },
+          include: { backer: { select: { id: true, name: true, email: true } } },
+        },
+      },
+    });
+    if (!c) throw new NotFoundException('المسابقة غير موجودة');
+    return {
+      id: c.id,
+      projectId: c.projectId,
+      projectTitleAr: c.project?.titleAr ?? null,
+      roundNum: c.roundNum,
+      promptAr: snippet(c.promptAr),
+      status: c.status,
+      announced: c.status === 'ANNOUNCED',
+      prizeDescAr: c.prizeCustomAr ?? null,
+      prizeRewardTierId: c.prizeRewardTierId,
+      prizeAddOnId: c.prizeAddOnId,
+      targetWinnersCount: c.winnersCount,
+      winnerCount: c.winners.length,
+      startsAt: iso(c.startsAt),
+      endsAt: iso(c.endsAt),
+      announcedAt: iso(c.announcedAt),
+      createdAt: iso(c.createdAt),
+      winners: c.winners.map((w) => ({
+        id: w.id,
+        backer: { id: w.backer.id, name: w.backer.name, email: maskEmail(w.backer.email) },
+        backerNo: w.backerNo,
+        createdAt: iso(w.createdAt),
+      })),
+    };
+  }
+
+  /* ── OPS-360 U4.C FULFILLMENT VIEW (projects.review) ───────────────────── */
+
+  /**
+   * Cross-project reward-fulfillment roster (census A7 fulfillment drop-out) —
+   * pledges that carry a reward tier (physical/deliverable reward, tierId not
+   * null), filterable by rewardStatus so an operator can see stuck/pending
+   * reward delivery platform-wide. Masked backer, project + tier titles
+   * joined, newest-first keyset. rewardStatus is Creator-editable bookkeeping
+   * with NO money effect — this is pure observability.
+   */
+  async listFulfillment(f: FulfillmentListFilter) {
+    const where: Prisma.PledgeWhereInput = {
+      tierId: { not: null },
+      ...(f.rewardStatus ? { rewardStatus: f.rewardStatus as RewardFulfillmentStatus } : {}),
+    };
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.pledge.findMany({
+      where,
+      ...extra,
+      include: {
+        backer: { select: { id: true, name: true, email: true } },
+        project: { select: { id: true, titleAr: true } },
+        tier: { select: { id: true, titleAr: true } },
+      },
+    });
+    return this.slice(rows, take, (r) => ({
+      pledgeId: r.id,
+      projectId: r.projectId,
+      projectTitleAr: r.project?.titleAr ?? null,
+      backer: { id: r.backer.id, name: r.backer.name, email: maskEmail(r.backer.email) },
+      tierId: r.tierId,
+      tierTitleAr: r.tier?.titleAr ?? null,
+      rewardStatus: r.rewardStatus,
+      backerNo: r.backerNo,
+      createdAt: iso(r.createdAt),
+    }));
   }
 
   /* ── OPS-360 U2.A ALERTS CENTER (analytics.read) ───────────────────────── */
