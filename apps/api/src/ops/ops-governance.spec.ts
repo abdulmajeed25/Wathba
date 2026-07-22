@@ -85,7 +85,12 @@ describe('OPS governance — the registry is the only mutation path', () => {
           // OPS-PRO Part 5 — the read layer for the operator screens is
           // READ-ONLY over every business entity (RULE 5 pins it to zero
           // mutating calls); it injects PrismaService only to query.
-          entry.name !== 'ops-read.service.ts'
+          entry.name !== 'ops-read.service.ts' &&
+          // OPS-360 Unit 5 — the analytics aggregate surface is the READ-ONLY
+          // sibling of the read layer (groupBy/aggregate/count only); it
+          // injects PrismaService solely to query (RULE 5 pins it to zero
+          // mutating calls, same as ops-read.service.ts).
+          entry.name !== 'ops-analytics.service.ts'
         ) {
           const src = readFileSync(p, 'utf8');
           const valueImport = src
@@ -114,6 +119,8 @@ describe('OPS governance — the registry is the only mutation path', () => {
       'ops/ops-agents.service.ts': ['agentAccount', 'agentDryRun'],
       // OPS-PRO Part 5 — the screen read layer: zero mutations, ever.
       'ops/read/ops-read.service.ts': [],
+      // OPS-360 Unit 5 — the analytics aggregate surface: zero mutations, ever.
+      'ops/read/ops-analytics.service.ts': [],
     };
     for (const [rel, models] of Object.entries(allowed)) {
       const src = read(rel);
