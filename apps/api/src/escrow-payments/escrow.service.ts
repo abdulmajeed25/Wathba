@@ -4,6 +4,7 @@ import { MoyasarAdapter } from './moyasar.adapter';
 import { LedgerService } from './ledger.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
 import { LedgerEntryType, NotificationKind, PledgeStatus, Prisma, type Pledge } from '@prisma/client';
 
 /** Batch OPS (registry completion) — outcome of an ops-surface refund. */
@@ -21,7 +22,8 @@ export interface AdminRefundResult {
  */
 @Injectable()
 export class EscrowService {
-  /** Batch PAY (Part 2) — the failed-capture grace window. */
+  /** Batch PAY (Part 2) — the failed-capture grace window (default; the
+   *  effective value is the `funding.graceWindowHours` setting × 1h). */
   static readonly GRACE_MS = 72 * 60 * 60 * 1000;
 
   private readonly logger = new Logger(EscrowService.name);
@@ -34,6 +36,8 @@ export class EscrowService {
     // directly instead of waiting on a PSP webhook that may never arrive.
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
+    // OPS-GAPS Y2 — the grace window is a governed setting (default 72h).
+    private readonly settings: SettingsService,
   ) {}
 
   async hold(input: {
@@ -178,16 +182,19 @@ export class EscrowService {
    */
   private async enterGrace(p: Pledge): Promise<boolean> {
     const now = new Date();
+    // OPS-GAPS Y2 — grace window is a governed setting (default 72h).
+    const graceHours = await this.settings.get('funding.graceWindowHours');
+    const graceMs = graceHours * 60 * 60 * 1000;
     await this.prisma.pledge.update({
       where: { id: p.id },
       data: {
         status: PledgeStatus.CAPTURE_GRACE,
         graceStartedAt: now,
-        graceExpiresAt: new Date(now.getTime() + EscrowService.GRACE_MS),
+        graceExpiresAt: new Date(now.getTime() + graceMs),
         captureAttempts: { increment: 1 },
       },
     });
-    this.logger.warn(`pledge=${p.id} entered CAPTURE_GRACE (72h)`);
+    this.logger.warn(`pledge=${p.id} entered CAPTURE_GRACE (${graceHours}h)`);
     return false;
   }
 

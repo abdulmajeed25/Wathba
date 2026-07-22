@@ -42,6 +42,26 @@ function isProtected(pathname: string): boolean {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
+// OPS-GAPS Y2 — DB-backed maintenance flag, polled from the public status
+// probe at most every 30s (per-instance module cache) so an operator can flip
+// maintenance without a redeploy. The env var stays a hard override.
+let maintCache = { on: false, at: 0 };
+async function dbMaintenanceOn(): Promise<boolean> {
+  const now = Date.now();
+  if (now - maintCache.at < 30_000) return maintCache.on;
+  try {
+    const r = await fetch(`${API_BASE}/v1/platform/status`, { cache: 'no-store' });
+    const on = r.ok ? Boolean(((await r.json()) as { maintenance?: boolean }).maintenance) : false;
+    maintCache = { on, at: now };
+    return on;
+  } catch {
+    // Probe unreachable → don't lock everyone out on a transient blip; keep the
+    // last known value (defaults false), env override still applies below.
+    maintCache = { ...maintCache, at: now };
+    return maintCache.on;
+  }
+}
+
 /** Decode a JWT's exp (seconds) without verifying — verification is the
  *  API's job; middleware only needs "is it about to lapse?". */
 function jwtExpMs(token: string): number | null {
@@ -64,16 +84,20 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const refresh = req.cookies.get('wathba_refresh')?.value;
   const { pathname, search } = req.nextUrl;
 
-  // STAKES/S-13 (G5) — maintenance mode: MAINTENANCE_MODE=1 rewrites every
-  // page to the 503 surface (read per-request, so flipping the env + a
-  // restart is the whole procedure; /maintenance itself stays reachable).
-  if (process.env.MAINTENANCE_MODE === '1' && pathname !== '/maintenance') {
+  // STAKES/S-13 (G5) + OPS-GAPS Y2 — maintenance mode: the MAINTENANCE_MODE=1
+  // env var (hard, infra-level) OR the operator-tunable DB flag (settings →
+  // platform.maintenanceMode, polled via the cached status probe) rewrites
+  // every page to the 503 surface (/maintenance itself stays reachable). The
+  // /ops surface is exempt so operators can turn maintenance back off.
+  const maintenanceOn =
+    process.env.MAINTENANCE_MODE === '1' || (!pathname.startsWith('/ops') && (await dbMaintenanceOn()));
+  if (maintenanceOn && pathname !== '/maintenance' && !pathname.startsWith('/ops')) {
     const url = req.nextUrl.clone();
     url.pathname = '/maintenance';
     url.search = '';
     return NextResponse.rewrite(url, { status: 503 });
   }
-  if (process.env.MAINTENANCE_MODE !== '1' && pathname === '/maintenance') {
+  if (!maintenanceOn && pathname === '/maintenance') {
     // Not in maintenance → don't leave a stale bookmark surface up; go home.
     return NextResponse.redirect(new URL('/projects', req.url));
   }

@@ -1,5 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { emailTemplates, type EmailContent } from './email-templates';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  emailTemplates,
+  renderOverride,
+  type EmailContent,
+  type EmailTemplateName,
+} from './email-templates';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * STAKES/S-3 (F1) — transactional email sender.
@@ -9,6 +15,15 @@ import { emailTemplates, type EmailContent } from './email-templates';
  * subject and records the send so it can be asserted in tests. Like
  * AuditService, `deliver()` never throws: a mail failure must not fail the
  * money action that triggered it.
+ *
+ * OPS-GAPS Y2 — DB template overrides. Every typed helper now routes through a
+ * KEYED path (`deliverKeyed`): if an EmailTemplateOverride row exists for the
+ * key, its Arabic subject/body replaces the code default (wrapped in the shared
+ * layout via renderOverride); otherwise the code default is sent BYTE-FOR-BYTE.
+ * Overrides are cached for 60s (invalidated by the governed comms ops). The
+ * PrismaService injection is @Optional so `new EmailService()` (unit tests, the
+ * dev seam) stays override-free — with no client there is no override, so the
+ * behaviour is identical to before this change.
  */
 @Injectable()
 export class EmailService {
@@ -20,10 +35,65 @@ export class EmailService {
   private readonly fromAddr = process.env.EMAIL_FROM ?? 'no-reply@wathba.sa';
   private readonly appUrl = process.env.APP_PUBLIC_URL ?? 'https://wathba.sa';
 
+  /** 60s override cache: key → the operator's stored Arabic copy. */
+  private static readonly OVERRIDE_TTL_MS = 60_000;
+  private overrideCache: Map<string, { subjectAr: string; bodyAr: string }> | null = null;
+  private overrideCacheAt = 0;
+
+  constructor(@Optional() private readonly prisma?: PrismaService) {}
+
   /** Last N stubbed sends — test/observability hook (bounded, in-memory).
    *  html included: the dev-mailbox seam (STAKES/S-12) lets e2e suites read
    *  verification links out of the stubbed outbox. Stub mode only. */
   readonly sent: Array<{ to: string; subject: string; html: string }> = [];
+
+  /** Drop the cached overrides — the governed comms ops call this in
+   *  afterCommit so an edit is visible immediately, not up to 60s later. */
+  invalidateTemplateCache(): void {
+    this.overrideCache = null;
+    this.overrideCacheAt = 0;
+  }
+
+  /** All override rows, memoised for 60s. A load failure (or no Prisma client)
+   *  yields an empty map — mail then falls back to the code default, never
+   *  fails: the same fail-safe posture as deliver(). */
+  private async loadOverrides(): Promise<Map<string, { subjectAr: string; bodyAr: string }>> {
+    const now = Date.now();
+    if (this.overrideCache && now - this.overrideCacheAt < EmailService.OVERRIDE_TTL_MS) {
+      return this.overrideCache;
+    }
+    const map = new Map<string, { subjectAr: string; bodyAr: string }>();
+    if (this.prisma) {
+      try {
+        const rows = await this.prisma.emailTemplateOverride.findMany({
+          select: { key: true, subjectAr: true, bodyAr: true },
+        });
+        for (const r of rows) map.set(r.key, { subjectAr: r.subjectAr, bodyAr: r.bodyAr });
+      } catch (e) {
+        this.logger.warn(`template override load failed: ${String(e)}`);
+      }
+    }
+    this.overrideCache = map;
+    this.overrideCacheAt = now;
+    return map;
+  }
+
+  /** The effective content for a key: the DB override (if any) rendered into
+   *  the shared layout, else the code default UNCHANGED. */
+  private async applyOverride(key: string, def: EmailContent): Promise<EmailContent> {
+    const override = (await this.loadOverrides()).get(key);
+    return override ? renderOverride(override.subjectAr, override.bodyAr) : def;
+  }
+
+  /** deliver() through the override plumbing — the single path every typed
+   *  helper takes. No override row ⇒ identical to `deliver(to, def)`. */
+  private async deliverKeyed(
+    key: EmailTemplateName,
+    to: string,
+    def: EmailContent,
+  ): Promise<{ sent: boolean; stubbed: boolean }> {
+    return this.deliver(to, await this.applyOverride(key, def));
+  }
 
   private hydrate(html: string): string {
     return html
@@ -56,69 +126,72 @@ export class EmailService {
     }
   }
 
-  // ---- typed helpers (build template + deliver) ----------------------------
-  verification(to: string, link: string) { return this.deliver(to, emailTemplates.verification(link)); }
-  passwordReset(to: string, link: string) { return this.deliver(to, emailTemplates.passwordReset(link)); }
-  welcome(to: string, name: string) { return this.deliver(to, emailTemplates.welcome(name)); }
-  accountActivated(to: string, name: string) { return this.deliver(to, emailTemplates.accountActivated(name)); }
-  duplicateSignup(to: string) { return this.deliver(to, emailTemplates.duplicateSignup()); }
-  passwordChanged(to: string) { return this.deliver(to, emailTemplates.passwordChanged()); }
-  emailChanged(to: string, newEmailMasked: string) { return this.deliver(to, emailTemplates.emailChanged(newEmailMasked)); }
+  // ---- typed helpers (build template + keyed deliver via override plumbing) --
+  verification(to: string, link: string) { return this.deliverKeyed('verification', to, emailTemplates.verification(link)); }
+  passwordReset(to: string, link: string) { return this.deliverKeyed('passwordReset', to, emailTemplates.passwordReset(link)); }
+  welcome(to: string, name: string) { return this.deliverKeyed('welcome', to, emailTemplates.welcome(name)); }
+  accountActivated(to: string, name: string) { return this.deliverKeyed('accountActivated', to, emailTemplates.accountActivated(name)); }
+  duplicateSignup(to: string) { return this.deliverKeyed('duplicateSignup', to, emailTemplates.duplicateSignup()); }
+  passwordChanged(to: string) { return this.deliverKeyed('passwordChanged', to, emailTemplates.passwordChanged()); }
+  emailChanged(to: string, newEmailMasked: string) { return this.deliverKeyed('emailChanged', to, emailTemplates.emailChanged(newEmailMasked)); }
   creatorNewProject(to: string, d: { creatorName: string; projectTitle: string; link: string }) {
-    return this.deliver(to, emailTemplates.creatorNewProject(d));
+    return this.deliverKeyed('creatorNewProject', to, emailTemplates.creatorNewProject(d));
   }
   emailChangeVerify(to: string, link: string) {
-    return this.deliver(to, emailTemplates.emailChangeVerify(link));
+    return this.deliverKeyed('emailChangeVerify', to, emailTemplates.emailChangeVerify(link));
   }
   captureGrace(to: string, d: { projectTitle: string; amountHalalas: number; bnpl: boolean; link: string }) {
-    return this.deliver(to, emailTemplates.captureGrace(d));
+    return this.deliverKeyed('captureGrace', to, emailTemplates.captureGrace(d));
   }
   captureFailed(to: string, d: { projectTitle: string; amountHalalas: number }) {
-    return this.deliver(to, emailTemplates.captureFailed(d));
+    return this.deliverKeyed('captureFailed', to, emailTemplates.captureFailed(d));
   }
   newDeviceSignin(to: string) {
-    return this.deliver(to, emailTemplates.newDeviceSignin());
+    return this.deliverKeyed('newDeviceSignin', to, emailTemplates.newDeviceSignin());
   }
   milestoneReleased(to: string, d: { projectTitle: string; milestoneTitle: string; amountHalalas: number }) {
-    return this.deliver(to, emailTemplates.milestoneReleased(d));
+    return this.deliverKeyed('milestoneReleased', to, emailTemplates.milestoneReleased(d));
   }
+  // Money-adjacent (pledgeReceipt/projectFunded/projectFailed/refundCompleted/
+  // payoutSent) — same keyed pass-through; with no override row the delivered
+  // subject/html are byte-identical to before (asserted in the spec).
   pledgeReceipt(to: string, d: { projectTitle: string; amountHalalas: number; tierTitle?: string | null }) {
-    return this.deliver(to, emailTemplates.pledgeReceipt(d));
+    return this.deliverKeyed('pledgeReceipt', to, emailTemplates.pledgeReceipt(d));
   }
   projectFunded(to: string, d: { projectTitle: string; amountHalalas: number }) {
-    return this.deliver(to, emailTemplates.projectFunded(d));
+    return this.deliverKeyed('projectFunded', to, emailTemplates.projectFunded(d));
   }
   projectFailed(to: string, d: { projectTitle: string; amountHalalas: number }) {
-    return this.deliver(to, emailTemplates.projectFailed(d));
+    return this.deliverKeyed('projectFailed', to, emailTemplates.projectFailed(d));
   }
   refundCompleted(to: string, d: { projectTitle: string; amountHalalas: number }) {
-    return this.deliver(to, emailTemplates.refundCompleted(d));
+    return this.deliverKeyed('refundCompleted', to, emailTemplates.refundCompleted(d));
   }
   payoutSent(to: string, d: { projectTitle: string; amountHalalas: number }) {
-    return this.deliver(to, emailTemplates.payoutSent(d));
+    return this.deliverKeyed('payoutSent', to, emailTemplates.payoutSent(d));
   }
   projectReviewed(to: string, d: { projectTitle: string; approved: boolean; feedback?: string | null }) {
-    return this.deliver(to, emailTemplates.projectReviewed(d));
+    return this.deliverKeyed('projectReviewed', to, emailTemplates.projectReviewed(d));
   }
   // Batch OPS (registry completion) — account lifecycle + support desk.
   accountSuspended(to: string, d: { banned: boolean; reasonAr?: string | null }) {
-    return this.deliver(to, emailTemplates.accountSuspended(d));
+    return this.deliverKeyed('accountSuspended', to, emailTemplates.accountSuspended(d));
   }
   accountReactivated(to: string, name: string) {
-    return this.deliver(to, emailTemplates.accountReactivated(name));
+    return this.deliverKeyed('accountReactivated', to, emailTemplates.accountReactivated(name));
   }
   supportReply(to: string, d: { name: string; topic: string; replyAr: string }) {
-    return this.deliver(to, emailTemplates.supportReply(d));
+    return this.deliverKeyed('supportReply', to, emailTemplates.supportReply(d));
   }
   // OPS-GAPS R2 — RFQ award.
   rfqAwarded(to: string, d: { projectTitle: string }) {
-    return this.deliver(to, emailTemplates.rfqAwarded(d));
+    return this.deliverKeyed('rfqAwarded', to, emailTemplates.rfqAwarded(d));
   }
   // OPS-GAPS R1 — appeals lifecycle.
   appealReceived(to: string, d: { kindAr: string }) {
-    return this.deliver(to, emailTemplates.appealReceived(d));
+    return this.deliverKeyed('appealReceived', to, emailTemplates.appealReceived(d));
   }
   appealDecided(to: string, d: { kindAr: string; outcomeAr: string; reasonAr: string }) {
-    return this.deliver(to, emailTemplates.appealDecided(d));
+    return this.deliverKeyed('appealDecided', to, emailTemplates.appealDecided(d));
   }
 }

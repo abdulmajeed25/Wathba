@@ -1,6 +1,9 @@
 import Link from 'next/link';
 
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
+import { CommsPanel, type TemplateListItem } from './comms-panel';
+import { NOTIFICATION_DISABLED_KINDS_KEY } from './comms-labels';
+import { SettingsTabs } from './settings-tabs';
 import { SettingRow, type SettingItem } from './settings-form';
 
 /**
@@ -40,9 +43,12 @@ const ENV_MANAGED: Array<{ nameAr: string; keyHint: string; whyAr: string }> = [
   },
 ];
 
+/** Communications backend readiness — drives the amber degrade states. */
+type CommsState = 'ok' | 'building' | 'refused' | 'down';
+
 export default async function OpsSettingsPage() {
   await requireAdmin();
-  const { opsToken } = await requireOpsSession();
+  const { opsToken, info } = await requireOpsSession();
 
   let items: SettingItem[] = [];
   let refused = false;
@@ -58,40 +64,51 @@ export default async function OpsSettingsPage() {
     /* API unreachable — refused/empty states render below */
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold">الإعدادات</h1>
-          <p className="mt-1 text-sm text-[#8b949e]">
-            إعدادات المنصة المدعومة بقاعدة البيانات — التعديل عملية محوكمة (settings.update) قابلة
-            للعكس ومسجَّلة في التدقيق
-          </p>
-        </div>
-        <Link href="/ops" className="text-sm text-[#58a6ff] hover:underline">
-          ← العودة للمركز
-        </Link>
-      </div>
+  // The disabledKinds value lives in the same catalog; read it here and hide it
+  // from the catalog list (it's managed on the «الاتصالات» tab instead).
+  const disabledRow = items.find((it) => it.key === NOTIFICATION_DISABLED_KINDS_KEY);
+  const disabledKinds = Array.isArray(disabledRow?.value)
+    ? (disabledRow!.value as unknown[]).map(String)
+    : [];
+  const catalogItems = items.filter((it) => it.key !== NOTIFICATION_DISABLED_KINDS_KEY);
 
-      {refused ? (
-        <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-          تفتقد صلاحية القراءة (settings.write أو analytics.read) لعرض الإعدادات.
-        </p>
-      ) : (
-        <section className="grid gap-4">
-          {items.length === 0 ? (
-            <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]">
-              لا إعدادات لعرضها (الخادم غير متاح).
-            </p>
-          ) : (
-            items.map((it) => <SettingRow key={it.key} item={it} />)
-          )}
-        </section>
-      )}
+  // Email templates — degrade to amber on 404/403 rather than fabricate.
+  let templates: TemplateListItem[] = [];
+  let commsState: CommsState = 'ok';
+  try {
+    const r = await fetch(`${API_BASE}/v1/ops/comms/templates`, {
+      headers: { 'x-ops-token': opsToken },
+      cache: 'no-store',
+    });
+    if (r.status === 404) commsState = 'building';
+    else if (r.status === 403) commsState = 'refused';
+    else if (r.ok) templates = ((await r.json()) as { items: TemplateListItem[] }).items ?? [];
+    else commsState = 'down';
+  } catch {
+    commsState = 'down';
+  }
+
+  const catalogPanel = refused ? (
+    <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+      تفتقد صلاحية القراءة (settings.write أو analytics.read) لعرض الإعدادات.
+    </p>
+  ) : (
+    <>
+      <section className="grid gap-4">
+        {catalogItems.length === 0 ? (
+          <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]">
+            لا إعدادات لعرضها (الخادم غير متاح).
+          </p>
+        ) : (
+          catalogItems.map((it) => <SettingRow key={it.key} item={it} />)
+        )}
+      </section>
 
       {/* env-managed — informational, never editable here */}
-      <section className="space-y-3">
-        <h2 className="text-base font-bold">إعدادات مملوكة للكود/البيئة (غير قابلة للتعديل هنا)</h2>
+      <section className="mt-6 space-y-3">
+        <h2 className="text-base font-bold">
+          إعدادات مملوكة للكود/البيئة (غير قابلة للتعديل هنا)
+        </h2>
         <p className="text-xs text-[#8b949e]">
           هذه العناصر لا تُمثَّل في كتالوج قاعدة البيانات عمداً — صف قاعدة بيانات يجب ألّا يقدر على
           تعديلها. تُعرض هنا للعلم فقط.
@@ -121,6 +138,42 @@ export default async function OpsSettingsPage() {
           </table>
         </div>
       </section>
+    </>
+  );
+
+  const commsPanel =
+    commsState === 'refused' ? (
+      <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        تفتقد صلاحية settings.write لإدارة الاتصالات.
+      </p>
+    ) : commsState === 'building' || commsState === 'down' ? (
+      <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        قيد الإنشاء — واجهة الاتصالات في الخادم غير متاحة بعد.
+      </p>
+    ) : (
+      <CommsPanel
+        templates={templates}
+        disabledKinds={disabledKinds}
+        operatorEmail={info.email}
+      />
+    );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold">الإعدادات</h1>
+          <p className="mt-1 text-sm text-[#8b949e]">
+            إعدادات المنصة المدعومة بقاعدة البيانات — التعديل عملية محوكمة (settings.update) قابلة
+            للعكس ومسجَّلة في التدقيق
+          </p>
+        </div>
+        <Link href="/ops" className="text-sm text-[#58a6ff] hover:underline">
+          ← العودة للمركز
+        </Link>
+      </div>
+
+      <SettingsTabs catalog={catalogPanel} comms={commsPanel} />
     </div>
   );
 }

@@ -1,4 +1,29 @@
 import { z } from 'zod';
+import { NotificationKind } from '@prisma/client';
+
+/**
+ * OPS-GAPS Y2 — the transactional-critical / account-lifecycle / verification
+ * notification kinds that can NEVER be silenced via `notifications.disabledKinds`.
+ * These carry money-state (a charge, a refund, a payout, a campaign outcome) or
+ * an account/verification decision the recipient must always receive. The lock
+ * is enforced structurally: the zod schema of `notifications.disabledKinds`
+ * rejects any list containing one of these, so `settings.update` (the sole write
+ * path) cannot persist a disabled-set that includes a locked kind, and
+ * NotificationsService.create() applies the same set as defence-in-depth.
+ */
+export const LOCKED_NOTIFICATION_KINDS: readonly NotificationKind[] = [
+  NotificationKind.PLEDGE_RECEIVED,
+  NotificationKind.REFUND_COMPLETED,
+  NotificationKind.PAYOUT_SENT,
+  NotificationKind.PROJECT_FUNDED,
+  NotificationKind.PROJECT_FAILED,
+  NotificationKind.ACCOUNT_SUSPENDED,
+  NotificationKind.ACCOUNT_REACTIVATED,
+  NotificationKind.APPEAL_DECIDED,
+  NotificationKind.SUPPLIER_VERIFIED,
+] as const;
+
+const LOCKED_NOTIFICATION_KIND_SET = new Set<string>(LOCKED_NOTIFICATION_KINDS);
 
 /**
  * Batch OPS (registry completion) — the typed catalog of DB-backed platform
@@ -113,6 +138,67 @@ export const SETTINGS_CATALOG = {
       'عند التفعيل يُلزَم كل مشرف بالتحقق الثنائي (TOTP) للدخول إلى مركز العمليات. متغير البيئة OPS_TOTP_REQUIRED يبقى تجاوزاً: «1» يُلزم دائماً، «0» يعطّل دائماً (مخرج التطوير/الاختبار)، وعند غياب التجاوز يُفعِّل هذا المفتاح الإلزام. الافتراضي مشتق من OPS_TOTP_REQUIRED=1.',
     schema: z.boolean(),
     defaultValue: process.env.OPS_TOTP_REQUIRED === '1',
+  },
+  // OPS-GAPS Y2 — per-notification-kind enablement. An operator may silence
+  // engagement/low-stakes kinds by listing their enum names here; the schema
+  // itself rejects any locked (transactional/account/verification) kind, so a
+  // critical notice can never be turned off from the ops surface.
+  'notifications.disabledKinds': {
+    key: 'notifications.disabledKinds',
+    titleAr: 'أنواع الإشعارات المُعطَّلة',
+    descriptionAr:
+      'قائمة بأسماء أنواع الإشعارات (NotificationKind) التي يُمنع إنشاؤها. الافتراضي فارغ (كل الأنواع مفعّلة). لا يمكن إدراج نوع حرج (معاملات/حساب/تحقّق) — يرفض المخطط الحفظ. تعطيل نوع يوقف إنشاء إشعاراته الجديدة فوراً دون مساس بالقائمة.',
+    schema: z
+      .array(z.string())
+      .refine((kinds) => kinds.every((k) => !LOCKED_NOTIFICATION_KIND_SET.has(k)), {
+        message:
+          'لا يمكن تعطيل نوع إشعار حرج (معاملات/حساب/تحقّق) — أزِل الأنواع المحمية من القائمة',
+      }),
+    defaultValue: [] as string[],
+  },
+  // OPS-GAPS Y2 — funding grace window (hours). Default 72 == current code
+  // (EscrowService.GRACE_MS + the BNPL deferred-initiation window). Read as a
+  // number of hours and converted to ms at the consumption sites.
+  'funding.graceWindowHours': {
+    key: 'funding.graceWindowHours',
+    titleAr: 'نافذة المهلة للسحب المتعثّر (ساعات)',
+    descriptionAr:
+      'المدة (بالساعات) التي يُمنحها الداعم لتحديث وسيلة الدفع بعد تعثّر السحب أو لإكمال التقسيط المؤجّل قبل اعتبار التعهد فاشلاً (FAILED_CAPTURE). الافتراضي ٧٢ ساعة — نفس السلوك الحالي.',
+    schema: z.number().int().positive(),
+    defaultValue: 72,
+  },
+  // OPS-GAPS Y2 — card re-authorization age (days). Default from
+  // REAUTH_AFTER_DAYS env (~6), matching ReauthScheduler.
+  'funding.reauthAfterDays': {
+    key: 'funding.reauthAfterDays',
+    titleAr: 'عمر إعادة التفويض للبطاقة (أيام)',
+    descriptionAr:
+      'عمر تفويض البطاقة (بالأيام) الذي يُعاد بعده التفويض للحملات الطويلة. الافتراضي من متغير البيئة REAUTH_AFTER_DAYS (≈٦ أيام). خفض القيمة يعيد التفويض أبكر.',
+    schema: z.number().int().positive(),
+    defaultValue: Number(process.env.REAUTH_AFTER_DAYS ?? 6),
+  },
+  // OPS-GAPS Y2 — cumulative pause cap per campaign (days). Default 7 ==
+  // current FundingService.PAUSE_CAP_MS.
+  'funding.pauseCapDays': {
+    key: 'funding.pauseCapDays',
+    titleAr: 'سقف الإيقاف المؤقت للحملة (أيام)',
+    descriptionAr:
+      'إجمالي المدة (بالأيام) المسموح بإيقاف الحملة خلالها تراكمياً. الافتراضي ٧ أيام — نفس السلوك الحالي. تجاوزه يمنع إيقافاً جديداً.',
+    schema: z.number().int().positive(),
+    defaultValue: 7,
+  },
+  // OPS-GAPS Y2 — DB-backed maintenance mode. Was env-only (MAINTENANCE_MODE);
+  // now an operator can flip it without a deploy. The public GET
+  // /v1/platform/status exposes it, and the web middleware rewrites every
+  // request to /maintenance while it is on (the env var stays a hard override
+  // for infra-level lockdowns).
+  'platform.maintenanceMode': {
+    key: 'platform.maintenanceMode',
+    titleAr: 'وضع الصيانة',
+    descriptionAr:
+      'عند التفعيل تُحوَّل كل زيارة للموقع العام إلى صفحة الصيانة (يبقى مركز العمليات وواجهة الـAPI عاملَين). الافتراضي مُطفأ. متغير البيئة MAINTENANCE_MODE=1 يبقى تجاوزاً صارماً للإغلاق على مستوى البنية.',
+    schema: z.boolean(),
+    defaultValue: process.env.MAINTENANCE_MODE === '1',
   },
 } satisfies Record<string, SettingDef<unknown>>;
 

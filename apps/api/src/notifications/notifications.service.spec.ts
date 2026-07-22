@@ -1,6 +1,7 @@
 import { NotificationsService } from './notifications.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { EmailService } from '../email/email.service';
+import type { SettingsService } from '../settings/settings.service';
 
 /**
  * STAKES/S-11 F-05 — publish fan-out: followers get the CREATOR_NEW_PROJECT
@@ -34,8 +35,14 @@ describe('NotificationsService.fanOutProjectPublished', () => {
       notification: { createMany },
     } as unknown as PrismaService;
     const email = { creatorNewProject: jest.fn().mockResolvedValue({ sent: false, stubbed: true }) };
-    const service = new NotificationsService(prisma, email as unknown as EmailService);
-    return { service, prisma, email, createMany };
+    // OPS-GAPS Y2 — SettingsService stub: no kinds disabled by default.
+    const settings = { get: jest.fn().mockResolvedValue([]) };
+    const service = new NotificationsService(
+      prisma,
+      email as unknown as EmailService,
+      settings as unknown as SettingsService,
+    );
+    return { service, prisma, email, createMany, settings };
   }
 
   it('notifies opted-in followers (not the creator) with kind + dedupKey + email', async () => {
@@ -73,5 +80,59 @@ describe('NotificationsService.fanOutProjectPublished', () => {
     expect(res).toEqual({ notified: 0 });
     expect(createMany).not.toHaveBeenCalled();
     expect(email.creatorNewProject).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * OPS-GAPS Y2 — per-notification-kind enablement in create(): a disabled kind
+ * is skipped (returns null) UNLESS it is a locked transactional/account/
+ * verification kind, which always delivers.
+ */
+describe('NotificationsService.create — per-kind enablement', () => {
+  function build(disabled: string[]) {
+    const create = jest.fn().mockResolvedValue({ id: 'n-1' });
+    const prisma = { notification: { create } } as unknown as PrismaService;
+    const email = {} as unknown as EmailService;
+    const settings = { get: jest.fn().mockResolvedValue(disabled) };
+    const service = new NotificationsService(
+      prisma,
+      email,
+      settings as unknown as SettingsService,
+    );
+    return { service, create, settings };
+  }
+
+  it('skips (returns null) a disabled non-locked kind', async () => {
+    const { service, create } = build(['RANK_UP']);
+    const res = await service.create({
+      userId: 'u-1',
+      kind: 'RANK_UP' as never,
+      payload: {},
+    });
+    expect(res).toBeNull();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('still delivers a LOCKED kind even if the disabled-list somehow contains it', async () => {
+    // The catalog schema forbids saving this, but create() defends anyway.
+    const { service, create } = build(['REFUND_COMPLETED']);
+    const res = await service.create({
+      userId: 'u-1',
+      kind: 'REFUND_COMPLETED' as never,
+      payload: {},
+    });
+    expect(res).not.toBeNull();
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('delivers a non-disabled kind normally', async () => {
+    const { service, create } = build([]);
+    const res = await service.create({
+      userId: 'u-1',
+      kind: 'RANK_UP' as never,
+      payload: {},
+    });
+    expect(res).not.toBeNull();
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

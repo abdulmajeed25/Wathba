@@ -14,8 +14,13 @@ function emailMock(): any {
   return { refundCompleted: jest.fn().mockResolvedValue({}) };
 }
 
+// OPS-GAPS Y2 — SettingsService stub: grace window at its 72h catalog default.
+function settingsMock(): any {
+  return { get: jest.fn(async (key: string) => (key === 'funding.graceWindowHours' ? 72 : undefined)) };
+}
+
 function newSvc(prisma: any, moyasar: any, ledger: any = ledgerMock()): EscrowService {
-  return new EscrowService(prisma, moyasar, ledger, notificationsMock(), emailMock());
+  return new EscrowService(prisma, moyasar, ledger, notificationsMock(), emailMock(), settingsMock());
 }
 
 /**
@@ -174,7 +179,7 @@ function buildSvc(prisma: any, moyasar: any) {
   const ledger = ledgerMock();
   const notifications = notificationsMock();
   const email = emailMock();
-  const svc = new EscrowService(prisma, moyasar, ledger, notifications, email);
+  const svc = new EscrowService(prisma, moyasar, ledger, notifications, email, settingsMock());
   return { svc, ledger, notifications, email };
 }
 

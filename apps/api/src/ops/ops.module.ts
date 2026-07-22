@@ -43,6 +43,7 @@ import { procurementOps } from './operations/procurement.ops';
 import { milestonesOps } from './operations/milestones.ops';
 import { maintenanceOps } from './operations/maintenance.ops';
 import { appealsOps } from './operations/appeals.ops';
+import { commsOps } from './operations/comms.ops';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -188,6 +189,8 @@ export class OpsModule implements OnModuleInit {
         notifications: this.notifications,
         email: this.email,
       }),
+      // OPS-GAPS Y2 — email-template management (edit/reset/test-send).
+      ...commsOps({ prisma: this.prisma, email: this.email }),
     ];
     for (const def of defs) this.registry.register(def);
   }

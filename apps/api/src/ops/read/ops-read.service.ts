@@ -18,6 +18,7 @@ import {
 
 import { isExcludedCategory } from '../../categories/excluded';
 import { commissionBreakdown } from '../../config/fees';
+import { TEMPLATE_CATALOG, type EmailTemplateName } from '../../email/email-templates';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { OpsAuditService } from '../ops-audit.service';
@@ -60,6 +61,17 @@ function iso(d: Date | null | undefined): string | null {
 function snippet(s: string | null | undefined, n = 140): string | null {
   if (!s) return null;
   return s.length <= n ? s : `${s.slice(0, n)}…`;
+}
+
+/** Strip HTML tags + collapse whitespace → a readable text preview of a body.
+ *  (Email bodies are inline-styled HTML; the list only needs a plain snippet.) */
+function textPreview(html: string | null | undefined, n = 140): string | null {
+  if (!html) return null;
+  const text = html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return snippet(text, n);
 }
 
 /**
@@ -2231,5 +2243,65 @@ export class OpsReadService {
   async effectiveSettings() {
     const items = await this.settings.getAll();
     return { items };
+  }
+
+  /* ── 9. COMMS — email-template catalog (settings.write OR analytics.read) ── */
+
+  /**
+   * OPS-GAPS Y2 — browse every catalog template with its EFFECTIVE state:
+   * the DB override if one exists, otherwise the code default (catalog sample).
+   * READ-ONLY — one findMany over EmailTemplateOverride, joined in memory to
+   * the static catalog. `effectiveBodyPreview` is a plain-text snippet (tags
+   * stripped); the full body lives behind the per-key detail read.
+   */
+  async listCommsTemplates() {
+    const overrides = await this.prisma.emailTemplateOverride.findMany({
+      select: { key: true, subjectAr: true, bodyAr: true },
+    });
+    const byKey = new Map(overrides.map((o) => [o.key, o]));
+    const items = TEMPLATE_CATALOG.map((entry) => {
+      const ov = byKey.get(entry.key);
+      return {
+        key: entry.key,
+        labelAr: entry.labelAr,
+        critical: entry.critical,
+        variablesAr: entry.variablesAr,
+        hasOverride: !!ov,
+        effectiveSubject: ov ? ov.subjectAr : entry.sample.subject,
+        effectiveBodyPreview: ov ? textPreview(ov.bodyAr) : textPreview(entry.sample.html),
+      };
+    });
+    return { items };
+  }
+
+  /**
+   * OPS-GAPS Y2 — full detail for the template editor: the code DEFAULT
+   * (sample subject/body) AND the current override (raw subjectAr/bodyAr the
+   * editor loads), plus the interpolation tokens and critical flag.
+   */
+  async commsTemplateDetail(key: string) {
+    const entry = TEMPLATE_CATALOG.find((e) => e.key === (key as EmailTemplateName));
+    if (!entry) throw new NotFoundException('القالب غير موجود في الكتالوج');
+    const ov = await this.prisma.emailTemplateOverride.findUnique({ where: { key } });
+    return {
+      key: entry.key,
+      labelAr: entry.labelAr,
+      critical: entry.critical,
+      variablesAr: entry.variablesAr,
+      hasOverride: !!ov,
+      default: {
+        subject: entry.sample.subject,
+        // The rendered default (full layout html) — the preview pane source.
+        bodyHtml: entry.sample.html,
+      },
+      override: ov
+        ? {
+            subjectAr: ov.subjectAr,
+            bodyAr: ov.bodyAr,
+            updatedAt: iso(ov.updatedAt),
+            updatedById: ov.updatedById,
+          }
+        : null,
+    };
   }
 }

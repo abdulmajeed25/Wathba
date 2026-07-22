@@ -305,3 +305,254 @@ export const emailTemplates = {
 };
 
 export type EmailTemplateName = keyof typeof emailTemplates;
+
+/**
+ * OPS-GAPS Y2 — the template catalog. One descriptor per typed helper (the
+ * SAME keys EmailService routes through). It powers the operator's template
+ * browser/editor: a human label, whether the template is CRITICAL (locked —
+ * cannot be disabled by the kind-toggle agent), the interpolation tokens the
+ * default copy uses (so the editor can hint them), and a pre-rendered `sample`
+ * (placeholder args) for the preview pane. `sample` is what the read layer
+ * treats as the "effective" template when no DB override exists.
+ */
+export interface TemplateCatalogEntry {
+  key: EmailTemplateName;
+  labelAr: string;
+  /** Locked set — a critical (money/account-security) template can never be
+   *  disabled. Editing/overriding is still allowed; disabling is not. */
+  critical: boolean;
+  /** Interpolation tokens/fields the default copy uses — editor hints. */
+  variablesAr: string[];
+  /** Pre-rendered preview with placeholder args (subject + full layout html). */
+  sample: EmailContent;
+}
+
+/** The critical/locked set — money-adjacent + account-security templates. */
+export const CRITICAL_TEMPLATE_KEYS = [
+  'verification',
+  'passwordReset',
+  'pledgeReceipt',
+  'refundCompleted',
+  'payoutSent',
+  'projectFunded',
+  'projectFailed',
+] as const satisfies readonly EmailTemplateName[];
+
+const CRITICAL = new Set<EmailTemplateName>(CRITICAL_TEMPLATE_KEYS);
+const isCritical = (k: EmailTemplateName): boolean => CRITICAL.has(k);
+
+export const TEMPLATE_CATALOG: readonly TemplateCatalogEntry[] = [
+  {
+    key: 'verification',
+    labelAr: 'تفعيل الحساب',
+    critical: isCritical('verification'),
+    variablesAr: ['link'],
+    sample: emailTemplates.verification('{{APP_URL}}/verify?token=SAMPLE'),
+  },
+  {
+    key: 'passwordReset',
+    labelAr: 'إعادة تعيين كلمة المرور',
+    critical: isCritical('passwordReset'),
+    variablesAr: ['link'],
+    sample: emailTemplates.passwordReset('{{APP_URL}}/reset?token=SAMPLE'),
+  },
+  {
+    key: 'welcome',
+    labelAr: 'ترحيب بعد التوثيق',
+    critical: isCritical('welcome'),
+    variablesAr: ['name', '{{APP_URL}}'],
+    sample: emailTemplates.welcome('محمد'),
+  },
+  {
+    key: 'accountActivated',
+    labelAr: 'تفعيل الحساب (المستوى الأساسي)',
+    critical: isCritical('accountActivated'),
+    variablesAr: ['name', '{{APP_URL}}'],
+    sample: emailTemplates.accountActivated('محمد'),
+  },
+  {
+    key: 'duplicateSignup',
+    labelAr: 'محاولة تسجيل ببريد مسجّل',
+    critical: isCritical('duplicateSignup'),
+    variablesAr: ['{{APP_URL}}'],
+    sample: emailTemplates.duplicateSignup(),
+  },
+  {
+    key: 'passwordChanged',
+    labelAr: 'إشعار تغيير كلمة المرور',
+    critical: isCritical('passwordChanged'),
+    variablesAr: ['{{APP_URL}}'],
+    sample: emailTemplates.passwordChanged(),
+  },
+  {
+    key: 'emailChanged',
+    labelAr: 'إشعار تغيير البريد',
+    critical: isCritical('emailChanged'),
+    variablesAr: ['newEmailMasked'],
+    sample: emailTemplates.emailChanged('m•••@example.sa'),
+  },
+  {
+    key: 'creatorNewProject',
+    labelAr: 'مشروع جديد من مبدع تتابعه',
+    critical: isCritical('creatorNewProject'),
+    variablesAr: ['creatorName', 'projectTitle', 'link', '{{APP_URL}}', '{{PREFS_URL}}'],
+    sample: emailTemplates.creatorNewProject({
+      creatorName: 'ليلى',
+      projectTitle: 'مشروع تجريبي',
+      link: '/projects/sample',
+    }),
+  },
+  {
+    key: 'emailChangeVerify',
+    labelAr: 'تأكيد البريد الجديد',
+    critical: isCritical('emailChangeVerify'),
+    variablesAr: ['link'],
+    sample: emailTemplates.emailChangeVerify('{{APP_URL}}/email/verify?token=SAMPLE'),
+  },
+  {
+    key: 'captureGrace',
+    labelAr: 'مهلة سحب/تقسيط ٧٢ ساعة',
+    critical: isCritical('captureGrace'),
+    variablesAr: ['projectTitle', 'amountHalalas', 'bnpl', 'link'],
+    sample: emailTemplates.captureGrace({
+      projectTitle: 'مشروع تجريبي',
+      amountHalalas: 50000,
+      bnpl: false,
+      link: '{{APP_URL}}/pledge/fix',
+    }),
+  },
+  {
+    key: 'captureFailed',
+    labelAr: 'إلغاء التعهّد بعد انتهاء المهلة',
+    critical: isCritical('captureFailed'),
+    variablesAr: ['projectTitle', 'amountHalalas'],
+    sample: emailTemplates.captureFailed({ projectTitle: 'مشروع تجريبي', amountHalalas: 50000 }),
+  },
+  {
+    key: 'newDeviceSignin',
+    labelAr: 'تسجيل دخول من جهاز جديد',
+    critical: isCritical('newDeviceSignin'),
+    variablesAr: ['{{APP_URL}}'],
+    sample: emailTemplates.newDeviceSignin(),
+  },
+  {
+    key: 'milestoneReleased',
+    labelAr: 'صرف مرحلة',
+    critical: isCritical('milestoneReleased'),
+    variablesAr: ['projectTitle', 'milestoneTitle', 'amountHalalas', '{{PREFS_URL}}'],
+    sample: emailTemplates.milestoneReleased({
+      projectTitle: 'مشروع تجريبي',
+      milestoneTitle: 'المرحلة الأولى',
+      amountHalalas: 100000,
+    }),
+  },
+  {
+    key: 'pledgeReceipt',
+    labelAr: 'إيصال تعهّد',
+    critical: isCritical('pledgeReceipt'),
+    variablesAr: ['projectTitle', 'amountHalalas', 'tierTitle', '{{PREFS_URL}}'],
+    sample: emailTemplates.pledgeReceipt({
+      projectTitle: 'مشروع تجريبي',
+      amountHalalas: 50000,
+      tierTitle: 'الباقة الرقمية',
+    }),
+  },
+  {
+    key: 'projectFunded',
+    labelAr: 'نجاح الحملة',
+    critical: isCritical('projectFunded'),
+    variablesAr: ['projectTitle', 'amountHalalas', '{{PREFS_URL}}'],
+    sample: emailTemplates.projectFunded({ projectTitle: 'مشروع تجريبي', amountHalalas: 500000 }),
+  },
+  {
+    key: 'projectFailed',
+    labelAr: 'إخفاق الحملة وردّ المبلغ',
+    critical: isCritical('projectFailed'),
+    variablesAr: ['projectTitle', 'amountHalalas', '{{PREFS_URL}}'],
+    sample: emailTemplates.projectFailed({ projectTitle: 'مشروع تجريبي', amountHalalas: 500000 }),
+  },
+  {
+    key: 'refundCompleted',
+    labelAr: 'اكتمال ردّ المبلغ',
+    critical: isCritical('refundCompleted'),
+    variablesAr: ['projectTitle', 'amountHalalas', '{{PREFS_URL}}'],
+    sample: emailTemplates.refundCompleted({ projectTitle: 'مشروع تجريبي', amountHalalas: 50000 }),
+  },
+  {
+    key: 'payoutSent',
+    labelAr: 'تحويل دفعة',
+    critical: isCritical('payoutSent'),
+    variablesAr: ['projectTitle', 'amountHalalas', '{{PREFS_URL}}'],
+    sample: emailTemplates.payoutSent({ projectTitle: 'مشروع تجريبي', amountHalalas: 500000 }),
+  },
+  {
+    key: 'projectReviewed',
+    labelAr: 'نتيجة مراجعة المشروع',
+    critical: isCritical('projectReviewed'),
+    variablesAr: ['projectTitle', 'approved', 'feedback', '{{PREFS_URL}}'],
+    sample: emailTemplates.projectReviewed({ projectTitle: 'مشروع تجريبي', approved: true }),
+  },
+  {
+    key: 'accountSuspended',
+    labelAr: 'تعليق/حظر الحساب',
+    critical: isCritical('accountSuspended'),
+    variablesAr: ['banned', 'reasonAr'],
+    sample: emailTemplates.accountSuspended({ banned: false, reasonAr: 'مخالفة الشروط' }),
+  },
+  {
+    key: 'accountReactivated',
+    labelAr: 'إعادة تفعيل الحساب',
+    critical: isCritical('accountReactivated'),
+    variablesAr: ['name', '{{APP_URL}}'],
+    sample: emailTemplates.accountReactivated('محمد'),
+  },
+  {
+    key: 'supportReply',
+    labelAr: 'ردّ الدعم على تذكرة',
+    critical: isCritical('supportReply'),
+    variablesAr: ['name', 'topic', 'replyAr'],
+    sample: emailTemplates.supportReply({
+      name: 'محمد',
+      topic: 'الفوترة',
+      replyAr: 'شكراً لتواصلك، عالجنا المشكلة.',
+    }),
+  },
+  {
+    key: 'rfqAwarded',
+    labelAr: 'ترسية عرض توريد',
+    critical: isCritical('rfqAwarded'),
+    variablesAr: ['projectTitle', '{{APP_URL}}'],
+    sample: emailTemplates.rfqAwarded({ projectTitle: 'مشروع تجريبي' }),
+  },
+  {
+    key: 'appealReceived',
+    labelAr: 'استلام تظلّم',
+    critical: isCritical('appealReceived'),
+    variablesAr: ['kindAr'],
+    sample: emailTemplates.appealReceived({ kindAr: 'حظر حساب' }),
+  },
+  {
+    key: 'appealDecided',
+    labelAr: 'نتيجة تظلّم',
+    critical: isCritical('appealDecided'),
+    variablesAr: ['kindAr', 'outcomeAr', 'reasonAr'],
+    sample: emailTemplates.appealDecided({
+      kindAr: 'حظر حساب',
+      outcomeAr: 'رُفض',
+      reasonAr: 'لا يوجد مبرر كافٍ لإلغاء القرار.',
+    }),
+  },
+];
+
+/** The catalog keys as a z.enum-ready tuple (for the governed comms ops). */
+export const TEMPLATE_KEYS = TEMPLATE_CATALOG.map((e) => e.key) as [
+  EmailTemplateName,
+  ...EmailTemplateName[],
+];
+
+/** key → descriptor, for O(1) catalog lookups (preconditions/read layer). */
+export const TEMPLATE_CATALOG_BY_KEY: Record<EmailTemplateName, TemplateCatalogEntry> =
+  Object.fromEntries(TEMPLATE_CATALOG.map((e) => [e.key, e])) as Record<
+    EmailTemplateName,
+    TemplateCatalogEntry
+  >;

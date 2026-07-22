@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
+import { LOCKED_NOTIFICATION_KINDS } from '../settings/settings.catalog';
 import { NotificationKind, type Notification, type Prisma } from '@prisma/client';
 
 /**
@@ -35,6 +37,9 @@ const KIND_PREF: Partial<Record<NotificationKind, NotificationPrefKey>> = {
   [NotificationKind.COMMENT_REPLY]: 'comments',
 };
 
+/** OPS-GAPS Y2 — the never-silenceable kinds (also enforced in the catalog schema). */
+const LOCKED_KIND_SET = new Set<string>(LOCKED_NOTIFICATION_KINDS);
+
 export function resolvePrefs(raw: unknown): Record<NotificationPrefKey, boolean> {
   const out = { ...NOTIFICATION_PREF_DEFAULTS };
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -53,6 +58,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -150,6 +156,14 @@ export class NotificationsService {
     payload: Prisma.InputJsonValue;
     tx?: Pick<PrismaService, 'notification'>;
   }): Promise<Notification | null> {
+    // OPS-GAPS Y2 — per-kind enablement: an operator-disabled kind is skipped
+    // entirely, EXCEPT the locked transactional/account/verification kinds,
+    // which always deliver (the catalog schema also forbids listing them, so
+    // this guard is defence-in-depth against a hand-edited row).
+    if (!LOCKED_KIND_SET.has(input.kind)) {
+      const disabled = await this.settings.get('notifications.disabledKinds');
+      if (disabled.includes(input.kind)) return null;
+    }
     // STAKES/E2 — engagement kinds honor the per-type opt-out.
     const prefKey = KIND_PREF[input.kind];
     if (prefKey && !(await this.allows(input.userId, prefKey))) return null;
