@@ -98,6 +98,14 @@ export const SETTINGS_CATALOG = {
     schema: z.string().min(1),
     defaultValue: process.env.CONSENT_VERSION ?? '2026-06-28',
   },
+  'appeals.slaHours': {
+    key: 'appeals.slaHours',
+    titleAr: 'مهلة الرد على التظلّمات (ساعات)',
+    descriptionAr:
+      'المهلة (بالساعات) للبتّ في تظلّم مفتوح (SUBMITTED/UNDER_REVIEW) قبل اعتباره متأخراً. الافتراضي ٤٨ ساعة. تجاوزها يرفع علامة «متأخر» في قائمة التظلّمات وينشئ تنبيهاً في مركز الأنومالي (تحذيري، ويصبح حرجاً عند تجاوز ضعف المهلة).',
+    schema: z.number().int().positive(),
+    defaultValue: 48,
+  },
   'security.opsTotpRequired': {
     key: 'security.opsTotpRequired',
     titleAr: 'إلزام التحقق الثنائي لمركز العمليات',

@@ -1,6 +1,7 @@
 import type { ApiProjectDetail } from '@/lib/api/wathba';
 
 import { Num } from '../wathba-icons';
+import { ProjectRejectionAppeal } from './wathba-dashboard-appeal';
 
 const fmtSAR = (halalas: number): string =>
   `${(halalas / 100).toLocaleString('en-US')} ر.س`;
@@ -32,6 +33,13 @@ export function DashboardOverview({
         title="نظرة عامة"
         subtitle="ملخّص حيّ لتمويل الحملة، الداعمين، والأيام المتبقية."
       />
+
+      {project.status === 'REJECTED' ? (
+        <ProjectRejectionAppeal
+          projectId={project.id}
+          reviewFeedback={project.reviewFeedback ?? null}
+        />
+      ) : null}
 
       <div
         style={{

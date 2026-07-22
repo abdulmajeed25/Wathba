@@ -359,6 +359,28 @@ export class OpsReadController {
     });
   }
 
+  /* ── 3d. OPS-GAPS R1 — appeals queue (moderation.queue) ────────────────── */
+
+  @Get('appeals')
+  @ApiOperation({ summary: 'Appeals queue — filter status/kind, open-first + oldest-first, masked submitter' })
+  appeals(
+    @Req() req: OpsRequest,
+    @Query('status') status?: string,
+    @Query('kind') kind?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'moderation.queue');
+    return this.read.listAppeals({ status, kind, cursor, limit: toNum(limit) });
+  }
+
+  @Get('appeals/:id')
+  @ApiOperation({ summary: 'Appeal detail — original decision context + originalDeciderId (self-review guard)' })
+  appeal(@Req() req: OpsRequest, @Param('id') id: string) {
+    this.read.assertPermission(req.opsPrincipal, 'moderation.queue');
+    return this.read.appealDetail(id, req.opsPrincipal.userId);
+  }
+
   /* ── 4/5. money ────────────────────────────────────────────────────────── */
 
   @Get('money/pledges')

@@ -42,6 +42,7 @@ import { projectsLifecycleOps } from './operations/projects-lifecycle.ops';
 import { procurementOps } from './operations/procurement.ops';
 import { milestonesOps } from './operations/milestones.ops';
 import { maintenanceOps } from './operations/maintenance.ops';
+import { appealsOps } from './operations/appeals.ops';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -181,6 +182,12 @@ export class OpsModule implements OnModuleInit {
         email: this.email,
       }),
       ...maintenanceOps({ prisma: this.prisma, notifications: this.notifications }),
+      // OPS-GAPS R1 — appeals (four-eyes moderation review).
+      ...appealsOps({
+        prisma: this.prisma,
+        notifications: this.notifications,
+        email: this.email,
+      }),
     ];
     for (const def of defs) this.registry.register(def);
   }

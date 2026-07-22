@@ -38,6 +38,7 @@ import { CategoriesModule } from './categories/categories.module';
 import { DiscoverModule } from './discover/discover.module';
 import { CollectionsModule } from './collections/collections.module';
 import { EmailModule } from './email/email.module';
+import { AppealsModule } from './appeals/appeals.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { EmailModule } from './email/email.module';
     DiscoverModule,
     CollectionsModule,
     EmailModule,
+    AppealsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

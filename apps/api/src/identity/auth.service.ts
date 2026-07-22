@@ -25,6 +25,11 @@ export interface AuthResponse {
   /** Rotating refresh token (Sprint 2 / P1-502) — httpOnly-cookie material. */
   refreshToken: string;
   user: Record<string, unknown>;
+  /** OPS-GAPS R1 — set when the account is suspended/banned: the token grants
+   *  NO product access (jwt.strategy rejects it everywhere), only the appeal
+   *  surface (AppealAccessGuard). The web routes such a session to the locked
+   *  «تقديم تظلّم» page. */
+  suspended?: boolean;
 }
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -231,11 +236,17 @@ export class AuthService {
       this.recordFailure(key);
       throw new UnauthorizedException('invalid credentials');
     }
-    // Batch OPS — a suspended/banned account never gets a token. Checked
-    // AFTER the password so the refusal is explicit (the caller proved
-    // ownership; enumeration is not a concern here).
+    // OPS-GAPS R1 — a suspended/banned account no longer gets a hard 401 at
+    // sign-in: that would leave a banned user with no way to reach the appeal
+    // surface. Instead it receives a SUSPENDED-flagged token whose only use is
+    // the appeal endpoints (AppealAccessGuard); jwt.strategy still rejects it
+    // on every normal route, so it grants zero product access. The web routes
+    // this session to the locked «تقديم تظلّم» page. (Checked after the
+    // password, so only the real owner ever gets even this locked token.)
     if (user.suspendedAt) {
-      throw new UnauthorizedException('الحساب موقوف');
+      this.failedAttempts.delete(key);
+      const issued = await this.issue(user.id, user.email, user.roles);
+      return { ...issued, suspended: true };
     }
     // Success — clear the per-email counter.
     this.failedAttempts.delete(key);

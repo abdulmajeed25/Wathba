@@ -45,18 +45,18 @@ async function enterOps(page: import('@playwright/test').Page): Promise<void> {
 
 const NAV_LABELS = [
   'المركز', 'التنبيهات', 'المشاريع', 'المراجعة', 'المال', 'المستخدمون', 'الثقة والأمان',
-  'الفئات', 'التحرير', 'المجموعات', 'المورّدون', 'التحليلات', 'الإشعارات',
+  'التظلّمات', 'الفئات', 'التحرير', 'المجموعات', 'المورّدون', 'التحليلات', 'الإشعارات',
   'تسليم المكافآت', 'المسابقات', 'الإعدادات', 'سجل التدقيق', 'الدعم', 'الوكلاء', 'الفريق',
 ];
 
-test('the side nav renders all 20 sections', async ({ page }) => {
+test('the side nav renders all 21 sections', async ({ page }) => {
   test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
   await enterOps(page);
   const nav = page.getByRole('navigation', { name: 'أقسام مركز العمليات' });
   for (const label of NAV_LABELS) {
     await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
   }
-  await expect(nav.getByRole('link')).toHaveCount(20);
+  await expect(nav.getByRole('link')).toHaveCount(21);
 });
 
 test('Ctrl+K opens the command palette and filters', async ({ page }) => {

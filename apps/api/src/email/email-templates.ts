@@ -118,6 +118,25 @@ export const emailTemplates = {
         <p style="font-size:13px;color:#5d6b62;margin-top:14px">يمكنك الرد بمراسلة support@wathba.sa مباشرة.</p>`),
     };
   },
+  /** OPS-GAPS R1 — confirmation that an appeal was received. */
+  appealReceived(d: { kindAr: string }): EmailContent {
+    return {
+      subject: `${BRAND} — استلمنا تظلّمك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">استلمنا تظلّمك</h1>
+        <p>وصلنا تظلّمك بخصوص ${d.kindAr}. سيراجعه فريق مختلف عن الذي اتّخذ القرار الأصلي، وسنُعلمك بالنتيجة.</p>
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">لا حاجة لإرسال تظلّم آخر — لكل قرار تظلّم واحد.</p>`),
+    };
+  },
+  /** OPS-GAPS R1 — the appeal decision (outcome + written reason). */
+  appealDecided(d: { kindAr: string; outcomeAr: string; reasonAr: string }): EmailContent {
+    return {
+      subject: `${BRAND} — نتيجة تظلّمك: ${d.outcomeAr}`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">نتيجة تظلّمك</h1>
+        <p>بخصوص تظلّمك حول ${d.kindAr}، القرار: <strong>${d.outcomeAr}</strong>.</p>
+        <div style="background:#f4f6f1;border-radius:12px;padding:14px 16px;margin:10px 0">${d.reasonAr}</div>
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">هذا القرار نهائي على هذا التظلّم.</p>`),
+    };
+  },
   /** STAKES/S-15 (A7/hybrid) — sent when the emailed link activates the
    *  account (baseline tier). The KYC-tier notice below stays on Nafath. */
   accountActivated(name: string): EmailContent {

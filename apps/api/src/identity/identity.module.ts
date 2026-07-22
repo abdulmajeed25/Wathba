@@ -10,6 +10,7 @@ import { NafathController } from './nafath.controller';
 import { ProfilesController } from './profiles.controller';
 import { NafathService } from './nafath.service';
 import { PdplService } from './pdpl.service';
+import { AppealAccessGuard } from './appeal-access.guard';
 import { JwtStrategy } from './jwt.strategy';
 import { AuditService } from './audit.service';
 import { SettingsModule } from '../settings/settings.module';
@@ -49,7 +50,7 @@ import { SettingsModule } from '../settings/settings.module';
     }),
   ],
   controllers: [AuthController, UsersController, NafathController, ProfilesController],
-  providers: [AuthService, UsersService, NafathService, PdplService, AuditService, JwtStrategy],
-  exports: [AuthService, UsersService, AuditService, PdplService, JwtStrategy, PassportModule, JwtModule],
+  providers: [AuthService, UsersService, NafathService, PdplService, AuditService, JwtStrategy, AppealAccessGuard],
+  exports: [AuthService, UsersService, AuditService, PdplService, JwtStrategy, AppealAccessGuard, PassportModule, JwtModule],
 })
 export class IdentityModule {}

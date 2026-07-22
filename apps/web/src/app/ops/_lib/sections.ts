@@ -18,7 +18,12 @@
  */
 
 /** Live-count fields the nav reads off /v1/ops/dashboard.workQueue. */
-export type BadgeKey = 'projectsUnderReview' | 'money' | 'reportsOpen' | 'ticketsOpen';
+export type BadgeKey =
+  | 'projectsUnderReview'
+  | 'money'
+  | 'reportsOpen'
+  | 'ticketsOpen'
+  | 'appealsOpen';
 
 export interface OpsSection {
   href: string;
@@ -60,7 +65,10 @@ export const OPS_GROUPS: OpsGroup[] = [
   },
   {
     labelAr: 'الثقة والأمان',
-    items: [{ href: '/ops/trust', labelAr: 'الثقة والأمان', hintAr: 'البلاغات والإشراف', badgeKey: 'reportsOpen' }],
+    items: [
+      { href: '/ops/trust', labelAr: 'الثقة والأمان', hintAr: 'البلاغات والإشراف', badgeKey: 'reportsOpen' },
+      { href: '/ops/appeals', labelAr: 'التظلّمات', hintAr: 'مراجعة تظلّمات الحظر والرفض', badgeKey: 'appealsOpen' },
+    ],
   },
   {
     labelAr: 'الأشخاص',

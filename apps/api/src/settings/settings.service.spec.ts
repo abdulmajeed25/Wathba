@@ -125,6 +125,22 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('OPS-GAPS R1 — appeals SLA key', () => {
+    it('defaults appeals.slaHours to 48 and accepts a positive-int override', async () => {
+      await expect(build([]).svc.get('appeals.slaHours')).resolves.toBe(48);
+      expect(SETTINGS_CATALOG['appeals.slaHours'].defaultValue).toBe(48);
+      await expect(
+        build([{ key: 'appeals.slaHours', value: 72 }]).svc.get('appeals.slaHours'),
+      ).resolves.toBe(72);
+    });
+
+    it('a non-positive appeals.slaHours row degrades to the 48h default', async () => {
+      jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+      const { svc } = build([{ key: 'appeals.slaHours', value: 0 }]); // fails .positive()
+      await expect(svc.get('appeals.slaHours')).resolves.toBe(48);
+    });
+  });
+
   it('getAll() labels each key with its effective value + source', async () => {
     const { svc } = build([{ key: 'pledges.maxHalalas', value: 500_000 }]);
     const all = await svc.getAll();
