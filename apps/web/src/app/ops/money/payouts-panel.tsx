@@ -9,7 +9,8 @@ import { OpRunner } from '../_components/op-runner';
 interface PayoutRow {
   id: string;
   projectId: string;
-  creatorHandle?: string | null;
+  // The read API joins the creator nested (ops-read.service.ts:467).
+  creator?: { id: string; name: string | null; handle: string | null } | null;
   amountHalalas: string;
   netHalalas: string | null;
   feeWithheldHalalas: string | null;
@@ -120,8 +121,8 @@ export async function PayoutsPanel({
             {rows.map((p) => (
               <tr key={p.id}>
                 <td className="px-3 py-2">
-                  <Link href={`/ops/projects/${p.projectId}`} className="text-[#58a6ff] hover:underline font-mono text-[11px]">
-                    {p.projectId.slice(0, 8)}…
+                  <Link href={`/ops/projects/${p.projectId}`} className="text-[#58a6ff] hover:underline">
+                    {p.creator?.name ?? p.creator?.handle ?? `${p.projectId.slice(0, 8)}…`}
                   </Link>
                 </td>
                 <td className="px-3 py-2 tabular-nums">{formatSar(p.amountHalalas)}</td>

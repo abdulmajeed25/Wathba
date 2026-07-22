@@ -9,7 +9,8 @@ import { OpRunner } from '../_components/op-runner';
 interface PledgeRow {
   id: string;
   projectId: string;
-  backerEmail?: string | null;
+  // The read API returns the backer nested + PII-masked (ops-read.service.ts:436).
+  backer?: { id: string; name: string; email: string | null } | null;
   amountHalalas: string;
   addOnsHalalas: string;
   status: string;
@@ -148,7 +149,7 @@ export async function RefundsPanel({
                   </Link>
                 </td>
                 <td className="px-3 py-2 text-[#8b949e]" dir="ltr">
-                  {p.backerEmail ?? '—'}
+                  {p.backer?.email ?? '—'}
                 </td>
                 <td className="px-3 py-2 tabular-nums">{formatSar(p.amountHalalas)}</td>
                 <td className="px-3 py-2">{p.paymentMethod}</td>
