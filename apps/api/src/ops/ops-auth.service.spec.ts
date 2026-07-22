@@ -8,6 +8,7 @@ import { ipAllowed, normalizeIp } from './ops-session.guard';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuditService } from '../identity/audit.service';
 import type { ConfigService } from '@nestjs/config';
+import type { SettingsService } from '../settings/settings.service';
 
 /**
  * OPS Part 1 — the hardened-session tests ARE the deliverable:
@@ -35,7 +36,7 @@ interface SessionRow {
   ip: string | null;
 }
 
-function build(env: Record<string, string> = {}) {
+function build(env: Record<string, string> = {}, opsTotpRequired = false) {
   const users: Record<string, { passwordHash: string; email: string; roles: string[] }> = {
     [ADMIN_ID]: { passwordHash: HASH, email: 'ops@wathba.sa', roles: ['ADMIN', 'BACKER'] },
   };
@@ -110,13 +111,18 @@ function build(env: Record<string, string> = {}) {
     hasMoneyPermission: (perms: readonly string[]) =>
       perms.some((p) => ['*', 'money.execute', 'money.approve'].includes(p)),
   };
+  // Batch OPS (Unit 6) — SettingsService stub. Default false so the env/RBAC
+  // logic is exercised unchanged; specs that assert the settings lever override
+  // opsTotpRequired.
+  const settings = { get: jest.fn(async () => opsTotpRequired) };
   const svc = new OpsAuthService(
     prisma as unknown as PrismaService,
     audit as unknown as AuditService,
     cfg as unknown as ConfigService,
     rbac as unknown as OpsRbacService,
+    settings as unknown as SettingsService,
   );
-  return { svc, prisma, audit, sessions, users, env, rbacPermissions };
+  return { svc, prisma, audit, sessions, users, env, rbacPermissions, settings };
 }
 
 const enterInput = (extra: Partial<{ password: string; totp: string }> = {}) => ({
@@ -154,6 +160,22 @@ describe('OpsAuthService — enter (دخول إلى مركز العمليات)',
     const out = await svc.enter(enterInput());
     expect(out.totpPending).toBe(true);
     expect(sessions[0]!.stepUpAt).toBeNull();
+  });
+
+  // Batch OPS (Unit 6) — the governed security.opsTotpRequired setting can turn
+  // TOTP on for every admin when the env is unset; the env stays a hard override.
+  it('security.opsTotpRequired setting forces TOTP-pending when the env is unset', async () => {
+    const { svc, sessions } = build({}, true);
+    const out = await svc.enter(enterInput());
+    expect(out.totpPending).toBe(true);
+    expect(sessions[0]!.stepUpAt).toBeNull();
+  });
+
+  it('OPS_TOTP_REQUIRED=0 still overrides the setting (dev/e2e escape hatch survives)', async () => {
+    const { svc, sessions } = build({ OPS_TOTP_REQUIRED: '0' }, true);
+    const out = await svc.enter(enterInput());
+    expect(out.totpPending).toBe(false);
+    expect(sessions[0]!.stepUpAt).toBeInstanceOf(Date);
   });
 });
 

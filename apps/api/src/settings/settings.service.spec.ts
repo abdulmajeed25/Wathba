@@ -68,6 +68,63 @@ describe('SettingsService', () => {
     expect(prisma.platformSetting.findMany).toHaveBeenCalledTimes(2);
   });
 
+  // Batch OPS (Unit 6) — the expanded policy-knob catalog.
+  describe('Unit 6 policy knobs', () => {
+    it('exposes each new key at its behaviour-preserving default', async () => {
+      const { svc } = build([]);
+      await expect(svc.get('projects.fundingGoalMinHalalas')).resolves.toBe(10_000);
+      await expect(svc.get('projects.durationSelfServeMaxDays')).resolves.toBe(60);
+      await expect(svc.get('projects.durationHardMaxDays')).resolves.toBe(120);
+      await expect(svc.get('moderation.blockedWords')).resolves.toEqual(
+        expect.arrayContaining(['viagra', 'casino', 'porn', 'xxx']),
+      );
+      await expect(svc.get('identity.consentVersion')).resolves.toBe(
+        process.env.CONSENT_VERSION ?? '2026-06-28',
+      );
+      await expect(svc.get('security.opsTotpRequired')).resolves.toBe(
+        process.env.OPS_TOTP_REQUIRED === '1',
+      );
+    });
+
+    it('returns a valid DB override and rejects schema-invalid rows', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const { svc } = build([
+        { key: 'projects.fundingGoalMinHalalas', value: 5_000_000 },
+        { key: 'projects.durationHardMaxDays', value: 90 },
+        { key: 'moderation.blockedWords', value: ['spam', 'scam'] },
+        { key: 'identity.consentVersion', value: '2027-01-01' },
+        { key: 'security.opsTotpRequired', value: true },
+      ]);
+      await expect(svc.get('projects.fundingGoalMinHalalas')).resolves.toBe(5_000_000);
+      await expect(svc.get('projects.durationHardMaxDays')).resolves.toBe(90);
+      await expect(svc.get('moderation.blockedWords')).resolves.toEqual(['spam', 'scam']);
+      await expect(svc.get('identity.consentVersion')).resolves.toBe('2027-01-01');
+      await expect(svc.get('security.opsTotpRequired')).resolves.toBe(true);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('a poisoned row degrades to the default (loud log)', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const { svc } = build([
+        { key: 'projects.durationHardMaxDays', value: -5 }, // fails .positive()
+        { key: 'moderation.blockedWords', value: 'not-an-array' }, // fails z.array
+        { key: 'security.opsTotpRequired', value: 'yes' }, // fails z.boolean
+      ]);
+      await expect(svc.get('projects.durationHardMaxDays')).resolves.toBe(120);
+      await expect(svc.get('moderation.blockedWords')).resolves.toEqual(
+        SETTINGS_CATALOG['moderation.blockedWords'].defaultValue,
+      );
+      await expect(svc.get('security.opsTotpRequired')).resolves.toBe(
+        process.env.OPS_TOTP_REQUIRED === '1',
+      );
+      expect(errorSpy).toHaveBeenCalled();
+    });
+  });
+
   it('getAll() labels each key with its effective value + source', async () => {
     const { svc } = build([{ key: 'pledges.maxHalalas', value: 500_000 }]);
     const all = await svc.getAll();

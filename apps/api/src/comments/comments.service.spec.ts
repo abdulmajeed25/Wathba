@@ -52,7 +52,7 @@ describe('CommentsService.create — eligibility', () => {
       comment: { create },
       pledge: { findFirst: jest.fn() },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     const r = await svc.create(CREATOR, PROJ, { bodyAr: 'hi' } as any);
     expect(create.mock.calls[0][0].data.isCreator).toBe(true);
     expect(prisma.pledge.findFirst).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe('CommentsService.create — eligibility', () => {
       project: { findUnique: jest.fn().mockResolvedValue({ id: PROJ, createdById: CREATOR }) },
       pledge: { findFirst: jest.fn().mockResolvedValue(null) },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await expect(
       svc.create(BACKER, PROJ, { bodyAr: 'hi' } as any),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -84,7 +84,7 @@ describe('CommentsService.create — eligibility', () => {
       pledge: { findFirst: jest.fn().mockResolvedValue({ id: 'p1' }) },
       comment: { create },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await svc.create(BACKER, PROJ, { bodyAr: 'thanks!' } as any);
     expect(prisma.pledge.findFirst).toHaveBeenCalledWith({
       where: {
@@ -101,7 +101,7 @@ describe('CommentsService.create — eligibility', () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue(null) },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await expect(
       svc.create(BACKER, PROJ, { bodyAr: 'hi' } as any),
     ).rejects.toBeInstanceOf(NotFoundException);
@@ -122,7 +122,7 @@ describe('CommentsService.create — eligibility', () => {
         }),
       },
     });
-    const svc = new CommentsService(prisma, notifs as any);
+    const svc = new CommentsService(prisma, notifs as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await svc.create(BACKER, PROJ, { bodyAr: 're', parentId: 'parent' } as any);
     expect(notifs.create).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'someone-else', kind: 'COMMENT_REPLY' }),
@@ -144,7 +144,7 @@ describe('CommentsService.create — eligibility', () => {
         }),
       },
     });
-    const svc = new CommentsService(prisma, notifs as any);
+    const svc = new CommentsService(prisma, notifs as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await svc.create(BACKER, PROJ, { bodyAr: 're', parentId: 'parent' } as any);
     expect(notifs.create).not.toHaveBeenCalled();
   });
@@ -167,7 +167,7 @@ describe('CommentsService.togglePin / toggleHide', () => {
         update: upd,
       },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     const r = await svc.togglePin(CREATOR, COMMENT);
     expect(upd).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ pinned: true }),
@@ -185,7 +185,7 @@ describe('CommentsService.togglePin / toggleHide', () => {
         update: jest.fn(),
       },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await expect(svc.togglePin(BACKER, COMMENT)).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
@@ -208,7 +208,7 @@ describe('CommentsService.edit — STAKES/K1 (15-min window)', () => {
         update: jest.fn().mockResolvedValue(updated),
       },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     const r = await svc.edit(BACKER, COMMENT, 'edited');
     expect(prisma.comment.update.mock.calls[0][0].data.bodyAr).toBe('edited');
     expect(prisma.comment.update.mock.calls[0][0].data.editedAt).toBeInstanceOf(Date);
@@ -220,14 +220,14 @@ describe('CommentsService.edit — STAKES/K1 (15-min window)', () => {
       comment: { findUnique: jest.fn().mockResolvedValue(row(16 * 60_000)), update: jest.fn() },
     });
     await expect(
-      new CommentsService(late, makeNotifications() as any).edit(BACKER, COMMENT, 'x'),
+      new CommentsService(late, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any).edit(BACKER, COMMENT, 'x'),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     const notOwner = makePrisma({
       comment: { findUnique: jest.fn().mockResolvedValue(row(60_000, CREATOR)), update: jest.fn() },
     });
     await expect(
-      new CommentsService(notOwner, makeNotifications() as any).edit(BACKER, COMMENT, 'x'),
+      new CommentsService(notOwner, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any).edit(BACKER, COMMENT, 'x'),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
@@ -235,11 +235,33 @@ describe('CommentsService.edit — STAKES/K1 (15-min window)', () => {
 describe('CommentsService — STAKES/K5 spam guard', () => {
   it('400s a blocked word before any DB work', async () => {
     const prisma = makePrisma();
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     await expect(
       svc.create(BACKER, PROJ, { bodyAr: 'buy viagra now' } as any),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  // Batch OPS (Unit 6) — the blocklist is read through SettingsService and
+  // MERGED with the env-derived seed (always a superset).
+  it('blocks a word supplied by the moderation.blockedWords setting', async () => {
+    const prisma = makePrisma();
+    const settings = { get: jest.fn().mockResolvedValue(['حصري', 'quackpills']) };
+    const svc = new CommentsService(prisma, makeNotifications() as any, settings as any);
+    await expect(
+      svc.create(BACKER, PROJ, { bodyAr: 'grab your quackpills here' } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(settings.get).toHaveBeenCalledWith('moderation.blockedWords');
+    expect(prisma.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('still enforces the seed list when the setting is at its (empty override) default', async () => {
+    const prisma = makePrisma();
+    // A configured [] must not weaken the env/seed superset.
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
+    await expect(
+      svc.create(BACKER, PROJ, { bodyAr: 'CASINO night' } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('429s the 6th comment inside one minute (per user)', async () => {
@@ -253,7 +275,7 @@ describe('CommentsService — STAKES/K5 spam guard', () => {
       project: { findUnique: jest.fn().mockResolvedValue({ id: PROJ, createdById: CREATOR }) },
       comment: { create: jest.fn().mockResolvedValue(createdRow), findFirst: jest.fn() },
     });
-    const svc = new CommentsService(prisma, makeNotifications() as any);
+    const svc = new CommentsService(prisma, makeNotifications() as any, { get: jest.fn().mockResolvedValue([]) } as any);
     for (let i = 0; i < 5; i++) {
       await svc.create(CREATOR, PROJ, { bodyAr: `hello ${i}` } as any);
     }

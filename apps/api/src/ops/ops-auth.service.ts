@@ -19,6 +19,7 @@ import type { OpsSession } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
 import { OpsRbacService } from './ops-rbac.service';
+import { SettingsService } from '../settings/settings.service';
 
 /**
  * OPS Part 1 — the SEPARATE admin session + step-up + TOTP.
@@ -66,6 +67,7 @@ export class OpsAuthService {
     private readonly audit: AuditService,
     private readonly cfg: ConfigService,
     private readonly rbac: OpsRbacService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -74,10 +76,18 @@ export class OpsAuthService {
    * '0' → explicit dev/e2e escape hatch; unset (production default) →
    * required for any account holding a MONEY permission ('*' counts).
    */
-  private totpRequiredFor(permissions: readonly string[]): boolean {
+  private async totpRequiredFor(permissions: readonly string[]): Promise<boolean> {
     const flag = this.cfg.get<string>('OPS_TOTP_REQUIRED');
+    // Batch OPS (Unit 6) — the OPS_TOTP_REQUIRED env stays a HARD override in
+    // both directions: '1' forces TOTP on for every admin; '0' is the explicit
+    // dev/e2e escape hatch and must survive so a settings change can never break
+    // e2e. Only when the env is unset does the governed `security.opsTotpRequired`
+    // setting turn TOTP on (OR the money-permission default). The catalog default
+    // equals (OPS_TOTP_REQUIRED === '1'), so at the default this reduces to the
+    // prior behaviour exactly — the setting only matters once an operator flips it.
     if (flag === '1') return true;
     if (flag === '0') return false;
+    if (await this.settings.get('security.opsTotpRequired')) return true;
     return this.rbac.hasMoneyPermission(permissions);
   }
 
@@ -176,7 +186,7 @@ export class OpsAuthService {
       }
     }
     const { permissions } = await this.rbac.permissionsForUser(input.userId);
-    const totpPending = this.totpRequiredFor(permissions) && !enrolled;
+    const totpPending = (await this.totpRequiredFor(permissions)) && !enrolled;
 
     const raw = randomBytes(48).toString('hex');
     const now = new Date();
@@ -243,7 +253,7 @@ export class OpsAuthService {
       permissions,
       session,
       totpEnabled: await this.totpEnabled(session.userId),
-      totpRequired: this.totpRequiredFor(permissions),
+      totpRequired: await this.totpRequiredFor(permissions),
     };
   }
 
@@ -356,7 +366,7 @@ export class OpsAuthService {
       await this.anomaly('ops.auth.totp-disable.failed', {}, p.userId);
       throw new UnauthorizedException('رمز التحقق غير صحيح');
     }
-    if (this.totpRequiredFor(p.permissions)) {
+    if (await this.totpRequiredFor(p.permissions)) {
       throw new ForbiddenException(
         'التحقق الثنائي إلزامي لهذا الحساب (سياسة المنصة أو صلاحية مالية) — لا يمكن تعطيله',
       );

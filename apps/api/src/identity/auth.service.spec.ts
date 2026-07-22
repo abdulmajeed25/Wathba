@@ -53,13 +53,32 @@ function makeJwt(): any {
 describe('AuthService.signUp', () => {
   it('hashes with bcrypt cost 12 and defaults to BACKER role', async () => {
     const prisma = makePrisma();
-    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}), verification: jest.fn().mockResolvedValue({}) } as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never);
+    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}), verification: jest.fn().mockResolvedValue({}) } as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, { get: jest.fn().mockResolvedValue('2026-06-28') } as never);
     await svc.signUp({ name: 'سارة', email: EMAIL.toUpperCase(), password: PASS });
     const data = prisma.user.create.mock.calls[0][0].data;
     expect(data.email).toBe(EMAIL); // lower-cased
     expect(data.roles).toEqual(['BACKER']);
     expect(data.passwordHash).toMatch(/^\$2[aby]\$12\$/); // bcrypt, cost 12
     expect(await bcrypt.compare(PASS, data.passwordHash)).toBe(true);
+  });
+
+  // Batch OPS (Unit 6) — the consent version stamped on the account is read
+  // through SettingsService (governed setting); its default equals the prior
+  // env/constant so behaviour is unchanged until an operator publishes a new one.
+  it('stamps consentVersion from the identity.consentVersion setting', async () => {
+    const prisma = makePrisma();
+    const settings = { get: jest.fn().mockResolvedValue('2027-09-01') };
+    const svc = new AuthService(
+      prisma,
+      makeUsers(null),
+      makeJwt(),
+      { verification: jest.fn().mockResolvedValue({}) } as never,
+      { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
+      settings as never,
+    );
+    await svc.signUp({ name: 'سارة', email: EMAIL, password: PASS });
+    expect(settings.get).toHaveBeenCalledWith('identity.consentVersion');
+    expect(prisma.user.create.mock.calls[0][0].data.consentVersion).toBe('2027-09-01');
   });
 
   // STAKES/S-12 F-11 — 2xx-UNIFORM: a duplicate looks exactly like success
@@ -71,7 +90,7 @@ describe('AuthService.signUp', () => {
       duplicateSignup: jest.fn().mockResolvedValue({ sent: true, stubbed: true }),
       verification: jest.fn().mockResolvedValue({}),
     };
-    const svc = new AuthService(prisma, makeUsers({ id: 'u1' }), makeJwt(), email as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never);
+    const svc = new AuthService(prisma, makeUsers({ id: 'u1' }), makeJwt(), email as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, { get: jest.fn().mockResolvedValue('2026-06-28') } as never);
     await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).resolves.toEqual({ ok: true });
     expect(email.duplicateSignup).toHaveBeenCalledWith(EMAIL);
     expect(prisma.user.create).not.toHaveBeenCalled();
@@ -84,7 +103,7 @@ describe('AuthService.signUp', () => {
       duplicateSignup: jest.fn().mockRejectedValue(new Error('smtp down')),
       verification: jest.fn().mockResolvedValue({}),
     };
-    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), email as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never);
+    const svc = new AuthService(makePrisma(), makeUsers({ id: 'u1' }), makeJwt(), email as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, { get: jest.fn().mockResolvedValue('2026-06-28') } as never);
     await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).resolves.toEqual({ ok: true });
   });
 
@@ -94,7 +113,7 @@ describe('AuthService.signUp', () => {
       passwordReset: jest.fn(),
       verification: jest.fn().mockResolvedValue({}),
     };
-    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), email as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never);
+    const svc = new AuthService(prisma, makeUsers(null), makeJwt(), email as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, { get: jest.fn().mockResolvedValue('2026-06-28') } as never);
     await expect(svc.signUp({ name: 'x', email: EMAIL, password: PASS })).resolves.toEqual({ ok: true });
     expect(prisma.user.create.mock.calls[0][0].data.emailVerified).toBe(false);
     expect(prisma.emailVerifyToken.create).toHaveBeenCalled();
@@ -112,6 +131,7 @@ describe('AuthService.signIn — lockout FSM', () => {
       makeJwt(),
       { passwordReset: jest.fn().mockResolvedValue({}) } as never,
       { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
+      { get: jest.fn().mockResolvedValue('2026-06-28') } as never,
     );
   }
 
@@ -172,7 +192,7 @@ describe('AuthService.refresh — rotation FSM (Sprint 2 / P1-502)', () => {
     const prisma = makePrisma();
     prisma.refreshToken.findUnique = jest.fn().mockResolvedValue(row);
     const users = makeUsers({ id: 'u1', email: EMAIL, roles: ['BACKER'] });
-    const svc = new AuthService(prisma, users, makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never);
+    const svc = new AuthService(prisma, users, makeJwt(), { passwordReset: jest.fn().mockResolvedValue({}) } as never, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, { get: jest.fn().mockResolvedValue('2026-06-28') } as never);
     return { svc, prisma };
   }
 

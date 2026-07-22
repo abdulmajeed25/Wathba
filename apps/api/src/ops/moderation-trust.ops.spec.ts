@@ -299,7 +299,7 @@ describe('public reads filter hiddenAt', () => {
       project: { findMany: jest.fn().mockResolvedValue([]) },
       category: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaService;
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as never);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as never, { get: jest.fn() } as never);
     await svc.list({} as never);
     const where = (prisma.project.findMany as Mock).mock.calls[0][0].where;
     expect(where.hiddenAt).toBeNull();
@@ -315,7 +315,7 @@ describe('public reads filter hiddenAt', () => {
         findMany,
       },
     } as unknown as PrismaService;
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as never);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as never, { get: jest.fn() } as never);
     await svc.similar(PROJECT);
     for (const call of findMany.mock.calls) {
       expect(call[0].where.hiddenAt).toBeNull();
@@ -330,7 +330,7 @@ describe('public reads filter hiddenAt', () => {
     const prisma = {
       project: { findUnique: jest.fn().mockResolvedValue(hidden) },
     } as unknown as PrismaService;
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as never);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as never, { get: jest.fn() } as never);
     // anonymous + a different viewer → the not-found behavior
     await expect(svc.findByIdOrSlug(PROJECT)).rejects.toThrow('project not found');
     await expect(svc.findByIdOrSlug(PROJECT, 'someone-else')).rejects.toThrow('project not found');

@@ -1,8 +1,9 @@
-import { FaqQuestionStatus } from '@prisma/client';
+import { FaqQuestionStatus, type Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 import type { OperationDef } from '../operation.types';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { NotificationsService } from '../../notifications/notifications.service';
 
 /**
  * Batch OPS-PRO Phase 1 — content-misc & DBA maintenance (STANDARD).
@@ -20,10 +21,19 @@ import type { PrismaService } from '../../prisma/prisma.service';
  *    on the RAW prisma client, OUTSIDE its $transaction (see
  *    operations.registry.ts executeOrchestrated: `op.execute(this.prisma, …)`),
  *    which is exactly the non-transactional context CONCURRENTLY requires.
+ *
+ *  · notifications.resend (OPS-360 Unit 6) — the notifications-inspector
+ *    re-deliver seat: re-emits an existing notification (same kind + payload)
+ *    to its owner via the notifications outbox. Support-desk action
+ *    (support.tickets); needs the notifications dep.
  */
 
 export interface MaintenanceOpsDeps {
   prisma: PrismaService;
+  // OPS-360 Unit 6 — notifications.resend re-delivers an existing notification
+  // through the notifications outbox. Wired by the coordinator from
+  // NotificationsModule (already imported by ops.module.ts; see report).
+  notifications: NotificationsService;
 }
 
 /** ops.module.ts wires the real deps at boot; a bare call fails loudly. */
@@ -141,5 +151,75 @@ export function maintenanceOps(
     },
   };
 
-  return [faqQuestionHide, searchReindex] as unknown as Array<OperationDef<never, unknown>>;
+  /* ── notifications.resend (OPS-360 Unit 6) ─────────────────────────── */
+  // Census A7 / A2: the notifications inspector can VIEW a notification but not
+  // re-deliver it. This gives support the missing verb — re-emit a prior
+  // notice (e.g. a missed payout or verification notification) to the same
+  // user. Truthful minimal re-deliver: a NEW row with the SAME kind + payload
+  // via the notifications outbox; the original is never mutated.
+  const resendInput = z.object({ notificationId: z.string().uuid() });
+
+  const notificationsResend: OperationDef<
+    z.infer<typeof resendInput>,
+    { resent: boolean; notificationId: string | null; kind: string }
+  > = {
+    key: 'notifications.resend',
+    titleAr: 'إعادة إرسال إشعار لمستخدم',
+    descriptionAr:
+      'مقعد مفتّش الإشعارات المفقود: كان بالإمكان عرض الإشعار دون إعادة تسليمه. يُعيد تسليم إشعار سابق إلى صاحبه نفسه (كإشعار صرف أو توثيق فاته) بإنشاء صف إشعار جديد بنفس النوع والحمولة عبر خدمة الإشعارات — لا يُمسّ الأصل. أنواع التفاعل (تحديثات/تعليقات) تحترم اختيار المستخدم في التلقّي، بينما إشعارات المال والحساب تصل دائماً.',
+    inputSchema: resendInput,
+    // Support-desk action (OPS-360 Unit 6 decision): support.tickets.
+    permission: 'support.tickets',
+    riskTier: 'STANDARD',
+    reversible: false,
+    requiresReason: true,
+    preconditions: [
+      {
+        code: 'notification-missing',
+        reasonAr: 'الإشعار غير موجود',
+        check: async (db, input) =>
+          !!(await db.notification.findUnique({
+            where: { id: input.notificationId },
+            select: { id: true },
+          })),
+      },
+    ],
+    async dryRun(db, input) {
+      const n = await db.notification.findUnique({
+        where: { id: input.notificationId },
+        select: { userId: true, kind: true, createdAt: true },
+      });
+      return {
+        summaryAr: `سيُعاد تسليم إشعار من نوع «${n?.kind ?? '—'}» إلى المستخدم نفسه (صف جديد بنفس الحمولة، والأصل لا يُمسّ)`,
+        before: { originalCreatedAt: n?.createdAt?.toISOString() ?? null },
+        after: { willCreate: 1, kind: n?.kind ?? null, userId: n?.userId ?? null },
+        counts: { notificationsToCreate: 1 },
+      };
+    },
+    async execute(tx, input) {
+      const original = await tx.notification.findUniqueOrThrow({
+        where: { id: input.notificationId },
+        select: { userId: true, kind: true, payload: true },
+      });
+      // Re-deliver through the outbox on the registry's tx (commits atomically
+      // with the audit row). No dedupKey → never collides with the original's
+      // UNIQUE key. create() returns null when an engagement kind is opted out
+      // by the recipient — that opt-out is honored, and the result records it.
+      const created = await deps.notifications.create({
+        userId: original.userId,
+        kind: original.kind,
+        payload: (original.payload ?? {}) as Prisma.InputJsonValue,
+        tx,
+      });
+      return {
+        resent: created != null,
+        notificationId: created?.id ?? null,
+        kind: original.kind,
+      };
+    },
+  };
+
+  return [faqQuestionHide, searchReindex, notificationsResend] as unknown as Array<
+    OperationDef<never, unknown>
+  >;
 }

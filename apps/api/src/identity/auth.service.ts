@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from './users.service';
 import { EmailService } from '../email/email.service';
 import { CaptchaService } from '../common/captcha.service';
+import { SettingsService } from '../settings/settings.service';
 import type { UserRole } from '@prisma/client';
 
 export interface JwtPayload {
@@ -49,6 +50,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly email: EmailService,
     private readonly captcha: CaptchaService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -84,6 +86,11 @@ export class AuthService {
     // STAKES/C7 — mint a unique public handle from the email local-part
     // (null when it sanitizes too short; the user picks one in settings).
     const handle = await this.users.generateHandle(email);
+    // PDPL — Batch OPS (Unit 6): the consent version stamped on the account is a
+    // governed setting (SETTINGS_CATALOG). Its catalog default equals the prior
+    // `process.env.CONSENT_VERSION ?? '2026-06-28'`, so behaviour is unchanged
+    // until an operator publishes a new version.
+    const consentVersion = await this.settings.get('identity.consentVersion');
     const user = await this.prisma.user.create({
       data: {
         name: input.name,
@@ -97,7 +104,7 @@ export class AuthService {
         emailVerified: false,
         // PDPL: consent version is stamped server-side; the DTO already
         // rejected any signup without acceptTerms=true.
-        consentVersion: process.env.CONSENT_VERSION ?? '2026-06-28',
+        consentVersion,
         consentAt: new Date(),
       },
     });

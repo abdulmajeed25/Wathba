@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
+import { SettingsModule } from '../settings/settings.module';
 
 /**
  * Comments — story-tab discussion + creator-side moderation. Depends on the
@@ -8,6 +9,7 @@ import { CommentsService } from './comments.service';
  * PrismaModule.
  */
 @Module({
+  imports: [SettingsModule],
   controllers: [CommentsController],
   providers: [CommentsService],
   exports: [CommentsService],

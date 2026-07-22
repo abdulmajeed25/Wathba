@@ -315,7 +315,101 @@ export function procurementOps(
     },
   };
 
-  return [suppliersVerify, rfqClose, rfqCancel, bidsShortlist] as unknown as Array<
+  /* ── rfq.award (OPS-360 Unit 6 — the award-override) ───────────────── */
+  // Census A7 workflow drop-out: RFQ award was creator-only
+  // (procurement.service.ts:award requires rfq.project.createdById === actor),
+  // so an operator could never award a stuck/abandoned RFQ from the dashboard.
+  // This is the missing operator seat — same transaction as the creator path,
+  // now governed (reason + audit + dry-run blast radius).
+  const awardInput = z.object({
+    rfqId: z.string().uuid(),
+    bidId: z.string().uuid(),
+  });
+
+  const rfqAward: OperationDef<
+    z.infer<typeof awardInput>,
+    { status: string; awardedBidId: string; bidsRejected: number }
+  > = {
+    key: 'rfq.award',
+    titleAr: 'ترسية طلب توريد (تجاوز إشرافي)',
+    descriptionAr:
+      'المقعد التشغيلي المفقود للترسية: كانت الترسية حكراً على صاحب المشروع، فلا يستطيع مشغّل مركز العمليات ترسية طلب عالق. يُرسي هذا العرض الفائز على طلب مفتوح (OPEN→AWARDED) بنفس معاملة الترسية تماماً: العرض الفائز→AWARDED، وكل عرض آخر في الطلب→REJECTED، ويُختم awardedBidId. غير قابل للعكس ويتطلب سبباً مكتوباً.',
+    inputSchema: awardInput,
+    // Same permission as the other rfq.* ops (OWNER + OPS_MANAGER).
+    permission: 'projects.lifecycle',
+    riskTier: 'STANDARD',
+    reversible: false,
+    requiresReason: true,
+    preconditions: [
+      {
+        code: 'rfq-not-open',
+        reasonAr: 'طلب التوريد غير موجود أو ليس مفتوحاً (OPEN) — لا تُرسى إلا الطلبات المفتوحة',
+        check: async (db, input) => {
+          const r = await db.rFQ.findUnique({
+            where: { id: input.rfqId },
+            select: { status: true },
+          });
+          return r?.status === RFQStatus.OPEN;
+        },
+      },
+      {
+        code: 'bid-not-eligible',
+        reasonAr:
+          'العرض غير موجود أو لا يتبع هذا الطلب أو ليس مؤهلاً للترسية (المؤهل: SUBMITTED أو SHORTLISTED)',
+        check: async (db, input) => {
+          const bid = await db.supplierBid.findUnique({
+            where: { id: input.bidId },
+            select: { rfqId: true, status: true },
+          });
+          return !!bid && bid.rfqId === input.rfqId && LIVE_BID_STATUSES.includes(bid.status);
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const [bid, others] = await Promise.all([
+        db.supplierBid.findUnique({
+          where: { id: input.bidId },
+          select: { amountHalalas: true },
+        }),
+        // Mirrors execute: every OTHER bid on the RFQ is rejected, whatever its
+        // current status (exactly as the creator-path award transaction does).
+        db.supplierBid.count({ where: { rfqId: input.rfqId, id: { not: input.bidId } } }),
+      ]);
+      return {
+        summaryAr: `سيُرسى العرض (${bid?.amountHalalas?.toString() ?? '—'} هللة) — الطلب OPEN→AWARDED ويُرفَض ${others} عرضاً آخر`,
+        before: { status: RFQStatus.OPEN, awardedBidId: null },
+        after: { status: RFQStatus.AWARDED, awardedBidId: input.bidId },
+        counts: { winningBid: 1, bidsToReject: others },
+      };
+    },
+    async execute(tx, input) {
+      // Byte-for-byte the procurement.service.ts:award transaction — RFQ head,
+      // winning bid, then reject-the-rest — so the operator override and the
+      // creator path leave identical state.
+      await tx.rFQ.update({
+        where: { id: input.rfqId },
+        data: { status: RFQStatus.AWARDED, awardedBidId: input.bidId },
+      });
+      await tx.supplierBid.update({
+        where: { id: input.bidId },
+        data: { status: BidStatus.AWARDED },
+      });
+      const { count } = await tx.supplierBid.updateMany({
+        where: { rfqId: input.rfqId, id: { not: input.bidId } },
+        data: { status: BidStatus.REJECTED },
+      });
+      return { status: RFQStatus.AWARDED, awardedBidId: input.bidId, bidsRejected: count };
+    },
+    // No afterCommit: the winning supplier is intentionally NOT notified here.
+    // There is no NotificationKind for "your bid won an RFQ" (the enum has no
+    // award kind), and the base creator-path award() never notified suppliers
+    // either — so emitting an unrelated kind (e.g. SUPPLIER_VERIFIED = account
+    // verified) would misinform. The clean fix is a new RFQ_AWARDED kind +
+    // email template; schema is frozen this batch, so it is a product
+    // follow-up (see final report), not a half-built misuse here.
+  };
+
+  return [suppliersVerify, rfqClose, rfqCancel, bidsShortlist, rfqAward] as unknown as Array<
     OperationDef<never, unknown>
   >;
 }
