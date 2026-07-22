@@ -158,6 +158,26 @@ enum NotificationKind {
   FAQ_ANSWERED
   COMMENT_REPLY
   PROJECT_REVIEWED
+  ACCOUNT_SUSPENDED
+  ACCOUNT_REACTIVATED
+}
+
+/// Batch OPS (registry completion) — account lifecycle enforcement.
+/// SUSPENDED = temporary (support-driven, users.lifecycle); BANNED =
+/// trust-&-safety permanent (moderation.queue). One mechanism, two intents:
+/// both null passwordless sign-in and are checked by the JWT guard.
+enum SuspensionKind {
+  SUSPENDED
+  BANNED
+}
+
+/// Batch OPS (registry completion) — support inbox lifecycle. OPEN on
+/// creation; assignment/status moves are governed operations.
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
 }
 
 enum ContestStatus {
@@ -223,6 +243,13 @@ model User {
   /// PDPL (Sprint 2 / P0-702): which consent text version the user accepted, and when.
   consentVersion      String?
   consentAt           DateTime?
+  /// Batch OPS (registry completion) — suspension/ban. Set only by the
+  /// governed operations users.suspend / moderation.user.ban; null = active.
+  /// Sign-in refuses and the JWT guard rejects while set; reactivate/unban
+  /// clears all three together.
+  suspendedAt         DateTime?
+  suspendedKind       SuspensionKind?
+  suspendedReasonAr   String?
   reputationTier      ReputationTier  @default(NEWCOMER)
   totalPledgedHalalas BigInt          @default(0)
   locale              String          @default("ar")
@@ -332,6 +359,12 @@ model Project {
   /// set in the future, it enters SCHEDULED and the launch scheduler flips it
   /// LIVE at this time (setting publishedAt + deadline).
   scheduledLaunchAt    DateTime?
+  /// Batch OPS (registry completion) — trust-&-safety takedown, orthogonal to
+  /// the funding FSM (a hidden LIVE project keeps its deadline clock; hiding
+  /// only removes it from every public read). Set/cleared exclusively by the
+  /// governed operations moderation.project.hide / unhide.
+  hiddenAt             DateTime?
+  hiddenReasonAr       String?
 
   rewardTiers          RewardTier[]
   addOns               AddOn[]
@@ -1368,14 +1401,76 @@ model KnownDevice {
 }
 
 /// STAKES/S-15 (H4) — contact-form submissions (stored + emailed to support).
+/// Batch OPS (registry completion) — grew a lifecycle: status/assignee/notes
+/// are mutated only through the governed support.ticket.* operations.
 model SupportTicket {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String?  @db.Uuid
-  name      String
-  email     String
-  topic     String
-  messageAr String   @db.Text
-  createdAt DateTime @default(now())
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String?             @db.Uuid
+  name         String
+  email        String
+  topic        String
+  messageAr    String              @db.Text
+  status       SupportTicketStatus @default(OPEN)
+  /// Ops principal (User.id) the ticket is assigned to. Plain uuid — ops
+  /// actors are audited by the registry, no FK needed.
+  assignedToId String?             @db.Uuid
+  resolvedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @default(now()) @updatedAt
+
+  notes        SupportTicketNote[]
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([assignedToId, status])
+}
+
+/// Batch OPS (registry completion) — internal ops-only notes on a ticket.
+/// Append-only from the ops surface (support.ticket.note.add); never shown
+/// to the requester.
+model SupportTicketNote {
+  id        String        @id @default(uuid()) @db.Uuid
+  ticketId  String        @db.Uuid
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  /// Ops actor (User.id) — plain uuid, audit trail lives in AuditLog.
+  authorId  String        @db.Uuid
+  noteAr    String        @db.Text
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+/// Batch OPS (registry completion) — DB-backed platform settings, one row per
+/// key from the typed SETTINGS_CATALOG (apps/api/src/settings). Written ONLY
+/// through the governed settings.update operation (SENSITIVE, reason + audit).
+/// Env-only flags (AGENTS_ENABLED, FOUR_EYES_MONEY_OVERRIDE, secrets) are
+/// deliberately NOT representable here.
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  updatedAt   DateTime @default(now()) @updatedAt
+  /// Last ops actor to write it (User.id) — display convenience; the
+  /// authoritative trail is the hash-chained AuditLog.
+  updatedById String?  @db.Uuid
+}
+
+/// Batch OPS (registry completion) — one row per money.reconcile.run
+/// execution: the PSP-vs-ledger comparison verdict, kept as a durable record
+/// so drift is visible over time (ops screen reads the history).
+model ReconciliationRun {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Window scanned, in days back from run time.
+  windowDays Int
+  scanned    Int
+  matched    Int
+  mismatched Int
+  /// Skipped rows (e.g. PSP stub mode, fetch failures) — not proof of match.
+  skipped    Int
+  /// [{pledgeId, paymentRef, ledgerSays, pspSays, detailAr}] — empty when clean.
+  mismatches Json     @default("[]")
+  /// 'moyasar' today; kept as a column so a second PSP can share the table.
+  source     String   @default("moyasar")
+  createdAt  DateTime @default(now())
 
   @@index([createdAt])
 }

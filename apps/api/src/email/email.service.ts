@@ -100,4 +100,14 @@ export class EmailService {
   projectReviewed(to: string, d: { projectTitle: string; approved: boolean; feedback?: string | null }) {
     return this.deliver(to, emailTemplates.projectReviewed(d));
   }
+  // Batch OPS (registry completion) — account lifecycle + support desk.
+  accountSuspended(to: string, d: { banned: boolean; reasonAr?: string | null }) {
+    return this.deliver(to, emailTemplates.accountSuspended(d));
+  }
+  accountReactivated(to: string, name: string) {
+    return this.deliver(to, emailTemplates.accountReactivated(name));
+  }
+  supportReply(to: string, d: { name: string; topic: string; replyAr: string }) {
+    return this.deliver(to, emailTemplates.supportReply(d));
+  }
 }
