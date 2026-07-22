@@ -1,34 +1,41 @@
 import Link from 'next/link';
 
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
-import { CategoriesEditor, type CatNode } from './_components/categories-editor';
+import { CategoriesEditor } from './_components/categories-editor';
+import { buildCatTree, type CatApiNode, type CatNode } from './_components/cat-types';
 
 /**
  * OPS Part 5 (CONTENT) — «الفئات»: the two-level taxonomy tree editor.
  *
- * The active tree (with LIVE project counts) is read from the PUBLIC
- * `GET /v1/categories` reader — categories are public data and the ops read
- * API doesn't cover them. Every edit is a governed CONTENT-tier operation
- * (content.categories.*), fired through <OpRunner>. The permanent cultural
- * exclusions guard (BUG-2) refuses server-side; its Arabic message surfaces
- * as an OpRunner blocker.
+ * OPS-GAPS Y1 — the tree is now read from the OPS read API
+ * `GET /v1/ops/categories` (x-ops-token, content.categories), NOT the public
+ * `GET /v1/categories`. The public reader returns ACTIVE nodes only, so an
+ * operator who deactivated a category could never list it to reactivate it.
+ * The ops read surfaces hidden nodes too — each carrying isActive + an
+ * `excluded` flag — so this screen can show «غير مُفعَّلة» nodes with a
+ * reactivate affordance, and lock permanently-excluded ones («مستثناة»).
  *
- * NOTE — the public tree lists ACTIVE nodes only, so this screen deactivates
- * («إخفاء») but cannot list already-hidden nodes to re-activate. Re-activation
- * is available as an operation (content.categories.set-active {isActive:true})
- * but needs an admin "all categories" read endpoint to surface the hidden set
- * (follow-up gap).
+ * Every edit remains a governed CONTENT-tier operation (content.categories.*)
+ * fired through <OpRunner>. The exclusions guard (BUG-2 + Y1) refuses
+ * server-side; its Arabic message surfaces as an OpRunner blocker.
  */
 export default async function OpsCategoriesPage() {
   await requireAdmin();
-  await requireOpsSession();
+  const { opsToken } = await requireOpsSession();
 
   let tree: CatNode[] = [];
   let unreachable = false;
+  let refused = false;
   try {
-    const r = await fetch(`${API_BASE}/v1/categories`, { cache: 'no-store' });
-    if (r.ok) tree = (await r.json()) as CatNode[];
-    else unreachable = true;
+    const r = await fetch(`${API_BASE}/v1/ops/categories`, {
+      headers: { 'x-ops-token': opsToken },
+      cache: 'no-store',
+    });
+    if (r.status === 403) refused = true;
+    else if (r.ok) {
+      const body = (await r.json()) as { items: CatApiNode[] };
+      tree = buildCatTree(body.items ?? []);
+    } else unreachable = true;
   } catch {
     unreachable = true;
   }
@@ -39,8 +46,8 @@ export default async function OpsCategoriesPage() {
         <div>
           <h1 className="text-lg font-bold">الفئات</h1>
           <p className="mt-1 text-sm text-[#8b949e]">
-            شجرة التصنيف من مستويين — الوجهة الوحيدة التي تتعلّق بها المشاريع. كل تعديل عملية محكومة
-            ومسجَّلة في التدقيق.
+            شجرة التصنيف من مستويين — الوجهة الوحيدة التي تتعلّق بها المشاريع. تشمل القائمة الفئات
+            المخفاة (غير المُفعَّلة) لإتاحة إعادة تفعيلها. كل تعديل عملية محكومة ومسجَّلة في التدقيق.
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -52,6 +59,12 @@ export default async function OpsCategoriesPage() {
           </Link>
         </div>
       </div>
+
+      {refused ? (
+        <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          تفتقد صلاحية إدارة الفئات (content.categories) — اطلبها من المالك.
+        </p>
+      ) : null}
 
       {unreachable ? (
         <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">

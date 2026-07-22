@@ -35,6 +35,7 @@ function model(): MockModel {
 
 interface MockDb {
   project: MockModel;
+  category: MockModel;
   user: MockModel;
   pledge: MockModel;
   payout: MockModel;
@@ -68,6 +69,7 @@ interface MockDb {
 function buildPrisma(): MockDb {
   return {
     project: model(),
+    category: model(),
     user: model(),
     pledge: model(),
     payout: model(),
@@ -727,6 +729,42 @@ describe('OpsReadService', () => {
     it('delegates to SettingsService.getAll()', async () => {
       const out = await svc(buildPrisma()).effectiveSettings();
       expect(out.items[0]!.key).toBe('pledges.minHalalas');
+    });
+  });
+
+  describe('listAllCategories — includes hidden nodes + excluded flag (OPS-GAPS Y1)', () => {
+    it('does NOT filter isActive, flags excluded nodes, and attaches a per-node projectCount', async () => {
+      const db = buildPrisma();
+      db.category.findMany.mockResolvedValue([
+        { id: 'c1', slug: 'art', nameAr: 'الفنون', nameEn: 'Art', parentId: null, sortOrder: 0, isActive: true },
+        { id: 'c2', slug: 'music', nameAr: 'موسيقى', nameEn: 'Music', parentId: null, sortOrder: 1, isActive: false },
+        { id: 'c3', slug: 'painting', nameAr: 'الرسم', nameEn: 'Painting', parentId: 'c1', sortOrder: 0, isActive: false },
+      ]);
+      db.project.groupBy.mockResolvedValue([
+        { categoryId: 'c1', _count: { _all: 5 } },
+        { categoryId: 'c3', _count: { _all: 2 } },
+      ]);
+
+      const out = await svc(db).listAllCategories();
+
+      // the read must NOT constrain isActive (hidden nodes surface too)
+      const where = db.category.findMany.mock.calls[0]![0].where;
+      expect(where).toBeUndefined();
+      expect(out.items).toHaveLength(3);
+
+      const music = out.items.find((i) => i.id === 'c2')!;
+      expect(music.isActive).toBe(false);
+      expect(music.excluded).toBe(true); // permanent cultural exclusion
+      expect(music.projectCount).toBe(0);
+
+      const art = out.items.find((i) => i.id === 'c1')!;
+      expect(art.excluded).toBe(false);
+      expect(art.projectCount).toBe(5);
+
+      const painting = out.items.find((i) => i.id === 'c3')!;
+      expect(painting.parentId).toBe('c1'); // flat list carries parentId
+      expect(painting.isActive).toBe(false);
+      expect(painting.projectCount).toBe(2);
     });
   });
 

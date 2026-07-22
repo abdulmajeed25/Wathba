@@ -622,6 +622,18 @@ export class OpsReadController {
     return this.read.listFulfillment({ rewardStatus, cursor, limit: toNum(limit) });
   }
 
+  /* ── 7e. content taxonomy (content.categories) ─────────────────────────── */
+
+  @Get('categories')
+  @ApiOperation({ summary: 'All categories incl. inactive/hidden — flat list w/ parentId, for reactivation' })
+  categories(@Req() req: OpsRequest) {
+    // OPS-GAPS Y1 — the ops taxonomy read: unlike the public GET /v1/categories
+    // (active-only), this surfaces hidden nodes so an operator can reactivate
+    // them. READ-ONLY.
+    this.read.assertPermission(req.opsPrincipal, 'content.categories');
+    return this.read.listAllCategories();
+  }
+
   /* ── 8. settings ───────────────────────────────────────────────────────── */
 
   @Get('settings')

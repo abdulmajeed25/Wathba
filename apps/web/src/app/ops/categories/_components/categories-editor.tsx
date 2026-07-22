@@ -6,25 +6,20 @@ import { useMemo, useState } from 'react';
 
 import { OpRunner } from '../../_components/op-runner';
 import { StatusBadge } from '../../_components/badge';
+import type { CatNode } from './cat-types';
 
 /**
- * OPS Part 5 (CONTENT) — «الفئات» tree editor client island. The active tree
- * is fetched server-side (public GET /v1/categories) and handed in; every
- * mutation is a governed CONTENT-tier operation fired through <OpRunner>
- * (dry-run → preview → execute), never a raw write. The permanent cultural
- * exclusions guard lives server-side — its Arabic refusal surfaces as an
- * OpRunner blocker, not a client check.
+ * OPS Part 5 (CONTENT) — «الفئات» tree editor client island. The tree is
+ * fetched server-side (OPS-GAPS Y1: GET /v1/ops/categories, which INCLUDES
+ * hidden/inactive nodes) and handed in; every mutation is a governed
+ * CONTENT-tier operation fired through <OpRunner> (dry-run → preview →
+ * execute), never a raw write. The permanent cultural exclusions guard lives
+ * server-side — its Arabic refusal surfaces as an OpRunner blocker, not a
+ * client check. Inactive nodes carry a «غير مُفعَّلة» badge + a reactivate
+ * button; excluded nodes are locked («مستثناة») and cannot be reactivated.
  */
 
-export interface CatNode {
-  id: string;
-  slug: string;
-  nameAr: string;
-  nameEn: string;
-  sortOrder: number;
-  liveCount: number;
-  children: CatNode[];
-}
+export type { CatNode };
 
 const INPUT =
   'rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm outline-none focus:border-emerald-500';
@@ -89,11 +84,13 @@ function CreateCategoryForm({ topLevel, onDone }: { topLevel: CatNode[]; onDone:
         <span className="text-xs text-[#8b949e]">الفئة الأم (فارغ = فئة رئيسية)</span>
         <select value={parentId} onChange={(e) => setParentId(e.target.value)} className={INPUT}>
           <option value="">— فئة رئيسية —</option>
-          {topLevel.map((n) => (
-            <option key={n.id} value={n.id}>
-              {n.nameAr}
-            </option>
-          ))}
+          {topLevel
+            .filter((n) => n.isActive)
+            .map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.nameAr}
+              </option>
+            ))}
         </select>
       </label>
       <label className="flex flex-col gap-1">
@@ -227,11 +224,13 @@ function NodeRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{node.nameAr}</span>
+          <span className={`font-medium ${node.isActive ? '' : 'text-[#8b949e]'}`}>{node.nameAr}</span>
           <code dir="ltr" className="text-[11px] text-[#8b949e]">
             {node.slug}
           </code>
-          <StatusBadge intent="info">{node.liveCount.toLocaleString('ar-SA')} مشروع حي</StatusBadge>
+          <StatusBadge intent="info">{node.projectCount.toLocaleString('ar-SA')} مشروع</StatusBadge>
+          {!node.isActive ? <StatusBadge intent="warn">غير مُفعَّلة</StatusBadge> : null}
+          {node.excluded ? <StatusBadge intent="danger">🔒 مستثناة</StatusBadge> : null}
         </div>
         {editing ? <RenameForm node={node} onDone={() => { setEditing(false); onDone(); }} /> : null}
       </div>
@@ -244,15 +243,34 @@ function NodeRow({
         >
           {editing ? 'إلغاء التعديل' : 'تعديل'}
         </button>
-        <OpRunner
-          opKey="content.categories.set-active"
-          input={{ categoryId: node.id, isActive: false }}
-          triggerLabel="إخفاء"
-          riskTier="CONTENT"
-          requiresReason={false}
-          variant="danger"
-          onDone={onDone}
-        />
+        {node.isActive ? (
+          <OpRunner
+            opKey="content.categories.set-active"
+            input={{ categoryId: node.id, isActive: false }}
+            triggerLabel="إخفاء"
+            riskTier="CONTENT"
+            requiresReason={false}
+            variant="danger"
+            onDone={onDone}
+          />
+        ) : node.excluded ? (
+          <span
+            title="فئة مستثناة دائماً — لا يمكن تفعيلها"
+            className="rounded border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs text-red-300"
+          >
+            🔒 لا يمكن تفعيلها
+          </span>
+        ) : (
+          <OpRunner
+            opKey="content.categories.set-active"
+            input={{ categoryId: node.id, isActive: true }}
+            triggerLabel="إعادة التفعيل"
+            riskTier="CONTENT"
+            requiresReason={false}
+            variant="primary"
+            onDone={onDone}
+          />
+        )}
         <Link
           href={`/ops/audit?q=${encodeURIComponent(node.slug)}`}
           className="text-xs text-[#58a6ff] hover:underline"
