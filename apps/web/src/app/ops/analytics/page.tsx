@@ -2,90 +2,178 @@ import Link from 'next/link';
 
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
 import { StatTile } from '../_components/stat-tile';
+import { StatusBadge } from '../_components/badge';
 import { FilterForm } from '../_lib/filters';
 import { formatSar } from '../_lib/money';
+import {
+  arInt,
+  fmtPct,
+  pctIntent,
+  intentText,
+  pickPct,
+  labelOf,
+  statusIntent,
+  PROJECT_STATUS_AR,
+  REP_TIER_AR,
+  TICKET_STATUS_AR,
+  type CategoryRow,
+  type Intent,
+} from './_lib/labels';
+import { Bar, DistributionBars, Unavailable, MetricCell } from './_components/bars';
+import { Funnel, type FunnelStage } from './_components/funnel';
+import { CategoryTable } from './_components/category-table';
 
 /**
- * OPS Part 5 — «القياس والتقارير»: an HONEST, read-only measurement surface.
+ * OPS-360 Phase B Unit 5 — «القياس والتقارير», rebuilt as a first-class analytics
+ * surface over the five aggregate endpoints (GET /v1/ops/analytics/*).
  *
- * There is no analytics aggregate endpoint yet — only /v1/ops/dashboard. So
- * this page shows exactly what that snapshot can support: the platform vitals,
- * plus a handful of ratios DERIVABLE from the dashboard counts (each labelled
- * with its formula and the population it is measured over). Anything that would
- * need data the snapshot does not carry — success rate, refund rate against a
- * real base, or any time series — is rendered as «بانتظار نقطة تجميع» rather
- * than fabricated. The date-range filter is scaffolding: a forward hook for the
- * day /dashboard accepts a window; today it does not filter, and the page says
- * so plainly.
+ * Server-first: one Promise.all fetch of financial + funnel + projects + users +
+ * operations, all windowed by ?from&to (the date-range control now truly drives
+ * the query — no more dead no-op filter). The financial report needs
+ * `money.execute`; if that alone is refused (403) it degrades to a permission
+ * note while every other section still renders. Any metric the API returns null
+ * for is rendered as an HONEST «غير متاح / بيانات غير متوفرة» state with its
+ * reason — never fabricated, never shown as 0.
  */
 
-interface Dashboard {
-  workQueue: {
-    projectsUnderReview: number;
-    milestonesSubmitted: number;
-    payoutsPending: number;
-    payoutsFailed: number;
-    reportsOpen: number;
-    projectReportsOpen: number;
-    commentReportsOpen: number;
-    pledgesCaptureGrace: number;
-    pledgesFailedCapture: number;
-    ticketsOpen: number;
-  };
-  vitals: {
-    liveRaisedHalalas: string;
-    liveCount: number;
-    usersCount: number;
-    gmvHalalas: string;
-    pendingPayoutLiabilityHalalas: string;
-    refundCount: number;
-  };
+interface WindowMeta {
+  from: string | null;
+  to: string | null;
+  days: number;
+}
+
+interface FinancialDto {
+  gmvHalalas: string;
+  commissionEarnedHalalas: string;
+  vatCollectedHalalas: string;
+  grossPledgedHalalas: string;
+  refundTotalHalalas: string;
+  refundCount: number;
+  payoutSentHalalas: string;
+  pendingPayoutGrossHalalas: string;
+  pendingPayoutLiabilityNetHalalas: string;
+  pendingLiabilityIsSnapshot: boolean;
+  window: WindowMeta;
   generatedAt: string;
 }
 
-const ar = (n: number) => n.toLocaleString('ar-SA');
-
-/** A ratio numerator/denominator as an ar-SA percentage, or null when base=0. */
-function ratio(num: number, den: number): { pct: string; num: number; den: number } | null {
-  if (den <= 0) return null;
-  const pct = (num / den).toLocaleString('ar-SA', {
-    style: 'percent',
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
-  return { pct, num, den };
+interface FunnelDto {
+  stages: {
+    visits: number | null;
+    signups: number;
+    emailVerified: number;
+    nafathVerified: number;
+    pledgers: number;
+    repeatPledgers: number;
+  };
+  dropoffs: {
+    visitToSignupPct: number | null;
+    signupToEmailVerifiedPct: number | null;
+    emailVerifiedToNafathVerifiedPct: number | null;
+    pledgerToRepeatPct: number | null;
+  };
+  notes: { topOfFunnel: string };
 }
 
-function DerivedTile({
+interface ProjectsDto {
+  successRatePct: number | null;
+  concludedCount: number;
+  wonCount: number;
+  lostCount: number;
+  statusDistribution: Record<string, number>;
+  totalProjects: number;
+  perCategory: Array<{
+    categoryId: string;
+    nameAr: string;
+    projectCount: number;
+    raisedHalalas: string;
+  }>;
+  pledgedVsRealized: {
+    pledgedHalalas: string;
+    realizedHalalas: string;
+    realizationRatePct: number | null;
+  };
+}
+
+interface UsersDto {
+  totalUsers: number;
+  newUsersInWindow: number;
+  kyc: { nafathVerified: number; total: number; conversionPct: number | null };
+  distinctBackers: number;
+  distinctBackersInWindow: number;
+  reputationTiers: Record<string, number>;
+  activeSessionCount: number;
+  suspendedCount: number;
+  bannedCount: number;
+}
+
+interface OperationsDto {
+  captureFailure: Record<string, unknown>;
+  refundRate: Record<string, unknown>;
+  disputeRate: Record<string, unknown>;
+  moderation: {
+    projectReportsOpened: number;
+    projectReportsResolved: number;
+    projectThroughputPct: number | null;
+    commentReportsOpened: number;
+    commentReportsResolved: number | null;
+  };
+  supportTicketsByStatus: Record<string, number>;
+  payoutSuccess: Record<string, unknown>;
+}
+
+type Fetched<T> = { status: number; data: T | null };
+
+async function getJson<T>(path: string, opsToken: string): Promise<Fetched<T>> {
+  try {
+    const r = await fetch(`${API_BASE}/v1/ops/analytics/${path}`, {
+      headers: { 'x-ops-token': opsToken },
+      cache: 'no-store',
+    });
+    if (r.ok) return { status: r.status, data: (await r.json()) as T };
+    return { status: r.status, data: null };
+  } catch {
+    return { status: 0, data: null };
+  }
+}
+
+function windowQs(from?: string, to?: string): string {
+  const u = new URLSearchParams();
+  if (from) u.set('from', from);
+  if (to) u.set('to', to);
+  const s = u.toString();
+  return s ? `?${s}` : '';
+}
+
+/** A percentage as a compact metric cell, honest «غير متاح» when null. */
+function PctMetric({
   label,
-  r,
-  formula,
-  intent = 'default',
+  pct,
+  direction,
+  reason,
 }: {
   label: string;
-  r: { pct: string; num: number; den: number } | null;
-  formula: string;
-  intent?: 'default' | 'ok' | 'warn' | 'danger';
+  pct: number | null;
+  direction: 'higher' | 'lower';
+  reason: string;
 }) {
-  return (
-    <StatTile
-      label={label}
-      value={r ? r.pct : '—'}
-      hint={r ? `${formula} = ${ar(r.num)} ÷ ${ar(r.den)}` : `${formula} — لا بيانات كافية`}
-      intent={r && r.num > 0 ? intent : 'default'}
-    />
-  );
+  if (pct === null || pct === undefined) {
+    return (
+      <MetricCell
+        label={label}
+        value={
+          <span title={reason} className="text-sm text-[#484f58]">
+            غير متاح
+          </span>
+        }
+        hint={reason}
+      />
+    );
+  }
+  return <MetricCell label={label} value={fmtPct(pct)} intent={pctIntent(pct, direction)} />;
 }
 
-function Pending({ label, why }: { label: string; why: string }) {
-  return (
-    <div className="rounded-lg border border-dashed border-[#30363d] bg-[#0d1117] p-4">
-      <p className="text-xs text-[#8b949e]">{label}</p>
-      <p className="mt-1 text-sm font-bold text-[#484f58]">بانتظار نقطة تجميع</p>
-      <p className="mt-1 text-[11px] text-[#484f58]">{why}</p>
-    </div>
-  );
-}
+const H2 = 'mb-3 text-base font-bold';
 
 export default async function OpsAnalyticsPage({
   searchParams,
@@ -95,31 +183,69 @@ export default async function OpsAnalyticsPage({
   await requireAdmin();
   const { opsToken } = await requireOpsSession();
   const sp = await searchParams;
+  const q = windowQs(sp.from, sp.to);
 
-  let data: Dashboard | null = null;
-  let refused = false;
-  try {
-    // NOTE: /dashboard does not yet accept a date window; from/to are captured
-    // in the filter as a forward hook and intentionally NOT sent.
-    const r = await fetch(`${API_BASE}/v1/ops/dashboard`, {
-      headers: { 'x-ops-token': opsToken },
-      cache: 'no-store',
-    });
-    if (r.status === 403) refused = true;
-    if (r.ok) data = (await r.json()) as Dashboard;
-  } catch {
-    /* API unreachable — the page renders its empty/refused states below. */
-  }
+  const [fin, funnel, projects, users, operations] = await Promise.all([
+    getJson<FinancialDto>(`financial${q}`, opsToken),
+    getJson<FunnelDto>(`funnel${q}`, opsToken),
+    getJson<ProjectsDto>(`projects${q}`, opsToken),
+    getJson<UsersDto>(`users${q}`, opsToken),
+    getJson<OperationsDto>(`operations${q}`, opsToken),
+  ]);
 
-  const wq = data?.workQueue;
-  const v = data?.vitals;
+  // analytics.read is refused → the four non-financial sections can't render.
+  const analyticsRefused = [funnel, projects, users, operations].some((f) => f.status === 403);
+  const financialRefused = fin.status === 403;
+  const anyUnreachable =
+    !fin.data && !funnel.data && !projects.data && !users.data && !operations.data && !analyticsRefused;
 
-  const payoutFailureShare = wq
-    ? ratio(wq.payoutsFailed, wq.payoutsPending + wq.payoutsFailed)
-    : null;
-  const captureFailureShare = wq
-    ? ratio(wq.pledgesFailedCapture, wq.pledgesCaptureGrace + wq.pledgesFailedCapture)
-    : null;
+  // Resolved window: prefer the financial DTO's own window; else echo the query.
+  const win: WindowMeta | null =
+    fin.data?.window ??
+    (sp.from || sp.to ? { from: sp.from ?? null, to: sp.to ?? null, days: 0 } : null);
+  const winLabel = win
+    ? `${win.from ? new Date(win.from).toLocaleDateString('ar-SA') : '—'} ← ${
+        win.to ? new Date(win.to).toLocaleDateString('ar-SA') : '—'
+      }${win.days ? ` · ${arInt(win.days)} يوم` : ''}`
+    : 'النطاق الافتراضي (كل الوقت)';
+
+  const f = funnel.data;
+  const funnelStages: FunnelStage[] = f
+    ? [
+        { key: 'signups', label: 'التسجيلات', value: f.stages.signups },
+        {
+          key: 'emailVerified',
+          label: 'تأكيد البريد',
+          value: f.stages.emailVerified,
+          retentionPct: f.dropoffs.signupToEmailVerifiedPct,
+        },
+        {
+          key: 'nafathVerified',
+          label: 'توثيق نفاذ',
+          value: f.stages.nafathVerified,
+          retentionPct: f.dropoffs.emailVerifiedToNafathVerifiedPct,
+        },
+        { key: 'pledgers', label: 'المتعهّدون', value: f.stages.pledgers, retentionPct: null },
+        {
+          key: 'repeatPledgers',
+          label: 'تعهّد متكرّر',
+          value: f.stages.repeatPledgers,
+          retentionPct: f.dropoffs.pledgerToRepeatPct,
+        },
+      ]
+    : [];
+
+  const p = projects.data;
+  const categoryRows: CategoryRow[] = (p?.perCategory ?? []).map((c) => ({
+    id: c.categoryId,
+    categoryId: c.categoryId,
+    nameAr: c.nameAr,
+    projectCount: c.projectCount,
+    raisedHalalas: c.raisedHalalas,
+  }));
+
+  const u = users.data;
+  const o = operations.data;
 
   return (
     <div className="space-y-8">
@@ -127,8 +253,9 @@ export default async function OpsAnalyticsPage({
         <div>
           <h1 className="text-lg font-bold">القياس والتقارير</h1>
           <p className="mt-1 text-sm text-[#8b949e]">
-            لقطة حيّة من لوحة القيادة — كل رقم موسوم بمصدره، ولا رقم مُقدَّر أو مُلفَّق
-            {data ? ` · حُدِّثت ${new Date(data.generatedAt).toLocaleString('ar-SA')}` : ''}
+            صحّة المنصّة كاملة عبر خمس واجهات تجميع — مالية، قمع التحويل، المشاريع، المستخدمون،
+            التشغيل. كل رقم مصدره الواجهة، والمفقود يُعرض «غير متاح» لا صفراً.
+            {fin.data ? ` · حُدِّثت ${new Date(fin.data.generatedAt).toLocaleString('ar-SA')}` : ''}
           </p>
         </div>
         <Link href="/ops" className="text-sm text-[#58a6ff] hover:underline">
@@ -136,19 +263,19 @@ export default async function OpsAnalyticsPage({
         </Link>
       </div>
 
-      {refused ? (
+      {analyticsRefused ? (
         <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-          تفتقد صلاحية analytics.read — اطلب دور ANALYST أو أعلى من المالك.
+          تفتقد صلاحية analytics.read — اطلب دور ANALYST أو أعلى من المالك لعرض التحليلات.
         </p>
       ) : null}
 
-      {!data && !refused ? (
+      {anyUnreachable ? (
         <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-3 text-sm text-[#8b949e]">
           تعذّر جلب المؤشرات الآن — تحقّق من اتصال واجهة العمليات ثم أعد التحميل.
         </p>
       ) : null}
 
-      {/* ── Date-range filter — forward hook (not yet applied) ─────────────── */}
+      {/* ── Date-range control — now drives all five fetches ──────────────── */}
       <div>
         <FilterForm
           fields={[
@@ -158,120 +285,278 @@ export default async function OpsAnalyticsPage({
           values={sp}
           submitLabelAr="تطبيق النطاق"
         />
-        <p className="mt-2 text-[11px] text-[#484f58]">
-          نطاق التاريخ محجوز لواجهة تجميع قادمة — القيم تُحفظ في الرابط لكنها لا تُرشّح
-          الأرقام الحالية بعد. اللقطة أدناه لحظية عبر كامل المنصّة.
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[#8b949e]">
+          <span>النطاق المُطبَّق على كل الأقسام:</span>
+          <span className="rounded border border-[#30363d] bg-[#161b22] px-2 py-0.5 font-bold text-[#c9d1d9]">
+            {winLabel}
+          </span>
         </p>
       </div>
 
-      {/* ── Platform vitals (verbatim from /dashboard) ────────────────────── */}
-      <section aria-labelledby="vitals-h">
-        <h2 id="vitals-h" className="mb-3 text-base font-bold">
-          المؤشرات الحيوية
+      {/* ── 1) Financial report (needs money.execute) ─────────────────────── */}
+      <section aria-labelledby="fin-h">
+        <h2 id="fin-h" className={H2}>
+          التقرير المالي
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatTile
-            label="المبلغ المُجمَّع (مشاريع حيّة)"
-            value={formatSar(v?.liveRaisedHalalas)}
-            hint="مجموع raisedHalalas — LIVE"
+        {financialRefused ? (
+          <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            هذا القسم يتطلّب صلاحية money.execute — بقية التحليلات معروضة، أمّا الأرقام المالية
+            فمحجوبة حتى تُمنح الصلاحية.
+          </p>
+        ) : fin.data ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile label="إجمالي المبيعات (GMV)" value={formatSar(fin.data.gmvHalalas)} hint="القيمة المحقَّقة" />
+            <StatTile label="العمولة المحصّلة" value={formatSar(fin.data.commissionEarnedHalalas)} hint="دخل المنصّة" />
+            <StatTile label="ضريبة القيمة المضافة" value={formatSar(fin.data.vatCollectedHalalas)} hint="VAT محصّلة" />
+            <StatTile label="إجمالي التعهّدات" value={formatSar(fin.data.grossPledgedHalalas)} hint="القيمة المتعهَّد بها" />
+            <StatTile
+              label="الاستردادات"
+              value={formatSar(fin.data.refundTotalHalalas)}
+              hint={`${arInt(fin.data.refundCount)} عملية استرداد`}
+              intent={fin.data.refundCount > 0 ? 'warn' : 'default'}
+            />
+            <StatTile label="المدفوعات المصروفة" value={formatSar(fin.data.payoutSentHalalas)} hint="payouts SENT" />
+            <StatTile
+              label="المدفوعات المعلّقة (إجمالي)"
+              value={formatSar(fin.data.pendingPayoutGrossHalalas)}
+              hint="قبل خصم العمولة"
+            />
+            <StatTile
+              label="الالتزام المعلّق (صافٍ)"
+              value={
+                <span className="flex items-center gap-2">
+                  {formatSar(fin.data.pendingPayoutLiabilityNetHalalas)}
+                  {fin.data.pendingLiabilityIsSnapshot ? <StatusBadge intent="info">لقطة</StatusBadge> : null}
+                </span>
+              }
+              hint={
+                fin.data.pendingLiabilityIsSnapshot
+                  ? 'قيمة لقطة — قد تختلف عن الحساب اللحظي'
+                  : 'صافي المستحق للصرف'
+              }
+              intent={fin.data.pendingPayoutLiabilityNetHalalas !== '0' ? 'warn' : 'default'}
+            />
+          </div>
+        ) : (
+          <Unavailable
+            label="التقرير المالي"
+            reason="تعذّر جلب واجهة /analytics/financial — تحقّق من الاتصال"
           />
-          <StatTile label="مشاريع حيّة" value={ar(v?.liveCount ?? 0)} hint="حالة LIVE" />
-          <StatTile label="المستخدمون" value={ar(v?.usersCount ?? 0)} hint="إجمالي الحسابات" />
-          <StatTile
-            label="إجمالي المبيعات (GMV)"
-            value={formatSar(v?.gmvHalalas)}
-            hint="مجموع realizedHalalas"
-          />
-          <StatTile
-            label="التزام المدفوعات المعلّقة"
-            value={formatSar(v?.pendingPayoutLiabilityHalalas)}
-            hint="المستحق صرفه — payouts PENDING"
-            intent={v && v.pendingPayoutLiabilityHalalas !== '0' ? 'warn' : 'default'}
-          />
-          <StatTile
-            label="التعهدات المستردّة"
-            value={ar(v?.refundCount ?? 0)}
-            hint="حالة REFUNDED (عدد)"
-          />
-        </div>
+        )}
       </section>
 
-      {/* ── Derived ratios (computed here from the counts above) ───────────── */}
-      <section aria-labelledby="ratios-h">
-        <h2 id="ratios-h" className="mb-1 text-base font-bold">
-          نسب مشتقّة
+      {/* ── 2) Funnel ─────────────────────────────────────────────────────── */}
+      <section aria-labelledby="funnel-h">
+        <h2 id="funnel-h" className={H2}>
+          قمع التحويل
         </h2>
-        <p className="mb-3 text-[11px] text-[#8b949e]">
-          محسوبة من عدّادات لوحة القيادة — كل نسبة مقيسة على مجتمعها الظاهر في التلميح، لا
-          على كامل التاريخ.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <DerivedTile
-            label="نسبة فشل الصرف"
-            r={payoutFailureShare}
-            formula="فاشلة ÷ (معلّقة + فاشلة)"
-            intent="danger"
-          />
-          <DerivedTile
-            label="نسبة فشل السحب"
-            r={captureFailureShare}
-            formula="فشل سحب ÷ (مهلة سحب + فشل سحب)"
-            intent="danger"
-          />
-          <StatTile
-            label="التزام قيد الصرف"
-            value={formatSar(v?.pendingPayoutLiabilityHalalas)}
-            hint="القيمة المالية المعلّقة الآن"
-            intent={v && v.pendingPayoutLiabilityHalalas !== '0' ? 'warn' : 'default'}
-          />
-        </div>
+        {f ? (
+          <Funnel stages={funnelStages} topNote={f.notes.topOfFunnel} />
+        ) : analyticsRefused ? null : (
+          <Unavailable label="قمع التحويل" reason="تعذّر جلب واجهة /analytics/funnel" />
+        )}
       </section>
 
-      {/* ── Honest gaps: what needs a real aggregate endpoint ─────────────── */}
-      <section aria-labelledby="gaps-h">
-        <h2 id="gaps-h" className="mb-3 text-base font-bold">
-          مؤشرات بانتظار واجهة تجميع
+      {/* ── 3) Projects ───────────────────────────────────────────────────── */}
+      <section aria-labelledby="proj-h">
+        <h2 id="proj-h" className={H2}>
+          المشاريع
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Pending
-            label="معدل نجاح المدفوعات"
-            why="يلزم عدّاد المدفوعات الناجحة (غير متوفّر في لقطة لوحة القيادة)"
-          />
-          <Pending
-            label="معدل الاسترداد"
-            why="يلزم إجمالي التعهدات كقاعدة للنسبة (اللقطة تعطي العدد فقط)"
-          />
-          <Pending
-            label="الاتجاهات الزمنية"
-            why="يلزم سلسلة زمنية مُجمَّعة عبر النطاق — الرابط يحفظ التواريخ استعداداً لها"
-          />
-        </div>
+        {p ? (
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-4">
+                <p className="text-xs text-[#8b949e]">معدّل النجاح</p>
+                <p
+                  className={`mt-1 text-4xl font-bold tabular-nums ${intentText(
+                    pctIntent(p.successRatePct, 'higher'),
+                  )}`}
+                >
+                  {p.successRatePct === null ? 'غير متاح' : fmtPct(p.successRatePct)}
+                </p>
+                <p className="mt-1 text-[11px] text-[#484f58]">
+                  {arInt(p.wonCount)} ناجح ÷ {arInt(p.concludedCount)} منتهٍ
+                </p>
+              </div>
+              <StatTile label="إجمالي المشاريع" value={arInt(p.totalProjects)} />
+              <StatTile label="ناجحة" value={arInt(p.wonCount)} intent="ok" />
+              <StatTile label="مخفقة" value={arInt(p.lostCount)} intent={p.lostCount > 0 ? 'danger' : 'default'} />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <DistributionBars
+                title="توزيع الحالات"
+                rows={Object.entries(p.statusDistribution)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, v]) => ({
+                    label: labelOf(PROJECT_STATUS_AR, k),
+                    value: v,
+                    valueLabel: arInt(v),
+                    intent: statusIntent(k) as Intent,
+                  }))}
+              />
+              <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-4">
+                <p className="mb-3 text-xs font-bold text-[#8b949e]">المتعهَّد مقابل المحقَّق</p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[#8b949e]">المتعهَّد</span>
+                    <span className="font-bold tabular-nums">{formatSar(p.pledgedVsRealized.pledgedHalalas)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-[#8b949e]">المحقَّق</span>
+                    <span className="font-bold tabular-nums">{formatSar(p.pledgedVsRealized.realizedHalalas)}</span>
+                  </div>
+                  <div className="border-t border-[#21262d] pt-3">
+                    <Bar
+                      label="نسبة التحقّق"
+                      value={p.pledgedVsRealized.realizationRatePct ?? 0}
+                      max={100}
+                      intent={pctIntent(p.pledgedVsRealized.realizationRatePct, 'higher')}
+                      valueLabel={
+                        p.pledgedVsRealized.realizationRatePct === null
+                          ? 'غير متاح'
+                          : fmtPct(p.pledgedVsRealized.realizationRatePct)
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-bold text-[#8b949e]">أداء الفئات</p>
+              <CategoryTable rows={categoryRows} />
+            </div>
+          </div>
+        ) : analyticsRefused ? null : (
+          <Unavailable label="المشاريع" reason="تعذّر جلب واجهة /analytics/projects" />
+        )}
       </section>
 
-      {/* ── Financial trends live in the ledgers ──────────────────────────── */}
-      <section aria-labelledby="finance-h">
-        <h2 id="finance-h" className="mb-3 text-base font-bold">
-          الاتجاهات المالية التفصيلية
+      {/* ── 4) Users ──────────────────────────────────────────────────────── */}
+      <section aria-labelledby="users-h">
+        <h2 id="users-h" className={H2}>
+          المستخدمون
         </h2>
-        <p className="mb-3 text-sm text-[#8b949e]">
-          الحركة المالية سطراً بسطر تُستعرض وتُطابَق في شاشات المال — لا تُلخَّص هنا حتى لا
-          تُقرأ اللقطة كأنها دفتر.
-        </p>
-        <div className="flex flex-wrap gap-2 text-sm">
-          {[
-            { href: '/ops/money/ledger', labelAr: 'دفتر الأستاذ' },
-            { href: '/ops/money/reconciliation', labelAr: 'المطابقة' },
-            { href: '/ops/money', labelAr: 'المال (المدفوعات والتعهدات)' },
-          ].map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="rounded border border-[#30363d] bg-[#161b22] px-3 py-1.5 hover:bg-[#21262d]"
-            >
-              {l.labelAr} ←
-            </Link>
-          ))}
-        </div>
+        {u ? (
+          <div className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-4">
+                <p className="text-xs text-[#8b949e]">تحويل التوثيق (KYC)</p>
+                <p
+                  className={`mt-1 text-3xl font-bold tabular-nums ${intentText(
+                    pctIntent(u.kyc.conversionPct, 'higher'),
+                  )}`}
+                >
+                  {u.kyc.conversionPct === null ? 'غير متاح' : fmtPct(u.kyc.conversionPct)}
+                </p>
+                <p className="mt-1 text-[11px] text-[#484f58]">
+                  {arInt(u.kyc.nafathVerified)} موثّق ÷ {arInt(u.kyc.total)}
+                </p>
+              </div>
+              <StatTile label="إجمالي المستخدمين" value={arInt(u.totalUsers)} hint={`${arInt(u.newUsersInWindow)} جديد ضمن النطاق`} />
+              <StatTile label="داعمون فريدون" value={arInt(u.distinctBackers)} hint={`${arInt(u.distinctBackersInWindow)} ضمن النطاق`} />
+              <StatTile label="جلسات نشطة" value={arInt(u.activeSessionCount)} />
+              <StatTile label="موقوفون" value={arInt(u.suspendedCount)} intent={u.suspendedCount > 0 ? 'warn' : 'default'} />
+              <StatTile label="محظورون" value={arInt(u.bannedCount)} intent={u.bannedCount > 0 ? 'danger' : 'default'} />
+            </div>
+            <DistributionBars
+              title="توزيع مراتب السمعة"
+              rows={Object.entries(u.reputationTiers)
+                .sort((a, b) => b[1] - a[1])
+                .map(([k, v]) => ({
+                  label: labelOf(REP_TIER_AR, k),
+                  value: v,
+                  valueLabel: arInt(v),
+                }))}
+              emptyAr="لا مراتب سمعة"
+            />
+          </div>
+        ) : analyticsRefused ? null : (
+          <Unavailable label="المستخدمون" reason="تعذّر جلب واجهة /analytics/users" />
+        )}
+      </section>
+
+      {/* ── 5) Operations ─────────────────────────────────────────────────── */}
+      <section aria-labelledby="ops-h">
+        <h2 id="ops-h" className={H2}>
+          التشغيل
+        </h2>
+        {o ? (
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              <PctMetric
+                label="فشل السحب"
+                pct={pickPct(o.captureFailure, ['trueRatePct', 'ratePct', 'pct'])}
+                direction="lower"
+                reason="لم تُرجِع الواجهة نسبة فشل السحب"
+              />
+              <PctMetric
+                label="معدّل الاسترداد"
+                pct={pickPct(o.refundRate, ['ratePct', 'trueRatePct', 'refundRatePct', 'pct'])}
+                direction="lower"
+                reason="لم تُرجِع الواجهة معدّل الاسترداد"
+              />
+              <PctMetric
+                label="معدّل النزاعات"
+                pct={pickPct(o.disputeRate, ['ratePct', 'trueRatePct', 'disputeRatePct', 'pct'])}
+                direction="lower"
+                reason="لم تُرجِع الواجهة معدّل النزاعات"
+              />
+              <PctMetric
+                label="إنتاجية الإشراف"
+                pct={o.moderation.projectThroughputPct}
+                direction="higher"
+                reason="لم تُرجِع الواجهة نسبة إنتاجية الإشراف"
+              />
+              <PctMetric
+                label="نجاح الصرف"
+                pct={pickPct(o.payoutSuccess, ['successRatePct', 'ratePct', 'pct'])}
+                direction="higher"
+                reason="لم تُرجِع الواجهة معدّل نجاح الصرف"
+              />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border border-[#21262d] bg-[#161b22] p-4">
+                <p className="mb-3 text-xs font-bold text-[#8b949e]">الإشراف على البلاغات</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <MetricCell label="بلاغات مشاريع مفتوحة" value={arInt(o.moderation.projectReportsOpened)} />
+                  <MetricCell label="بلاغات مشاريع محلولة" value={arInt(o.moderation.projectReportsResolved)} />
+                  <MetricCell label="بلاغات تعليقات مفتوحة" value={arInt(o.moderation.commentReportsOpened)} />
+                  {o.moderation.commentReportsResolved === null ? (
+                    <MetricCell
+                      label="بلاغات تعليقات محلولة"
+                      value={
+                        <span title="لم تُرجِع الواجهة هذا العدّاد" className="text-sm text-[#484f58]">
+                          غير متاح
+                        </span>
+                      }
+                      hint="لم تُرجِع الواجهة هذا العدّاد"
+                    />
+                  ) : (
+                    <MetricCell label="بلاغات تعليقات محلولة" value={arInt(o.moderation.commentReportsResolved)} />
+                  )}
+                </div>
+              </div>
+
+              <DistributionBars
+                title="تذاكر الدعم حسب الحالة"
+                rows={Object.entries(o.supportTicketsByStatus)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([k, v]) => ({
+                    label: labelOf(TICKET_STATUS_AR, k),
+                    value: v,
+                    valueLabel: arInt(v),
+                    intent: (k === 'OPEN' || k === 'PENDING' ? 'warn' : 'default') as Intent,
+                  }))}
+                emptyAr="لا تذاكر دعم"
+              />
+            </div>
+          </div>
+        ) : analyticsRefused ? null : (
+          <Unavailable label="التشغيل" reason="تعذّر جلب واجهة /analytics/operations" />
+        )}
       </section>
     </div>
   );
