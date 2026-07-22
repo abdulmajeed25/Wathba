@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import {
   Prisma,
   type LedgerEntryType,
+  type MilestoneStatus,
   type PayoutStatus,
   type PledgeStatus,
   type ProjectStatus,
@@ -10,6 +11,7 @@ import {
   type UserRole,
 } from '@prisma/client';
 
+import { commissionBreakdown } from '../../config/fees';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { permissionMatches } from '../permissions';
@@ -47,6 +49,34 @@ function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString() : null;
 }
 
+/** Trim long free-text to a screen-ready snippet (never leaks full body). */
+function snippet(s: string | null | undefined, n = 140): string | null {
+  if (!s) return null;
+  return s.length <= n ? s : `${s.slice(0, n)}…`;
+}
+
+/**
+ * IBAN is PDPL-relevant financial PII — masked by default like email/phone.
+ * Shows the bank prefix + last two so an operator can eyeball-match without
+ * the full account being disclosed (unmask is a separate audited op).
+ */
+function maskIban(iban: string | null | undefined): string | null {
+  if (!iban) return null;
+  const c = iban.replace(/\s/g, '');
+  if (c.length <= 6) return '****';
+  return `${c.slice(0, 4)}****${c.slice(-2)}`;
+}
+
+/**
+ * Reporter/opaque-id masking for the moderation queue: a report's reporter is
+ * kept pseudonymous (reporter anonymity) — we surface only a short prefix so
+ * duplicate reporters are still visually groupable, never the full identity.
+ */
+function maskId(id: string | null | undefined): string | null {
+  if (!id) return null;
+  return `${id.slice(0, 8)}…`;
+}
+
 export interface Page<T> {
   items: T[];
   nextCursor: string | null;
@@ -63,6 +93,8 @@ export interface ProjectListFilter extends CursorFilter {
   categoryId?: string;
   q?: string;
   hidden?: boolean;
+  /** true → only projects carrying at least one OPEN report. */
+  reported?: boolean;
 }
 export interface UserListFilter extends CursorFilter {
   role?: string;
@@ -94,6 +126,34 @@ export interface RfqListFilter extends CursorFilter {
   projectId?: string;
 }
 
+/* ── Unit-1 read-layer expansion filters ───────────────────────────────── */
+
+export interface CommentListFilter extends CursorFilter {
+  projectId?: string;
+  hidden?: boolean;
+  reported?: boolean;
+}
+export interface BeneficiaryListFilter extends CursorFilter {
+  verified?: boolean;
+}
+export interface ZatcaListFilter extends CursorFilter {
+  /** true → only reported; false → only orphans (reportedAt null). */
+  reported?: boolean;
+  creatorId?: string;
+}
+export interface WebhookListFilter extends CursorFilter {
+  outcome?: string;
+  provider?: string;
+}
+export interface MilestoneQueueFilter extends CursorFilter {
+  status?: string;
+  projectId?: string;
+}
+export interface KycQueueFilter extends CursorFilter {
+  /** true → SUPPLIER-role accounts still awaiting suppliers.verify. */
+  supplierUnverified?: boolean;
+}
+
 @Injectable()
 export class OpsReadService {
   constructor(
@@ -121,6 +181,23 @@ export class OpsReadService {
       extra: {
         take: take + 1,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(f.cursor ? { cursor: { id: f.cursor }, skip: 1 } : {}),
+      },
+    };
+  }
+
+  /**
+   * Same keyset pattern as pageArgs but for models whose chronological column
+   * is not `createdAt` (Comment/ProjectUpdate use `date`, ZatcaInvoice uses
+   * `issuedAt`, Milestone uses `submittedAt`). Cursor stays the row id.
+   */
+  private pageArgsOn(f: CursorFilter, dateField: string): { take: number; extra: Record<string, unknown> } {
+    const take = clampLimit(f.limit);
+    return {
+      take,
+      extra: {
+        take: take + 1,
+        orderBy: [{ [dateField]: 'desc' }, { id: 'desc' }],
         ...(f.cursor ? { cursor: { id: f.cursor }, skip: 1 } : {}),
       },
     };
@@ -172,6 +249,12 @@ export class OpsReadService {
       this.prisma.pledge.count({ where: { status: 'REFUNDED' } }),
     ]);
 
+    // See the vitals comment below: gross is what the aggregate sums; the
+    // truthful liability is the net after the disburser's commission+VAT
+    // withholding, computed via the shared commissionBreakdown().
+    const pendingPayoutGross = pendingPayoutAgg._sum.amountHalalas ?? 0n;
+    const estimatedNetPayoutLiability = commissionBreakdown(pendingPayoutGross).netHalalas;
+
     return {
       workQueue: {
         projectsUnderReview,
@@ -190,10 +273,19 @@ export class OpsReadService {
         liveCount,
         usersCount,
         gmvHalalas: h(gmvAgg._sum.realizedHalalas) ?? '0',
-        // For PENDING payouts net is not yet computed (it is set at
-        // disbursement), so the outstanding liability is the GROSS release.
-        pendingPayoutLiabilityHalalas:
-          h(pendingPayoutAgg._sum.netHalalas) ?? h(pendingPayoutAgg._sum.amountHalalas) ?? '0',
+        // BUG FIX (census A4) — PENDING payouts have net=null, so the old
+        // `net ?? amount` fell through to the GROSS release and OVERSTATED the
+        // liability by the withheld commission+VAT. The money that actually
+        // leaves the platform is the NET; we derive the expected net with the
+        // SAME commissionBreakdown() the disburser uses (config/fees.ts), so
+        // the tile and the disbursement can never disagree on the basis.
+        // Applied to the aggregate gross sum → an ESTIMATE (per-row rounding
+        // differs by ≤a few halalas across many rows); both legs are exposed
+        // so the screen can show gross AND the truthful net side-by-side.
+        grossPendingPayoutHalalas: h(pendingPayoutGross) ?? '0',
+        estimatedNetPayoutLiabilityHalalas: h(estimatedNetPayoutLiability) ?? '0',
+        // Kept for back-compat, now the truthful NET estimate (no longer gross).
+        pendingPayoutLiabilityHalalas: h(estimatedNetPayoutLiability) ?? '0',
         refundCount,
       },
       generatedAt: new Date().toISOString(),
@@ -209,6 +301,7 @@ export class OpsReadService {
       ...(f.q ? { titleAr: { contains: f.q, mode: 'insensitive' } } : {}),
       ...(f.hidden === true ? { hiddenAt: { not: null } } : {}),
       ...(f.hidden === false ? { hiddenAt: null } : {}),
+      ...(f.reported === true ? { projectReports: { some: { resolvedAt: null } } } : {}),
     };
     const { take, extra } = this.pageArgs(f);
     const rows = await this.prisma.project.findMany({
@@ -219,13 +312,28 @@ export class OpsReadService {
         categoryRef: { select: { id: true, nameAr: true } },
       },
     });
-    return this.slice(rows, take, (r) => this.projectRow(r));
+    // openReportCount per row — one grouped count over the page's ids (never a
+    // per-row query). Lets trust/projects lists sort/filter by report volume.
+    const openReports = await this.openReportCounts(rows.map((r) => r.id));
+    return this.slice(rows, take, (r) => this.projectRow(r, openReports.get(r.id) ?? 0));
+  }
+
+  /** Map projectId → count of OPEN (resolvedAt null) reports for a set of ids. */
+  private async openReportCounts(projectIds: string[]): Promise<Map<string, number>> {
+    if (projectIds.length === 0) return new Map();
+    const grouped = await this.prisma.projectReport.groupBy({
+      by: ['projectId'],
+      where: { projectId: { in: projectIds }, resolvedAt: null },
+      _count: { _all: true },
+    });
+    return new Map(grouped.map((g) => [g.projectId, g._count._all]));
   }
 
   private projectRow(
     r: Prisma.ProjectGetPayload<{
       include: { createdBy: { select: { handle: true } }; categoryRef: { select: { id: true; nameAr: true } } };
     }>,
+    openReportCount = 0,
   ) {
     return {
       id: r.id,
@@ -240,8 +348,28 @@ export class OpsReadService {
       createdBy: r.createdBy?.handle ?? null,
       createdById: r.createdById,
       hiddenAt: iso(r.hiddenAt),
+      openReportCount,
       createdAt: iso(r.createdAt),
     };
+  }
+
+  /** Cross-page count-by-status so screens stop counting the current page. */
+  async projectStats(f: { categoryId?: string } = {}) {
+    const where: Prisma.ProjectWhereInput = {
+      ...(f.categoryId ? { categoryId: f.categoryId } : {}),
+    };
+    const grouped = await this.prisma.project.groupBy({
+      by: ['status'],
+      where,
+      _count: { _all: true },
+    });
+    const statusCounts: Record<string, number> = {};
+    let total = 0;
+    for (const g of grouped) {
+      statusCounts[g.status] = g._count._all;
+      total += g._count._all;
+    }
+    return { statusCounts, total };
   }
 
   async projectDetail(id: string) {
@@ -356,16 +484,39 @@ export class OpsReadService {
     };
     const { take, extra } = this.pageArgs(f);
     const rows = await this.prisma.user.findMany({ where, ...extra });
-    return this.slice(rows, take, (r) => this.userRow(r));
+    const opsRoles = await this.opsRoleKeysFor(rows.map((r) => r.id));
+    return this.slice(rows, take, (r) => this.userRow(r, opsRoles.get(r.id) ?? []));
   }
 
-  private userRow(r: Prisma.UserGetPayload<Record<string, never>>) {
+  /**
+   * Read-only OpsRoleGrant→OpsRole join: map userId → their ops-role KEYS
+   * (OWNER, FINANCE, …). Ops tables don't fan into the domain graph (no FK to
+   * User by design), so this is a manual two-step read: grants for the ids,
+   * then their roles. Powers the team screen's "current grants" column.
+   */
+  private async opsRoleKeysFor(userIds: string[]): Promise<Map<string, string[]>> {
+    if (userIds.length === 0) return new Map();
+    const grants = await this.prisma.opsRoleGrant.findMany({
+      where: { userId: { in: userIds } },
+      include: { role: { select: { key: true } } },
+    });
+    const map = new Map<string, string[]>();
+    for (const g of grants) {
+      const arr = map.get(g.userId) ?? [];
+      arr.push(g.role.key);
+      map.set(g.userId, arr);
+    }
+    return map;
+  }
+
+  private userRow(r: Prisma.UserGetPayload<Record<string, never>>, opsRoleKeys: string[] = []) {
     return {
       id: r.id,
       name: r.name,
       email: maskEmail(r.email),
       handle: r.handle,
       roles: r.roles,
+      opsRoleKeys,
       suspendedAt: iso(r.suspendedAt),
       suspendedKind: r.suspendedKind,
       nafathVerified: r.nafathVerified,
@@ -378,10 +529,11 @@ export class OpsReadService {
   async userDetail(id: string) {
     const u = await this.prisma.user.findUnique({ where: { id } });
     if (!u) throw new NotFoundException('المستخدم غير موجود');
-    const [sessionCount, pledgeCount, projectCount] = await Promise.all([
+    const [sessionCount, pledgeCount, projectCount, opsRoles] = await Promise.all([
       this.prisma.refreshToken.count({ where: { userId: id, revokedAt: null } }),
       this.prisma.pledge.count({ where: { backerId: id } }),
       this.prisma.project.count({ where: { createdById: id } }),
+      this.opsRoleKeysFor([id]),
     ]);
     return {
       id: u.id,
@@ -392,6 +544,7 @@ export class OpsReadService {
       handle: u.handle,
       city: u.city,
       roles: u.roles,
+      opsRoleKeys: opsRoles.get(id) ?? [],
       reputationTier: u.reputationTier,
       emailVerified: u.emailVerified,
       nafathVerified: u.nafathVerified,
@@ -667,6 +820,577 @@ export class OpsReadService {
         status: b.status,
         createdAt: iso(b.createdAt),
       })),
+    };
+  }
+
+  /* ── U1.A USERS — stats, KYC queue, sub-resources (users.lifecycle) ────── */
+
+  /** Cross-page user status counts (active/suspended/banned) + verification. */
+  async userStats() {
+    const [total, suspended, banned, nafathVerified, supplierVerified] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { suspendedKind: 'SUSPENDED' } }),
+      this.prisma.user.count({ where: { suspendedKind: 'BANNED' } }),
+      this.prisma.user.count({ where: { nafathVerified: true } }),
+      this.prisma.user.count({ where: { supplierVerifiedAt: { not: null } } }),
+    ]);
+    return {
+      statusCounts: { active: total - suspended - banned, suspended, banned },
+      nafathVerified,
+      supplierVerified,
+      total,
+    };
+  }
+
+  /**
+   * KYC / Nafath worklist — accounts not yet Nafath-verified. Newest-first to
+   * match the read layer's keyset convention. `supplierUnverified` narrows to
+   * SUPPLIER-role accounts still awaiting suppliers.verify (the other blind
+   * onboarding queue).
+   */
+  async listKycQueue(f: KycQueueFilter): Promise<Page<ReturnType<OpsReadService['userRow']>>> {
+    const where: Prisma.UserWhereInput = f.supplierUnverified
+      ? { roles: { has: 'SUPPLIER' }, supplierVerifiedAt: null }
+      : { nafathVerified: false };
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.user.findMany({ where, ...extra });
+    const opsRoles = await this.opsRoleKeysFor(rows.map((r) => r.id));
+    return this.slice(rows, take, (r) => this.userRow(r, opsRoles.get(r.id) ?? []));
+  }
+
+  /** A user's pledges — masked backer, string money (replaces a bare count). */
+  async listUserPledges(userId: string, f: CursorFilter): Promise<Page<ReturnType<OpsReadService['pledgeRow']>>> {
+    return this.listPledges({ ...f, backerId: userId });
+  }
+
+  /**
+   * A user's sessions — a merged, newest-first view over RefreshToken (auth
+   * sessions) + KnownDevice (recognised devices). Neither hash is ever exposed
+   * (tokenHash withheld entirely; deviceHash truncated). Keyset on createdAt
+   * since the two tables share no id space.
+   */
+  async listUserSessions(userId: string, f: CursorFilter): Promise<Page<{
+    kind: 'token' | 'device';
+    id: string;
+    active: boolean;
+    createdAt: string | null;
+    expiresAt: string | null;
+    revokedAt: string | null;
+    lastSeenAt: string | null;
+    deviceHashMasked: string | null;
+  }>> {
+    const take = clampLimit(f.limit);
+    const before = f.cursor ? new Date(f.cursor) : undefined;
+    const dateWhere = before ? { createdAt: { lt: before } } : {};
+    const now = new Date();
+    const [tokens, devices] = await Promise.all([
+      this.prisma.refreshToken.findMany({
+        where: { userId, ...dateWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+      }),
+      this.prisma.knownDevice.findMany({
+        where: { userId, ...dateWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+      }),
+    ]);
+    const merged = [
+      ...tokens.map((t) => ({
+        kind: 'token' as const,
+        id: t.id,
+        active: t.revokedAt === null && t.expiresAt > now,
+        createdAt: iso(t.createdAt),
+        expiresAt: iso(t.expiresAt),
+        revokedAt: iso(t.revokedAt),
+        lastSeenAt: null,
+        deviceHashMasked: null,
+        _sort: t.createdAt.getTime(),
+      })),
+      ...devices.map((d) => ({
+        kind: 'device' as const,
+        id: d.id,
+        active: true,
+        createdAt: iso(d.createdAt),
+        expiresAt: null,
+        revokedAt: null,
+        lastSeenAt: iso(d.lastSeenAt),
+        deviceHashMasked: maskId(d.deviceHash),
+        _sort: d.createdAt.getTime(),
+      })),
+    ].sort((a, b) => b._sort - a._sort);
+    const hasMore = merged.length > take;
+    const page = merged.slice(0, take).map(({ _sort, ...rest }) => rest);
+    return { items: page, nextCursor: hasMore ? page[page.length - 1]!.createdAt : null };
+  }
+
+  /* ── U1.B MODERATION — unblind the queue (moderation.queue) ─────────────── */
+
+  /**
+   * The unified moderation worklist — open ProjectReport (resolvedAt null)
+   * MERGED with CommentReport into one queue DTO. Both tables are read
+   * newest-first and interleaved; the cursor is the createdAt of the last item
+   * (keyset across two id spaces). Reporters stay pseudonymous (maskId).
+   */
+  async listModerationReports(f: CursorFilter): Promise<Page<{
+    kind: 'project' | 'comment';
+    id: string;
+    subjectId: string;
+    subjectTitleAr: string | null;
+    subjectSnippet: string | null;
+    reporterMasked: string | null;
+    reasonAr: string | null;
+    subjectHiddenAt: string | null;
+    createdAt: string | null;
+  }>> {
+    const take = clampLimit(f.limit);
+    const before = f.cursor ? new Date(f.cursor) : undefined;
+    const dateWhere = before ? { createdAt: { lt: before } } : {};
+    const [projectReports, commentReports] = await Promise.all([
+      this.prisma.projectReport.findMany({
+        where: { resolvedAt: null, ...dateWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+        include: { project: { select: { titleAr: true, hiddenAt: true } } },
+      }),
+      this.prisma.commentReport.findMany({
+        where: { ...dateWhere },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: take + 1,
+        include: { comment: { select: { projectId: true, bodyAr: true, hidden: true } } },
+      }),
+    ]);
+    const merged = [
+      ...projectReports.map((r) => ({
+        kind: 'project' as const,
+        id: r.id,
+        subjectId: r.projectId,
+        subjectTitleAr: r.project?.titleAr ?? null,
+        subjectSnippet: null,
+        reporterMasked: maskId(r.reporterId),
+        reasonAr: r.reasonAr,
+        subjectHiddenAt: iso(r.project?.hiddenAt),
+        createdAt: iso(r.createdAt),
+        _sort: r.createdAt.getTime(),
+      })),
+      ...commentReports.map((r) => ({
+        kind: 'comment' as const,
+        id: r.id,
+        subjectId: r.commentId,
+        subjectTitleAr: null,
+        subjectSnippet: snippet(r.comment?.bodyAr),
+        reporterMasked: maskId(r.reporterId),
+        reasonAr: r.reasonAr,
+        // Comment has no hidden-timestamp column, only a `hidden` boolean; a
+        // hidden subject is surfaced via the snippet being suppressed upstream.
+        subjectHiddenAt: null,
+        createdAt: iso(r.createdAt),
+        _sort: r.createdAt.getTime(),
+      })),
+    ].sort((a, b) => b._sort - a._sort);
+    const hasMore = merged.length > take;
+    const page = merged.slice(0, take).map(({ _sort, ...rest }) => rest);
+    return { items: page, nextCursor: hasMore ? page[page.length - 1]!.createdAt : null };
+  }
+
+  /**
+   * Comments browser — the moderation surface that was blind (an operator had
+   * to already possess the comment id). Filters projectId / hidden / reported
+   * (reportCount > 0). Author email masked; body trimmed to a snippet.
+   */
+  async listComments(f: CommentListFilter): Promise<Page<ReturnType<OpsReadService['commentRow']>>> {
+    const where: Prisma.CommentWhereInput = {
+      ...(f.projectId ? { projectId: f.projectId } : {}),
+      ...(f.hidden !== undefined ? { hidden: f.hidden } : {}),
+      ...(f.reported === true ? { reportCount: { gt: 0 } } : {}),
+    };
+    const { take, extra } = this.pageArgsOn(f, 'date');
+    const rows = await this.prisma.comment.findMany({
+      where,
+      ...extra,
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+    return this.slice(rows, take, (r) => this.commentRow(r));
+  }
+
+  private commentRow(
+    r: Prisma.CommentGetPayload<{ include: { user: { select: { id: true; name: true; email: true } } } }>,
+  ) {
+    return {
+      id: r.id,
+      projectId: r.projectId,
+      author: { id: r.user.id, name: r.user.name, email: maskEmail(r.user.email) },
+      bodyAr: snippet(r.bodyAr),
+      hidden: r.hidden,
+      pinned: r.pinned,
+      likeCount: r.likeCount,
+      reportCount: r.reportCount,
+      parentId: r.parentId,
+      createdAt: iso(r.date),
+    };
+  }
+
+  /* ── U1.C PROJECT SUB-RESOURCES (projects.review) ──────────────────────── */
+
+  async listProjectUpdates(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgsOn(f, 'date');
+    const rows = await this.prisma.projectUpdate.findMany({ where: { projectId }, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      titleAr: r.titleAr,
+      bodyAr: snippet(r.bodyAr),
+      orderNum: r.orderNum,
+      likeCount: r.likeCount,
+      commentCount: r.commentCount,
+      pinned: r.pinned,
+      visibility: r.visibility,
+      publishAt: iso(r.publishAt),
+      notifiedAt: iso(r.notifiedAt),
+      createdAt: iso(r.date),
+    }));
+  }
+
+  /** Comments for one project — same masked/snippeted row as the browser. */
+  async listProjectComments(projectId: string, f: CursorFilter): Promise<Page<ReturnType<OpsReadService['commentRow']>>> {
+    return this.listComments({ ...f, projectId });
+  }
+
+  async listRewardTiers(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.rewardTier.findMany({ where: { projectId }, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      titleAr: r.titleAr,
+      amountHalalas: h(r.amountHalalas),
+      descAr: snippet(r.descAr),
+      includesPhysicalProduct: r.includesPhysicalProduct,
+      requiresShipping: r.requiresShipping,
+      estDeliveryDate: iso(r.estDeliveryDate),
+      limitQty: r.limitQty,
+      claimedQty: r.claimedQty,
+      isActive: r.isActive,
+      earlyBirdAmountHalalas: h(r.earlyBirdAmountHalalas),
+      earlyBirdUntil: iso(r.earlyBirdUntil),
+      sortOrder: r.sortOrder,
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  async listAddOns(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.addOn.findMany({ where: { projectId }, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      titleAr: r.titleAr,
+      amountHalalas: h(r.amountHalalas),
+      descAr: snippet(r.descAr),
+      limitQty: r.limitQty,
+      claimedQty: r.claimedQty,
+      sortOrder: r.sortOrder,
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  async listSpendLogs(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.spendLog.findMany({ where: { projectId }, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      milestoneId: r.milestoneId,
+      amountHalalas: h(r.amountHalalas),
+      descAr: snippet(r.descAr),
+      date: iso(r.date),
+      proofUrl: r.proofUrl,
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  async listCollaborators(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.projectCollaborator.findMany({ where: { projectId }, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      userId: r.userId,
+      role: r.role,
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  async listFaqQuestions(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.faqQuestion.findMany({
+      where: { projectId },
+      ...extra,
+      include: { asker: { select: { id: true, name: true, email: true } } },
+    });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      bodyAr: snippet(r.bodyAr),
+      status: r.status,
+      answeredFaqItemId: r.answeredFaqItemId,
+      asker: r.asker
+        ? { id: r.asker.id, name: r.asker.name, email: maskEmail(r.asker.email) }
+        : null,
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  async listContests(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.contest.findMany({ where: { projectId }, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      roundNum: r.roundNum,
+      promptAr: snippet(r.promptAr),
+      prizeRewardTierId: r.prizeRewardTierId,
+      prizeAddOnId: r.prizeAddOnId,
+      prizeCustomAr: r.prizeCustomAr,
+      winnersCount: r.winnersCount,
+      status: r.status,
+      startsAt: iso(r.startsAt),
+      endsAt: iso(r.endsAt),
+      announcedAt: iso(r.announcedAt),
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  /**
+   * Full backer roster with fulfillment status — replaces the "last 20" cap in
+   * projectDetail. Masked backer, string money, plus rewardStatus/backerNo for
+   * the fulfillment column.
+   */
+  async listProjectBackers(projectId: string, f: CursorFilter) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.pledge.findMany({
+      where: { projectId },
+      ...extra,
+      include: { backer: { select: { id: true, name: true, email: true } } },
+    });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      backerNo: r.backerNo,
+      backer: { id: r.backer.id, name: r.backer.name, email: maskEmail(r.backer.email) },
+      amountHalalas: h(r.amountHalalas),
+      addOnsHalalas: h(r.addOnsHalalas),
+      status: r.status,
+      rewardStatus: r.rewardStatus,
+      tierId: r.tierId,
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  /* ── U1.D MONEY OBSERVABILITY (money.execute) ──────────────────────────── */
+
+  /** Payout beneficiaries — bank record for disbursement. IBAN + mobile masked. */
+  async listBeneficiaries(f: BeneficiaryListFilter) {
+    const where: Prisma.PayoutBeneficiaryWhereInput = {
+      ...(f.verified === true ? { verifiedAt: { not: null } } : {}),
+      ...(f.verified === false ? { verifiedAt: null } : {}),
+    };
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.payoutBeneficiary.findMany({
+      where,
+      ...extra,
+      include: { user: { select: { id: true, name: true, handle: true } } },
+    });
+    return this.slice(rows, take, (r) => this.beneficiaryRow(r));
+  }
+
+  private beneficiaryRow(
+    r: Prisma.PayoutBeneficiaryGetPayload<{
+      include: { user: { select: { id: true; name: true; handle: true } } };
+    }>,
+  ) {
+    return {
+      id: r.id,
+      userId: r.userId,
+      creator: r.user ? { id: r.user.id, name: r.user.name, handle: r.user.handle } : null,
+      type: r.type,
+      ibanMasked: maskIban(r.iban),
+      name: r.name,
+      mobileMasked: maskPhone(r.mobile),
+      country: r.country,
+      city: r.city,
+      // Never leak the account id itself; presence is what an operator needs.
+      moyasarAccountRegistered: r.moyasarAccountId !== null,
+      verifiedAt: iso(r.verifiedAt),
+      createdAt: iso(r.createdAt),
+    };
+  }
+
+  async beneficiaryDetail(userId: string) {
+    const r = await this.prisma.payoutBeneficiary.findUnique({
+      where: { userId },
+      include: { user: { select: { id: true, name: true, handle: true } } },
+    });
+    if (!r) throw new NotFoundException('لا يوجد مستفيد دفع لهذا المستخدم');
+    return this.beneficiaryRow(r);
+  }
+
+  /** ZATCA invoice browser — includes reportedAt-null orphans (unreported). */
+  async listZatcaInvoices(f: ZatcaListFilter) {
+    const where: Prisma.ZatcaInvoiceWhereInput = {
+      ...(f.creatorId ? { creatorId: f.creatorId } : {}),
+      ...(f.reported === true ? { reportedAt: { not: null } } : {}),
+      ...(f.reported === false ? { reportedAt: null } : {}),
+    };
+    const { take, extra } = this.pageArgsOn(f, 'issuedAt');
+    const rows = await this.prisma.zatcaInvoice.findMany({ where, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      invoiceNumber: r.invoiceNumber,
+      payoutId: r.payoutId,
+      creatorId: r.creatorId,
+      commissionHalalas: h(r.commissionHalalas),
+      vatHalalas: h(r.vatHalalas),
+      totalHalalas: h(r.totalHalalas),
+      issuedAt: iso(r.issuedAt),
+      reportedAt: iso(r.reportedAt),
+      orphan: r.reportedAt === null,
+    }));
+  }
+
+  /**
+   * Webhook event browser — UNBLOCKS webhooks.replay, which today can't be
+   * invoked because nothing lists event ids. Filter by outcome
+   * (applied|ignored|duplicate|mismatch) / provider.
+   */
+  async listWebhookEvents(f: WebhookListFilter) {
+    const where: Prisma.WebhookEventWhereInput = {
+      ...(f.outcome ? { outcome: f.outcome } : {}),
+      ...(f.provider ? { provider: f.provider } : {}),
+    };
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.webhookEvent.findMany({ where, ...extra });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      provider: r.provider,
+      eventType: r.eventType,
+      pspRef: r.pspRef,
+      outcome: r.outcome,
+      processed: r.processedAt !== null,
+      processedAt: iso(r.processedAt),
+      createdAt: iso(r.createdAt),
+    }));
+  }
+
+  /** Dispute queue — pledges in DISPUTED (arrive via the chargeback webhook). */
+  async listDisputes(f: CursorFilter): Promise<Page<ReturnType<OpsReadService['pledgeRow']>>> {
+    return this.listPledges({ ...f, status: 'DISPUTED' });
+  }
+
+  /**
+   * Cross-project submitted-milestones queue — unblocks the vault milestones
+   * tab (previously reachable only via a 6-hop per-project path). Defaults to
+   * SUBMITTED; ordered newest-submitted-first. Project title joined.
+   */
+  async listMilestoneQueue(f: MilestoneQueueFilter) {
+    const where: Prisma.MilestoneWhereInput = {
+      status: (f.status as MilestoneStatus | undefined) ?? 'SUBMITTED',
+      ...(f.projectId ? { projectId: f.projectId } : {}),
+    };
+    const { take, extra } = this.pageArgsOn(f, 'submittedAt');
+    const rows = await this.prisma.milestone.findMany({
+      where,
+      ...extra,
+      include: { project: { select: { titleAr: true } } },
+    });
+    return this.slice(rows, take, (r) => ({
+      id: r.id,
+      projectId: r.projectId,
+      projectTitleAr: r.project?.titleAr ?? null,
+      order: r.order,
+      titleAr: r.titleAr,
+      releasePct: r.releasePct,
+      status: r.status,
+      releasedHalalas: h(r.releasedHalalas),
+      evidenceUrl: r.evidenceUrl,
+      submittedAt: iso(r.submittedAt),
+      approvedAt: iso(r.approvedAt),
+      releasedAt: iso(r.releasedAt),
+    }));
+  }
+
+  /* ── U1.E TICKET STATS (support.tickets) ───────────────────────────────── */
+
+  async ticketStats() {
+    const grouped = await this.prisma.supportTicket.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+    const statusCounts: Record<string, number> = {};
+    let total = 0;
+    for (const g of grouped) {
+      statusCounts[g.status] = g._count._all;
+      total += g._count._all;
+    }
+    return { statusCounts, total };
+  }
+
+  /* ── U1.F SUPPLIER PROFILE (projects.review) ───────────────────────────── */
+
+  /**
+   * The missing supplier ENTITY profile — the SUPPLIER user + their bids across
+   * every RFQ + verification status + won/lost tally. (Today /ops/suppliers/:id
+   * is RFQ detail; this is the supplier record itself.) PII masked, money as
+   * strings, bids capped to the most recent 50.
+   */
+  async supplierProfile(userId: string) {
+    const u = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!u) throw new NotFoundException('المورّد غير موجود');
+    const [bidCounts, bids] = await Promise.all([
+      this.prisma.supplierBid.groupBy({
+        by: ['status'],
+        where: { supplierId: userId },
+        _count: { _all: true },
+      }),
+      this.prisma.supplierBid.findMany({
+        where: { supplierId: userId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        include: { rfq: { select: { id: true, projectId: true, status: true } } },
+      }),
+    ]);
+    const counts: Record<string, number> = {};
+    for (const g of bidCounts) counts[g.status] = g._count._all;
+    return {
+      id: u.id,
+      name: u.name,
+      // PII masked by default — raw values live behind users.pii.unmask.
+      email: maskEmail(u.email),
+      phone: maskPhone(u.phone),
+      handle: u.handle,
+      city: u.city,
+      roles: u.roles,
+      isSupplier: u.roles.includes('SUPPLIER'),
+      verification: {
+        verified: u.supplierVerifiedAt !== null,
+        verifiedAt: iso(u.supplierVerifiedAt),
+        verifiedById: u.supplierVerifiedById,
+        note: u.supplierVerifyNote,
+      },
+      bidCounts: counts,
+      wonCount: counts.AWARDED ?? 0,
+      lostCount: counts.REJECTED ?? 0,
+      bids: bids.map((b) => ({
+        id: b.id,
+        rfqId: b.rfqId,
+        projectId: b.rfq?.projectId ?? null,
+        rfqStatus: b.rfq?.status ?? null,
+        amountHalalas: h(b.amountHalalas),
+        leadTimeDays: b.leadTimeDays,
+        status: b.status,
+        createdAt: iso(b.createdAt),
+      })),
+      createdAt: iso(u.createdAt),
     };
   }
 

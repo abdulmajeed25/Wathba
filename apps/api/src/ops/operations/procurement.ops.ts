@@ -61,7 +61,9 @@ export function procurementOps(
     descriptionAr:
       'يوثّق حساباً يحمل دور المورّد (SUPPLIER) بعد مراجعة تشغيلية — التوثيق شرط ثقة قبل قبول عروضه. يُسجَّل الفاعل والملاحظة، والتاريخ يُختم بوقت العملية. التراجع (إلغاء التوثيق) قرار مستقبلي منفصل.',
     inputSchema: verifyInput,
-    permission: 'users.lifecycle',
+    // OPS-360 A6 — off SUPPORT's users.lifecycle onto projects.lifecycle,
+    // consistent with the rfq.* procurement ops (OWNER + OPS_MANAGER).
+    permission: 'projects.lifecycle',
     riskTier: 'STANDARD',
     reversible: true,
     requiresReason: false,
