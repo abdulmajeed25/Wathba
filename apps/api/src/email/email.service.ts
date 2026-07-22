@@ -110,6 +110,10 @@ export class EmailService {
   supportReply(to: string, d: { name: string; topic: string; replyAr: string }) {
     return this.deliver(to, emailTemplates.supportReply(d));
   }
+  // OPS-GAPS R2 — RFQ award.
+  rfqAwarded(to: string, d: { projectTitle: string }) {
+    return this.deliver(to, emailTemplates.rfqAwarded(d));
+  }
   // OPS-GAPS R1 — appeals lifecycle.
   appealReceived(to: string, d: { kindAr: string }) {
     return this.deliver(to, emailTemplates.appealReceived(d));

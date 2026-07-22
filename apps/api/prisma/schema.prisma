@@ -164,6 +164,7 @@ enum NotificationKind {
   SUPPLIER_VERIFIED
   APPEAL_RECEIVED
   APPEAL_DECIDED
+  RFQ_AWARDED
 }
 
 /// Batch OPS-GAPS R1 — the two appealable decisions.

@@ -118,6 +118,15 @@ export const emailTemplates = {
         <p style="font-size:13px;color:#5d6b62;margin-top:14px">يمكنك الرد بمراسلة support@wathba.sa مباشرة.</p>`),
     };
   },
+  /** OPS-GAPS R2 — the winning supplier is told their bid won an RFQ. */
+  rfqAwarded(d: { projectTitle: string }): EmailContent {
+    return {
+      subject: `${BRAND} — تمّت ترسية عرضك`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">مبروك — فُزت بالترسية</h1>
+        <p>تمّت ترسية عرضك على طلب التوريد الخاص بمشروع «${d.projectTitle}». سيتواصل معك صاحب المشروع لإتمام التفاصيل.</p>
+        ${cta('{{APP_URL}}/projects/supplier', 'عروضي')}`),
+    };
+  },
   /** OPS-GAPS R1 — confirmation that an appeal was received. */
   appealReceived(d: { kindAr: string }): EmailContent {
     return {

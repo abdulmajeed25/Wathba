@@ -2,8 +2,10 @@ import {
   BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { BidStatus, Prisma, RFQStatus, type RFQ, type SupplierBid } from '@prisma/client';
+import { BidStatus, NotificationKind, Prisma, RFQStatus, type RFQ, type SupplierBid } from '@prisma/client';
 import { CreateRFQDto, ListRFQsQueryDto, SubmitBidDto } from './dto/procurement.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { EmailService } from '../email/email.service';
 
 /**
  * Procurement — reverse supplier auction.
@@ -17,7 +19,37 @@ import { CreateRFQDto, ListRFQsQueryDto, SubmitBidDto } from './dto/procurement.
 export class ProcurementService {
   private readonly logger = new Logger(ProcurementService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
+  ) {}
+
+  /**
+   * OPS-GAPS R2 — tell the winning supplier their bid was awarded (in-app +
+   * email). Shared by both award paths: the creator (here) and the operator
+   * override (rfq.award op). Exactly one path fires per RFQ (the second award
+   * is refused once status=AWARDED), so no cross-path dedup is needed.
+   * Fire-and-forget; a notify failure never rolls back an award.
+   */
+  async notifyAwardWinner(supplierId: string, projectTitleAr: string, rfqId: string): Promise<void> {
+    try {
+      await this.notifications.create({
+        userId: supplierId,
+        kind: NotificationKind.RFQ_AWARDED,
+        payload: { projectTitleAr, rfqId },
+      });
+      const supplier = await this.prisma.user.findUnique({
+        where: { id: supplierId },
+        select: { email: true },
+      });
+      if (supplier?.email) {
+        await this.email.rfqAwarded(supplier.email, { projectTitle: projectTitleAr });
+      }
+    } catch {
+      /* best-effort — the award already committed */
+    }
+  }
 
   async create(creatorId: string, dto: CreateRFQDto): Promise<RFQ> {
     const proj = await this.prisma.project.findUnique({ where: { id: dto.projectId } });
@@ -110,8 +142,8 @@ export class ProcurementService {
     const bid = await this.prisma.supplierBid.findUnique({ where: { id: bidId } });
     if (!bid || bid.rfqId !== rfqId) throw new NotFoundException('bid not found for this rfq');
 
-    return this.prisma.$transaction(async (tx) => {
-      const updatedRFQ = await tx.rFQ.update({
+    const updatedRFQ = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.rFQ.update({
         where: { id: rfqId },
         data: { status: RFQStatus.AWARDED, awardedBidId: bidId },
       });
@@ -124,8 +156,12 @@ export class ProcurementService {
         data: { status: BidStatus.REJECTED },
       });
       this.logger.log(`RFQ ${rfqId} awarded to bid ${bidId}`);
-      return updatedRFQ;
+      return updated;
     });
+
+    // OPS-GAPS R2 — notify the winner after commit.
+    await this.notifyAwardWinner(bid.supplierId, rfq.project.titleAr, rfqId);
+    return updatedRFQ;
   }
 
   async listMyBids(
