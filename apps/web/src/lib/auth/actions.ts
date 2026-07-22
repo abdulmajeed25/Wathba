@@ -27,6 +27,9 @@ interface AuthResponse {
   accessToken: string;
   refreshToken?: string;
   user: Record<string, unknown>;
+  /** OPS-GAPS R1 — a banned account signs in to a SUSPENDED-flagged token that
+   *  grants only appeal access; the web routes it to the locked /appeal page. */
+  suspended?: boolean;
 }
 
 /**
@@ -158,6 +161,11 @@ export async function signInAction(formData: FormData): Promise<void> {
   await setSessionCookie(body.accessToken, body.refreshToken, {
     remember: formData.get('remember') === 'on',
   });
+
+  // OPS-GAPS R1 — a suspended (banned) account gets a token that grants ONLY
+  // appeal access; the app is off-limits until the ban is lifted or overturned.
+  // Route straight to the locked appeal surface (a deep-link `next` can't win).
+  if (body.suspended) redirect('/appeal');
 
   // STAKES/B1 — route by role & state. An explicit deep-link `next` wins;
   // otherwise ADMIN → admin, creator → dashboard, everyone else → discover home

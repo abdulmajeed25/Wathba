@@ -1,6 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Prisma,
+  type AppealKind,
+  type AppealStatus,
   type ContestStatus,
   type LedgerEntryType,
   type MilestoneStatus,
@@ -235,6 +237,30 @@ export interface FulfillmentListFilter extends CursorFilter {
   /** RewardFulfillmentStatus filter (PENDING | IN_PROGRESS | SENT). */
   rewardStatus?: string;
 }
+
+/* ── OPS-GAPS R1 — appeals read surface filters ────────────────────────── */
+
+export interface AppealListFilter extends CursorFilter {
+  /** AppealStatus filter (SUBMITTED | UNDER_REVIEW | UPHELD | OVERTURNED | PARTIALLY_GRANTED). */
+  status?: string;
+  /** AppealKind filter (ACCOUNT_BAN | PROJECT_REJECTION). */
+  kind?: string;
+}
+
+/** The two OPEN states — an appeal here is still awaiting/under a decision. */
+const OPEN_APPEAL_STATUSES: readonly AppealStatus[] = ['SUBMITTED', 'UNDER_REVIEW'] as const;
+
+/** Human-readable Arabic label per appeal kind (the queue's `kindAr`). */
+const APPEAL_KIND_AR: Record<AppealKind, string> = {
+  ACCOUNT_BAN: 'حظر حساب',
+  PROJECT_REJECTION: 'رفض مشروع',
+};
+
+/** The audit-log action string each appealable decision writes (ops.${key}). */
+const BAN_AUDIT_ACTION = 'ops.moderation.user.ban';
+const REJECT_AUDIT_ACTION = 'ops.projects.review.reject';
+
+const MS_PER_HOUR = 3_600_000;
 
 /** A live anomaly-center alert — one firing condition, screen-ready. */
 export interface OpsAlert {
@@ -1671,6 +1697,207 @@ export class OpsReadService {
     }));
   }
 
+  /* ── OPS-GAPS R1 — APPEALS READ SURFACE (moderation.queue) ─────────────── */
+
+  /** The appeals SLA (hours) — the DB-backed catalog key, else its default. */
+  private appealSlaHours(): Promise<number> {
+    return this.settings.get('appeals.slaHours');
+  }
+
+  /** appellant id → masked email (never raw — PII stays behind users.pii.unmask). */
+  private async appealSubmitters(ids: string[]): Promise<Map<string, string | null>> {
+    const unique = [...new Set(ids.filter(Boolean))];
+    if (unique.length === 0) return new Map();
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, email: true },
+    });
+    return new Map(users.map((u) => [u.id, maskEmail(u.email)]));
+  }
+
+  /**
+   * The appeals queue — every appeal, filterable by status + kind. Ordering is
+   * SLA-priority: OPEN first (the AppealStatus enum lists SUBMITTED/UNDER_REVIEW
+   * before the three terminal states, so `status asc` groups open ahead of
+   * decided), then OLDEST first (createdAt asc) so the appeal closest to
+   * breaching its SLA sits at the top. `overdue` is computed against the live
+   * SLA setting and only ever set on an OPEN appeal (a decided one is done, not
+   * overdue). Submitter is masked; money-free, so no halalas here.
+   */
+  async listAppeals(f: AppealListFilter): Promise<Page<ReturnType<OpsReadService['appealRow']>>> {
+    const where: Prisma.AppealWhereInput = {
+      ...(f.status ? { status: f.status as AppealStatus } : {}),
+      ...(f.kind ? { kind: f.kind as AppealKind } : {}),
+    };
+    const take = clampLimit(f.limit);
+    const rows = await this.prisma.appeal.findMany({
+      where,
+      take: take + 1,
+      // open-first (enum order) then oldest-first — the SLA worklist priority.
+      orderBy: [{ status: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      ...(f.cursor ? { cursor: { id: f.cursor }, skip: 1 } : {}),
+    });
+    const [submitters, slaHours] = await Promise.all([
+      this.appealSubmitters(rows.map((r) => r.submittedById)),
+      this.appealSlaHours(),
+    ]);
+    const now = Date.now();
+    return this.slice(rows, take, (r) =>
+      this.appealRow(r, submitters.get(r.submittedById) ?? null, slaHours, now),
+    );
+  }
+
+  private appealRow(
+    r: Prisma.AppealGetPayload<Record<string, never>>,
+    submitterMasked: string | null,
+    slaHours: number,
+    now: number,
+  ) {
+    const ageHours = Math.floor((now - r.createdAt.getTime()) / MS_PER_HOUR);
+    const isOpen = OPEN_APPEAL_STATUSES.includes(r.status);
+    return {
+      id: r.id,
+      kind: r.kind,
+      kindAr: APPEAL_KIND_AR[r.kind],
+      subjectId: r.subjectId,
+      status: r.status,
+      ageHours,
+      // Only an OPEN appeal can be "overdue" — a decided one is closed, not late.
+      overdue: isOpen && ageHours > slaHours,
+      submitter: submitterMasked,
+      createdAt: iso(r.createdAt),
+      decidedAt: iso(r.decidedAt),
+    };
+  }
+
+  /**
+   * Appeal detail — the reviewer's whole case in one read. Alongside the
+   * appellant's own `reasonAr`/status/decision it fetches the ORIGINAL decision
+   * being appealed:
+   *   · ACCOUNT_BAN     → the user's live suspension block + the ban AuditLog
+   *                       row (action `ops.moderation.user.ban`): who banned,
+   *                       the reason, when.
+   *   · PROJECT_REJECTION → the project's reviewFeedback + the reject AuditLog
+   *                       row (action `ops.projects.review.reject`).
+   * `originalDeciderId` is surfaced so the screen can warn inline when it equals
+   * the CURRENT operator (the governed appeals.decide op refuses self-review —
+   * four-eyes); `isSelfReview` is the same comparison, pre-computed. PII stays
+   * masked. READ-ONLY (RULE-5): findUnique/findFirst only.
+   */
+  async appealDetail(id: string, currentOperatorId?: string) {
+    const a = await this.prisma.appeal.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException('التظلّم غير موجود');
+
+    const [slaHours, submitter] = await Promise.all([
+      this.appealSlaHours(),
+      this.prisma.user.findUnique({
+        where: { id: a.submittedById },
+        select: { id: true, name: true, handle: true, email: true },
+      }),
+    ]);
+    const now = Date.now();
+    const ageHours = Math.floor((now - a.createdAt.getTime()) / MS_PER_HOUR);
+    const isOpen = OPEN_APPEAL_STATUSES.includes(a.status);
+
+    let originalDeciderId: string | null = null;
+    let original: Record<string, unknown> | null = null;
+
+    if (a.kind === 'ACCOUNT_BAN') {
+      const [user, banLog] = await Promise.all([
+        this.prisma.user.findUnique({
+          where: { id: a.subjectId },
+          select: {
+            id: true,
+            handle: true,
+            suspendedAt: true,
+            suspendedKind: true,
+            suspendedReasonAr: true,
+          },
+        }),
+        this.prisma.auditLog.findFirst({
+          where: { action: BAN_AUDIT_ACTION, entityId: a.subjectId },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+      originalDeciderId = banLog?.actorId ?? null;
+      original = {
+        user: user
+          ? { id: user.id, handle: user.handle }
+          : null,
+        suspension: user
+          ? {
+              suspendedAt: iso(user.suspendedAt),
+              suspendedKind: user.suspendedKind,
+              suspendedReasonAr: user.suspendedReasonAr,
+            }
+          : null,
+        decision: banLog
+          ? { actorId: banLog.actorId, reason: banLog.reason, at: iso(banLog.createdAt) }
+          : null,
+      };
+    } else {
+      const [project, rejectLog] = await Promise.all([
+        this.prisma.project.findUnique({
+          where: { id: a.subjectId },
+          select: { id: true, titleAr: true, status: true, reviewFeedback: true, reviewedAt: true },
+        }),
+        this.prisma.auditLog.findFirst({
+          where: { action: REJECT_AUDIT_ACTION, entityId: a.subjectId },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+      originalDeciderId = rejectLog?.actorId ?? null;
+      original = {
+        project: project
+          ? {
+              id: project.id,
+              titleAr: project.titleAr,
+              status: project.status,
+              reviewFeedback: project.reviewFeedback,
+              reviewedAt: iso(project.reviewedAt),
+            }
+          : null,
+        decision: rejectLog
+          ? { actorId: rejectLog.actorId, reason: rejectLog.reason, at: iso(rejectLog.createdAt) }
+          : null,
+      };
+    }
+
+    return {
+      id: a.id,
+      kind: a.kind,
+      kindAr: APPEAL_KIND_AR[a.kind],
+      subjectId: a.subjectId,
+      status: a.status,
+      reasonAr: a.reasonAr,
+      ageHours,
+      overdue: isOpen && ageHours > slaHours,
+      slaHours,
+      submitter: submitter
+        ? {
+            id: submitter.id,
+            name: submitter.name,
+            handle: submitter.handle,
+            email: maskEmail(submitter.email),
+          }
+        : null,
+      decision: {
+        decidedById: a.decidedById,
+        decisionReason: a.decisionReason,
+        decidedAt: iso(a.decidedAt),
+      },
+      // Four-eyes hint: the operator who made the ORIGINAL decision may not
+      // review its appeal. Surfaced raw so the screen can warn; also compared.
+      originalDeciderId,
+      isSelfReview:
+        currentOperatorId != null && originalDeciderId != null
+          ? currentOperatorId === originalDeciderId
+          : false,
+      original,
+      createdAt: iso(a.createdAt),
+    };
+  }
+
   /* ── OPS-360 U2.A ALERTS CENTER (analytics.read) ───────────────────────── */
 
   /**
@@ -1693,6 +1920,15 @@ export class OpsReadService {
    */
   async alerts(): Promise<{ items: OpsAlert[]; chainOk: boolean; generatedAt: string }> {
     const stuckBefore = new Date(Date.now() - 15 * 60_000);
+    // OPS-GAPS R1 — the appeals SLA is DB-backed; the overdue cutoffs derive
+    // from it so raising/lowering the setting immediately re-thresholds the
+    // alert (and the 2×SLA critical band) without a code change.
+    const slaHours = await this.appealSlaHours();
+    const openAppealWhere: Prisma.AppealWhereInput = {
+      status: { in: OPEN_APPEAL_STATUSES as AppealStatus[] },
+    };
+    const slaCutoff = new Date(Date.now() - slaHours * MS_PER_HOUR);
+    const sla2Cutoff = new Date(Date.now() - 2 * slaHours * MS_PER_HOUR);
     const [
       stuckSending,
       webhookMismatch,
@@ -1703,6 +1939,9 @@ export class OpsReadService {
       failedCapture,
       projectReportsOpen,
       commentReportsOpen,
+      appealsOpen,
+      appealsOverdue,
+      appealsOver2Sla,
     ] = await Promise.all([
       this.prisma.payout.count({ where: { status: 'SENDING', claimedAt: { lt: stuckBefore } } }),
       this.prisma.webhookEvent.count({ where: { outcome: 'mismatch' } }),
@@ -1713,6 +1952,9 @@ export class OpsReadService {
       this.prisma.pledge.count({ where: { status: 'FAILED_CAPTURE' } }),
       this.prisma.projectReport.count({ where: { resolvedAt: null } }),
       this.prisma.commentReport.count(),
+      this.prisma.appeal.count({ where: openAppealWhere }),
+      this.prisma.appeal.count({ where: { ...openAppealWhere, createdAt: { lt: slaCutoff } } }),
+      this.prisma.appeal.count({ where: { ...openAppealWhere, createdAt: { lt: sla2Cutoff } } }),
     ]);
 
     // Chain verdict — a broken/failed verification is itself a critical alert.
@@ -1785,12 +2027,31 @@ export class OpsReadService {
         href: '/ops/money?tab=pledges&status=FAILED_CAPTURE',
       },
       {
+        // OPS-GAPS R1 — open appeals past their SLA. warn by default; CRITICAL
+        // once any appeal has aged past 2×SLA (a badly-neglected right of reply).
+        key: 'appeals.overdue',
+        severity: appealsOver2Sla > 0 ? 'critical' : 'warn',
+        count: appealsOverdue,
+        titleAr: 'تظلّمات تجاوزت مهلة الرد',
+        detailAr: `تظلّمات مفتوحة (SUBMITTED/UNDER_REVIEW) تجاوز عمرها مهلة الرد (${slaHours} ساعة) دون بتّ.`,
+        href: '/ops/appeals',
+      },
+      {
         key: 'moderation.reports_open',
         severity: 'info',
         count: reportsOpen,
         titleAr: 'بلاغات مفتوحة',
         detailAr: 'بلاغات مشاريع وتعليقات بانتظار المراجعة في قائمة الإشراف.',
         href: '/ops/moderation/reports',
+      },
+      {
+        // OPS-GAPS R1 — informational backlog of all open appeals (any age).
+        key: 'appeals.open',
+        severity: 'info',
+        count: appealsOpen,
+        titleAr: 'تظلّمات مفتوحة',
+        detailAr: 'تظلّمات بانتظار المراجعة أو قيد المراجعة في قائمة التظلّمات.',
+        href: '/ops/appeals',
       },
     ];
 

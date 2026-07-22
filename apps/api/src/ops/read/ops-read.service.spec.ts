@@ -16,6 +16,7 @@ import type { SettingsService } from '../../settings/settings.service';
 type Mock = jest.Mock;
 interface MockModel {
   findUnique: Mock;
+  findFirst: Mock;
   findMany: Mock;
   count: Mock;
   aggregate: Mock;
@@ -24,6 +25,7 @@ interface MockModel {
 function model(): MockModel {
   return {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     findMany: jest.fn().mockResolvedValue([]),
     count: jest.fn().mockResolvedValue(0),
     aggregate: jest.fn().mockResolvedValue({ _sum: {} }),
@@ -60,6 +62,8 @@ interface MockDb {
   opsRoleGrant: MockModel;
   knownDevice: MockModel;
   notification: MockModel;
+  appeal: MockModel;
+  auditLog: MockModel;
 }
 function buildPrisma(): MockDb {
   return {
@@ -91,6 +95,8 @@ function buildPrisma(): MockDb {
     opsRoleGrant: model(),
     knownDevice: model(),
     notification: model(),
+    appeal: model(),
+    auditLog: model(),
   };
 }
 
@@ -98,6 +104,9 @@ const settingsStub = {
   getAll: jest.fn().mockResolvedValue([
     { key: 'pledges.minHalalas', titleAr: 'x', descriptionAr: 'y', value: 1000, source: 'default' },
   ]),
+  // OPS-GAPS R1 — the appeals SLA (hours); the queue overdue flag + the
+  // appeals.overdue alert read this. Default 48 for the shared stub.
+  get: jest.fn().mockResolvedValue(48),
 } as unknown as SettingsService;
 
 /** Audit verifier stub — the alerts center reuses OpsAuditService.verify(). */
@@ -1016,6 +1025,161 @@ describe('OpsReadService', () => {
       expect(where.tierId).toEqual({ not: null });
       expect(where.rewardStatus).toBe('IN_PROGRESS');
       assertNoRawPII(out);
+    });
+  });
+
+  /* ── OPS-GAPS R1 — appeals read surface + SLA + alert ───────────────────── */
+
+  describe('listAppeals — masked submitter, ageHours/overdue, open-first ordering', () => {
+    it('masks submitter email, computes ageHours + overdue, orders open-first oldest-first', async () => {
+      const db = buildPrisma();
+      const now = Date.now();
+      const hoursAgo = (n: number) => new Date(now - n * 3_600_000);
+      db.appeal.findMany.mockResolvedValue([
+        {
+          id: 'a1', kind: 'ACCOUNT_BAN', subjectId: 'u9', submittedById: 'u1',
+          status: 'SUBMITTED', decidedAt: null, createdAt: hoursAgo(100),
+        },
+        {
+          id: 'a2', kind: 'PROJECT_REJECTION', subjectId: 'proj9', submittedById: 'u2',
+          status: 'UPHELD', decidedAt: hoursAgo(10), createdAt: hoursAgo(200),
+        },
+      ]);
+      db.user.findMany.mockResolvedValue([
+        { id: 'u1', email: RAW_EMAIL },
+        { id: 'u2', email: 'other.person@example.com' },
+      ]);
+
+      const out = await svc(db).listAppeals({});
+      const [open, decided] = out.items;
+      // submitter is a masked email — never the raw address
+      expect(open!.submitter).toBe('a***@e***.com');
+      expect(open!.submitter).not.toContain('aisha');
+      // ageHours derived from createdAt
+      expect(open!.ageHours).toBeGreaterThanOrEqual(99);
+      // OPEN + past the 48h SLA stub → overdue
+      expect(open!.overdue).toBe(true);
+      expect(open!.kindAr).toBe('حظر حساب');
+      // a DECIDED appeal is never "overdue" even though it is 200h old
+      expect(decided!.overdue).toBe(false);
+      expect(decided!.kindAr).toBe('رفض مشروع');
+      // ordering: open-first (status asc), then oldest-first (createdAt asc)
+      const orderBy = db.appeal.findMany.mock.calls[0]![0].orderBy;
+      expect(orderBy).toEqual([{ status: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]);
+      assertNoRawPII(out);
+    });
+
+    it('passes status + kind filters through to the where clause', async () => {
+      const db = buildPrisma();
+      await svc(db).listAppeals({ status: 'UNDER_REVIEW', kind: 'ACCOUNT_BAN' });
+      const where = db.appeal.findMany.mock.calls[0]![0].where;
+      expect(where.status).toBe('UNDER_REVIEW');
+      expect(where.kind).toBe('ACCOUNT_BAN');
+    });
+  });
+
+  describe('appealDetail — original decision context + originalDeciderId', () => {
+    it('ACCOUNT_BAN: returns suspension block + ban audit row + originalDeciderId (self-review trips)', async () => {
+      const db = buildPrisma();
+      db.appeal.findUnique.mockResolvedValue({
+        id: 'a1', kind: 'ACCOUNT_BAN', subjectId: 'u9', submittedById: 'u1',
+        reasonAr: 'أعتقد أن الحظر جاء بالخطأ', status: 'SUBMITTED',
+        decidedById: null, decisionReason: null, decidedAt: null, createdAt: new Date(),
+      });
+      db.user.findUnique
+        .mockResolvedValueOnce({ id: 'u1', name: 'Aisha', handle: 'aisha', email: RAW_EMAIL })
+        .mockResolvedValueOnce({
+          id: 'u9', handle: 'banned', suspendedAt: new Date(),
+          suspendedKind: 'BANNED', suspendedReasonAr: 'مخالفة',
+        });
+      db.auditLog.findFirst.mockResolvedValue({
+        actorId: 'operator-7', reason: 'محتوى محظور', createdAt: new Date(),
+      });
+
+      const out = await svc(db).appealDetail('a1', 'operator-7');
+      expect(out.kind).toBe('ACCOUNT_BAN');
+      expect(out.reasonAr).toContain('الحظر');
+      expect(out.submitter!.email).toBe('a***@e***.com');
+      expect(out.original!.suspension).toMatchObject({ suspendedKind: 'BANNED' });
+      expect(out.original!.decision).toMatchObject({ actorId: 'operator-7', reason: 'محتوى محظور' });
+      expect(out.originalDeciderId).toBe('operator-7');
+      // current operator IS the original decider → self-review guard trips
+      expect(out.isSelfReview).toBe(true);
+      // the ban audit row was located by action + subject id
+      const w = db.auditLog.findFirst.mock.calls[0]![0].where;
+      expect(w.action).toBe('ops.moderation.user.ban');
+      expect(w.entityId).toBe('u9');
+      assertNoRawPII(out);
+    });
+
+    it('PROJECT_REJECTION: returns reviewFeedback + reject audit row; no self-review for a different operator', async () => {
+      const db = buildPrisma();
+      db.appeal.findUnique.mockResolvedValue({
+        id: 'a2', kind: 'PROJECT_REJECTION', subjectId: 'proj9', submittedById: 'u2',
+        reasonAr: 'عالجت الملاحظات', status: 'UNDER_REVIEW',
+        decidedById: null, decisionReason: null, decidedAt: null, createdAt: new Date(),
+      });
+      db.user.findUnique.mockResolvedValue({ id: 'u2', name: 'Omar', handle: 'omar', email: RAW_EMAIL });
+      db.project.findUnique.mockResolvedValue({
+        id: 'proj9', titleAr: 'مشروعي', status: 'DRAFT',
+        reviewFeedback: 'الوصف ناقص', reviewedAt: new Date(),
+      });
+      db.auditLog.findFirst.mockResolvedValue({
+        actorId: 'operator-3', reason: 'وصف غير مكتمل', createdAt: new Date(),
+      });
+
+      const out = await svc(db).appealDetail('a2', 'operator-99');
+      expect(out.original!.project).toMatchObject({ reviewFeedback: 'الوصف ناقص' });
+      expect(out.original!.decision).toMatchObject({ actorId: 'operator-3' });
+      expect(out.originalDeciderId).toBe('operator-3');
+      expect(out.isSelfReview).toBe(false);
+      const w = db.auditLog.findFirst.mock.calls[0]![0].where;
+      expect(w.action).toBe('ops.projects.review.reject');
+      expect(w.entityId).toBe('proj9');
+      assertNoRawPII(out);
+    });
+
+    it('throws NotFound for a missing appeal', async () => {
+      const db = buildPrisma();
+      db.appeal.findUnique.mockResolvedValue(null);
+      await expect(svc(db).appealDetail('nope')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('alerts — appeals.overdue leg (OPS-GAPS R1)', () => {
+    it('fires warn when open appeals exceed the SLA, thresholded against the SLA cutoff', async () => {
+      const db = buildPrisma();
+      // appeal.count order in alerts(): appealsOpen, appealsOverdue, appealsOver2Sla
+      db.appeal.count.mockResolvedValueOnce(5).mockResolvedValueOnce(3).mockResolvedValueOnce(0);
+      const out = await svc(db).alerts();
+      const overdue = out.items.find((a) => a.key === 'appeals.overdue')!;
+      expect(overdue).toBeDefined();
+      expect(overdue.count).toBe(3);
+      expect(overdue.severity).toBe('warn');
+      expect(overdue.href).toBe('/ops/appeals');
+      expect(overdue.titleAr).toBe('تظلّمات تجاوزت مهلة الرد');
+      const open = out.items.find((a) => a.key === 'appeals.open')!;
+      expect(open.severity).toBe('info');
+      expect(open.count).toBe(5);
+      // overdue count is thresholded on a createdAt cutoff over the OPEN states
+      const overdueWhere = db.appeal.count.mock.calls[1]![0].where;
+      expect(overdueWhere.createdAt.lt).toBeInstanceOf(Date);
+      expect(overdueWhere.status.in).toEqual(['SUBMITTED', 'UNDER_REVIEW']);
+    });
+
+    it('escalates appeals.overdue to critical when an appeal exceeds 2×SLA', async () => {
+      const db = buildPrisma();
+      db.appeal.count.mockResolvedValueOnce(2).mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+      const out = await svc(db).alerts();
+      expect(out.items.find((a) => a.key === 'appeals.overdue')!.severity).toBe('critical');
+    });
+
+    it('suppresses both appeals legs when none are open', async () => {
+      const db = buildPrisma();
+      // default appeal.count → 0 for all three
+      const out = await svc(db).alerts();
+      expect(out.items.some((a) => a.key === 'appeals.overdue')).toBe(false);
+      expect(out.items.some((a) => a.key === 'appeals.open')).toBe(false);
     });
   });
 });

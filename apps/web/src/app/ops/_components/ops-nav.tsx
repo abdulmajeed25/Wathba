@@ -22,6 +22,7 @@ interface WorkQueue {
   payoutsFailed: number;
   reportsOpen: number;
   ticketsOpen: number;
+  appealsOpen?: number;
 }
 
 type Badge = { count: number; intent: 'warn' | 'danger' };
@@ -45,6 +46,8 @@ async function loadCounts(): Promise<Partial<Record<BadgeKey, Badge>>> {
       out.money = { count: moneyCount, intent: wq.payoutsFailed > 0 ? 'danger' : 'warn' };
     if (wq.reportsOpen > 0) out.reportsOpen = { count: wq.reportsOpen, intent: 'warn' };
     if (wq.ticketsOpen > 0) out.ticketsOpen = { count: wq.ticketsOpen, intent: 'warn' };
+    if ((wq.appealsOpen ?? 0) > 0)
+      out.appealsOpen = { count: wq.appealsOpen!, intent: 'warn' };
     return out;
   } catch {
     return {};
