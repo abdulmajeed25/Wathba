@@ -224,6 +224,12 @@ export class AuthService {
       this.recordFailure(key);
       throw new UnauthorizedException('invalid credentials');
     }
+    // Batch OPS — a suspended/banned account never gets a token. Checked
+    // AFTER the password so the refusal is explicit (the caller proved
+    // ownership; enumeration is not a concern here).
+    if (user.suspendedAt) {
+      throw new UnauthorizedException('الحساب موقوف');
+    }
     // Success — clear the per-email counter.
     this.failedAttempts.delete(key);
     // STAKES/S-14 (P4-audit) — new-device notice, fire-and-forget.
@@ -440,6 +446,12 @@ export class AuthService {
       throw new UnauthorizedException('refresh token expired');
     }
     const user = await this.users.findById(row.userId);
+    // Batch OPS — rotation bypasses JwtStrategy, so suspension is enforced
+    // here too (users.suspend already revoked the rows; belt-and-braces for
+    // a token minted in the same instant).
+    if (user.suspendedAt) {
+      throw new UnauthorizedException('الحساب موقوف');
+    }
     const payload: JwtPayload = { sub: user.id, email: user.email, roles: user.roles };
     const accessToken = await this.jwt.signAsync(payload);
     const refreshToken = await this.mintRefreshToken(user.id, row.id);

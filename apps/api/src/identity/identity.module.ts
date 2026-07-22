@@ -48,6 +48,6 @@ import { AuditService } from './audit.service';
   ],
   controllers: [AuthController, UsersController, NafathController, ProfilesController],
   providers: [AuthService, UsersService, NafathService, PdplService, AuditService, JwtStrategy],
-  exports: [AuthService, UsersService, AuditService, JwtStrategy, PassportModule, JwtModule],
+  exports: [AuthService, UsersService, AuditService, PdplService, JwtStrategy, PassportModule, JwtModule],
 })
 export class IdentityModule {}

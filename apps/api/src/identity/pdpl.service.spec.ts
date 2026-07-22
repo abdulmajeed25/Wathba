@@ -42,6 +42,7 @@ function makePrisma(over: Record<string, any> = {}): any {
     faqQuestion: { findMany: jest.fn().mockResolvedValue([]) },
     payoutBeneficiary: { findUnique: jest.fn().mockResolvedValue(null), deleteMany: jest.fn() },
     address: { deleteMany: jest.fn() },
+    supportTicket: { updateMany: jest.fn() },
     ...over,
   };
   prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
@@ -91,5 +92,10 @@ describe('PdplService.eraseAccount', () => {
     expect(prisma.address.deleteMany).toHaveBeenCalled();
     expect(prisma.notification.deleteMany).toHaveBeenCalled();
     expect(prisma.creatorFollow.deleteMany).toHaveBeenCalled();
+    // Batch OPS — support tickets are anonymized (thread kept, identity gone).
+    expect(prisma.supportTicket.updateMany).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
+      data: { name: 'مستخدم محذوف', email: 'erased-user-1@erased.wathba.sa' },
+    });
   });
 });

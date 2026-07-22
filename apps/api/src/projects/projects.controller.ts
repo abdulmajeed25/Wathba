@@ -4,6 +4,7 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../identity/optional-jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { ProjectsService } from './projects.service';
@@ -32,10 +33,13 @@ export class ProjectsController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get project detail by UUID or slug (includes reward tiers)' })
-  async get(@Param('id') id: string) {
+  async get(@CurrentUser() jwt: JwtPayload | null, @Param('id') id: string) {
     // STAKES/N6 — accepts the human-readable slug too (/p/[slug] on the web).
-    const p = await this.projects.findByIdOrSlug(id);
+    // Batch OPS — the viewer (when present) lets the creator keep seeing
+    // their own moderation-hidden project; everyone else gets the 404.
+    const p = await this.projects.findByIdOrSlug(id, jwt?.sub);
     return this.projects.toPublic(p);
   }
 

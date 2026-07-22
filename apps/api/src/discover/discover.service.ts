@@ -148,6 +148,11 @@ export class DiscoverService {
   private conditions(f: NormalizedFilters): Record<string, Prisma.Sql> {
     const c: Record<string, Prisma.Sql> = {};
 
+    // Batch OPS — moderation takedowns (hiddenAt) never surface publicly.
+    // Not a facet dimension: it is never relaxed by an "except" pass, so
+    // hidden projects don't leak into facet counts either.
+    c.visible = Prisma.sql`p."hiddenAt" IS NULL`;
+
     const wantLive = f.statuses.includes('live');
     const wantFunded = f.statuses.includes('funded');
     const none = !wantLive && !wantFunded;
@@ -486,6 +491,7 @@ export class DiscoverService {
         where: {
           status: 'LIVE',
           publishedAt: { not: null },
+          hiddenAt: null,
           id: { notIn: backedIds },
           categoryId: { in: catIds },
         },

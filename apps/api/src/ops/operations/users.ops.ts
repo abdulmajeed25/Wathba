@@ -1,9 +1,15 @@
+import { createHash, randomBytes } from 'node:crypto';
+import { NotificationKind, PledgeStatus, ProjectStatus } from '@prisma/client';
 import { z } from 'zod';
 import type { UserRole } from '@prisma/client';
 
 import type { OperationDef } from '../operation.types';
 import { MONEY_PERMISSIONS } from '../permissions';
 import { UNMASKABLE_FIELDS, maskEmail, maskPhone } from '../pii';
+import type { PrismaService } from '../../prisma/prisma.service';
+import type { NotificationsService } from '../../notifications/notifications.service';
+import type { EmailService } from '../../email/email.service';
+import type { PdplService } from '../../identity/pdpl.service';
 
 /**
  * OPS Part 0 — identity operations (SENSITIVE tier: written reason always,
@@ -15,7 +21,34 @@ import { UNMASKABLE_FIELDS, maskEmail, maskPhone } from '../pii';
  * flips FOUR_EYES_MONEY on automatically and the dryRun preview says so),
  * and users.pii.unmask (PDPL: revealing a masked field is itself an audited
  * operation; the execution ledger stores a redacted result, never the value).
+ *
+ * Batch OPS (registry completion) adds the account lifecycle: suspend/
+ * reactivate (session-killing, notified), force-password-reset (the raw
+ * token goes ONLY to the user's email — the ops actor never sees it),
+ * sessions.revoke, and the PDPL pair (export/erase) that fronts
+ * PdplService so a data-subject request is an audited operation like
+ * everything else. These need post-commit side effects, so the factory now
+ * takes a deps object (type-only imports — governance RULE 2).
  */
+
+export interface UsersOpsDeps {
+  prisma: PrismaService;
+  notifications: NotificationsService;
+  email: EmailService;
+  pdpl: PdplService;
+}
+
+/** ops.module.ts still calls usersOps() bare until the coordinator wires the
+ *  deps; the original six ops never touch deps, and any lifecycle afterCommit
+ *  reached before wiring fails loudly instead of silently no-oping. */
+const UNWIRED_DEPS = new Proxy(
+  {},
+  {
+    get(_t, prop) {
+      throw new Error(`usersOps deps not wired yet (accessed .${String(prop)})`);
+    },
+  },
+) as UsersOpsDeps;
 
 const grantInput = z.object({
   userId: z.string().uuid(),
@@ -386,7 +419,413 @@ const piiUnmask: OperationDef<
   }),
 };
 
-export function usersOps(): Array<OperationDef<never, unknown>> {
+/* ── Batch OPS (registry completion) — lifecycle + PDPL ─────────────────── */
+
+const userRef = z.object({ userId: z.string().uuid() });
+
+/** Same primitives as AuthService's forgot-password: sha256 of a random
+ *  base64url token, 30-minute TTL, single-use via usedAt. */
+const RESET_TTL_MS = 30 * 60 * 1000;
+const sha256 = (raw: string): string => createHash('sha256').update(raw).digest('hex');
+
+export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<never, unknown>> {
+  const suspend: OperationDef<
+    z.infer<typeof userRef>,
+    { suspendedAt: string; sessionsRevoked: number }
+  > = {
+    key: 'users.suspend',
+    titleAr: 'إيقاف حساب مستخدم',
+    descriptionAr:
+      'إيقاف إداري (قابل للعكس عبر users.reactivate): يمنع الدخول فوراً — كل الجلسات النشطة تُلغى في المعاملة نفسها، والرمز الحي يسقط عند أول تحقق. الحظر الدائم عمليةُ الإشراف المستقلة، لا هذه.',
+    inputSchema: userRef,
+    permission: 'users.lifecycle',
+    riskTier: 'SENSITIVE',
+    reversible: true,
+    compensatingKey: 'users.reactivate',
+    requiresReason: true,
+    preconditions: [
+      {
+        code: 'user-missing',
+        reasonAr: 'المستخدم غير موجود',
+        check: async (db, input) =>
+          !!(await db.user.findUnique({ where: { id: input.userId }, select: { id: true } })),
+      },
+      {
+        code: 'already-suspended',
+        reasonAr: 'الحساب موقوف أو محظور أصلاً',
+        check: async (db, input) => {
+          const u = await db.user.findUnique({
+            where: { id: input.userId },
+            select: { suspendedAt: true },
+          });
+          return u?.suspendedAt == null;
+        },
+      },
+      {
+        code: 'target-is-operator',
+        reasonAr:
+          'الحساب يحمل دوراً تشغيلياً في مركز العمليات — اسحب أدواره التشغيلية أولاً (users.ops-role.revoke) ثم أوقفه',
+        check: async (db, input) =>
+          (await db.opsRoleGrant.count({ where: { userId: input.userId } })) === 0,
+      },
+    ],
+    async dryRun(db, input) {
+      const u = await db.user.findUnique({
+        where: { id: input.userId },
+        select: { name: true, suspendedAt: true, suspendedKind: true },
+      });
+      const sessions = await db.refreshToken.count({
+        where: { userId: input.userId, revokedAt: null },
+      });
+      return {
+        summaryAr: `سيُوقف حساب «${u?.name ?? input.userId}» وتُلغى ${sessions} جلسة نشطة`,
+        before: { suspendedAt: u?.suspendedAt?.toISOString() ?? null, suspendedKind: u?.suspendedKind ?? null },
+        after: { suspendedKind: 'SUSPENDED' },
+        counts: { sessionsToRevoke: sessions },
+      };
+    },
+    async execute(tx, input, ctx) {
+      const now = new Date();
+      await tx.user.update({
+        where: { id: input.userId },
+        data: {
+          suspendedAt: now,
+          suspendedKind: 'SUSPENDED',
+          suspendedReasonAr: ctx.reason ?? null,
+        },
+      });
+      const { count } = await tx.refreshToken.updateMany({
+        where: { userId: input.userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      return { suspendedAt: now.toISOString(), sessionsRevoked: count };
+    },
+    async afterCommit(_result, input, ctx) {
+      await deps.notifications.create({
+        userId: input.userId,
+        kind: NotificationKind.ACCOUNT_SUSPENDED,
+        payload: { reasonAr: ctx.reason ?? null },
+      });
+      const u = await deps.prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true },
+      });
+      if (u) await deps.email.accountSuspended(u.email, { banned: false, reasonAr: ctx.reason ?? null });
+    },
+  };
+
+  const reactivate: OperationDef<z.infer<typeof userRef>, { reactivated: true }> = {
+    key: 'users.reactivate',
+    titleAr: 'إعادة تفعيل حساب موقوف',
+    descriptionAr:
+      'يرفع الإيقاف الإداري (SUSPENDED فقط) ويعيد الدخول. الحساب المحظور (BANNED) لا يُعاد من هنا — رفع الحظر قرار إشرافي عبر moderation.user.unban.',
+    inputSchema: userRef,
+    permission: 'users.lifecycle',
+    riskTier: 'SENSITIVE',
+    reversible: true,
+    compensatingKey: 'users.suspend',
+    requiresReason: true,
+    preconditions: [
+      {
+        code: 'not-suspended',
+        reasonAr: 'الحساب ليس موقوفاً — لا شيء يُرفع',
+        check: async (db, input) => {
+          const u = await db.user.findUnique({
+            where: { id: input.userId },
+            select: { suspendedAt: true },
+          });
+          return u?.suspendedAt != null;
+        },
+      },
+      {
+        code: 'banned-not-suspended',
+        reasonAr:
+          'الحساب محظور (BANNED) لا موقوف — رفع الحظر قرار إشرافي يمر عبر moderation.user.unban وليس إعادة التفعيل',
+        check: async (db, input) => {
+          const u = await db.user.findUnique({
+            where: { id: input.userId },
+            select: { suspendedKind: true },
+          });
+          return u?.suspendedKind !== 'BANNED';
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const u = await db.user.findUnique({
+        where: { id: input.userId },
+        select: { name: true, suspendedAt: true, suspendedKind: true, suspendedReasonAr: true },
+      });
+      return {
+        summaryAr: `سيُعاد تفعيل حساب «${u?.name ?? input.userId}» ويُمسح سبب الإيقاف`,
+        before: {
+          suspendedAt: u?.suspendedAt?.toISOString() ?? null,
+          suspendedKind: u?.suspendedKind ?? null,
+          suspendedReasonAr: u?.suspendedReasonAr ?? null,
+        },
+        after: { suspendedAt: null, suspendedKind: null, suspendedReasonAr: null },
+      };
+    },
+    async execute(tx, input) {
+      await tx.user.update({
+        where: { id: input.userId },
+        data: { suspendedAt: null, suspendedKind: null, suspendedReasonAr: null },
+      });
+      return { reactivated: true as const };
+    },
+    async afterCommit(_result, input) {
+      await deps.notifications.create({
+        userId: input.userId,
+        kind: NotificationKind.ACCOUNT_REACTIVATED,
+        payload: {},
+      });
+      const u = await deps.prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true, name: true },
+      });
+      if (u) await deps.email.accountReactivated(u.email, u.name);
+    },
+  };
+
+  const forcePasswordReset: OperationDef<
+    z.infer<typeof userRef>,
+    { tokenIssued: true; rawToken: string; sessionsRevoked: number }
+  > = {
+    key: 'users.force-password-reset',
+    titleAr: 'إجبار إعادة تعيين كلمة المرور',
+    descriptionAr:
+      'يصكّ رمز إعادة تعيين (كما في «نسيت كلمة المرور»: صلاحية ٣٠ دقيقة، استخدام واحد، الرموز السابقة تُبطل) ويلغي كل الجلسات. الرمز الخام يذهب إلى بريد المستخدم فقط — لا يظهر للمشغّل ولا يُخزَّن في سجل التنفيذ.',
+    inputSchema: userRef,
+    permission: 'users.lifecycle',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: true,
+    preconditions: [
+      {
+        code: 'user-missing',
+        reasonAr: 'المستخدم غير موجود',
+        check: async (db, input) =>
+          !!(await db.user.findUnique({ where: { id: input.userId }, select: { id: true } })),
+      },
+      {
+        code: 'suspended-user',
+        reasonAr: 'الحساب موقوف — أعد تفعيله أولاً (users.reactivate) قبل إجبار إعادة التعيين',
+        check: async (db, input) => {
+          const u = await db.user.findUnique({
+            where: { id: input.userId },
+            select: { suspendedAt: true },
+          });
+          return u?.suspendedAt == null;
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const u = await db.user.findUnique({
+        where: { id: input.userId },
+        select: { name: true, email: true },
+      });
+      const sessions = await db.refreshToken.count({
+        where: { userId: input.userId, revokedAt: null },
+      });
+      return {
+        summaryAr: `سيُرسل رابط إعادة تعيين إلى ${maskEmail(u?.email) ?? '—'} وتُلغى ${sessions} جلسة نشطة`,
+        before: { email: maskEmail(u?.email) },
+        after: { tokenIssued: true, sessionsRevoked: sessions },
+        counts: { sessionsToRevoke: sessions },
+      };
+    },
+    async execute(tx, input) {
+      const raw = randomBytes(32).toString('base64url');
+      // Invalidate prior tokens the way the service does: usedAt, not delete.
+      await tx.passwordResetToken.updateMany({
+        where: { userId: input.userId, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      await tx.passwordResetToken.create({
+        data: {
+          userId: input.userId,
+          tokenHash: sha256(raw),
+          expiresAt: new Date(Date.now() + RESET_TTL_MS),
+        },
+      });
+      const { count } = await tx.refreshToken.updateMany({
+        where: { userId: input.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return { tokenIssued: true as const, rawToken: raw, sessionsRevoked: count };
+    },
+    async afterCommit(result, input) {
+      const u = await deps.prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true },
+      });
+      if (!u) return;
+      // Same link shape as AuthService.forgotPassword.
+      const link = `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/reset-password?token=${result.rawToken}`;
+      await deps.email.passwordReset(u.email, link);
+    },
+    // SECURITY: the raw token exists only in transit to afterCommit — the
+    // ledger (and therefore every ops screen) sees only the fact.
+    redactResult: () => ({ tokenIssued: true }),
+  };
+
+  const sessionsRevoke: OperationDef<z.infer<typeof userRef>, { revoked: number }> = {
+    key: 'users.sessions.revoke',
+    titleAr: 'إلغاء كل جلسات مستخدم',
+    descriptionAr:
+      'يلغي كل رموز التجديد النشطة (خروج من كل الأجهزة). رموز الدخول الحية تسقط عند أول تحقق أو عند انتهائها.',
+    inputSchema: userRef,
+    permission: 'users.lifecycle',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: true,
+    preconditions: [
+      {
+        code: 'user-missing',
+        reasonAr: 'المستخدم غير موجود',
+        check: async (db, input) =>
+          !!(await db.user.findUnique({ where: { id: input.userId }, select: { id: true } })),
+      },
+    ],
+    async dryRun(db, input) {
+      const sessions = await db.refreshToken.count({
+        where: { userId: input.userId, revokedAt: null },
+      });
+      return {
+        summaryAr: `ستُلغى ${sessions} جلسة نشطة للمستخدم`,
+        before: { activeSessions: sessions },
+        after: { activeSessions: 0 },
+        counts: { activeSessions: sessions },
+      };
+    },
+    async execute(tx, input) {
+      const { count } = await tx.refreshToken.updateMany({
+        where: { userId: input.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return { revoked: count };
+    },
+  };
+
+  const pdplExport: OperationDef<z.infer<typeof userRef>, Record<string, unknown>> = {
+    key: 'users.pdpl.export',
+    titleAr: 'تصدير بيانات مستخدم (PDPL)',
+    descriptionAr:
+      'حق الوصول: نسخة كاملة من بيانات المستخدم (PdplService.exportData — قراءة فقط). الحزمة تعود للطالب ولا تُخزَّن في سجل التنفيذ — الكشف نفسه هو المدوَّن.',
+    inputSchema: userRef,
+    permission: 'users.pii.unmask',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: true,
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'user-missing',
+        reasonAr: 'المستخدم غير موجود',
+        check: async (db, input) =>
+          !!(await db.user.findUnique({ where: { id: input.userId }, select: { id: true } })),
+      },
+    ],
+    async dryRun(db, input) {
+      const [pledges, projects, comments] = await Promise.all([
+        db.pledge.count({ where: { backerId: input.userId } }),
+        db.project.count({ where: { createdById: input.userId } }),
+        db.comment.count({ where: { userId: input.userId } }),
+      ]);
+      return {
+        summaryAr: `ستُصدَّر حزمة PDPL كاملة (${pledges} تعهداً، ${projects} مشروعاً، ${comments} تعليقاً …) — تُسلَّم للطالب ولا تُخزَّن`,
+        before: null,
+        after: { exported: true },
+        counts: { pledges, projects, comments },
+      };
+    },
+    async execute(_db, input) {
+      return deps.pdpl.exportData(input.userId);
+    },
+    // The PII bundle goes back to the caller; the ledger keeps only the fact.
+    redactResult: () => ({ exported: true }),
+  };
+
+  const pdplErase: OperationDef<z.infer<typeof userRef>, { erased: true }> = {
+    key: 'users.pdpl.erase',
+    titleAr: 'محو حساب (PDPL)',
+    descriptionAr:
+      'حق المحو: يجهّل هوية المستخدم ويحذف التوابع الشخصية مع إبقاء السجلات المالية (احتفاظ تجاري/مكافحة غسل). يُرفض ومال المستخدم محجوز أو حملته نشطة — الشروط هنا تعكس رفض PdplService نفسه ليكون dryRun صادقاً. غير قابل للعكس.',
+    inputSchema: userRef,
+    permission: 'users.lifecycle',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: true,
+    // PdplService.eraseAccount opens its own $transaction.
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'user-missing',
+        reasonAr: 'المستخدم غير موجود',
+        check: async (db, input) =>
+          !!(await db.user.findUnique({ where: { id: input.userId }, select: { id: true } })),
+      },
+      {
+        code: 'already-erased',
+        reasonAr: 'الحساب ممحو أصلاً',
+        check: async (db, input) => {
+          const u = await db.user.findUnique({
+            where: { id: input.userId },
+            select: { email: true },
+          });
+          return !u?.email.startsWith('erased-');
+        },
+      },
+      {
+        code: 'held-pledges',
+        reasonAr: 'للمستخدم تعهدات محجوزة (HELD) — المحو متاح بعد تسوية الحملات',
+        check: async (db, input) =>
+          (await db.pledge.count({
+            where: { backerId: input.userId, status: PledgeStatus.HELD },
+          })) === 0,
+      },
+      {
+        code: 'active-campaigns',
+        reasonAr: 'للمستخدم حملات نشطة — تُسلَّم أو تُستكمل قبل المحو',
+        check: async (db, input) =>
+          (await db.project.count({
+            where: {
+              createdById: input.userId,
+              status: {
+                in: [
+                  ProjectStatus.UNDER_REVIEW,
+                  ProjectStatus.LIVE,
+                  ProjectStatus.SUCCESSFUL,
+                  ProjectStatus.FUNDED,
+                  ProjectStatus.IN_PRODUCTION,
+                ],
+              },
+            },
+          })) === 0,
+      },
+    ],
+    async dryRun(db, input) {
+      const u = await db.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true, name: true },
+      });
+      const [addresses, notifications, follows, beneficiary] = await Promise.all([
+        db.address.count({ where: { userId: input.userId } }),
+        db.notification.count({ where: { userId: input.userId } }),
+        db.creatorFollow.count({ where: { followerId: input.userId } }),
+        db.payoutBeneficiary.count({ where: { userId: input.userId } }),
+      ]);
+      return {
+        summaryAr: `سيُجهَّل «${u?.name ?? input.userId}» (${maskEmail(u?.email) ?? '—'}) وتُحذف توابعه الشخصية — السجلات المالية تبقى`,
+        before: { email: maskEmail(u?.email), name: u?.name ?? null },
+        after: { name: 'مستخدم محذوف', anonymized: true },
+        counts: { addresses, notifications, follows, payoutBeneficiary: beneficiary },
+      };
+    },
+    async execute(_db, input) {
+      return deps.pdpl.eraseAccount(input.userId);
+    },
+  };
+
   return [
     roleGrant,
     roleRevoke,
@@ -394,5 +833,11 @@ export function usersOps(): Array<OperationDef<never, unknown>> {
     opsRoleGrant,
     opsRoleRevoke,
     piiUnmask,
+    suspend,
+    reactivate,
+    forcePasswordReset,
+    sessionsRevoke,
+    pdplExport,
+    pdplErase,
   ] as unknown as Array<OperationDef<never, unknown>>;
 }

@@ -45,6 +45,18 @@ function fundingWith(overrides: { pledge?: any; prisma?: any; escrow?: any } = {
     {} as never, // email
     { create: jest.fn().mockResolvedValue(null) } as never,
     { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
+    // Batch OPS (registry completion) — SettingsService stub, catalog defaults.
+    {
+      get: jest.fn(async (key: string) =>
+        ({
+          'pledges.minHalalas': 1000,
+          'pledges.maxHalalas': null,
+          'payments.methodsEnabled': { card: true, bnpl: true },
+          'support.inboxEmail': 'support@wathba.sa',
+        })[key],
+      ),
+      invalidate: jest.fn(),
+    } as never,
   );
   return { svc, prisma, escrow };
 }
