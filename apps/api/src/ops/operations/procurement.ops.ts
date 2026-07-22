@@ -400,13 +400,37 @@ export function procurementOps(
       });
       return { status: RFQStatus.AWARDED, awardedBidId: input.bidId, bidsRejected: count };
     },
-    // No afterCommit: the winning supplier is intentionally NOT notified here.
-    // There is no NotificationKind for "your bid won an RFQ" (the enum has no
-    // award kind), and the base creator-path award() never notified suppliers
-    // either — so emitting an unrelated kind (e.g. SUPPLIER_VERIFIED = account
-    // verified) would misinform. The clean fix is a new RFQ_AWARDED kind +
-    // email template; schema is frozen this batch, so it is a product
-    // follow-up (see final report), not a half-built misuse here.
+    // OPS-GAPS R2 — notify the winning supplier (in-app + email). Parity with
+    // the creator path (procurement.service.notifyAwardWinner); same dedupKey
+    // so a bid can't be double-notified across the two award paths.
+    async afterCommit(_result, input) {
+      try {
+        const bid = await deps.prisma.supplierBid.findUnique({
+          where: { id: input.bidId },
+          select: { supplierId: true },
+        });
+        if (!bid) return;
+        const rfq = await deps.prisma.rFQ.findUnique({
+          where: { id: input.rfqId },
+          select: { project: { select: { titleAr: true } } },
+        });
+        const projectTitleAr = rfq?.project?.titleAr ?? 'مشروع';
+        await deps.notifications.create({
+          userId: bid.supplierId,
+          kind: NotificationKind.RFQ_AWARDED,
+          payload: { projectTitleAr, rfqId: input.rfqId },
+        });
+        const supplier = await deps.prisma.user.findUnique({
+          where: { id: bid.supplierId },
+          select: { email: true },
+        });
+        if (supplier?.email) {
+          await deps.email.rfqAwarded(supplier.email, { projectTitle: projectTitleAr });
+        }
+      } catch {
+        /* best-effort — the award already committed */
+      }
+    },
   };
 
   return [suppliersVerify, rfqClose, rfqCancel, bidsShortlist, rfqAward] as unknown as Array<
