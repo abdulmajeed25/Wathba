@@ -2,7 +2,7 @@
 
 *Snapshot: 2026-07-22 · `wathba-main` @ `93ed37a`. Companion to `distance-to-launch.md`, `launch-punchlist.md`, and `ops360-census.md`.*
 
-**The code is essentially launch-ready.** 56 PRs merged, 53 migrations, **78 governed operations**, **634 API tests green**, web production build green. The distance to launch is now **external procurement + a TLS front door**, not engineering.
+**The code is essentially launch-ready.** 52 PRs merged, 53 migrations, **78 governed operations**, **634 API tests green**, web production build green. The distance to launch is now **external procurement + a TLS front door**, not engineering.
 
 ## Done & merged — the whole product + a world-class Operations Center
 
