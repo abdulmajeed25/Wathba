@@ -69,5 +69,7 @@ export interface ProjectRow {
   createdBy: string | null;
   createdById: string | null;
   hiddenAt: string | null;
+  /** Open (unresolved) moderation reports on this project — from projectRow. */
+  openReportCount: number;
   createdAt: string;
 }

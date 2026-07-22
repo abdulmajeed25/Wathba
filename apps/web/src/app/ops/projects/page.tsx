@@ -1,18 +1,38 @@
 import Link from 'next/link';
 
+import { StatTile } from '../_components/stat-tile';
 import { FilterForm, qs } from '../_lib/filters';
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
 import { ProjectsTable } from './_components/projects-table';
-import { STATUS_LABEL_AR, type ProjectRow } from './_components/status';
+import { STATUS_LABEL_AR, statusLabel, type ProjectRow } from './_components/status';
 
 /**
  * OPS Phase 2 — «المشاريع»: the projects list. Server-first (guard →
  * ops-token fetch → 403 banner). Filters are the shared GET <FilterForm>;
  * the table + bulk actions are a client island (column renderers + multi-
  * select must run client-side). Cursor pagination is a plain link.
+ *
+ * OPS-360 Unit 3 — cross-page status tiles from GET /v1/ops/projects/stats
+ * (never derived from the current page), plus the DataTable power features
+ * (tableKey + savedViews + CSV + sortable) and the governed <BulkBar> now live
+ * inside <ProjectsTable>, and the sortable openReportCount column linking to
+ * trust.
  */
 
 const STATUS_OPTIONS = Object.entries(STATUS_LABEL_AR).map(([value, labelAr]) => ({ value, labelAr }));
+
+interface ProjectStats {
+  statusCounts: Record<string, number>;
+  total: number;
+}
+
+/** The status tiles worth surfacing at a glance (the operational cohorts). */
+const TILE_STATUSES: Array<{ key: string; intent: 'default' | 'warn' | 'ok' }> = [
+  { key: 'UNDER_REVIEW', intent: 'warn' },
+  { key: 'LIVE', intent: 'ok' },
+  { key: 'PAUSED', intent: 'warn' },
+  { key: 'SUCCESSFUL', intent: 'ok' },
+];
 
 export default async function OpsProjectsPage({
   searchParams,
@@ -33,18 +53,26 @@ export default async function OpsProjectsPage({
   let rows: ProjectRow[] = [];
   let nextCursor: string | null = null;
   let refused = false;
+  let stats: ProjectStats | null = null;
 
   try {
-    const res = await fetch(
-      `${API_BASE}/v1/ops/projects${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`,
-      { headers: { 'x-ops-token': opsToken }, cache: 'no-store' },
-    );
+    const [res, statsRes] = await Promise.all([
+      fetch(`${API_BASE}/v1/ops/projects${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`, {
+        headers: { 'x-ops-token': opsToken },
+        cache: 'no-store',
+      }),
+      fetch(`${API_BASE}/v1/ops/projects/stats${qs({ categoryId: filters.categoryId })}`, {
+        headers: { 'x-ops-token': opsToken },
+        cache: 'no-store',
+      }),
+    ]);
     if (res.status === 403) refused = true;
     if (res.ok) {
       const body = (await res.json()) as { items: ProjectRow[]; nextCursor: string | null };
       rows = body.items;
       nextCursor = body.nextCursor;
     }
+    if (statsRes.ok) stats = (await statsRes.json()) as ProjectStats;
   } catch {
     /* API unreachable — the empty/refused states render below */
   }
@@ -68,6 +96,21 @@ export default async function OpsProjectsPage({
         <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           تفتقد صلاحية projects.review — اطلب دور REVIEWER أو أعلى من المالك.
         </p>
+      ) : null}
+
+      {stats ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <StatTile label="إجمالي المشاريع" value={stats.total.toLocaleString('ar-SA')} />
+          {TILE_STATUSES.map((t) => (
+            <StatTile
+              key={t.key}
+              label={statusLabel(t.key)}
+              value={(stats!.statusCounts[t.key] ?? 0).toLocaleString('ar-SA')}
+              intent={(stats!.statusCounts[t.key] ?? 0) > 0 ? t.intent : 'default'}
+              href={`/ops/projects${qs({ status: t.key })}`}
+            />
+          ))}
+        </div>
       ) : null}
 
       <FilterForm

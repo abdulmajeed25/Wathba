@@ -89,10 +89,14 @@ export async function RefundsPanel({
           >
             <option value="">كل الحالات</option>
             <option value="HELD">محجوزة</option>
+            <option value="PENDING_BNPL">بانتظار التقسيط</option>
+            <option value="PENDING_REAUTH">بانتظار إعادة التفويض</option>
             <option value="CAPTURED">مقطوفة</option>
             <option value="CAPTURE_GRACE">مهلة التقاط</option>
             <option value="FAILED_CAPTURE">التقاط فاشل</option>
             <option value="DISPUTED">متنازَع عليها</option>
+            <option value="REFUNDED">مُستردَّة</option>
+            <option value="FAILED">فاشلة</option>
           </select>
           <button className="rounded border border-[#30363d] bg-[#161b22] px-3 py-1.5 text-sm text-[#e6edf3] hover:bg-[#21262d]">
             تصفية

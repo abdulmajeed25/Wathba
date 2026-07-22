@@ -49,13 +49,16 @@ test('suppliers renders the verification queue + RFQ oversight', async ({ page }
   ).toBeVisible();
 });
 
-test('support renders the tickets inbox with filters', async ({ page }) => {
+test('support renders the tickets inbox with filters + cross-page stat tiles', async ({ page }) => {
   test.skip(!apiUp, 'API unreachable — skipping live ops screen spec');
   await enterOps(page);
   await page.goto('/ops/support');
   await expect(page.getByRole('heading', { name: 'الدعم' })).toBeVisible();
   // The status filter (part of the FilterForm) is always present.
   await expect(page.locator('select[name="status"]')).toBeVisible();
+  // Unit 3: tiles now read the cross-page tickets/stats total, not a page-local
+  // ≤50 count.
+  await expect(page.getByText(/الأعداد إجمالية عبر كل الصفحات/)).toBeVisible();
 });
 
 test('settings renders the catalog form + env-managed section', async ({ page }) => {
@@ -82,4 +85,10 @@ test('team renders the read-only role × permission matrix', async ({ page }) =>
   await expect(page.getByRole('columnheader', { name: 'OWNER', exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'ANALYST', exact: true })).toBeVisible();
   await expect(page.getByText('money.approve', { exact: true })).toBeVisible();
+  // Unit 3: the directory now shows real ops-role holdings per teammate (from
+  // the DTO's opsRoleKeys) — the "check audit before revoke" workaround is gone.
+  await expect(
+    page.getByRole('columnheader', { name: /أدوار العمليات \(RBAC\)/ }),
+  ).toBeVisible();
+  await expect(page.getByText(/تأكّد من دور العمليات الحالي للمستخدم من سجل التدقيق/)).toHaveCount(0);
 });

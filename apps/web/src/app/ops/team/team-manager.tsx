@@ -20,6 +20,8 @@ export interface DirUser {
   email: string;
   handle: string | null;
   roles: string[];
+  /** Unit 3: the user's real ops-role holdings (OWNER/FINANCE/…) from the DTO. */
+  opsRoleKeys?: string[];
 }
 
 const OPS_ROLES = [
@@ -79,6 +81,29 @@ export function TeamManager({
       ),
     },
     {
+      key: 'opsRoleKeys',
+      label: 'أدوار العمليات (RBAC)',
+      render: (u) =>
+        u.opsRoleKeys && u.opsRoleKeys.length ? (
+          <span className="flex flex-wrap gap-1">
+            {u.opsRoleKeys.map((r) => (
+              <Badge
+                key={r}
+                className={
+                  r === 'OWNER'
+                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                    : 'border-[#1f6feb]/40 bg-[#1f6feb]/10 text-[#79c0ff]'
+                }
+              >
+                {r}
+              </Badge>
+            ))}
+          </span>
+        ) : (
+          <span className="text-[#484f58]">—</span>
+        ),
+    },
+    {
       key: 'roles',
       label: 'أدوار المنتج',
       render: (u) =>
@@ -112,17 +137,20 @@ export function TeamManager({
 
   return (
     <div className="space-y-6">
-      <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-300">
-        واجهة القراءة لا تُرجع أدوار العمليات (OpsRoleGrant) لكل مستخدم — فالجدول يعرض أدوار المنتج
-        فقط. تأكّد من دور العمليات الحالي للمستخدم من سجل التدقيق قبل السحب.
+      <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-2.5 text-xs text-[#8b949e]">
+        عمود «أدوار العمليات (RBAC)» يعرض ما يحمله كل عضو فعلياً (OWNER/OPS_MANAGER/FINANCE/…) من
+        واجهة القراءة مباشرةً — فلا حاجة لمراجعة سجل التدقيق قبل السحب.
       </p>
 
       <DataTable
         columns={columns}
         rows={users}
         emptyAr="لا مستخدمين"
-        minWidth={640}
+        minWidth={760}
         onRowActivate={(u) => setUserId(u.id)}
+        tableKey="ops.team.directory"
+        csvFileName="ops-team"
+        csvLabelAr="تصدير CSV"
       />
 
       <div className="grid gap-3 rounded-lg border border-[#21262d] bg-[#161b22] p-4 sm:grid-cols-2">

@@ -1,12 +1,15 @@
 'use client';
 
+import { ActorName } from '../_components/actor-name';
 import { DataTable, type Column } from '../_components/data-table';
 import { StatusBadge, type StatusIntent } from '../_components/badge';
 
 /**
- * OPS Phase 2 — «الدعم» inbox list. Client island wrapping the shared
- * <DataTable>. Rows carry no mutation — assign / status / note / reply all
- * live on the ticket detail page. Email is already masked server-side.
+ * OPS Phase 2 + OPS-360 Unit 3 — «الدعم» inbox list. Client island wrapping the
+ * shared <DataTable> (now with tableKey/savedViews/csv/sortable adopted). Rows
+ * carry no mutation — assign / status / note / reply all live on the ticket
+ * detail page. Email is already masked server-side, and the assignee UUID is
+ * resolved to a name via <ActorName> (the census flagged raw UUID assignees).
  */
 
 export interface TicketRow {
@@ -49,6 +52,8 @@ export function TicketsTable({ rows }: { rows: TicketRow[] }) {
     {
       key: 'topic',
       label: 'الموضوع',
+      sortable: true,
+      csv: (r) => r.topic,
       render: (r) => (
         <a href={`/ops/support/${r.id}`} className="text-[#58a6ff] hover:underline">
           {r.topic}
@@ -58,6 +63,9 @@ export function TicketsTable({ rows }: { rows: TicketRow[] }) {
     {
       key: 'name',
       label: 'صاحب التذكرة',
+      sortable: true,
+      csv: (r) => `${r.name} <${r.email}>`,
+      sortValue: (r) => r.name,
       render: (r) => (
         <span>
           {r.name}
@@ -70,6 +78,8 @@ export function TicketsTable({ rows }: { rows: TicketRow[] }) {
     {
       key: 'status',
       label: 'الحالة',
+      sortable: true,
+      csv: (r) => STATUS_AR[r.status] ?? r.status,
       render: (r) => (
         <StatusBadge intent={STATUS_INTENT[r.status] ?? 'muted'}>
           {STATUS_AR[r.status] ?? r.status}
@@ -79,9 +89,10 @@ export function TicketsTable({ rows }: { rows: TicketRow[] }) {
     {
       key: 'assignedToId',
       label: 'المُسنَد إليه',
+      csv: (r) => r.assignedToId ?? 'غير مُسنَدة',
       render: (r) =>
         r.assignedToId ? (
-          <span className="font-mono text-[11px] text-[#8b949e]">{r.assignedToId.slice(0, 8)}…</span>
+          <ActorName id={r.assignedToId} className="text-xs text-[#e6edf3]" />
         ) : (
           <span className="text-[#484f58]">غير مُسنَدة</span>
         ),
@@ -89,6 +100,9 @@ export function TicketsTable({ rows }: { rows: TicketRow[] }) {
     {
       key: 'createdAt',
       label: 'العمر',
+      sortable: true,
+      csv: (r) => r.createdAt ?? '',
+      sortValue: (r) => r.createdAt ?? '',
       render: (r) => <span className="whitespace-nowrap text-[#8b949e]">{ageAr(r.createdAt)}</span>,
     },
     {
@@ -109,6 +123,10 @@ export function TicketsTable({ rows }: { rows: TicketRow[] }) {
       rows={rows}
       emptyAr="لا تذاكر مطابقة للمرشحات"
       minWidth={760}
+      tableKey="ops.support.tickets"
+      savedViews
+      csvFileName="ops-support-tickets"
+      csvLabelAr="تصدير CSV"
       onRowActivate={(r) => {
         window.location.href = `/ops/support/${r.id}`;
       }}

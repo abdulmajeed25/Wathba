@@ -3,16 +3,23 @@ import Link from 'next/link';
 import { StatusBadge } from '../../_components/badge';
 import { OpRunner } from '../../_components/op-runner';
 import { API_BASE, requireAdmin, requireOpsSession } from '../../_lib/guard';
+import { qs } from '../../_lib/filters';
 import { formatSar } from '../../_lib/money';
+import { BackersTable, type BackerRow } from '../_components/backers-table';
+import { CommentsPanel, type CommentRow } from '../_components/comments-panel';
 import { PartnerRunner } from '../_components/partner-runner';
 import { statusIntent, statusLabel } from '../_components/status';
 
 /**
- * OPS Phase 2 — the per-project WORKSPACE. Server-first. Fetches the detail
- * read + the audit entity trail in parallel, then renders tabs (server, via
- * ?tab=) over overview / milestones+payouts / recent backers (masked) /
- * timeline / operations. The operations panel exposes ONLY the OpRunners
- * whose preconditions plausibly hold for the current status/visibility.
+ * OPS Phase 2 + OPS-360 Unit 3 — the per-project WORKSPACE. Server-first.
+ * Fetches the detail read + (for the timeline tab) the audit entity trail, and
+ * — for a sub-resource tab — that tab's Unit-1 read endpoint
+ * (GET /v1/ops/projects/:id/{backers,updates,comments,reward-tiers,addons,
+ * spend-logs}). This closes the A2 "operators can't see a project's content"
+ * gap: the FULL backer roster (replacing the "last 20"), the updates feed, the
+ * comments with inline moderation, the reward/add-on catalog, and the spend
+ * transparency ledger. The operations panel exposes ONLY the OpRunners whose
+ * preconditions plausibly hold for the current status/visibility.
  */
 
 interface Milestone {
@@ -78,13 +85,71 @@ interface AuditRow {
   createdAt: string;
 }
 
+interface ProjectUpdate {
+  id: string;
+  titleAr: string;
+  bodyAr: string | null;
+  orderNum: number | null;
+  likeCount: number;
+  commentCount: number;
+  pinned: boolean;
+  visibility: string;
+  publishAt: string | null;
+  createdAt: string | null;
+}
+interface RewardTier {
+  id: string;
+  titleAr: string;
+  amountHalalas: string | null;
+  descAr: string | null;
+  includesPhysicalProduct: boolean;
+  requiresShipping: boolean;
+  limitQty: number | null;
+  claimedQty: number;
+  isActive: boolean;
+  earlyBirdAmountHalalas: string | null;
+  sortOrder: number | null;
+}
+interface AddOn {
+  id: string;
+  titleAr: string;
+  amountHalalas: string | null;
+  descAr: string | null;
+  limitQty: number | null;
+  claimedQty: number;
+  sortOrder: number | null;
+}
+interface SpendLog {
+  id: string;
+  milestoneId: string | null;
+  amountHalalas: string | null;
+  descAr: string | null;
+  date: string | null;
+  proofUrl: string | null;
+  createdAt: string | null;
+}
+
+type SubResource = { items: unknown[]; nextCursor: string | null };
+
 const TABS: Array<{ key: string; labelAr: string }> = [
   { key: 'overview', labelAr: 'نظرة عامة' },
   { key: 'milestones', labelAr: 'المراحل والصرف' },
   { key: 'backers', labelAr: 'الداعمون' },
+  { key: 'updates', labelAr: 'التحديثات' },
+  { key: 'comments', labelAr: 'التعليقات' },
+  { key: 'catalog', labelAr: 'المكافآت والإضافات' },
+  { key: 'spend', labelAr: 'سجل الإنفاق' },
   { key: 'timeline', labelAr: 'الخط الزمني' },
   { key: 'operations', labelAr: 'العمليات' },
 ];
+
+/** Map a sub-resource tab → its Unit-1 read endpoint path suffix. */
+const SUB_ENDPOINT: Record<string, string> = {
+  backers: 'backers',
+  updates: 'updates',
+  comments: 'comments',
+  spend: 'spend-logs',
+};
 
 function fmtDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
@@ -117,23 +182,54 @@ export default async function OpsProjectDetailPage({
   let refused = false;
   let notFound = false;
 
+  // Sub-resource buckets (populated only for the active tab).
+  let backers: BackerRow[] = [];
+  let updates: ProjectUpdate[] = [];
+  let comments: CommentRow[] = [];
+  let rewardTiers: RewardTier[] = [];
+  let addons: AddOn[] = [];
+  let spendLogs: SpendLog[] = [];
+  let subCursor: string | null = null;
+
+  const opts = { headers: { 'x-ops-token': opsToken }, cache: 'no-store' as const };
+
   try {
-    const [dRes, aRes] = await Promise.all([
-      fetch(`${API_BASE}/v1/ops/projects/${id}`, {
-        headers: { 'x-ops-token': opsToken },
-        cache: 'no-store',
-      }),
-      fetch(`${API_BASE}/v1/ops/audit/entity/Project/${id}?limit=100`, {
-        headers: { 'x-ops-token': opsToken },
-        cache: 'no-store',
-      }),
-    ]);
+    const dRes = await fetch(`${API_BASE}/v1/ops/projects/${id}`, opts);
     if (dRes.status === 403) refused = true;
     if (dRes.status === 404) notFound = true;
     if (dRes.ok) detail = (await dRes.json()) as ProjectDetail;
-    if (aRes.ok) trail = ((await aRes.json()) as { items: AuditRow[] }).items;
   } catch {
     /* API unreachable — refused/empty states render below */
+  }
+
+  // The active tab's sub-resource(s) — only when the project itself loaded.
+  if (detail && !refused && !notFound) {
+    const page = qs({ cursor: sp.cursor, limit: '100' });
+    try {
+      if (tab === 'timeline') {
+        const r = await fetch(`${API_BASE}/v1/ops/audit/entity/Project/${id}?limit=100`, opts);
+        if (r.ok) trail = ((await r.json()) as { items: AuditRow[] }).items;
+      } else if (tab === 'catalog') {
+        const [tRes, aRes] = await Promise.all([
+          fetch(`${API_BASE}/v1/ops/projects/${id}/reward-tiers?limit=100`, opts),
+          fetch(`${API_BASE}/v1/ops/projects/${id}/addons?limit=100`, opts),
+        ]);
+        if (tRes.ok) rewardTiers = ((await tRes.json()) as SubResource).items as RewardTier[];
+        if (aRes.ok) addons = ((await aRes.json()) as SubResource).items as AddOn[];
+      } else if (SUB_ENDPOINT[tab]) {
+        const r = await fetch(`${API_BASE}/v1/ops/projects/${id}/${SUB_ENDPOINT[tab]}${page}`, opts);
+        if (r.ok) {
+          const body = (await r.json()) as SubResource;
+          subCursor = body.nextCursor;
+          if (tab === 'backers') backers = body.items as BackerRow[];
+          else if (tab === 'updates') updates = body.items as ProjectUpdate[];
+          else if (tab === 'comments') comments = body.items as CommentRow[];
+          else if (tab === 'spend') spendLogs = body.items as SpendLog[];
+        }
+      }
+    } catch {
+      /* sub-resource unreachable — the tab renders its empty state */
+    }
   }
 
   const back = (
@@ -173,6 +269,18 @@ export default async function OpsProjectDetailPage({
   const d = detail;
   const hidden = !!d.hiddenAt;
   const tabHref = (t: string) => `/ops/projects/${id}${t === 'overview' ? '' : `?tab=${t}`}`;
+
+  // Cursor "load more" for a paginated sub-resource tab (carries tab + cursor).
+  const subMore = subCursor ? (
+    <div className="text-center">
+      <Link
+        href={`/ops/projects/${id}${qs({ tab, cursor: subCursor })}`}
+        className="inline-block rounded border border-[#30363d] bg-[#161b22] px-4 py-2 text-sm hover:bg-[#21262d]"
+      >
+        الأقدم ↓
+      </Link>
+    </div>
+  ) : null;
 
   return (
     <div className="space-y-6">
@@ -331,51 +439,213 @@ export default async function OpsProjectDetailPage({
       ) : null}
 
       {tab === 'backers' ? (
-        <section>
-          <p className="mb-2 text-xs text-[#8b949e]">
-            آخر ٢٠ تعهّداً — البريد مُقنَّع (لا PII خام على هذه الواجهة).
+        <section className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            سجل الداعمين الكامل مع حالة الوفاء بالمكافأة — البريد مُقنَّع (لا PII خام). صدِّر CSV من
+            شريط الأدوات.
+          </p>
+          <BackersTable rows={backers} />
+          {subMore}
+        </section>
+      ) : null}
+
+      {tab === 'updates' ? (
+        <section className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            تحديثات المشروع المنشورة للداعمين — النص مُختصر إلى مقتطف.
+          </p>
+          {updates.length === 0 ? (
+            <p className="rounded border border-[#30363d] bg-[#161b22] px-4 py-6 text-center text-sm text-[#8b949e]">
+              لا تحديثات منشورة بعد
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {updates.map((u) => (
+                <li
+                  key={u.id}
+                  className="space-y-1 rounded-lg border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm"
+                >
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {u.orderNum != null ? (
+                      <span className="tabular-nums text-[#484f58]">#{u.orderNum}</span>
+                    ) : null}
+                    <span className="font-bold">{u.titleAr}</span>
+                    <StatusBadge intent={u.visibility === 'PUBLIC' ? 'muted' : 'info'}>
+                      {u.visibility}
+                    </StatusBadge>
+                    {u.pinned ? <StatusBadge intent="info">مثبَّت</StatusBadge> : null}
+                    <span className="text-xs text-[#8b949e]">· {fmtDate(u.publishAt ?? u.createdAt)}</span>
+                  </div>
+                  {u.bodyAr ? <p className="text-[#8b949e]">{u.bodyAr}</p> : null}
+                  <p className="text-xs text-[#484f58]">
+                    {u.likeCount.toLocaleString('ar-SA')} إعجاب ·{' '}
+                    {u.commentCount.toLocaleString('ar-SA')} تعليق
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+          {subMore}
+        </section>
+      ) : null}
+
+      {tab === 'comments' ? (
+        <section className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            نقاش المشروع مع الإشراف الفوري — كل إجراء عملية محكومة (moderation.comment.moderate)
+            تُسجَّل في التدقيق. المؤلِّف مُقنَّع.
+          </p>
+          <CommentsPanel rows={comments} />
+          {subMore}
+        </section>
+      ) : null}
+
+      {tab === 'catalog' ? (
+        <section className="space-y-6">
+          <div className="space-y-2">
+            <h2 className="text-base font-bold">مستويات المكافآت</h2>
+            <div className="overflow-x-auto rounded-lg border border-[#21262d]">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-[#161b22] text-right text-[#8b949e]">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">المستوى</th>
+                    <th className="px-3 py-2 font-medium">المبلغ</th>
+                    <th className="px-3 py-2 font-medium">مطالَب / حد</th>
+                    <th className="px-3 py-2 font-medium">شحن</th>
+                    <th className="px-3 py-2 font-medium">الحالة</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#21262d] bg-[#0d1117]">
+                  {rewardTiers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-[#8b949e]">
+                        لا مستويات مكافآت
+                      </td>
+                    </tr>
+                  ) : (
+                    rewardTiers.map((t) => (
+                      <tr key={t.id} className="align-top">
+                        <td className="px-3 py-2">
+                          {t.titleAr}
+                          {t.descAr ? (
+                            <span className="block text-[11px] text-[#8b949e]">{t.descAr}</span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">{formatSar(t.amountHalalas)}</td>
+                        <td className="px-3 py-2 tabular-nums text-[#8b949e]">
+                          {t.claimedQty.toLocaleString('ar-SA')}
+                          {t.limitQty != null ? ` / ${t.limitQty.toLocaleString('ar-SA')}` : ' / ∞'}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-[#8b949e]">
+                          {t.requiresShipping ? 'يتطلّب شحناً' : t.includesPhysicalProduct ? 'منتج مادي' : 'رقمي'}
+                        </td>
+                        <td className="px-3 py-2">
+                          <StatusBadge intent={t.isActive ? 'ok' : 'muted'}>
+                            {t.isActive ? 'فعّال' : 'معطّل'}
+                          </StatusBadge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-base font-bold">الإضافات</h2>
+            <div className="overflow-x-auto rounded-lg border border-[#21262d]">
+              <table className="w-full min-w-[520px] text-sm">
+                <thead className="bg-[#161b22] text-right text-[#8b949e]">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">الإضافة</th>
+                    <th className="px-3 py-2 font-medium">المبلغ</th>
+                    <th className="px-3 py-2 font-medium">مطالَب / حد</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#21262d] bg-[#0d1117]">
+                  {addons.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-8 text-center text-[#8b949e]">
+                        لا إضافات
+                      </td>
+                    </tr>
+                  ) : (
+                    addons.map((a) => (
+                      <tr key={a.id} className="align-top">
+                        <td className="px-3 py-2">
+                          {a.titleAr}
+                          {a.descAr ? (
+                            <span className="block text-[11px] text-[#8b949e]">{a.descAr}</span>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">{formatSar(a.amountHalalas)}</td>
+                        <td className="px-3 py-2 tabular-nums text-[#8b949e]">
+                          {a.claimedQty.toLocaleString('ar-SA')}
+                          {a.limitQty != null ? ` / ${a.limitQty.toLocaleString('ar-SA')}` : ' / ∞'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === 'spend' ? (
+        <section className="space-y-3">
+          <p className="text-xs text-[#8b949e]">
+            سجل الإنفاق — سِجِل الشفافية المُعلَن للداعمين (المبلغ والوصف والإثبات لكل مرحلة).
           </p>
           <div className="overflow-x-auto rounded-lg border border-[#21262d]">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead className="bg-[#161b22] text-right text-[#8b949e]">
                 <tr>
-                  <th className="px-3 py-2 font-medium">الداعم</th>
-                  <th className="px-3 py-2 font-medium">المبلغ</th>
-                  <th className="px-3 py-2 font-medium">الإضافات</th>
-                  <th className="px-3 py-2 font-medium">الحالة</th>
                   <th className="px-3 py-2 font-medium">التاريخ</th>
+                  <th className="px-3 py-2 font-medium">المبلغ</th>
+                  <th className="px-3 py-2 font-medium">الوصف</th>
+                  <th className="px-3 py-2 font-medium">الإثبات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#21262d] bg-[#0d1117]">
-                {d.recentPledges.length === 0 ? (
+                {spendLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-8 text-center text-[#8b949e]">
-                      لا تعهّدات بعد
+                    <td colSpan={4} className="px-3 py-8 text-center text-[#8b949e]">
+                      لا سجلات إنفاق
                     </td>
                   </tr>
                 ) : (
-                  d.recentPledges.map((pl) => (
-                    <tr key={pl.id} className="align-top">
+                  spendLogs.map((s) => (
+                    <tr key={s.id} className="align-top">
+                      <td className="whitespace-nowrap px-3 py-2 text-xs text-[#8b949e]">
+                        {fmtDate(s.date ?? s.createdAt)}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">{formatSar(s.amountHalalas)}</td>
+                      <td className="px-3 py-2 text-[#8b949e]">{s.descAr ?? '—'}</td>
                       <td className="px-3 py-2">
-                        <span>{pl.backer.name ?? '—'}</span>
-                        <span className="block font-mono text-[11px] text-[#8b949e]" dir="ltr">
-                          {pl.backer.email}
-                        </span>
+                        {s.proofUrl ? (
+                          <a
+                            href={s.proofUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[#58a6ff] hover:underline"
+                            dir="ltr"
+                          >
+                            إثبات ↗
+                          </a>
+                        ) : (
+                          <span className="text-[#484f58]">—</span>
+                        )}
                       </td>
-                      <td className="px-3 py-2 tabular-nums">{formatSar(pl.amountHalalas)}</td>
-                      <td className="px-3 py-2 tabular-nums text-[#8b949e]">
-                        {formatSar(pl.addOnsHalalas)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <StatusBadge intent="muted">{pl.status}</StatusBadge>
-                      </td>
-                      <td className="px-3 py-2 text-xs text-[#8b949e]">{fmtDate(pl.createdAt)}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
+          {subMore}
         </section>
       ) : null}
 

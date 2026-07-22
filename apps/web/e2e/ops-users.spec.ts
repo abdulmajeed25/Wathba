@@ -65,6 +65,23 @@ test('/ops/users renders the masked directory with no raw email leak', async ({ 
   }
 });
 
+test('/ops/users renders cross-page census tiles + the KYC queue tab', async ({ page }) => {
+  test.skip(!apiUp, 'API unreachable — skipping live ops-users spec');
+  await enterOps(page);
+
+  await page.goto('/ops/users');
+  // Cross-page census tiles (users/stats) — active/moderated + verification.
+  await expect(page.getByText('نشط', { exact: true })).toBeVisible();
+  await expect(page.getByText('موثّق نفاذ', { exact: true })).toBeVisible();
+  await expect(page.getByText('موردون موثّقون', { exact: true })).toBeVisible();
+
+  // The KYC escalation queue tab loads its dedicated worklist.
+  await page.getByRole('link', { name: 'طابور التوثيق (KYC)' }).click();
+  await page.waitForURL(/view=kyc/);
+  await expect(page.getByRole('link', { name: 'غير موثّقين عبر نفاذ' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'موردون بانتظار التوثيق' })).toBeVisible();
+});
+
 test('a user detail page renders the operations panel', async ({ page, request }) => {
   test.skip(!apiUp, 'API unreachable — skipping live ops-users spec');
   const id = await firstUserId(request);
@@ -77,6 +94,9 @@ test('a user detail page renders the operations panel', async ({ page, request }
   await expect(page.getByRole('button', { name: 'كشف البريد والهاتف' })).toBeVisible();
   // Impersonation is disabled, never faked.
   await expect(page.getByRole('button', { name: /العرض بصفة المستخدم/ })).toBeDisabled();
+  // Unit 3: real pledge + session lists replace the bare counts.
+  await expect(page.getByRole('heading', { name: /تعهّدات هذا الحساب/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /الجلسات والأجهزة/ })).toBeVisible();
 });
 
 test('/ops/trust renders the moderation surface', async ({ page }) => {

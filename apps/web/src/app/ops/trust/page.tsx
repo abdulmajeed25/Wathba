@@ -1,23 +1,30 @@
 import Link from 'next/link';
 
 import { StatTile } from '../_components/stat-tile';
-import { FilterForm, qs } from '../_lib/filters';
+import { qs } from '../_lib/filters';
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
-import { ModerationQueue, type TrustProjectRow } from './moderation-queue';
+import {
+  ModerationQueue,
+  type TrustCommentRow,
+  type TrustReportRow,
+} from './moderation-queue';
 
 /**
- * OPS Phase 2 — «الثقة والسلامة»: the unified moderation surface. Server-first.
+ * OPS-360 Unit 3 — «الثقة والسلامة»: a REAL moderation queue. Server-first.
  *
- * There is no dedicated reports-list endpoint yet, so the queue is assembled
- * from what exists: /dashboard supplies the open-report COUNTS (project +
- * comment), and /projects (with a hidden filter) supplies the actual rows the
- * operator acts on. Per-project openReportCount is only exposed on the project
- * DETAIL endpoint, so the list cannot yet be filtered to "reported only" —
- * a dedicated /ops/reports queue (and a repeat-offender view) is a documented
- * FOLLOW-UP. Moderation itself runs through governed OpRunners in the island.
+ * This is the fix that makes the MODERATOR role (analytics.read +
+ * moderation.queue only) actually able to work: it reads ONLY the
+ * moderation-scoped endpoints — never /ops/projects, which MODERATOR cannot
+ * read:
  *
- * Permission: the dashboard needs any ops role; the moderation ops are gated
- * server-side per key. 403 on either read → amber banner.
+ *   • /ops/moderation/reports          → the unified open-report queue
+ *   • /ops/moderation/comments?reported→ the reported-comments browser
+ *   • /ops/dashboard                   → the open-report counts (stat tiles)
+ *
+ * Both lists page independently by their own cursor; the active tab is carried
+ * in the URL (?tab=) so a «التالي» navigation lands back on the right tab.
+ * Every subject an operator acts on is a real row with a governed OpRunner —
+ * the old blind "paste a subject id" cards are gone. 403 on the queue → amber.
  */
 
 interface DashboardCounts {
@@ -26,6 +33,11 @@ interface DashboardCounts {
     projectReportsOpen: number;
     commentReportsOpen: number;
   };
+}
+
+interface PageBody<T> {
+  items: T[];
+  nextCursor: string | null;
 }
 
 export default async function OpsTrustPage({
@@ -37,36 +49,53 @@ export default async function OpsTrustPage({
   const { opsToken } = await requireOpsSession();
   const sp = await searchParams;
 
-  // Default the queue to moderated (hidden) projects — the actionable set.
-  const hidden = sp.hidden ?? 'true';
-  const filters = { hidden, status: sp.status, q: sp.q };
+  const tab = sp.tab === 'comments' ? 'comments' : 'reports';
+  const headers = { 'x-ops-token': opsToken } as const;
 
   let counts: DashboardCounts['workQueue'] | null = null;
-  let projects: TrustProjectRow[] = [];
-  let nextCursor: string | null = null;
+  let reports: TrustReportRow[] = [];
+  let comments: TrustCommentRow[] = [];
+  let reportsCursor: string | null = null;
+  let commentsCursor: string | null = null;
   let refused = false;
 
   try {
-    const [dashRes, projRes] = await Promise.all([
-      fetch(`${API_BASE}/v1/ops/dashboard`, {
-        headers: { 'x-ops-token': opsToken },
-        cache: 'no-store',
-      }),
+    const [dashRes, repRes, comRes] = await Promise.all([
+      fetch(`${API_BASE}/v1/ops/dashboard`, { headers, cache: 'no-store' }),
       fetch(
-        `${API_BASE}/v1/ops/projects${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`,
-        { headers: { 'x-ops-token': opsToken }, cache: 'no-store' },
+        `${API_BASE}/v1/ops/moderation/reports${qs({
+          cursor: tab === 'reports' ? sp.cursor : undefined,
+          limit: '50',
+        })}`,
+        { headers, cache: 'no-store' },
+      ),
+      fetch(
+        `${API_BASE}/v1/ops/moderation/comments${qs({
+          reported: 'true',
+          cursor: tab === 'comments' ? sp.cursor : undefined,
+          limit: '50',
+        })}`,
+        { headers, cache: 'no-store' },
       ),
     ]);
-    if (dashRes.status === 403 || projRes.status === 403) refused = true;
+
+    if (repRes.status === 403 || comRes.status === 403) refused = true;
     if (dashRes.ok) counts = ((await dashRes.json()) as DashboardCounts).workQueue;
-    if (projRes.ok) {
-      const body = (await projRes.json()) as { items: TrustProjectRow[]; nextCursor: string | null };
-      projects = body.items;
-      nextCursor = body.nextCursor;
+    if (repRes.ok) {
+      const body = (await repRes.json()) as PageBody<TrustReportRow>;
+      reports = body.items;
+      reportsCursor = body.nextCursor;
+    }
+    if (comRes.ok) {
+      const body = (await comRes.json()) as PageBody<TrustCommentRow>;
+      comments = body.items;
+      commentsCursor = body.nextCursor;
     }
   } catch {
     /* API unreachable — refused/empty states render below */
   }
+
+  const activeCursor = tab === 'reports' ? reportsCursor : commentsCursor;
 
   return (
     <div className="space-y-6">
@@ -74,8 +103,8 @@ export default async function OpsTrustPage({
         <div>
           <h1 className="text-lg font-bold">الثقة والسلامة</h1>
           <p className="mt-1 text-sm text-[#8b949e]">
-            طابور الإشراف الموحّد — البلاغات على المشاريع والتعليقات، وإجراءات الحظر والإخفاء. كل
-            إجراء عملية محكومة ومدوَّنة.
+            طابور الإشراف الحقيقي — بلاغات المشاريع والتعليقات وتصفّح التعليقات المُبلَّغ عنها، مع
+            إجراءات الإخفاء والحظر ورفض البلاغات. كل إجراء عملية محكومة ومدوَّنة في التدقيق.
           </p>
         </div>
         <Link href="/ops" className="text-sm text-[#58a6ff] hover:underline">
@@ -107,41 +136,24 @@ export default async function OpsTrustPage({
         />
       </section>
 
-      <p className="rounded border border-sky-500/30 bg-sky-500/10 px-4 py-2.5 text-xs text-sky-200">
-        ملاحظة: لا توجد بعد نقطة نهاية مخصّصة لقائمة البلاغات الموحّدة أو عرض «المُخالِف المتكرّر».
-        عدّاد البلاغات لكل مشروع متاح على صفحة تفاصيل المشروع فقط، لذا يعرض هذا الطابور المشاريع
-        المُخفاة (المُشرَف عليها) افتراضياً — وهذا متروك كعمل لاحق.
-      </p>
+      <ModerationQueue reports={reports} comments={comments} initialTab={tab} />
 
-      <FilterForm
-        fields={[
-          {
-            kind: 'select',
-            name: 'hidden',
-            labelAr: 'الرؤية',
-            allLabelAr: 'الكل',
-            options: [
-              { value: 'true', labelAr: 'المخفية (مُشرَف عليها)' },
-              { value: 'false', labelAr: 'الظاهرة' },
-            ],
-          },
-          { kind: 'text', name: 'q', placeholderAr: 'عنوان المشروع' },
-        ]}
-        values={{ ...sp, hidden }}
-      />
-
-      <ModerationQueue projects={projects} />
-
-      {nextCursor ? (
+      {activeCursor ? (
         <div className="text-center">
           <Link
-            href={`/ops/trust${qs({ ...filters, cursor: nextCursor })}`}
+            href={`/ops/trust${qs({ tab, cursor: activeCursor })}`}
             className="inline-block rounded border border-[#30363d] bg-[#161b22] px-4 py-2 text-sm hover:bg-[#21262d]"
           >
             التالي ↓
           </Link>
         </div>
       ) : null}
+
+      <p className="text-xs text-[#8b949e]">
+        ملاحظة: «إخفاء سؤال شائع» (faq.question.hide) تُنفَّذ من صفحة المشروع أو عبر لوحة الأوامر
+        (Ctrl+K) — لا صندوق لصق أعمى هنا؛ قوائم الأسئلة الشائعة مرتبطة بمشاريع لا يستطيع دور المُشرِف
+        قراءتها.
+      </p>
     </div>
   );
 }
