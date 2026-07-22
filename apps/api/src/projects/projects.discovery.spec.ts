@@ -34,7 +34,7 @@ describe('ProjectsService discovery filters', () => {
       },
       project: { findMany: jest.fn().mockResolvedValue([]) },
     });
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     await svc.list({ categorySlug: 'technology' } as any);
     const where = prisma.project.findMany.mock.calls[0][0].where;
     expect(where.categoryId).toEqual({ in: ['top', 'k1', 'k2'] });
@@ -49,14 +49,14 @@ describe('ProjectsService discovery filters', () => {
       category: { findFirst, findMany: jest.fn() },
       project: { findMany: jest.fn().mockResolvedValue([]) },
     });
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     await svc.list({ categorySlug: 'technology', subSlug: 'apps' } as any);
     expect(prisma.project.findMany.mock.calls[0][0].where.categoryId).toEqual({ in: ['sub'] });
   });
 
   it('just_launched → LIVE + publishedAt within 7 days, newest first', async () => {
     const prisma = makePrisma();
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     await svc.list({ filter: 'just_launched' } as any);
     const call = prisma.project.findMany.mock.calls[0][0];
     expect(call.where.status).toBe('LIVE');
@@ -67,7 +67,7 @@ describe('ProjectsService discovery filters', () => {
 
   it('near_you without a region returns empty and never queries', async () => {
     const prisma = makePrisma();
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     const res = await svc.list({ filter: 'near_you' } as any);
     expect(res).toEqual({ items: [], nextCursor: null });
     expect(prisma.project.findMany).not.toHaveBeenCalled();
@@ -75,7 +75,7 @@ describe('ProjectsService discovery filters', () => {
 
   it('near_you with a region filters by region', async () => {
     const prisma = makePrisma();
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     await svc.list({ filter: 'near_you', region: 'RIYADH' } as any);
     const where = prisma.project.findMany.mock.calls[0][0].where;
     expect(where.status).toBe('LIVE');
@@ -84,7 +84,7 @@ describe('ProjectsService discovery filters', () => {
 
   it('staff_pick → isStaffPick true', async () => {
     const prisma = makePrisma();
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     await svc.list({ filter: 'staff_pick' } as any);
     expect(prisma.project.findMany.mock.calls[0][0].where.isStaffPick).toBe(true);
   });
@@ -103,7 +103,7 @@ describe('ProjectsService discovery filters', () => {
           .mockResolvedValueOnce([{ id: 'c' }, { id: 'b' }]), // hydrate page
       },
     });
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     const res = await svc.list({ filter: 'nearly_funded' } as any);
     // Candidate scan carried the ≥48h deadline window.
     expect(prisma.project.findMany.mock.calls[0][0].where.deadline.gte).toBeInstanceOf(Date);
@@ -133,7 +133,7 @@ describe('ProjectsService discovery filters', () => {
         ]),
       },
     });
-    const svc = new ProjectsService(prisma, audit);
+    const svc = new ProjectsService(prisma, audit, { get: jest.fn() } as any);
     const res = await svc.list({ filter: 'trending' } as any);
     expect(res.items.map((p) => p.id)).toEqual(['b', 'a', 'c']);
     const pledgeWhere = prisma.pledge.groupBy.mock.calls[0][0].where;

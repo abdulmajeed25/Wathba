@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   CreateProjectDto,
   ListProjectsQueryDto,
@@ -21,6 +22,7 @@ export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly settings: SettingsService,
   ) {}
 
   /**
@@ -83,6 +85,19 @@ export class ProjectsService {
   }
 
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
+    // Batch OPS (Unit 6) — funding-goal floor and hard duration cap are governed
+    // platform settings (SETTINGS_CATALOG), read through the cached SettingsService.
+    // At their catalog defaults (10_000 halalas / 120 days) the DTO's @Min/@Max
+    // decorators already reject out-of-range input, so these checks are no-ops
+    // until an operator tightens them — behaviour is unchanged by default.
+    const minGoalHalalas = await this.settings.get('projects.fundingGoalMinHalalas');
+    if (dto.fundingGoalHalalas < minGoalHalalas) {
+      throw new BadRequestException(`الحد الأدنى لهدف التمويل هو ${minGoalHalalas} هللة`);
+    }
+    const hardMaxDays = await this.settings.get('projects.durationHardMaxDays');
+    if (dto.durationDays > hardMaxDays) {
+      throw new BadRequestException(`أقصى مدة مسموح بها للحملة هي ${hardMaxDays} يوماً`);
+    }
     // Provisional deadline; admin sets the real one on publish.
     const deadline = new Date(Date.now() + dto.durationDays * 86_400_000);
     const cat = await this.resolveCategory(dto.categoryId, dto.category, true);

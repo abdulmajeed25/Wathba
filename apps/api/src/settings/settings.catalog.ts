@@ -56,6 +56,56 @@ export const SETTINGS_CATALOG = {
     schema: z.string().email(),
     defaultValue: 'support@wathba.sa',
   },
+  'projects.fundingGoalMinHalalas': {
+    key: 'projects.fundingGoalMinHalalas',
+    titleAr: 'الحد الأدنى لهدف التمويل (هللة)',
+    descriptionAr:
+      'أقل هدف تمويل يُقبل عند إنشاء مشروع. الافتراضي ١٠٬٠٠٠ هللة (١٠٠ ريال) — نفس حدّ التحقق الحالي في مخطط الإدخال. رفع القيمة يرفض المشاريع الجديدة ذات الهدف الأصغر فوراً دون مساس بالمشاريع القائمة.',
+    schema: z.number().int().positive(),
+    defaultValue: 10_000,
+  },
+  'projects.durationSelfServeMaxDays': {
+    key: 'projects.durationSelfServeMaxDays',
+    titleAr: 'سقف المدة ذاتية الخدمة (أيام)',
+    descriptionAr:
+      'أطول مدة حملة تُعتمد ذاتياً دون منح صريح؛ ما يتجاوزها (حتى السقف الأقصى) يتطلب اعتماد approvedDurationDays عند المراجعة. الافتراضي ٦٠ يوماً. ملاحظة: يُنفَّذ هذا الفحص عند اعتماد المراجعة (خارج نطاق هذه الوحدة) — المفتاح معروض وقابل للتحرير هنا.',
+    schema: z.number().int().positive(),
+    defaultValue: 60,
+  },
+  'projects.durationHardMaxDays': {
+    key: 'projects.durationHardMaxDays',
+    titleAr: 'السقف الأقصى لمدة الحملة (أيام)',
+    descriptionAr:
+      'أقصى مدة حملة مسموح بها إطلاقاً؛ ما يتجاوزها محظور (سجل LONG_DURATION). الافتراضي ١٢٠ يوماً — نفس حدّ التحقق الحالي في مخطط الإدخال. خفض القيمة يرفض إنشاء مشاريع بمدة أطول فوراً.',
+    schema: z.number().int().positive(),
+    defaultValue: 120,
+  },
+  'moderation.blockedWords': {
+    key: 'moderation.blockedWords',
+    titleAr: 'قائمة الكلمات المحظورة (الإشراف)',
+    descriptionAr:
+      'كلمات تُرفض التعليقات المحتوية عليها. الافتراضي هو قائمة البذرة الحالية مدموجة مع متغير البيئة BLOCKED_WORDS. القيمة المخزّنة تُدمج مع قائمة البيئة (تبقى مجموعة فائقة) فلا تُضعف الحجب القائم.',
+    schema: z.array(z.string()),
+    defaultValue: ['viagra', 'casino', 'porn', 'xxx']
+      .concat((process.env.BLOCKED_WORDS ?? '').split(',').map((w) => w.trim().toLowerCase()))
+      .filter(Boolean),
+  },
+  'identity.consentVersion': {
+    key: 'identity.consentVersion',
+    titleAr: 'إصدار الموافقة (PDPL)',
+    descriptionAr:
+      'وسم إصدار الموافقة الذي يُختم على حساب المستخدم عند التسجيل. الافتراضي من متغير البيئة CONSENT_VERSION أو «2026-06-28». تغييره يبدأ ختم الإصدار الجديد على التسجيلات اللاحقة فقط.',
+    schema: z.string().min(1),
+    defaultValue: process.env.CONSENT_VERSION ?? '2026-06-28',
+  },
+  'security.opsTotpRequired': {
+    key: 'security.opsTotpRequired',
+    titleAr: 'إلزام التحقق الثنائي لمركز العمليات',
+    descriptionAr:
+      'عند التفعيل يُلزَم كل مشرف بالتحقق الثنائي (TOTP) للدخول إلى مركز العمليات. متغير البيئة OPS_TOTP_REQUIRED يبقى تجاوزاً: «1» يُلزم دائماً، «0» يعطّل دائماً (مخرج التطوير/الاختبار)، وعند غياب التجاوز يُفعِّل هذا المفتاح الإلزام. الافتراضي مشتق من OPS_TOTP_REQUIRED=1.',
+    schema: z.boolean(),
+    defaultValue: process.env.OPS_TOTP_REQUIRED === '1',
+  },
 } satisfies Record<string, SettingDef<unknown>>;
 
 export type SettingKey = keyof typeof SETTINGS_CATALOG;

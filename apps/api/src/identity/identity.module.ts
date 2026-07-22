@@ -12,9 +12,11 @@ import { NafathService } from './nafath.service';
 import { PdplService } from './pdpl.service';
 import { JwtStrategy } from './jwt.strategy';
 import { AuditService } from './audit.service';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
+    SettingsModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

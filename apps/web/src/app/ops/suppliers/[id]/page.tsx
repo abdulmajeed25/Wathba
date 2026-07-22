@@ -237,15 +237,28 @@ export default async function OpsRfqDetailPage({
                       {b.specComplianceNote ?? '—'}
                     </td>
                     <td className="px-3 py-2">
-                      <OpRunner
-                        opKey="bids.shortlist"
-                        input={{ bidId: b.id }}
-                        triggerLabel="ترشيح"
-                        riskTier="STANDARD"
-                        requiresReason={false}
-                        variant="ghost"
-                        disabled={b.status !== 'SUBMITTED'}
-                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        <OpRunner
+                          opKey="bids.shortlist"
+                          input={{ bidId: b.id }}
+                          triggerLabel="ترشيح"
+                          riskTier="STANDARD"
+                          requiresReason={false}
+                          variant="ghost"
+                          disabled={b.status !== 'SUBMITTED'}
+                        />
+                        {/* OPS-360 Unit 6 — operator award-override (award was
+                            creator-only; A7 drop-out). Only while the RFQ is open
+                            and the bid is still in contention. */}
+                        <OpRunner
+                          opKey="rfq.award"
+                          input={{ rfqId: rfq.id, bidId: b.id }}
+                          triggerLabel="ترسية"
+                          riskTier="STANDARD"
+                          requiresReason
+                          disabled={!isOpen || !['SUBMITTED', 'SHORTLISTED'].includes(b.status)}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -229,3 +229,77 @@ describe('bids.shortlist', () => {
     });
   });
 });
+
+describe('rfq.award (OPS-360 Unit 6 — award-override)', () => {
+  it('refuses when the RFQ is missing or not OPEN (rfq-not-open)', async () => {
+    const prisma = buildPrisma();
+    prisma.rFQ.findUnique.mockResolvedValue(null);
+    await expect(
+      regWith(prisma).execute('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx()),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'rfq-not-open' }) });
+
+    const prisma2 = buildPrisma();
+    prisma2.rFQ.findUnique.mockResolvedValue({ status: 'AWARDED' });
+    await expect(
+      regWith(prisma2).execute('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx()),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'rfq-not-open' }) });
+  });
+
+  it('refuses a bid that is missing, foreign, or ineligible (bid-not-eligible)', async () => {
+    // missing bid
+    const prisma = buildPrisma();
+    prisma.rFQ.findUnique.mockResolvedValue({ status: 'OPEN' });
+    prisma.supplierBid.findUnique.mockResolvedValue(null);
+    await expect(
+      regWith(prisma).execute('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx()),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'bid-not-eligible' }) });
+
+    // bid belongs to a different RFQ
+    const prisma2 = buildPrisma();
+    prisma2.rFQ.findUnique.mockResolvedValue({ status: 'OPEN' });
+    prisma2.supplierBid.findUnique.mockResolvedValue({ rfqId: 'other-rfq', status: 'SUBMITTED' });
+    await expect(
+      regWith(prisma2).execute('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx()),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'bid-not-eligible' }) });
+
+    // bid already REJECTED (ineligible status)
+    const prisma3 = buildPrisma();
+    prisma3.rFQ.findUnique.mockResolvedValue({ status: 'OPEN' });
+    prisma3.supplierBid.findUnique.mockResolvedValue({ rfqId: RFQ_ID, status: 'REJECTED' });
+    await expect(
+      regWith(prisma3).execute('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx()),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'bid-not-eligible' }) });
+  });
+
+  it('dryRun previews the award + reject-the-rest count without writing', async () => {
+    const prisma = buildPrisma();
+    prisma.rFQ.findUnique.mockResolvedValue({ status: 'OPEN' });
+    prisma.supplierBid.findUnique.mockResolvedValue({ rfqId: RFQ_ID, status: 'SUBMITTED', amountHalalas: 900n });
+    prisma.supplierBid.count.mockResolvedValue(2);
+    const dry = await regWith(prisma).dryRun('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx());
+    expect(dry.ok).toBe(true);
+    expect(dry.preview?.after).toEqual({ status: 'AWARDED', awardedBidId: BID_ID });
+    expect(dry.preview?.counts).toEqual({ winningBid: 1, bidsToReject: 2 });
+    expect(prisma.rFQ.update).not.toHaveBeenCalled();
+    expect(prisma.supplierBid.update).not.toHaveBeenCalled();
+    expect(prisma.supplierBid.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('awards: RFQ OPEN→AWARDED (+awardedBidId), winning bid→AWARDED, others→REJECTED', async () => {
+    const prisma = buildPrisma();
+    prisma.rFQ.findUnique.mockResolvedValue({ status: 'OPEN' });
+    prisma.supplierBid.findUnique.mockResolvedValue({ rfqId: RFQ_ID, status: 'SHORTLISTED', amountHalalas: 900n });
+    prisma.supplierBid.updateMany.mockResolvedValue({ count: 4 });
+    const out = await regWith(prisma).execute('rfq.award', { rfqId: RFQ_ID, bidId: BID_ID }, ctx());
+    expect(out.result).toEqual({ status: 'AWARDED', awardedBidId: BID_ID, bidsRejected: 4 });
+    expect(prisma.rFQ.update).toHaveBeenCalledWith({
+      where: { id: RFQ_ID }, data: { status: 'AWARDED', awardedBidId: BID_ID },
+    });
+    expect(prisma.supplierBid.update).toHaveBeenCalledWith({
+      where: { id: BID_ID }, data: { status: 'AWARDED' },
+    });
+    expect(prisma.supplierBid.updateMany).toHaveBeenCalledWith({
+      where: { rfqId: RFQ_ID, id: { not: BID_ID } }, data: { status: 'REJECTED' },
+    });
+  });
+});

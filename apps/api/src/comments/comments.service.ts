@@ -9,6 +9,7 @@ import {
 import { NotificationKind, PledgeStatus, Prisma, type Comment } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SettingsService } from '../settings/settings.service';
 import { CreateCommentDto, ListCommentsQueryDto } from './dto/comment.dto';
 
 /**
@@ -50,7 +51,14 @@ export const EDIT_WINDOW_MS = 15 * 60 * 1000;
  *  auth lockout: one API instance handles all traffic today). */
 const SPAM_MAX_PER_WINDOW = 5;
 const SPAM_WINDOW_MS = 60 * 1000;
-/** Seed wordlist; extend via BLOCKED_WORDS (comma-separated) without a deploy. */
+/**
+ * Seed wordlist; extend via the BLOCKED_WORDS env (comma-separated) without a
+ * deploy. Batch OPS (Unit 6) — this env-derived list is now the fallback: the
+ * governed `moderation.blockedWords` setting (SETTINGS_CATALOG) is MERGED with
+ * it at read time so an operator's list is always a superset (env additions
+ * are never dropped). The catalog default equals this exact list, so behaviour
+ * is unchanged until an operator edits the setting.
+ */
 const BLOCKED_WORDS = ['viagra', 'casino', 'porn', 'xxx']
   .concat((process.env.BLOCKED_WORDS ?? '').split(',').map((w) => w.trim().toLowerCase()))
   .filter(Boolean);
@@ -63,12 +71,18 @@ export class CommentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly settings: SettingsService,
   ) {}
 
   /** STAKES/K5 — profanity/spam + rate-limit guard, run before any DB write. */
-  private assertNotSpam(userId: string, bodyAr: string): void {
+  private async assertNotSpam(userId: string, bodyAr: string): Promise<void> {
+    // Batch OPS (Unit 6) — the effective blocklist is the governed setting MERGED
+    // with the env-derived seed, so the operator list is always a superset. At the
+    // catalog default the merged set equals BLOCKED_WORDS → behaviour is unchanged.
+    const configured = await this.settings.get('moderation.blockedWords');
+    const blocked = [...new Set([...BLOCKED_WORDS, ...configured.map((w) => w.toLowerCase())])];
     const lower = bodyAr.toLowerCase();
-    if (BLOCKED_WORDS.some((w) => lower.includes(w))) {
+    if (blocked.some((w) => w && lower.includes(w))) {
       throw new BadRequestException('التعليق يخالف إرشادات المجتمع — عدّل النص وحاول مجدداً');
     }
     const now = Date.now();
@@ -147,7 +161,7 @@ export class CommentsService {
     dto: CreateCommentDto,
   ): Promise<PublicComment> {
     // STAKES/K5 — wordlist + per-user rate guard before any DB work.
-    this.assertNotSpam(userId, dto.bodyAr);
+    await this.assertNotSpam(userId, dto.bodyAr);
 
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
@@ -241,7 +255,7 @@ export class CommentsService {
     commentId: string,
     bodyAr: string,
   ): Promise<PublicComment> {
-    this.assertNotSpam(userId, bodyAr);
+    await this.assertNotSpam(userId, bodyAr);
     const c = await this.prisma.comment.findUnique({
       where: { id: commentId },
       select: { id: true, userId: true, hidden: true, date: true },

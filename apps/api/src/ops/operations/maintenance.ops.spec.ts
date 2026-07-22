@@ -2,12 +2,17 @@ import { OperationsRegistry } from '../operations.registry';
 import { maintenanceOps } from './maintenance.ops';
 import type { OperationContext } from '../operation.types';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { NotificationsService } from '../../notifications/notifications.service';
 
 /**
  * Batch OPS-PRO Phase 1 — maintenance ops guard tests: faq.question.hide
  * preconditions + transition, and search.reindex issuing REINDEX INDEX
  * CONCURRENTLY on both GIN indexes via a mocked $executeRawUnsafe (the
  * orchestrated path runs on the raw client, outside any transaction).
+ *
+ * OPS-360 Unit 6 — notifications.resend: missing-notification refusal, dryRun
+ * shape/purity, and execute re-delivering a NEW row (same kind + payload) via
+ * the notifications outbox on the registry tx.
  */
 
 type Mock = jest.Mock;
@@ -32,6 +37,7 @@ function model() {
 function buildPrisma() {
   const prisma = {
     faqQuestion: model(),
+    notification: model(),
     operationExecution: model(),
     auditLog: model(),
     operationProposal: model(),
@@ -42,12 +48,22 @@ function buildPrisma() {
   return prisma;
 }
 
+const notifications = { create: jest.fn().mockResolvedValue({ id: 'notif-new' }) };
+
 function regWith(prisma: ReturnType<typeof buildPrisma>): OperationsRegistry {
   const reg = new OperationsRegistry(prisma as unknown as PrismaService);
-  for (const op of maintenanceOps({ prisma: prisma as unknown as PrismaService }))
+  for (const op of maintenanceOps({
+    prisma: prisma as unknown as PrismaService,
+    notifications: notifications as unknown as NotificationsService,
+  }))
     reg.register(op);
   return reg;
 }
+
+beforeEach(() => {
+  notifications.create.mockClear();
+  notifications.create.mockResolvedValue({ id: 'notif-new' });
+});
 
 const ADMIN: OperationContext['actor'] = { id: 'admin-1', type: 'HUMAN', roles: ['ADMIN'] };
 const ctx = (over: Partial<OperationContext> = {}): OperationContext => ({
@@ -116,5 +132,82 @@ describe('search.reindex', () => {
       'REINDEX INDEX CONCURRENTLY "Project_titleAr_trgm"',
     );
     expect(prisma.$executeRawUnsafe).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('notifications.resend', () => {
+  const NOTIF_ID = '22222222-2222-4222-8222-222222222222';
+  const USER_ID = '33333333-3333-4333-8333-333333333333';
+  // requiresReason: true — the registry enforces a written reason before
+  // preconditions run, so every execute path here carries one.
+  const reason = 'إعادة إرسال إشعار صرف فات المستخدم — طلب دعم';
+
+  it('refuses a missing notification', async () => {
+    const prisma = buildPrisma();
+    prisma.notification.findUnique.mockResolvedValue(null);
+    await expect(
+      regWith(prisma).execute('notifications.resend', { notificationId: NOTIF_ID }, ctx({ reason })),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'notification-missing' }) });
+  });
+
+  it('dryRun previews one new row of the same kind without writing', async () => {
+    const prisma = buildPrisma();
+    prisma.notification.findUnique.mockResolvedValue({
+      userId: USER_ID,
+      kind: 'PAYOUT_SENT',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    });
+    const dry = await regWith(prisma).dryRun(
+      'notifications.resend',
+      { notificationId: NOTIF_ID },
+      ctx(),
+    );
+    expect(dry.ok).toBe(true);
+    expect(dry.preview?.after).toEqual({ willCreate: 1, kind: 'PAYOUT_SENT', userId: USER_ID });
+    expect(dry.preview?.counts).toEqual({ notificationsToCreate: 1 });
+    // purity — no write path touched
+    expect(notifications.create).not.toHaveBeenCalled();
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  it('resends: re-creates a new row with the same kind + payload via the outbox on tx', async () => {
+    const prisma = buildPrisma();
+    prisma.notification.findUnique.mockResolvedValue({ id: NOTIF_ID }); // precondition
+    prisma.notification.findUniqueOrThrow.mockResolvedValue({
+      userId: USER_ID,
+      kind: 'PAYOUT_SENT',
+      payload: { projectTitleAr: 'مشروع', amountHalalas: 5000 },
+    });
+    const out = await regWith(prisma).execute(
+      'notifications.resend',
+      { notificationId: NOTIF_ID },
+      ctx({ reason }),
+    );
+    expect(out.result).toEqual({ resent: true, notificationId: 'notif-new', kind: 'PAYOUT_SENT' });
+    expect(notifications.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: USER_ID,
+        kind: 'PAYOUT_SENT',
+        payload: { projectTitleAr: 'مشروع', amountHalalas: 5000 },
+        tx: prisma, // registry runs the tx callback with the mock prisma itself
+      }),
+    );
+  });
+
+  it('reports resent:false when the outbox suppresses an opted-out engagement kind', async () => {
+    const prisma = buildPrisma();
+    prisma.notification.findUnique.mockResolvedValue({ id: NOTIF_ID });
+    prisma.notification.findUniqueOrThrow.mockResolvedValue({
+      userId: USER_ID,
+      kind: 'UPDATE_POSTED',
+      payload: {},
+    });
+    notifications.create.mockResolvedValue(null); // gated out
+    const out = await regWith(prisma).execute(
+      'notifications.resend',
+      { notificationId: NOTIF_ID },
+      ctx({ reason }),
+    );
+    expect(out.result).toEqual({ resent: false, notificationId: null, kind: 'UPDATE_POSTED' });
   });
 });

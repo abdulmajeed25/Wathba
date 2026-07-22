@@ -2,13 +2,14 @@
 
 import { StatusBadge, type StatusIntent } from '../../_components/badge';
 import { DataTable, type Column } from '../../_components/data-table';
+import { OpRunner } from '../../_components/op-runner';
 
 /**
  * OPS-360 Unit 4 — «الإشعارات»: the per-user notification roster. Renders the
  * masked GET /v1/ops/users/:id/notifications feed in the shared <DataTable>
- * (kind badge, read/unread, createdAt, payload summary). Read-only: there is no
- * resend op yet (Unit-6 follow-up) — this screen only makes the write-only
- * Notification model OBSERVABLE.
+ * (kind badge, read/unread, createdAt, payload summary).
+ * OPS-360 Unit 6 — gains a governed resend (notifications.resend) per row so an
+ * operator can re-deliver a missed notice.
  */
 
 export interface NotificationRow {
@@ -83,6 +84,21 @@ export function NotificationsTable({ rows }: { rows: NotificationRow[] }) {
       csv: (r) => fmtDate(r.createdAt),
       render: (r) => (
         <span className="whitespace-nowrap text-xs text-[#8b949e]">{fmtDate(r.createdAt)}</span>
+      ),
+    },
+    {
+      key: 'resend',
+      label: 'إعادة الإرسال',
+      align: 'left',
+      render: (r) => (
+        <OpRunner
+          opKey="notifications.resend"
+          input={{ notificationId: r.id }}
+          triggerLabel="إعادة إرسال"
+          riskTier="STANDARD"
+          requiresReason
+          variant="ghost"
+        />
       ),
     },
   ];

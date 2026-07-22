@@ -180,7 +180,7 @@ export class OpsModule implements OnModuleInit {
         notifications: this.notifications,
         email: this.email,
       }),
-      ...maintenanceOps({ prisma: this.prisma }),
+      ...maintenanceOps({ prisma: this.prisma, notifications: this.notifications }),
     ];
     for (const def of defs) this.registry.register(def);
   }
