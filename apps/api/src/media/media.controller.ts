@@ -61,7 +61,12 @@ export class MediaController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Verify an uploaded object is a real image (magic bytes); deletes + 400s otherwise' })
-  async verify(@Body() dto: VerifyUploadDto): Promise<{ ok: true; format: string }> {
-    return this.media.verifyObject(dto.key);
+  async verify(
+    @CurrentUser() jwt: JwtPayload,
+    @Body() dto: VerifyUploadDto,
+  ): Promise<{ ok: true; format: string }> {
+    // Batch OPS-PRO P0 — only the uploader may verify (and thus trigger the
+    // delete-on-mismatch) of an object.
+    return this.media.verifyObject(dto.key, jwt.sub);
   }
 }

@@ -1,7 +1,13 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
@@ -79,8 +85,26 @@ export class MediaService {
    * storage and require real image magic numbers for the image kinds. A
    * mismatch deletes the object and 400s — a text/HTML payload can no longer
    * live behind an image/* declared type.
+   *
+   * Batch OPS-PRO P0 — ownership gate. verifyObject DELETES on a magic-byte
+   * miss, so without an owner check any authenticated user could delete any
+   * other user's object (incl. non-image evidence PDFs/videos) by passing its
+   * key. We HEAD the object first and require its stored `uploader` metadata
+   * to match the caller; a mismatch 403s and touches nothing.
    */
-  async verifyObject(key: string): Promise<{ ok: true; format: string }> {
+  async verifyObject(key: string, callerId: string): Promise<{ ok: true; format: string }> {
+    let uploader: string | undefined;
+    try {
+      const head = await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      uploader = head.Metadata?.uploader;
+    } catch {
+      throw new BadRequestException('الملف غير موجود — أعد الرفع');
+    }
+    if (uploader !== callerId) {
+      // No enumeration channel: the object exists but isn't the caller's.
+      this.log.warn(`ownership check failed for key=${key} caller=${callerId} uploader=${uploader ?? '∅'}`);
+      throw new ForbiddenException('لا تملك صلاحية على هذا الملف');
+    }
     let bytes: Uint8Array;
     try {
       const res = await this.s3.send(

@@ -41,8 +41,13 @@ export class BnplWebhookController {
     signature: string | undefined,
     body: Record<string, unknown>,
   ) {
-    const raw =
-      (req as Request & { rawBody?: Buffer }).rawBody?.toString('utf8') ?? JSON.stringify(body);
+    // Batch OPS-PRO P0 — sign over the provider's exact bytes. With
+    // `rawBody: true` on the Nest app (main.ts) req.rawBody is now populated;
+    // the old JSON.stringify(body) fallback would have hashed a re-serialized
+    // copy that never matches the provider HMAC. If rawBody is somehow absent
+    // we pass an empty string so verification FAILS closed rather than
+    // validating a forgery.
+    const raw = (req as Request & { rawBody?: Buffer }).rawBody?.toString('utf8') ?? '';
     const outcome = await this.bnpl.handleWebhook(provider, raw, signature, {
       pledgeId: typeof body.pledgeId === 'string' ? body.pledgeId : undefined,
       status: typeof body.status === 'string' ? body.status : undefined,

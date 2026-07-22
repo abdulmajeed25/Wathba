@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 
@@ -38,7 +38,24 @@ export class MoyasarAdapter {
     return !this.apiKey;
   }
 
+  /**
+   * Batch OPS-PRO — refuse to fabricate money movements in production.
+   * Parity with NafathService.assertConfiguredInProd and the webhook secret
+   * guard: without MOYASAR_API_KEY the adapter would silently stub
+   * "authorized" holds/captures/refunds. In prod that is a catastrophe (real
+   * pledges recorded against fake authorizations), so every PSP entry point
+   * calls this first. Dev/test keep the stub, with a [STUB] warn.
+   */
+  private assertConfiguredInProd(): void {
+    if (this.isStub && process.env.NODE_ENV === 'production') {
+      throw new ServiceUnavailableException(
+        'Moyasar is not configured — payment processing is unavailable',
+      );
+    }
+  }
+
   async hold(req: HoldRequest): Promise<HoldResponse> {
+    this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(
         `[STUB] Authorize-only hold pledge=${req.pledgeId} amount=${req.amountHalalas / 100} SAR`,
@@ -66,6 +83,7 @@ export class MoyasarAdapter {
   }
 
   async capture(paymentRef: string): Promise<{ ok: boolean }> {
+    this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Capture payment=${paymentRef}`);
       return { ok: true };
@@ -75,6 +93,7 @@ export class MoyasarAdapter {
   }
 
   async refund(paymentRef: string): Promise<{ ok: boolean }> {
+    this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Refund payment=${paymentRef}`);
       return { ok: true };
@@ -90,6 +109,7 @@ export class MoyasarAdapter {
    * succeeds unless the ref carries the test marker 'reauth-fail'.
    */
   async reauthorize(paymentRef: string): Promise<{ ok: boolean }> {
+    this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Reauthorize payment=${paymentRef}`);
       return { ok: !paymentRef.includes('reauth-fail') };
@@ -99,6 +119,7 @@ export class MoyasarAdapter {
   }
 
   async void(paymentRef: string): Promise<{ ok: boolean }> {
+    this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Void payment=${paymentRef}`);
       return { ok: true };
