@@ -32,8 +32,9 @@ import { CreatePledgeDto } from './dto/pledge.dto';
 @Injectable()
 export class FundingService {
   private readonly logger = new Logger(FundingService.name);
-  /** CC-14 — cumulative pause cap per campaign (policy §5 amendment: 7 days). */
-  private static readonly PAUSE_CAP_MS = 7 * 24 * 60 * 60 * 1000;
+  // CC-14 — cumulative pause cap per campaign (policy §5 amendment: 7 days).
+  // OPS-GAPS Y2 — promoted to the governed `funding.pauseCapDays` setting
+  // (default 7); read at pauseCampaign() so an operator can retune it.
 
   constructor(
     private readonly prisma: PrismaService,
@@ -595,12 +596,15 @@ export class FundingService {
       // Tabby/Tamara hosted checkout within the same 72h grace window as
       // failed card captures. No contract existed until this moment.
       const now = new Date();
+      // OPS-GAPS Y2 — the deferred-BNPL checkout window is the governed grace
+      // window (default 72h), same setting as failed-card grace.
+      const graceMs = (await this.settings.get('funding.graceWindowHours')) * 60 * 60 * 1000;
       await this.prisma.pledge.updateMany({
         where: { projectId, status: PledgeStatus.PENDING_BNPL },
         data: {
           status: PledgeStatus.CAPTURE_GRACE,
           graceStartedAt: now,
-          graceExpiresAt: new Date(now.getTime() + 72 * 60 * 60 * 1000),
+          graceExpiresAt: new Date(now.getTime() + graceMs),
         },
       });
 
@@ -888,8 +892,11 @@ export class FundingService {
     if (project.deadline.getTime() <= Date.now()) {
       throw new BadRequestException('the campaign has reached its deadline — pausing is unavailable');
     }
-    if (project.pausedMsAccrued >= BigInt(FundingService.PAUSE_CAP_MS)) {
-      throw new BadRequestException('pause limit reached (7 days cumulative per campaign)');
+    // OPS-GAPS Y2 — cumulative pause cap is a governed setting (default 7 days).
+    const pauseCapDays = await this.settings.get('funding.pauseCapDays');
+    const pauseCapMs = pauseCapDays * 24 * 60 * 60 * 1000;
+    if (project.pausedMsAccrued >= BigInt(pauseCapMs)) {
+      throw new BadRequestException(`pause limit reached (${pauseCapDays} days cumulative per campaign)`);
     }
     // Atomic claim: a concurrent settle (LIVE→FAILED) must not be overwritten.
     const claimed = await this.prisma.project.updateMany({
@@ -909,7 +916,7 @@ export class FundingService {
     return {
       projectId,
       pausedMsAccrued: Number(project.pausedMsAccrued),
-      capMs: FundingService.PAUSE_CAP_MS,
+      capMs: pauseCapMs,
     };
   }
 

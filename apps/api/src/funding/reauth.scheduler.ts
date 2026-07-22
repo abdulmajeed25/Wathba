@@ -5,6 +5,7 @@ import { NotificationKind, PledgeStatus, ProjectStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MoyasarAdapter } from '../escrow-payments/moyasar.adapter';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SettingsService } from '../settings/settings.service';
 
 /**
  * Batch PAY (Part 5) — authorization-age maintenance for long campaigns.
@@ -26,12 +27,14 @@ import { NotificationsService } from '../notifications/notifications.service';
 @Injectable()
 export class ReauthScheduler {
   private readonly logger = new Logger(ReauthScheduler.name);
+  /** Default only; the effective age is the `funding.reauthAfterDays` setting. */
   static readonly REAUTH_AFTER_MS = Number(process.env.REAUTH_AFTER_DAYS ?? 6) * 24 * 60 * 60 * 1000;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly moyasar: MoyasarAdapter,
     private readonly notifications: NotificationsService,
+    private readonly settings: SettingsService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM, { name: 'pledge-reauth-tick' })
@@ -47,7 +50,9 @@ export class ReauthScheduler {
   }
 
   async run(now = new Date()): Promise<{ reauthorized: number; parked: number }> {
-    const cutoff = new Date(now.getTime() - ReauthScheduler.REAUTH_AFTER_MS);
+    // OPS-GAPS Y2 — re-authorization age is a governed setting (default ~6 days).
+    const reauthMs = (await this.settings.get('funding.reauthAfterDays')) * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(now.getTime() - reauthMs);
     const stale = await this.prisma.pledge.findMany({
       where: {
         status: PledgeStatus.HELD,

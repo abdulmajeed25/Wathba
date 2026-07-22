@@ -125,6 +125,62 @@ describe('SettingsService', () => {
     });
   });
 
+  describe('OPS-GAPS Y2 — notification kinds + funding policy knobs', () => {
+    it('exposes the new keys at their behaviour-preserving defaults', async () => {
+      const { svc } = build([]);
+      await expect(svc.get('notifications.disabledKinds')).resolves.toEqual([]);
+      await expect(svc.get('funding.graceWindowHours')).resolves.toBe(72);
+      await expect(svc.get('funding.reauthAfterDays')).resolves.toBe(
+        Number(process.env.REAUTH_AFTER_DAYS ?? 6),
+      );
+      await expect(svc.get('funding.pauseCapDays')).resolves.toBe(7);
+      expect(SETTINGS_CATALOG['funding.graceWindowHours'].defaultValue).toBe(72);
+      expect(SETTINGS_CATALOG['funding.pauseCapDays'].defaultValue).toBe(7);
+    });
+
+    it('accepts a disabled-list of non-locked kinds and returns it from get()', async () => {
+      const { svc } = build([
+        { key: 'notifications.disabledKinds', value: ['RANK_UP', 'FAQ_ANSWERED'] },
+      ]);
+      await expect(svc.get('notifications.disabledKinds')).resolves.toEqual([
+        'RANK_UP',
+        'FAQ_ANSWERED',
+      ]);
+    });
+
+    it('the catalog schema REJECTS a disabled-list containing a locked kind', () => {
+      const schema = SETTINGS_CATALOG['notifications.disabledKinds'].schema;
+      // A locked (transactional) kind can never be persisted via settings.update.
+      expect(schema.safeParse(['REFUND_COMPLETED']).success).toBe(false);
+      expect(schema.safeParse(['RANK_UP', 'PAYOUT_SENT']).success).toBe(false);
+      // A non-locked engagement list is accepted.
+      expect(schema.safeParse(['RANK_UP', 'FAQ_ANSWERED']).success).toBe(true);
+      expect(schema.safeParse([]).success).toBe(true);
+    });
+
+    it('a row with a locked kind degrades to the [] default (loud log)', async () => {
+      const errorSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      const { svc } = build([
+        { key: 'notifications.disabledKinds', value: ['PROJECT_FUNDED'] }, // fails refine
+      ]);
+      await expect(svc.get('notifications.disabledKinds')).resolves.toEqual([]);
+      expect(errorSpy).toHaveBeenCalled();
+    });
+
+    it('accepts positive-int overrides for the funding knobs', async () => {
+      const { svc } = build([
+        { key: 'funding.graceWindowHours', value: 48 },
+        { key: 'funding.reauthAfterDays', value: 5 },
+        { key: 'funding.pauseCapDays', value: 14 },
+      ]);
+      await expect(svc.get('funding.graceWindowHours')).resolves.toBe(48);
+      await expect(svc.get('funding.reauthAfterDays')).resolves.toBe(5);
+      await expect(svc.get('funding.pauseCapDays')).resolves.toBe(14);
+    });
+  });
+
   describe('OPS-GAPS R1 — appeals SLA key', () => {
     it('defaults appeals.slaHours to 48 and accepts a positive-int override', async () => {
       await expect(build([]).svc.get('appeals.slaHours')).resolves.toBe(48);

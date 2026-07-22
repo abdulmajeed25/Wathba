@@ -65,6 +65,7 @@ interface MockDb {
   notification: MockModel;
   appeal: MockModel;
   auditLog: MockModel;
+  emailTemplateOverride: MockModel;
 }
 function buildPrisma(): MockDb {
   return {
@@ -99,6 +100,7 @@ function buildPrisma(): MockDb {
     notification: model(),
     appeal: model(),
     auditLog: model(),
+    emailTemplateOverride: model(),
   };
 }
 

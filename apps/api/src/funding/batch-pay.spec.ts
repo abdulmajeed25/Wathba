@@ -53,6 +53,8 @@ function fundingWith(overrides: { pledge?: any; prisma?: any; escrow?: any } = {
           'pledges.maxHalalas': null,
           'payments.methodsEnabled': { card: true, bnpl: true },
           'support.inboxEmail': 'support@wathba.sa',
+          'funding.graceWindowHours': 72,
+          'funding.pauseCapDays': 7,
         })[key],
       ),
       invalidate: jest.fn(),

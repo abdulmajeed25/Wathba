@@ -21,6 +21,9 @@ const settingsStub = () =>
         'pledges.maxHalalas': null,
         'payments.methodsEnabled': { card: true, bnpl: true },
         'support.inboxEmail': 'support@wathba.sa',
+        // OPS-GAPS Y2 — funding policy knobs at their catalog defaults.
+        'funding.graceWindowHours': 72,
+        'funding.pauseCapDays': 7,
       })[key],
     ),
     invalidate: jest.fn(),
@@ -107,6 +110,68 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     const fCalls = (fail.prisma.pledge.updateMany as jest.Mock).mock.calls;
     expect(fCalls[0][0].where).toEqual({ projectId: 'p1', status: 'PENDING_BNPL' });
     expect(fCalls[0][0].data.status).toBe('REFUNDED');
+  });
+
+  it('OPS-GAPS Y2 — the BNPL grace window follows funding.graceWindowHours (default 72h, editable)', async () => {
+    const HOUR = 3_600_000;
+    const settingsFor = (graceHours: number) =>
+      ({
+        get: jest.fn(async (key: string) =>
+          key === 'funding.graceWindowHours' ? graceHours : ({
+            'pledges.minHalalas': 1000,
+            'pledges.maxHalalas': null,
+            'payments.methodsEnabled': { card: true, bnpl: true },
+            'funding.pauseCapDays': 7,
+          } as Record<string, unknown>)[key],
+        ),
+        invalidate: jest.fn(),
+      }) as never;
+    const buildWith = (graceHours: number) => {
+      const project = buildProject({});
+      const prisma = {
+        project: {
+          findUnique: jest.fn().mockResolvedValue(project),
+          update: jest.fn().mockResolvedValue(project),
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        pledge: {
+          count: jest.fn().mockResolvedValue(0),
+          findMany: jest.fn().mockResolvedValue([]),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        },
+      } as unknown as PrismaService;
+      const escrow = {
+        captureAllHeld: jest.fn().mockResolvedValue({ captured: 0, failed: 0 }),
+        refundAllHeld: jest.fn().mockResolvedValue({ refunded: 0, failed: 0 }),
+      } as unknown as EscrowService;
+      const svc = new FundingService(
+        prisma, escrow, {} as ContractsService, { emitTick: jest.fn() } as never,
+        {} as never, { record: jest.fn() } as never, { log: jest.fn() } as never,
+        { projectFunded: jest.fn(), projectFailed: jest.fn() } as never,
+        { create: jest.fn() } as never,
+        { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
+        settingsFor(graceHours),
+      );
+      return { svc, prisma };
+    };
+
+    // Default 72h — unchanged behaviour.
+    const def = buildWith(72);
+    const t0 = Date.now();
+    await def.svc.settleProject('p1');
+    const defExpiry = (def.prisma.pledge.updateMany as jest.Mock).mock.calls[0][0].data
+      .graceExpiresAt as Date;
+    expect(defExpiry.getTime() - t0).toBeGreaterThanOrEqual(72 * HOUR - 5_000);
+    expect(defExpiry.getTime() - t0).toBeLessThanOrEqual(72 * HOUR + 5_000);
+
+    // Non-default 24h — the window narrows.
+    const narrow = buildWith(24);
+    const t1 = Date.now();
+    await narrow.svc.settleProject('p1');
+    const narrowExpiry = (narrow.prisma.pledge.updateMany as jest.Mock).mock.calls[0][0].data
+      .graceExpiresAt as Date;
+    expect(narrowExpiry.getTime() - t1).toBeGreaterThanOrEqual(24 * HOUR - 5_000);
+    expect(narrowExpiry.getTime() - t1).toBeLessThanOrEqual(24 * HOUR + 5_000);
   });
 
   it('no-ops if deadline has not passed', async () => {
@@ -426,5 +491,51 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
   it('non-owner → 403', async () => {
     const { svc } = build(ProjectStatus.LIVE);
     await expect(svc.cancelCampaign('intruder', 'p1')).rejects.toThrow(/not your project/);
+  });
+});
+
+/**
+ * OPS-GAPS Y2 — the cumulative pause cap follows funding.pauseCapDays
+ * (default 7). Default keeps the 7-day behaviour; a lower value tightens it.
+ */
+describe('FundingService.pauseCampaign — funding.pauseCapDays wiring', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  const buildWith = (capDays: number, pausedMsAccrued: bigint) => {
+    const project = {
+      id: 'p1',
+      createdById: 'creator-1',
+      status: ProjectStatus.LIVE,
+      deadline: new Date(Date.now() + 10 * DAY_MS),
+      pausedMsAccrued,
+    };
+    const prisma = {
+      project: {
+        findUnique: jest.fn().mockResolvedValue(project),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as unknown as PrismaService;
+    const settings = {
+      get: jest.fn(async (key: string) => (key === 'funding.pauseCapDays' ? capDays : undefined)),
+      invalidate: jest.fn(),
+    } as never;
+    const svc = new FundingService(
+      prisma, {} as EscrowService, {} as ContractsService, {} as never, {} as never,
+      { record: jest.fn() } as never, { log: jest.fn().mockResolvedValue(undefined) } as never,
+      {} as never, { create: jest.fn() } as never,
+      { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, settings,
+    );
+    return { svc };
+  };
+
+  it('default 7 days: a project with 3 days paused can still pause; capMs reflects 7 days', async () => {
+    const { svc } = buildWith(7, BigInt(3 * DAY_MS));
+    const res = await svc.pauseCampaign('creator-1', 'p1');
+    expect(res.capMs).toBe(7 * DAY_MS);
+  });
+
+  it('non-default 2-day cap: 3 days already paused → rejected (behaviour changed)', async () => {
+    const { svc } = buildWith(2, BigInt(3 * DAY_MS));
+    await expect(svc.pauseCampaign('creator-1', 'p1')).rejects.toThrow(/2 days/);
   });
 });

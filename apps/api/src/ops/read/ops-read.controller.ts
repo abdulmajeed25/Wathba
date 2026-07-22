@@ -650,4 +650,32 @@ export class OpsReadController {
     }
     return this.read.effectiveSettings();
   }
+
+  /* ── 9. comms — email-template catalog (settings.write OR analytics.read) ── */
+
+  @Get('comms/templates')
+  @ApiOperation({ summary: 'Email-template catalog — effective subject/body preview + hasOverride' })
+  commsTemplates(@Req() req: OpsRequest) {
+    this.assertCommsRead(req.opsPrincipal);
+    return this.read.listCommsTemplates();
+  }
+
+  @Get('comms/templates/:key')
+  @ApiOperation({ summary: 'Email-template detail — code default + current override (for the editor)' })
+  commsTemplate(@Req() req: OpsRequest, @Param('key') key: string) {
+    this.assertCommsRead(req.opsPrincipal);
+    return this.read.commsTemplateDetail(key);
+  }
+
+  /** Read allowed for either the template editor (settings.write) or an
+   *  analyst (analytics.read) — mirrors the settings read gate. */
+  private assertCommsRead(p: OpsPrincipal): void {
+    if (
+      !p.permissions.includes('*') &&
+      !p.permissions.includes('settings.write') &&
+      !p.permissions.includes('analytics.read')
+    ) {
+      this.read.assertPermission(p, 'settings.write');
+    }
+  }
 }
