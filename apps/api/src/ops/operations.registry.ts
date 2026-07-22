@@ -399,11 +399,21 @@ export class OperationsRegistry {
     const KEYS: Array<[string, string]> = [
       ['projectId', 'Project'],
       ['userId', 'User'],
+      // Batch OPS-PRO — users.merge anchors on the absorbed account.
+      ['sourceUserId', 'User'],
       ['milestoneId', 'Milestone'],
       ['payoutId', 'Payout'],
       ['pledgeId', 'Pledge'],
       ['commentId', 'Comment'],
       ['collectionId', 'Collection'],
+      // Batch OPS-PRO — anchor the remaining governed subjects so their
+      // entity pages (Part 5 screens) show a real audit timeline.
+      ['categoryId', 'Category'],
+      ['rfqId', 'RFQ'],
+      ['bidId', 'SupplierBid'],
+      ['ticketId', 'SupportTicket'],
+      ['questionId', 'FaqQuestion'],
+      ['webhookEventId', 'WebhookEvent'],
     ];
     for (const [key, entity] of KEYS) {
       const v = (input as Record<string, unknown> | null)?.[key];
