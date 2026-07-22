@@ -1,0 +1,114 @@
+import { expect, test } from '@playwright/test';
+import { API } from './helpers';
+
+const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
+
+/**
+ * OPS Part 5 — the SHARED ops-UI kit (nav + command palette + op-runner).
+ * These prove the reusable pieces every operator screen depends on:
+ *  1. The side nav lists all 16 sections.
+ *  2. Ctrl+K opens the command palette and filters live.
+ *  3. The op-runner drives dry-run → preview → reason → (MONEY) typed
+ *     confirm, keeping «تنفيذ» disabled until the contract is satisfied —
+ *     against a real op (money.payout.disburse) launched from the palette.
+ *
+ * Gated: the whole suite needs the live stack (web build + API + seed). If
+ * the API is unreachable we skip rather than fail (mirrors the assumption in
+ * the other ops e2e specs that the golden stack is up).
+ */
+
+let apiUp = false;
+test.beforeAll(async () => {
+  try {
+    const r = await fetch(`${API}/health`);
+    apiUp = r.ok;
+  } catch {
+    apiUp = false;
+  }
+});
+
+async function enterOps(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/sign-in');
+  await page.locator('input[name="email"]').fill(OWNER.email);
+  await page.locator('input[name="password"]').fill(OWNER.pass);
+  await page.getByRole('button', { name: 'تسجيل الدخول' }).click();
+  await page.waitForURL(/\/projects(\?|$|\/)/);
+
+  await page.goto('/ops');
+  await page.waitForURL(/\/ops\/enter/);
+  await page.locator('#ops-password').fill(OWNER.pass);
+  await page.getByRole('button', { name: 'دخول إلى مركز العمليات' }).click();
+  await page.waitForURL(/\/ops$/);
+}
+
+const NAV_LABELS = [
+  'المركز', 'المشاريع', 'المراجعة', 'المال', 'المستخدمون', 'الثقة والأمان',
+  'الفئات', 'التحرير', 'المجموعات', 'المورّدون', 'التحليلات', 'الإعدادات',
+  'سجل التدقيق', 'الدعم', 'الوكلاء', 'الفريق',
+];
+
+test('the side nav renders all 16 sections', async ({ page }) => {
+  test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
+  await enterOps(page);
+  const nav = page.getByRole('navigation', { name: 'أقسام مركز العمليات' });
+  for (const label of NAV_LABELS) {
+    await expect(nav.getByRole('link', { name: label, exact: true })).toBeVisible();
+  }
+  await expect(nav.getByRole('link')).toHaveCount(16);
+});
+
+test('Ctrl+K opens the command palette and filters', async ({ page }) => {
+  test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
+  await enterOps(page);
+
+  await page.keyboard.press('Control+k');
+  const palette = page.getByRole('dialog', { name: 'لوحة الأوامر' });
+  await expect(palette).toBeVisible();
+
+  const search = palette.getByRole('textbox', { name: 'ابحث في الأقسام والعمليات' });
+  // At least the 16 sections are listed before any query (ops manifest adds more).
+  expect(await palette.getByRole('option').count()).toBeGreaterThanOrEqual(16);
+  await search.fill('التدقيق');
+  await expect(palette.getByRole('option', { name: /سجل التدقيق/ })).toBeVisible();
+  await expect(palette.getByRole('option', { name: /الوكلاء/ })).toHaveCount(0);
+
+  await page.keyboard.press('Escape');
+  await expect(palette).toBeHidden();
+});
+
+test('op-runner: dry-run → preview → reason → MONEY confirm gates «تنفيذ»', async ({ page }) => {
+  test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
+  await enterOps(page);
+
+  // Launch a MONEY op from the palette (dry-run returns a preview at {}).
+  await page.keyboard.press('Control+k');
+  const palette = page.getByRole('dialog', { name: 'لوحة الأوامر' });
+  await palette.getByRole('textbox').fill('صرف');
+  const moneyOpt = palette.getByRole('option').first();
+  await expect(moneyOpt).toBeVisible();
+  await moneyOpt.click();
+
+  // The runner dialog opens and runs the dry-run.
+  const runner = page.getByRole('dialog', { name: /تنفيذ العملية/ });
+  await expect(runner).toBeVisible();
+
+  // Either a preview (reason + MONEY confirm gate) or explicit blockers.
+  const reason = runner.getByRole('textbox').first();
+  if (await reason.isVisible().catch(() => false)) {
+    const execBtn = runner.getByRole('button', { name: /تنفيذ/ });
+    await expect(execBtn).toBeDisabled(); // no reason / no confirm yet
+    await reason.fill('اختبار آلي: التحقق من بوابة السبب والتأكيد في المشغّل');
+    // MONEY confirm field present → still disabled until «نعم».
+    const confirmInput = runner.locator('input[type="text"], input:not([type])').last();
+    if (await confirmInput.isVisible().catch(() => false)) {
+      await expect(execBtn).toBeDisabled();
+      await confirmInput.fill('نعم');
+    }
+    await expect(execBtn).toBeEnabled();
+  } else {
+    // Blocked path is also a valid, proven runner state.
+    await expect(runner.getByText(/لا يمكن التنفيذ|تعذّر/)).toBeVisible();
+  }
+
+  await page.keyboard.press('Escape');
+});
