@@ -604,11 +604,11 @@ export class FundingService {
         },
       });
 
-      await this.escrow.captureAllHeld(projectId);
+      const cap1 = await this.escrow.captureAllHeld(projectId);
       // Straggler pass: pledges that passed the LIVE check before our claim
       // but committed after the first capture query are still HELD — sweep
       // them once more before declaring FUNDED.
-      await this.escrow.captureAllHeld(projectId);
+      const cap2 = await this.escrow.captureAllHeld(projectId);
       const residue = await this.countHeld(projectId);
       if (residue > 0) {
         this.logger.error(
@@ -619,6 +619,25 @@ export class FundingService {
       await this.prisma.project.update({
         where: { id: projectId },
         data: { status: ProjectStatus.FUNDED },
+      });
+      // MONEY-AUDIT — record the SUCCESSFUL→FUNDED money flip. The atomic
+      // claim above (claimed.count===0 → return) means only the settler that
+      // actually won the LIVE/PAUSED→SUCCESSFUL transition reaches here, so a
+      // double cron / manual re-trigger writes this row exactly once (no
+      // duplicate-guard needed). actorId null = النظام. Never throws.
+      await this.audit.log({
+        actorId: null,
+        action: 'system.settle.funded',
+        entity: 'Project',
+        entityId: projectId,
+        detail: {
+          projectId,
+          raisedHalalas: project.raisedHalalas.toString(),
+          thresholdHalalas: threshold.toString(),
+          releaseThresholdPct: project.releaseThresholdPct,
+          capturedCount: cap1.captured + cap2.captured,
+          residueHeld: residue,
+        },
       });
       // Part 2 — grace notifications: card declines («حدّث بطاقتك») and BNPL
       // checkouts («أكمل التقسيط») get their 72h call-to-action.
@@ -635,7 +654,7 @@ export class FundingService {
       data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
     });
 
-    await this.escrow.refundAllHeld(projectId);
+    const ref1 = await this.escrow.refundAllHeld(projectId);
     const straggler = await this.escrow.refundAllHeld(projectId);
     const residue = await this.countHeld(projectId);
     if (straggler.failed > 0 || residue > 0) {
@@ -647,6 +666,23 @@ export class FundingService {
     await this.prisma.project.update({
       where: { id: projectId },
       data: { status: ProjectStatus.REFUNDED },
+    });
+    // MONEY-AUDIT — record the FAILED→REFUNDED money flip. Same atomic-claim
+    // idempotency as the funded branch: only the winning settler reaches here,
+    // so this row is written exactly once per settlement. Never throws.
+    await this.audit.log({
+      actorId: null,
+      action: 'system.settle.failed',
+      entity: 'Project',
+      entityId: projectId,
+      detail: {
+        projectId,
+        raisedHalalas: project.raisedHalalas.toString(),
+        thresholdHalalas: threshold.toString(),
+        releaseThresholdPct: project.releaseThresholdPct,
+        refundedCount: ref1.refunded + straggler.refunded,
+        residueHeld: residue,
+      },
     });
     // STAKES/S-3 (F2/F4) — tell backers the campaign failed + refunds are underway.
     await this.notifyBackersOfOutcome(project, false);

@@ -4,6 +4,7 @@ import { PledgeStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from './escrow.service';
+import { AuditService } from '../identity/audit.service';
 
 /**
  * Batch PAY (Part 4) — Tabby & Tamara, SANDBOX ONLY (production credentials
@@ -34,6 +35,7 @@ export class BnplService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly escrow: EscrowService,
+    private readonly audit: AuditService,
   ) {}
 
   private isStub(provider: BnplProvider): boolean {
@@ -93,6 +95,22 @@ export class BnplService {
     // Same chokepoint as card captures: CAPTURED + REALIZED + ledger CAPTURE.
     await this.escrow.markCaptured(pledge);
     this.logger.log(`${provider} webhook captured pledge=${pledge.id}`);
+    // MONEY-AUDIT — BNPL installment plan captured (CAPTURE_GRACE→CAPTURED).
+    // The status guards above (already-CAPTURED → 'ignored') make this fire
+    // only on the real transition, so a replayed event does not re-audit.
+    // Never throws.
+    await this.audit.log({
+      actorId: null,
+      action: 'system.bnpl.captured',
+      entity: 'Pledge',
+      entityId: pledge.id,
+      detail: {
+        projectId: pledge.projectId,
+        provider,
+        amountHalalas: (pledge.amountHalalas + pledge.addOnsHalalas).toString(),
+        pspRef: pledge.paymentRef,
+      },
+    });
     return { outcome: 'applied' };
   }
 

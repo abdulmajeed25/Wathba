@@ -7,6 +7,7 @@ import { EscrowService } from '../escrow-payments/escrow.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MoyasarAdapter } from '../escrow-payments/moyasar.adapter';
+import { AuditService } from '../identity/audit.service';
 
 /**
  * Batch PAY (Part 2) — the 72-hour failed-capture grace machine.
@@ -36,6 +37,7 @@ export class GraceScheduler {
     private readonly moyasar: MoyasarAdapter,
     private readonly email: EmailService,
     private readonly notifications: NotificationsService,
+    private readonly audit: AuditService,
   ) {}
 
   @Cron(CronExpression.EVERY_30_MINUTES, { name: 'capture-grace-tick' })
@@ -77,6 +79,22 @@ export class GraceScheduler {
           if (ok) {
             await this.escrow.markCaptured(p);
             this.logger.log(`grace retry captured pledge=${p.id}`);
+            // MONEY-AUDIT — a grace-retry recovered this capture. markCaptured
+            // is the idempotent chokepoint that flips CAPTURE_GRACE→CAPTURED,
+            // so this pledge leaves the CAPTURE_GRACE query on the next tick —
+            // the row is audited once. Never throws.
+            await this.audit.log({
+              actorId: null,
+              action: 'system.capture.recovered',
+              entity: 'Pledge',
+              entityId: p.id,
+              detail: {
+                projectId: p.project.id,
+                pspRef: p.paymentRef,
+                amountHalalas: (p.amountHalalas + p.addOnsHalalas).toString(),
+                captureAttempts: p.captureAttempts,
+              },
+            });
             continue;
           }
         } catch {
@@ -136,6 +154,23 @@ export class GraceScheduler {
         return true;
       });
       if (!claimed) continue;
+      // MONEY-AUDIT — grace expired: terminal CAPTURE_GRACE→FAILED_CAPTURE.
+      // Guarded by the status-scoped updateMany claim above (claimed===false
+      // → continue), so a re-run of an already-expired pledge writes nothing.
+      // Never throws.
+      await this.audit.log({
+        actorId: null,
+        action: 'system.capture.failed',
+        entity: 'Pledge',
+        entityId: p.id,
+        detail: {
+          projectId: p.project.id,
+          pspRef: p.paymentRef,
+          amountHalalas: (p.amountHalalas + p.addOnsHalalas).toString(),
+          paymentMethod: p.paymentMethod,
+          reason: 'grace_expired',
+        },
+      });
       try {
         await this.email.captureFailed(p.backer.email, {
           projectTitle: p.project.titleAr,

@@ -488,3 +488,204 @@ describe('EscrowService.retryCaptureCohort', () => {
     expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled();
   });
 });
+
+/* ═══ Batch OPS-PRO Phase 1 — dispute resolution + single-pledge revive ═══ */
+
+describe('EscrowService.resolveDispute', () => {
+  it('WON: DISPUTED→CAPTURED, dispute fields set, a positive DISPUTE ledger note, and NO counter change', async () => {
+    const p = adminPledge({ status: PledgeStatus.DISPUTED });
+    const prisma = makeOpsPrisma();
+    prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
+    const moyasar = { void: jest.fn(), refund: jest.fn(), capture: jest.fn() } as any;
+    const { svc } = buildSvc(prisma, moyasar);
+
+    const r = await svc.resolveDispute('pl-1', 'WON');
+
+    expect(r).toEqual({
+      ok: true,
+      outcome: 'WON',
+      status: PledgeStatus.CAPTURED,
+      amountHalalas: 12_000n,
+    });
+    expect(prisma.pledge.update).toHaveBeenCalledWith({
+      where: { id: 'pl-1' },
+      data: expect.objectContaining({
+        status: PledgeStatus.CAPTURED,
+        disputeOutcome: 'WON',
+        disputeResolvedAt: expect.any(Date),
+      }),
+    });
+    expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        entryType: 'DISPUTE',
+        amountHalalas: 12_000n,
+        pspRef: 'ref-pl-1',
+        source: 'dispute-won',
+      }),
+    });
+    // Funds retained — the webhook never decremented, so WON must not either.
+    expect(prisma.project.update).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled();
+    // Chargeback already moved money externally — never a PSP call.
+    expect(moyasar.void).not.toHaveBeenCalled();
+    expect(moyasar.refund).not.toHaveBeenCalled();
+  });
+
+  it('LOST: DISPUTED→REFUNDED with the SAME captured-branch compensation (raised + realized + backersCount + tier + totalPledged), NO PSP call', async () => {
+    const p = adminPledge({ status: PledgeStatus.DISPUTED });
+    const prisma = makeOpsPrisma();
+    prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
+    prisma.pledge.count.mockResolvedValue(0); // last active pledge → backersCount drops
+    const moyasar = { void: jest.fn(), refund: jest.fn(), capture: jest.fn() } as any;
+    const { svc } = buildSvc(prisma, moyasar);
+
+    const r = await svc.resolveDispute('pl-1', 'LOST');
+
+    expect(r).toEqual({
+      ok: true,
+      outcome: 'LOST',
+      status: PledgeStatus.REFUNDED,
+      amountHalalas: 12_000n,
+    });
+    expect(prisma.pledge.update).toHaveBeenCalledWith({
+      where: { id: 'pl-1' },
+      data: expect.objectContaining({
+        status: PledgeStatus.REFUNDED,
+        disputeOutcome: 'LOST',
+        refundedAt: expect.any(Date),
+      }),
+    });
+    expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entryType: 'REFUND', source: 'dispute-lost' }),
+    });
+    // Captured money left externally: BOTH raised and realized decrement.
+    expect(prisma.project.update).toHaveBeenCalledWith({
+      where: { id: 'proj-1' },
+      data: {
+        raisedHalalas: { decrement: 12_000n },
+        realizedHalalas: { decrement: 12_000n },
+        backersCount: { decrement: 1 },
+      },
+    });
+    expect(prisma.rewardTier.updateMany).toHaveBeenCalledWith({
+      where: { id: 'tier-1', claimedQty: { gt: 0 } },
+      data: { claimedQty: { decrement: 1 } },
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'backer-1' },
+      data: { totalPledgedHalalas: { decrement: 12_000n } },
+    });
+    expect(moyasar.void).not.toHaveBeenCalled();
+    expect(moyasar.refund).not.toHaveBeenCalled();
+  });
+
+  it('LOST: backersCount is kept when the backer still holds another active pledge', async () => {
+    const p = adminPledge({ status: PledgeStatus.DISPUTED, tierId: null });
+    const prisma = makeOpsPrisma();
+    prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
+    prisma.pledge.count.mockResolvedValue(1); // another active pledge remains
+    const moyasar = { void: jest.fn(), refund: jest.fn() } as any;
+    const { svc } = buildSvc(prisma, moyasar);
+
+    await svc.resolveDispute('pl-1', 'LOST');
+
+    expect(prisma.project.update).toHaveBeenCalledWith({
+      where: { id: 'proj-1' },
+      data: {
+        raisedHalalas: { decrement: 12_000n },
+        realizedHalalas: { decrement: 12_000n },
+      },
+    });
+    expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled(); // no tier
+  });
+});
+
+describe('EscrowService.reviveFailedPledge', () => {
+  it('ok path: atomic tier re-claim → reauthorize + capture → markCaptured (CAPTURED + REALIZED + CAPTURE ledger)', async () => {
+    const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
+    const prisma = makeOpsPrisma();
+    prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
+    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
+    prisma.rewardTier.updateMany.mockResolvedValue({ count: 1 }); // re-claim wins
+    const moyasar = {
+      reauthorize: jest.fn().mockResolvedValue({ ok: true }),
+      capture: jest.fn().mockResolvedValue({ ok: true }),
+    } as any;
+    const { svc, ledger } = buildSvc(prisma, moyasar);
+
+    const r = await svc.reviveFailedPledge('pl-1');
+
+    expect(r).toEqual({ ok: true, status: PledgeStatus.CAPTURED });
+    // Stock claimed with the sold-out guard BEFORE any PSP call.
+    expect(prisma.rewardTier.updateMany).toHaveBeenCalledWith({
+      where: { id: 'tier-1', claimedQty: { lt: 5 } },
+      data: { claimedQty: { increment: 1 } },
+    });
+    expect(moyasar.reauthorize).toHaveBeenCalledWith('ref-pl-1');
+    expect(moyasar.capture).toHaveBeenCalledWith('ref-pl-1');
+    expect(prisma.pledge.update).toHaveBeenCalledWith({
+      where: { id: 'pl-1' },
+      data: expect.objectContaining({ status: PledgeStatus.CAPTURED }),
+    });
+    expect(prisma.project.update).toHaveBeenCalledWith({
+      where: { id: 'proj-1' },
+      data: { realizedHalalas: { increment: 12_000n } },
+    });
+    expect(ledger.record).toHaveBeenCalledWith(
+      expect.objectContaining({ entryType: 'CAPTURE', amountHalalas: 12_000n }),
+    );
+  });
+
+  it('tier-stock-exhausted: short-circuits with NO PSP call and NO rollback', async () => {
+    const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
+    const prisma = makeOpsPrisma();
+    prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
+    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
+    prisma.rewardTier.updateMany.mockResolvedValue({ count: 0 }); // sold out
+    const moyasar = { reauthorize: jest.fn(), capture: jest.fn() } as any;
+    const { svc } = buildSvc(prisma, moyasar);
+
+    const r = await svc.reviveFailedPledge('pl-1');
+
+    expect(r).toEqual({
+      ok: false,
+      reason: 'tier-stock-exhausted',
+      status: PledgeStatus.FAILED_CAPTURE,
+    });
+    expect(moyasar.reauthorize).not.toHaveBeenCalled();
+    expect(moyasar.capture).not.toHaveBeenCalled();
+    // Exactly the one failed claim — never a compensating rollback decrement.
+    expect(prisma.rewardTier.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('PSP refusal after the re-claim rolls the stock back and leaves FAILED_CAPTURE', async () => {
+    const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
+    const prisma = makeOpsPrisma();
+    prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
+    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
+    prisma.rewardTier.updateMany.mockResolvedValue({ count: 1 });
+    const moyasar = {
+      reauthorize: jest.fn().mockResolvedValue({ ok: false }), // issuer refuses
+      capture: jest.fn(),
+    } as any;
+    const { svc } = buildSvc(prisma, moyasar);
+
+    const r = await svc.reviveFailedPledge('pl-1');
+
+    expect(r).toEqual({
+      ok: false,
+      reason: 'psp-declined',
+      status: PledgeStatus.FAILED_CAPTURE,
+    });
+    expect(moyasar.capture).not.toHaveBeenCalled();
+    expect(prisma.rewardTier.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { id: 'tier-1', claimedQty: { lt: 5 } },
+      data: { claimedQty: { increment: 1 } },
+    });
+    expect(prisma.rewardTier.updateMany).toHaveBeenNthCalledWith(2, {
+      where: { id: 'tier-1', claimedQty: { gt: 0 } },
+      data: { claimedQty: { decrement: 1 } },
+    });
+  });
+});

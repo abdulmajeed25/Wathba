@@ -3,12 +3,14 @@ import { MilestoneStatus, NotificationKind, PayoutStatus, PledgeStatus, ProjectS
 import { z } from 'zod';
 
 import { commissionBreakdown } from '../../config/fees';
+import { computeCounterDrift, recomputeCounters } from '../counters.recompute';
 
 import type { OperationDef, ReadOnlyDb } from '../operation.types';
 import type { FundingService } from '../../funding/funding.service';
 import type { PayoutDisburser } from '../../escrow-payments/payout.disburser';
 import type { EscrowService } from '../../escrow-payments/escrow.service';
 import type { MoyasarAdapter } from '../../escrow-payments/moyasar.adapter';
+import type { ZatcaService } from '../../escrow-payments/zatca.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { EmailService } from '../../email/email.service';
 import type { PrismaService } from '../../prisma/prisma.service';
@@ -32,6 +34,10 @@ export interface MoneyOpsDeps {
   disburser: PayoutDisburser;
   escrow: EscrowService;
   moyasar: MoyasarAdapter;
+  // Batch OPS-PRO Phase 1 — money.zatca.retry regenerates the orphaned
+  // simplified tax invoice for a SENT payout. Wired by the coordinator from
+  // EscrowPaymentsModule (see report: the module must export ZatcaService).
+  zatca: ZatcaService;
   notifications: NotificationsService;
   email: EmailService;
 }
@@ -945,6 +951,343 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
     },
   };
 
+  /* ═══ Batch OPS-PRO Phase 1 — MONEY-RESOLUTION group ═══════════════════ */
+
+  /* ── dispute resolution (orchestrated — EscrowService owns the tx) ───── */
+  const disputeResolveInput = z.object({
+    pledgeId: z.string().uuid(),
+    outcome: z.enum(['WON', 'LOST']),
+  });
+  type DisputeResolveInput = z.infer<typeof disputeResolveInput>;
+
+  const disputeResolve: OperationDef<
+    DisputeResolveInput,
+    { ok: true; outcome: 'WON' | 'LOST'; status: string; amountHalalas: string }
+  > = {
+    key: 'money.dispute.resolve',
+    titleAr: 'حسم نزاع (استرجاع بنكي)',
+    descriptionAr:
+      'يحسم تعهداً في حالة DISPUTED (وصلها عبر إشعار الاسترجاع البنكي). WON: يبقى المال — يعود التعهد DISPUTED→CAPTURED دون أي تغيير في العدّادات (لم تُخصم عند فتح النزاع). LOST: الاسترجاع نافذ والمال غادر خارجياً — DISPUTED→REFUNDED مع نفس تعويض المقطوف (خصم raised وrealized وعدد الداعمين ومخزون المكافأة وإجمالي تعهدات الداعم). لا نداء لبوابة الدفع. غير قابل للعكس.',
+    inputSchema: disputeResolveInput as unknown as z.ZodType<DisputeResolveInput>,
+    permission: 'money.execute',
+    riskTier: 'MONEY',
+    reversible: false,
+    requiresReason: true,
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'pledge-missing',
+        reasonAr: 'التعهد غير موجود',
+        check: async (db, input) =>
+          !!(await db.pledge.findUnique({ where: { id: input.pledgeId }, select: { id: true } })),
+      },
+      {
+        code: 'not-disputed',
+        reasonAr: 'التعهد ليس في حالة نزاع (DISPUTED) — الحسم يخصّ استرجاعاً بنكياً مفتوحاً فقط',
+        check: async (db, input) => {
+          const p = await db.pledge.findUnique({
+            where: { id: input.pledgeId },
+            select: { status: true },
+          });
+          return p?.status === PledgeStatus.DISPUTED;
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const p = await db.pledge.findUnique({
+        where: { id: input.pledgeId },
+        include: { project: { select: { titleAr: true } } },
+      });
+      if (!p) return { summaryAr: 'التعهد غير موجود', before: null, after: null };
+      const amount = p.amountHalalas + p.addOnsHalalas;
+      const won = input.outcome === 'WON';
+      // On LOST the disputed pledge no longer counts itself — backersCount
+      // drops only if the backer has no OTHER active pledge.
+      const otherActive = await db.pledge.count({
+        where: {
+          projectId: p.projectId,
+          backerId: p.backerId,
+          id: { not: p.id },
+          status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_BNPL, PledgeStatus.CAPTURED] },
+        },
+      });
+      return {
+        summaryAr: won
+          ? `حسم لصالح المنصة: يعود ${amount.toString()} هللة إلى CAPTURED في «${p.project.titleAr}» — لا تتغيّر العدّادات`
+          : `حسم ضد المنصة: يُسترد ${amount.toString()} هللة في «${p.project.titleAr}» (REFUNDED) مع خصمه من raised وrealized`,
+        before: { status: p.status, outcome: p.disputeOutcome ?? null },
+        after: { status: won ? 'CAPTURED' : 'REFUNDED', outcome: input.outcome },
+        counts: {
+          tierStockReleased: won ? 0 : p.tierId ? 1 : 0,
+          backersCountDecrement: won ? 0 : otherActive === 0 ? 1 : 0,
+        },
+        monetaryDeltasHalalas: {
+          refundToBacker: won ? '0' : amount.toString(),
+          raisedDelta: won ? '0' : (-amount).toString(),
+          realizedDelta: won ? '0' : (-amount).toString(),
+          backerTotalPledgedDelta: won ? '0' : (-amount).toString(),
+        },
+      };
+    },
+    async execute(_db, input) {
+      const r = await deps.escrow.resolveDispute(input.pledgeId, input.outcome);
+      return {
+        ok: true as const,
+        outcome: r.outcome,
+        status: r.status,
+        amountHalalas: r.amountHalalas.toString(),
+      };
+    },
+  };
+
+  /* ── single-pledge revive (orchestrated — reauthorize + capture) ─────── */
+  const pledgeReviveInput = z.object({ pledgeId: z.string().uuid() });
+
+  const pledgeRevive: OperationDef<
+    z.infer<typeof pledgeReviveInput>,
+    { ok: true; status: string }
+  > = {
+    key: 'money.pledge.revive',
+    titleAr: 'إحياء تعهد فاشل القطف',
+    descriptionAr:
+      'يعيد إحياء تعهد واحد في FAILED_CAPTURE (انتهت مهلته): إعادة حجز مخزون المكافأة ذرّياً أولاً، ثم إعادة تفويض البطاقة والقطف فوراً. نفاد المخزون يمنع الإحياء (لا تحصيل مقابل مكافأة لا يمكن الوفاء بها)؛ رفض البوابة يعيد المخزون ويُبقي التعهد FAILED_CAPTURE. غير قابل للعكس.',
+    inputSchema: pledgeReviveInput,
+    permission: 'money.execute',
+    riskTier: 'MONEY',
+    reversible: false,
+    requiresReason: true,
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'pledge-missing',
+        reasonAr: 'التعهد غير موجود',
+        check: async (db, input) =>
+          !!(await db.pledge.findUnique({ where: { id: input.pledgeId }, select: { id: true } })),
+      },
+      {
+        code: 'not-failed-capture',
+        reasonAr: 'الإحياء يخصّ تعهداً فشل قطفه نهائياً (FAILED_CAPTURE) فقط',
+        check: async (db, input) => {
+          const p = await db.pledge.findUnique({
+            where: { id: input.pledgeId },
+            select: { status: true },
+          });
+          return p?.status === PledgeStatus.FAILED_CAPTURE;
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const p = await db.pledge.findUnique({
+        where: { id: input.pledgeId },
+        include: {
+          project: { select: { titleAr: true } },
+          tier: { select: { limitQty: true, claimedQty: true } },
+        },
+      });
+      if (!p) return { summaryAr: 'التعهد غير موجود', before: null, after: null };
+      const amount = p.amountHalalas + p.addOnsHalalas;
+      const stockAvailable =
+        !p.tierId || p.tier?.limitQty == null || p.tier.claimedQty < (p.tier.limitQty ?? 0);
+      return {
+        summaryAr: stockAvailable
+          ? `ستُعاد محاولة قطف ${amount.toString()} هللة في «${p.project.titleAr}» (إعادة تفويض + قطف)`
+          : `مخزون المكافأة نافد — الإحياء سيُرفض تشغيلياً لتفادي تحصيل بلا مكافأة`,
+        before: { status: p.status },
+        after: { status: 'CAPTURED (عند نجاح البوابة)' },
+        counts: {
+          tierStockAvailable: stockAvailable ? 1 : 0,
+          tierLimitQty: p.tier?.limitQty ?? 0,
+          tierClaimedQty: p.tier?.claimedQty ?? 0,
+        },
+        monetaryDeltasHalalas: { toCapture: amount.toString() },
+      };
+    },
+    async execute(_db, input) {
+      const r = await deps.escrow.reviveFailedPledge(input.pledgeId);
+      if (!r.ok) {
+        // A failed revive is a RECORDED failure, never a silent no-op — the
+        // orchestrated claim lands FAILED with the Arabic reason.
+        throw new BadRequestException(
+          r.reason === 'tier-stock-exhausted'
+            ? 'تعذّر الإحياء: مخزون المكافأة نافد'
+            : `تعذّر الإحياء عبر بوابة الدفع: ${r.reason ?? 'رفض المزوّد'}`,
+        );
+      }
+      return { ok: true as const, status: r.status };
+    },
+  };
+
+  /* ── residue sweep (orchestrated — FundingService owns capture/refund) ─ */
+  const settleResidueInput = z.object({ projectId: z.string().uuid() });
+
+  const settleResidue: OperationDef<
+    z.infer<typeof settleResidueInput>,
+    { projectId: string; swept: { ok: number; failed: number } }
+  > = {
+    key: 'money.settle.residue',
+    titleAr: 'كنس المتبقّي بعد التسوية',
+    descriptionAr:
+      'يكنس أي حجوزات HELD/PENDING_REAUTH بقيت عالقة بعد تسوية المشروع (انقطاع مزوّد منتصف التسوية): FUNDED/SUCCESSFUL → قطف، REFUNDED/FAILED → فكّ. متاح بعد التسوية فقط.',
+    inputSchema: settleResidueInput,
+    permission: 'money.execute',
+    riskTier: 'MONEY',
+    reversible: false,
+    requiresReason: false,
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'project-missing',
+        reasonAr: 'المشروع غير موجود',
+        check: async (db, input) =>
+          !!(await db.project.findUnique({ where: { id: input.projectId }, select: { id: true } })),
+      },
+      {
+        code: 'not-settled',
+        reasonAr: 'كنس المتبقّي متاح بعد التسوية فقط (FUNDED/SUCCESSFUL/REFUNDED/FAILED)',
+        check: async (db, input) => {
+          const p = await db.project.findUnique({
+            where: { id: input.projectId },
+            select: { status: true },
+          });
+          return (
+            p?.status === ProjectStatus.FUNDED ||
+            p?.status === ProjectStatus.SUCCESSFUL ||
+            p?.status === ProjectStatus.REFUNDED ||
+            p?.status === ProjectStatus.FAILED
+          );
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const p = await db.project.findUnique({
+        where: { id: input.projectId },
+        select: { status: true, titleAr: true },
+      });
+      const residue = await db.pledge.count({
+        where: {
+          projectId: input.projectId,
+          status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_REAUTH] },
+        },
+      });
+      const capture = p?.status === ProjectStatus.FUNDED || p?.status === ProjectStatus.SUCCESSFUL;
+      return {
+        summaryAr: `سيُكنس ${residue} حجزاً عالقاً في «${p?.titleAr ?? '—'}» — الاتجاه: ${capture ? 'قطف (المشروع ناجح)' : 'فكّ (المشروع مسترد/فاشل)'}`,
+        before: { status: p?.status ?? null, residue },
+        after: { residue: 0 },
+        counts: { residue, direction: capture ? 1 : 0 },
+      };
+    },
+    async execute(_db, input) {
+      return deps.funding.resettleResidue(input.projectId);
+    },
+  };
+
+  /* ── counter recompute (SENSITIVE — corrects money-derived figures) ──── */
+  const recomputeInput = z.object({ projectId: z.string().uuid() });
+
+  const countersRecompute: OperationDef<
+    z.infer<typeof recomputeInput>,
+    { drift: Array<{ field: string; before: string; after: string }>; corrected: number }
+  > = {
+    key: 'money.counters.recompute',
+    titleAr: 'إعادة حساب عدّادات المشروع',
+    descriptionAr:
+      'يعيد حساب raisedHalalas وrealizedHalalas وعدد الداعمين ومخزون كل مكافأة/إضافة من صيغها المرجعية على دفتر التعهدات، ويصحّح ما انحرف منها (انهيار منتصف عملية أو تعبئة قديمة). لا يحرّك مالاً — يصحّح أرقاماً مشتقة من المال فقط. المعاينة تُظهر الانحراف دون كتابة.',
+    inputSchema: recomputeInput,
+    permission: 'money.execute',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: true,
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'project-missing',
+        reasonAr: 'المشروع غير موجود',
+        check: async (db, input) =>
+          !!(await db.project.findUnique({ where: { id: input.projectId }, select: { id: true } })),
+      },
+    ],
+    async dryRun(db, input) {
+      const drift = await computeCounterDrift(db, input.projectId);
+      return {
+        summaryAr:
+          drift.length === 0
+            ? 'العدّادات مطابقة للدفتر — لا انحراف'
+            : `انحراف في ${drift.length} عدّاداً — المعاينة تعرض القيم دون تصحيح`,
+        before: Object.fromEntries(drift.map((d) => [d.field, d.before])),
+        after: Object.fromEntries(drift.map((d) => [d.field, d.after])),
+        counts: { driftedFields: drift.length },
+      };
+    },
+    async execute(_db, input) {
+      const drift = await recomputeCounters(deps.prisma, input.projectId);
+      return { drift, corrected: drift.length };
+    },
+    // The drift report is derived figures only — no PII — so it persists as-is.
+    redactResult: (result) => result,
+  };
+
+  /* ── ZATCA invoice retry (SENSITIVE — idempotent regeneration) ───────── */
+  const zatcaRetryInput = z.object({ payoutId: z.string().uuid() });
+
+  const zatcaRetry: OperationDef<
+    z.infer<typeof zatcaRetryInput>,
+    { invoiceNumber: string; totalHalalas: string }
+  > = {
+    key: 'money.zatca.retry',
+    titleAr: 'إعادة توليد فاتورة زاتكا يتيمة',
+    descriptionAr:
+      'يعيد توليد فاتورة الضريبة المبسّطة لدفعة SENT صُرفت دون ربط فاتورتها (zatcaInvoiceId فارغ). العملية idempotent — وجود فاتورة سابقة يعيدها كما هي. لا يحرّك مالاً.',
+    inputSchema: zatcaRetryInput,
+    permission: 'money.execute',
+    riskTier: 'SENSITIVE',
+    reversible: false,
+    requiresReason: false,
+    orchestrated: true,
+    preconditions: [
+      {
+        code: 'payout-missing',
+        reasonAr: 'الدفعة غير موجودة',
+        check: async (db, input) =>
+          !!(await db.payout.findUnique({ where: { id: input.payoutId }, select: { id: true } })),
+      },
+      {
+        code: 'no-orphan',
+        reasonAr: 'إعادة التوليد تخصّ دفعة SENT بلا فاتورة مربوطة فقط',
+        check: async (db, input) => {
+          const p = await db.payout.findUnique({
+            where: { id: input.payoutId },
+            select: { status: true, zatcaInvoiceId: true },
+          });
+          return p?.status === PayoutStatus.SENT && p.zatcaInvoiceId === null;
+        },
+      },
+    ],
+    async dryRun(db, input) {
+      const p = await db.payout.findUnique({ where: { id: input.payoutId } });
+      const gross = p?.amountHalalas ?? 0n;
+      const fees = commissionBreakdown(gross);
+      return {
+        summaryAr: `ستُولّد فاتورة زاتكا مبسّطة لعمولة دفعة (${gross.toString()} هللة إجمالياً) — عمولة ${fees.commissionHalalas.toString()} + ضريبة ${fees.vatHalalas.toString()}`,
+        before: { zatcaInvoiceId: p?.zatcaInvoiceId ?? null },
+        after: { zatcaInvoiceId: 'WTB-<سنة>-<تسلسل>' },
+        monetaryDeltasHalalas: {
+          commissionHalalas: fees.commissionHalalas.toString(),
+          vatHalalas: fees.vatHalalas.toString(),
+          totalHalalas: fees.withheldHalalas.toString(),
+        },
+      };
+    },
+    async execute(_db, input) {
+      const payout = await deps.prisma.payout.findUniqueOrThrow({ where: { id: input.payoutId } });
+      const invoice = await deps.zatca.generateForPayout(payout);
+      return {
+        invoiceNumber: invoice.invoiceNumber,
+        totalHalalas: invoice.totalHalalas.toString(),
+      };
+    },
+  };
+
   return [
     deadlineOverride,
     milestoneApprove,
@@ -956,5 +1299,10 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
     captureRetryCohort,
     payoutRetry,
     reconcileRun,
+    disputeResolve,
+    pledgeRevive,
+    settleResidue,
+    countersRecompute,
+    zatcaRetry,
   ] as unknown as Array<OperationDef<never, unknown>>;
 }

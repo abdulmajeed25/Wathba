@@ -1,4 +1,10 @@
-import { Injectable, Logger, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -145,6 +151,36 @@ export class WebhookService {
     return { outcome };
   }
 
+  /**
+   * OPS-INTEGRITY — replay a STORED webhook event through the FSM, bypassing
+   * the dedup claim. `process()` re-delivery would just return 'duplicate';
+   * this re-invokes `apply()` directly for an already-persisted row so a
+   * money-integrity operator can heal a `mismatch`-class event — one that
+   * arrived against the wrong pledge state (e.g. before the sync path had
+   * moved the pledge to HELD) and is now applicable.
+   *
+   * apply() is idempotent via its per-branch status guards, so a replay is
+   * safe: it re-applies when the transition is now valid and returns
+   * 'ignored'/'mismatch' otherwise, never double-charging. The event row is
+   * NOT append-only, so re-stamping processedAt/outcome on the SAME row is
+   * correct (only LedgerEntry/AuditLog are locked).
+   */
+  async replayStored(webhookEventId: string): Promise<{ outcome: WebhookOutcome }> {
+    const row = await this.prisma.webhookEvent.findUnique({ where: { id: webhookEventId } });
+    if (!row) throw new NotFoundException('webhook event not found');
+    const outcome = await this.apply(row.eventType, row.pspRef);
+    await this.prisma.webhookEvent.update({
+      where: { id: row.id },
+      data: { processedAt: new Date(), outcome },
+    });
+    if (outcome === 'mismatch') {
+      this.logger.error(
+        `WEBHOOK REPLAY still mismatched id=${row.id} type=${row.eventType} pspRef=${row.pspRef} — no valid transition even on replay`,
+      );
+    }
+    return { outcome };
+  }
+
   private async apply(eventType: string, pspRef: string): Promise<WebhookOutcome> {
     if (!pspRef) return 'ignored';
     const pledge = await this.prisma.pledge.findFirst({ where: { paymentRef: pspRef } });
@@ -164,6 +200,21 @@ export class WebhookService {
         // confirmed via payment_paid never counted toward REALIZED, so
         // milestone releases under-paid the creator.
         await this.escrow.markCaptured(pledge, { source: 'webhook' });
+        // MONEY-AUDIT — webhook-confirmed capture (HELD→CAPTURED). The status
+        // guards above (already-CAPTURED → 'ignored') make this branch fire
+        // only on the real transition, so a duplicate/replayed delivery does
+        // not re-audit. Never throws.
+        await this.audit.log({
+          actorId: null,
+          action: 'system.webhook.captured',
+          entity: 'Pledge',
+          entityId: pledge.id,
+          detail: {
+            pspRef,
+            projectId: pledge.projectId,
+            amountHalalas: (pledge.amountHalalas + pledge.addOnsHalalas).toString(),
+          },
+        });
         return 'applied';
       }
 
@@ -173,6 +224,15 @@ export class WebhookService {
         await this.prisma.pledge.update({
           where: { id: pledge.id },
           data: { status: PledgeStatus.FAILED },
+        });
+        // MONEY-AUDIT — HELD→FAILED (authorization declined by the PSP).
+        // Guarded by the status checks (already-FAILED → 'ignored'). Never throws.
+        await this.audit.log({
+          actorId: null,
+          action: 'system.webhook.failed',
+          entity: 'Pledge',
+          entityId: pledge.id,
+          detail: { pspRef, projectId: pledge.projectId },
         });
         return 'applied';
       }
@@ -191,6 +251,19 @@ export class WebhookService {
           pledgeId: pledge.id,
           projectId: pledge.projectId,
           source: 'webhook',
+        });
+        // MONEY-AUDIT — voided hold = pre-capture refund (HELD→REFUNDED).
+        // Status-guarded (already-REFUNDED → 'ignored'), so replay-safe. Never throws.
+        await this.audit.log({
+          actorId: null,
+          action: 'system.webhook.voided',
+          entity: 'Pledge',
+          entityId: pledge.id,
+          detail: {
+            pspRef,
+            projectId: pledge.projectId,
+            amountHalalas: (pledge.amountHalalas + pledge.addOnsHalalas).toString(),
+          },
         });
         // STAKES/S-12 F-08 — tell the backer their money is back.
         this.notifyRefundCompleted(pledge.id).catch(() => {});
@@ -211,6 +284,19 @@ export class WebhookService {
           pledgeId: pledge.id,
           projectId: pledge.projectId,
           source: 'webhook',
+        });
+        // MONEY-AUDIT — post-capture refund (CAPTURED→REFUNDED). Status-guarded
+        // (already-REFUNDED → 'ignored'), so replay-safe. Never throws.
+        await this.audit.log({
+          actorId: null,
+          action: 'system.webhook.refunded',
+          entity: 'Pledge',
+          entityId: pledge.id,
+          detail: {
+            pspRef,
+            projectId: pledge.projectId,
+            amountHalalas: (pledge.amountHalalas + pledge.addOnsHalalas).toString(),
+          },
         });
         // STAKES/S-12 F-08 — tell the backer their money is back.
         this.notifyRefundCompleted(pledge.id).catch(() => {});

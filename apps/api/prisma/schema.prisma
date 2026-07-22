@@ -160,6 +160,8 @@ enum NotificationKind {
   PROJECT_REVIEWED
   ACCOUNT_SUSPENDED
   ACCOUNT_REACTIVATED
+  MILESTONE_REJECTED
+  SUPPLIER_VERIFIED
 }
 
 /// Batch OPS (registry completion) — account lifecycle enforcement.
@@ -240,6 +242,13 @@ model User {
   emailVerified       Boolean         @default(false)
   nafathVerified      Boolean         @default(false)
   nafathVerifiedAt    DateTime?
+  /// Batch OPS-PRO — supplier verification (suppliers.verify). A SUPPLIER-role
+  /// account is trusted to bid only once an operator verifies it; null = not
+  /// yet verified. verifiedById is the ops actor (User.id, no FK — audit trail
+  /// is the authority).
+  supplierVerifiedAt  DateTime?
+  supplierVerifiedById String?        @db.Uuid
+  supplierVerifyNote  String?         @db.Text
   /// PDPL (Sprint 2 / P0-702): which consent text version the user accepted, and when.
   consentVersion      String?
   consentAt           DateTime?
@@ -513,6 +522,13 @@ model Pledge {
   createdAt     DateTime     @default(now())
   capturedAt    DateTime?
   refundedAt    DateTime?
+  /// Batch OPS-PRO — dispute resolution (money.dispute.resolve). A pledge
+  /// enters DISPUTED via the chargeback webhook; an operator resolves it
+  /// WON (funds retained → back to CAPTURED) or LOST (→ REFUNDED with counter
+  /// compensation). Outcome + timestamp are recorded here; the money movement
+  /// is audited through the registry.
+  disputeOutcome String?
+  disputeResolvedAt DateTime?
 
   addOns        PledgeAddOn[]
   materialised  CommunityMaterialised?
@@ -547,6 +563,10 @@ model Milestone {
   approvedAt       DateTime?
   releasedAt       DateTime?
   evidenceUrl      String?
+  /// Batch OPS-PRO — operator feedback when evidence is rejected
+  /// (milestones.evidence.reject). Surfaced to the creator so they can fix
+  /// and resubmit; the reject bounces status SUBMITTED→PENDING.
+  reviewFeedbackAr String?         @db.Text
 
   spendLogs        SpendLog[]
   payouts          Payout[]

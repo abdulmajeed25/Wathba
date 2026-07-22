@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { AuditService } from './audit.service';
 
 /**
  * Nafath KYC adapter (Sprint 2 / P0-501).
@@ -46,6 +47,7 @@ export class NafathService {
     private readonly prisma: PrismaService,
     cfg: ConfigService,
     private readonly email: EmailService,
+    private readonly audit: AuditService,
   ) {
     this.apiKey = cfg.get<string>('NAFATH_API_KEY') ?? '';
     this.baseUrl = cfg.get<string>('NAFATH_BASE_URL') ?? 'https://nafath.api.elm.sa';
@@ -144,6 +146,18 @@ export class NafathService {
       where: { id: userId },
       data: { nafathVerified: true, nafathVerifiedAt: new Date() },
       select: { email: true, name: true },
+    });
+    // MONEY-AUDIT — the KYC identity flip (nafathVerified:true). This gate
+    // unlocks pledging and creator submission, so the moment it flips is a
+    // security-relevant event that must appear in the trail. markVerified is
+    // reached only on an explicit COMPLETED (real) / dev-stub approval, and a
+    // second verification of the same user is rare; if it happens the row is
+    // simply re-stamped (idempotent flip, harmless duplicate). Never throws.
+    await this.audit.log({
+      actorId: userId,
+      action: 'system.kyc.nafath-verified',
+      entity: 'User',
+      entityId: userId,
     });
     // STAKES follow-up (A7) — welcome the freshly-verified user (best-effort).
     try {

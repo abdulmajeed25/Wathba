@@ -12,6 +12,13 @@ async function bootstrap(): Promise<void> {
     // Structured JSON logs in prod (Sprint 4 / P1-801) — one parseable line
     // per event for the log pipeline; pretty console in dev.
     logger: new ConsoleLogger({ json: process.env.NODE_ENV === 'production' }),
+    // Batch OPS-PRO P0 — preserve the raw request bytes so webhook HMAC
+    // verification (BNPL/Tabby/Tamara) signs over exactly what the provider
+    // sent, not a re-serialized copy of the parsed body. Without this,
+    // req.rawBody is undefined and BnplService.verifySignature silently
+    // hashed JSON.stringify(body) — legitimate signed webhooks failed and the
+    // signature guarded nothing.
+    rawBody: true,
   });
 
   // Request log with correlation id — pairs with AllExceptionsFilter.

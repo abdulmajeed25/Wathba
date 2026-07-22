@@ -9,6 +9,7 @@ import { ZatcaService } from './zatca.service';
 import { PayoutBeneficiaryService } from './payout-beneficiary.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditService } from '../identity/audit.service';
 import { LedgerEntryType, PayoutStatus, type Payout } from '@prisma/client';
 import { commissionBreakdown } from '../config/fees';
 
@@ -105,6 +106,7 @@ export class PayoutDisburser {
     cfg: ConfigService,
     private readonly email: EmailService,
     private readonly notifications: NotificationsService,
+    private readonly audit: AuditService,
   ) {
     this.providerKey = cfg.get<string>('PAYOUT_PROVIDER_KEY') ?? '';
     this.providerUrl =
@@ -201,6 +203,25 @@ export class PayoutDisburser {
       this.logger.log(
         `Payout SENT id=${p.id} creator=${p.creatorId} gross=${p.amountHalalas} net=${fees.netHalalas} withheld=${fees.withheldHalalas} ref=${transferRef}`,
       );
+      // MONEY-AUDIT — the PENDING→SENT money flip. Guarded by the atomic
+      // PENDING→SENDING claim above (claim.count===0 → return false), so a
+      // concurrent tick / re-run cannot re-audit an already-sent payout.
+      // actorId null = النظام. Never throws.
+      await this.audit.log({
+        actorId: null,
+        action: 'system.payout.sent',
+        entity: 'Payout',
+        entityId: p.id,
+        detail: {
+          projectId: p.projectId,
+          creatorId: p.creatorId,
+          milestoneId: p.milestoneId,
+          grossHalalas: p.amountHalalas.toString(),
+          netHalalas: fees.netHalalas.toString(),
+          withheldHalalas: fees.withheldHalalas.toString(),
+          pspRef: transferRef,
+        },
+      });
       // STAKES follow-up (F2/F4) — notify + email the creator (best-effort; a
       // comms glitch must never undo a sent payout).
       try {
@@ -246,6 +267,21 @@ export class PayoutDisburser {
         await this.prisma.payout.update({
           where: { id: p.id },
           data: { status: PayoutStatus.FAILED, failureReason: err.message.slice(0, 500) },
+        });
+        // MONEY-AUDIT — the SENDING→FAILED terminal flip. Reached only by the
+        // owner of the atomic claim (one tick), so no duplicate row. Never throws.
+        await this.audit.log({
+          actorId: null,
+          action: 'system.payout.failed',
+          entity: 'Payout',
+          entityId: p.id,
+          detail: {
+            projectId: p.projectId,
+            creatorId: p.creatorId,
+            milestoneId: p.milestoneId,
+            grossHalalas: p.amountHalalas.toString(),
+            failureReason: err.message.slice(0, 500),
+          },
         });
         this.logger.error(`payout FAILED (terminal) id=${p.id}: ${err.message}`);
       } else {
