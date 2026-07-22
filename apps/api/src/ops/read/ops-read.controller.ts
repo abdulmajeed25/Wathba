@@ -304,6 +304,28 @@ export class OpsReadController {
     return this.read.listUserSessions(id, { cursor, limit: toNum(limit) });
   }
 
+  @Get('users/:id/notifications')
+  @ApiOperation({ summary: 'A user\'s notifications — allowlisted payload summary, filter by kind' })
+  userNotifications(
+    @Req() req: OpsRequest,
+    @Param('id') id: string,
+    @Query('kind') kind?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'users.lifecycle');
+    return this.read.listUserNotifications(id, { kind, cursor, limit: toNum(limit) });
+  }
+
+  /* ── 3c. notifications delivery-mix (analytics.read) ────────────────────── */
+
+  @Get('notifications/stats')
+  @ApiOperation({ summary: 'Notification delivery mix — count-by-kind over a recent window' })
+  notificationStats(@Req() req: OpsRequest, @Query('windowDays') windowDays?: string) {
+    this.read.assertPermission(req.opsPrincipal, 'analytics.read');
+    return this.read.notificationStats(toNum(windowDays));
+  }
+
   /* ── 3b. moderation queue (moderation.queue) ───────────────────────────── */
 
   @Get('moderation/reports')
@@ -539,6 +561,43 @@ export class OpsReadController {
     // OPS-360 A6 — follows the RFQ reads onto procurement.read.
     this.read.assertPermission(req.opsPrincipal, 'procurement.read');
     return this.read.supplierProfile(userId);
+  }
+
+  /* ── 7c. OPS-360 U4 — contests oversight (projects.review) ─────────────── */
+
+  // Contests have NO governed ops yet (creation/announce are creator-driven);
+  // this is OVERSIGHT-ONLY read. Award/management ops are a Unit-6 follow-up.
+  @Get('contests')
+  @ApiOperation({ summary: 'Cross-project contest list — FSM status filter, winner tally' })
+  contests(
+    @Req() req: OpsRequest,
+    @Query('status') status?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listAllContests({ status, cursor, limit: toNum(limit) });
+  }
+
+  @Get('contests/:id')
+  @ApiOperation({ summary: 'Contest detail — winners roster with masked backer, announced state' })
+  contest(@Req() req: OpsRequest, @Param('id') id: string) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.contestDetail(id);
+  }
+
+  /* ── 7d. OPS-360 U4 — fulfillment view (projects.review) ───────────────── */
+
+  @Get('fulfillment')
+  @ApiOperation({ summary: 'Cross-project reward-fulfillment roster — rewardStatus filter, masked backer' })
+  fulfillment(
+    @Req() req: OpsRequest,
+    @Query('rewardStatus') rewardStatus?: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listFulfillment({ rewardStatus, cursor, limit: toNum(limit) });
   }
 
   /* ── 8. settings ───────────────────────────────────────────────────────── */

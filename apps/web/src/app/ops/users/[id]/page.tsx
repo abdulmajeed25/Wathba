@@ -151,9 +151,17 @@ export default async function OpsUserDetailPage({
             {id}
           </p>
         </div>
-        <Link href="/ops/users" className="text-sm text-[#58a6ff] hover:underline">
-          ← دليل المستخدمين
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href={`/ops/notifications?userId=${id}`}
+            className="text-sm text-[#58a6ff] hover:underline"
+          >
+            الإشعارات ←
+          </Link>
+          <Link href="/ops/users" className="text-sm text-[#58a6ff] hover:underline">
+            ← دليل المستخدمين
+          </Link>
+        </div>
       </div>
 
       {refused ? (
