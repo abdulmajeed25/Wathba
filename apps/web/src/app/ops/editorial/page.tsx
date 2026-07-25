@@ -11,19 +11,20 @@ import {
  * OPS Part 5 (CONTENT) — «المحتوى التحريري»: editorial cards + homepage
  * sections.
  *
- * Reads come from the ADMIN GET seams (`/v1/admin/editorial-cards`,
- * `/v1/admin/homepage-sections`) — these list EVERYTHING incl. inactive rows
- * with their ids, which the ops read API doesn't cover. They are gated
- * `@Roles('ADMIN')`, which the operator already holds (requireAdmin), so we
- * authorize with the public session bearer. Every mutation is a governed
- * CONTENT-tier operation (content.editorial.*, content.homepage-section.*)
- * fired through <OpRunner>.
+ * CLOSEOUT C3 — reads now come from the OPS read layer
+ * (`/v1/ops/editorial/cards`, `/v1/ops/editorial/sections`, ops token +
+ * `content.editorial`) instead of the legacy `/v1/admin/*` JWT seams. Those
+ * seams were the split-brain the OPS-360 census flagged: two authorisation
+ * paths into the same data, only one of which is the ops token the rest of the
+ * console uses. They still list EVERYTHING incl. inactive rows with their ids.
+ * Every mutation was already a governed CONTENT-tier operation
+ * (content.editorial.*, content.homepage-section.*) fired through <OpRunner>.
  */
 export default async function OpsEditorialPage() {
-  const { token } = await requireAdmin();
-  await requireOpsSession();
+  await requireAdmin();
+  const { opsToken } = await requireOpsSession();
 
-  const auth = { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' as const };
+  const auth = { headers: { 'x-ops-token': opsToken }, cache: 'no-store' as const };
 
   let cards: EditorialCard[] = [];
   let cardsAvailable = false;
@@ -32,8 +33,8 @@ export default async function OpsEditorialPage() {
 
   try {
     const [cardsRes, sectionsRes] = await Promise.all([
-      fetch(`${API_BASE}/v1/admin/editorial-cards`, auth),
-      fetch(`${API_BASE}/v1/admin/homepage-sections`, auth),
+      fetch(`${API_BASE}/v1/ops/editorial/cards`, auth),
+      fetch(`${API_BASE}/v1/ops/editorial/sections`, auth),
     ]);
     if (cardsRes.status === 403 || sectionsRes.status === 403) refused = true;
     if (cardsRes.ok) {

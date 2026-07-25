@@ -634,6 +634,29 @@ export class OpsReadController {
     return this.read.listAllCategories();
   }
 
+  /* ── 7f. editorial + collections (CLOSEOUT C3 — off the /v1/admin seam) ─── */
+
+  @Get('editorial/cards')
+  @ApiOperation({ summary: 'All editorial cards incl. inactive — ops-token gated (was /v1/admin)' })
+  editorialCards(@Req() req: OpsRequest) {
+    this.read.assertPermission(req.opsPrincipal, 'content.editorial');
+    return this.read.listAllEditorialCards();
+  }
+
+  @Get('editorial/sections')
+  @ApiOperation({ summary: 'All homepage sections incl. disabled — ops-token gated (was /v1/admin)' })
+  editorialSections(@Req() req: OpsRequest) {
+    this.read.assertPermission(req.opsPrincipal, 'content.editorial');
+    return this.read.listAllHomepageSections();
+  }
+
+  @Get('collections')
+  @ApiOperation({ summary: 'All collections incl. inactive w/ project counts — ops-token gated' })
+  collections(@Req() req: OpsRequest) {
+    this.read.assertPermission(req.opsPrincipal, 'content.collections');
+    return this.read.listAllCollections();
+  }
+
   /* ── 8. settings ───────────────────────────────────────────────────────── */
 
   @Get('settings')

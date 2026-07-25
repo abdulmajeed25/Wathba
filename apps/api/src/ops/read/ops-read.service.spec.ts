@@ -66,6 +66,10 @@ interface MockDb {
   appeal: MockModel;
   auditLog: MockModel;
   emailTemplateOverride: MockModel;
+  // CLOSEOUT C3 — editorial/collections reads moved onto the ops layer.
+  editorialCard: MockModel;
+  homepageSection: MockModel;
+  collection: MockModel;
 }
 function buildPrisma(): MockDb {
   return {
@@ -101,6 +105,10 @@ function buildPrisma(): MockDb {
     appeal: model(),
     auditLog: model(),
     emailTemplateOverride: model(),
+    // CLOSEOUT C3 — editorial/collections reads moved onto the ops layer.
+    editorialCard: model(),
+    homepageSection: model(),
+    collection: model(),
   };
 }
 
@@ -767,6 +775,49 @@ describe('OpsReadService', () => {
       expect(painting.parentId).toBe('c1'); // flat list carries parentId
       expect(painting.isActive).toBe(false);
       expect(painting.projectCount).toBe(2);
+    });
+  });
+
+  describe('editorial + collections reads — off the /v1/admin seam (CLOSEOUT C3)', () => {
+    it('listAllEditorialCards surfaces INACTIVE cards (an operator must see one to restore it)', async () => {
+      const db = buildPrisma();
+      db.editorialCard.findMany.mockResolvedValue([
+        { id: 'e1', kind: 'STORY', sortOrder: 0, isActive: true },
+        { id: 'e2', kind: 'STORY', sortOrder: 1, isActive: false },
+      ]);
+
+      const out = await svc(db).listAllEditorialCards();
+
+      // No isActive filter — the whole point of the ops read.
+      expect(db.editorialCard.findMany.mock.calls[0]![0].where).toBeUndefined();
+      expect(out.items.map((i: { id: string }) => i.id)).toEqual(['e1', 'e2']);
+    });
+
+    it('listAllHomepageSections surfaces DISABLED sections', async () => {
+      const db = buildPrisma();
+      db.homepageSection.findMany.mockResolvedValue([
+        { key: 'hero', sortOrder: 0, isActive: true },
+        { key: 'contests', sortOrder: 1, isActive: false },
+      ]);
+
+      const out = await svc(db).listAllHomepageSections();
+
+      expect(db.homepageSection.findMany.mock.calls[0]![0].where).toBeUndefined();
+      expect(out.items).toHaveLength(2);
+    });
+
+    it('listAllCollections surfaces inactive collections WITH project counts', async () => {
+      const db = buildPrisma();
+      db.collection.findMany.mockResolvedValue([
+        { id: 'k1', slug: 'ramadan', isActive: false, _count: { projects: 4 } },
+      ]);
+
+      const out = await svc(db).listAllCollections();
+
+      expect(db.collection.findMany.mock.calls[0]![0].where).toBeUndefined();
+      // The count drives the manager UI; ids drive update/delete/assign.
+      expect(out.items[0]!._count.projects).toBe(4);
+      expect(out.items[0]!.isActive).toBe(false);
     });
   });
 

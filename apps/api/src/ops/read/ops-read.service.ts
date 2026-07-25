@@ -2199,6 +2199,41 @@ export class OpsReadService {
    * (isExcludedCategory) so the screen can lock it: it may be deactivated but
    * never reactivated (the set-active op enforces the same, defense-in-depth).
    */
+  /**
+   * CLOSEOUT C3 — the editorial/collections reads move onto the OPS read layer.
+   *
+   * The Ops Center's content screens were still fetching from the legacy
+   * `/v1/admin` seam (a JWT+RBAC surface), which is the split-brain the OPS-360
+   * census flagged: two authorisation paths into the same data, only one of
+   * which is the ops token + `content.*` permission the rest of the console
+   * uses. The WRITES were already registry-governed
+   * (`content.editorial.card.*`, `content.collections.*`); only the reads
+   * lagged, so this closes the seam without touching a mutation path.
+   *
+   * Like every method here these are READ-ONLY (RULE-5 pins the whole service
+   * to zero mutations) and list EVERYTHING including inactive rows — an
+   * operator must be able to see a hidden card to bring it back.
+   */
+  async listAllEditorialCards() {
+    const items = await this.prisma.editorialCard.findMany({
+      orderBy: [{ kind: 'asc' }, { sortOrder: 'asc' }],
+    });
+    return { items };
+  }
+
+  async listAllHomepageSections() {
+    const items = await this.prisma.homepageSection.findMany({ orderBy: { sortOrder: 'asc' } });
+    return { items };
+  }
+
+  async listAllCollections() {
+    const items = await this.prisma.collection.findMany({
+      orderBy: [{ sortOrder: 'asc' }],
+      include: { _count: { select: { projects: true } } },
+    });
+    return { items };
+  }
+
   async listAllCategories() {
     const [rows, counts] = await Promise.all([
       this.prisma.category.findMany({
