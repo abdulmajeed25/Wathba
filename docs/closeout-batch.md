@@ -42,10 +42,31 @@ Fixing the probe turned 13 files on for the first time. **25 tests failed.** The
 | `appealDetail` had no `CONTENT_TAKEDOWN` branch | C4 taught the ops and the queue about takedown appeals but not this read: it fell through to the rejection branch, looked up a Project by a Comment id, found no reject-audit row → `originalDeciderId` null, so the workspace **could not warn the moderator who hid the comment** that the case was theirs. The op still refused the self-review server-side, so the invariant held; the screen was blind to it. | Own branch: the contested comment text + the `moderation.comment.moderate` audit row. 2 tests. |
 | Identity probed once per component, not once per request | The layout and every page/nested component call `requireAdmin()` — intended defense in depth — but each opened its own round trip, 3-4 per board render. | `cache()` in `guard.ts`: request-scoped memoization for both the identity probe and the ops-session resolve. Same checks, asked once. |
 | Two specs asserted copy the app has **never** had | «جلسة العمليات نشطة» and «إشراف مُوجَّه بالمعرّف». The latter describes blind id-paste moderation, which OPS-360 Unit 3 deliberately replaced with a real queue — the page says so in as many words. Stale assertions, never surfaced because the files self-skipped. | Assert what shipped. |
-| CI never set the e2e auth-throttle knobs | `AUTH_SIGNIN_THROTTLE_LIMIT` exists and is commented "Env-tunable for e2e (many signins from one IP)", but the workflow didn't set it. A 60-test serial run signs in from one address and locks itself out — the limiter working, not a bug. It didn't matter while the ops specs skipped. | Both knobs set in `ci.yml`. Deployed limits untouched. |
+| CI never set the e2e throttle knobs | `AUTH_SIGNIN_THROTTLE_LIMIT` exists and is commented "Env-tunable for e2e (many signins from one IP)", but the workflow didn't set it — nor the sign-up or global equivalents. A 130-test serial run drives every account from one address and locks itself out; the limiter is working, not broken. It didn't matter while the ops specs skipped. | **⚠ MUST BE APPLIED BY HAND — see "CI env" below.** The global limit is now env-tunable (`THROTTLE_LIMIT`, default unchanged at 120) to match the three route knobs. |
 | Two specs used ambiguous nav locators | Strict-mode violation: sidebar + quick-links legitimately both link the section. | Scoped to `getByLabel('أقسام مركز العمليات')`. |
 
 **The CSV assertion has been in the tree since 2026-07-22 (`bbcc866`, OPS-360 Unit 2) and is a pure test that does not gate on the API — so it ran, and failed, in every batch since.** The "full Playwright green" reported by OPS-GAPS and OPS-360 was not accurate. Recording that plainly is the point of this section.
+
+### ⚠ CI env — one manual step this batch could NOT push
+
+The e2e job needs the throttle knobs raised or the browser suite rate-limits itself. **The change is written and verified locally but is not in this branch**: pushing `.github/workflows/*` requires a token with `workflow` scope, which this session's credential does not have (`refusing to allow an OAuth App to create or update workflow ci.yml`). Apply this to the `e2e` job's `env:` block in `.github/workflows/ci.yml`:
+
+```yaml
+      # The whole browser suite signs in, signs up and enters ops from ONE
+      # address (the web server), so every test shares the per-IP auth buckets.
+      # The prod defaults are correct for prod and wrong for a 130-test serial
+      # run — tests fail with «الحساب مُقفل مؤقتاً» / «err=throttle», which is the
+      # limiter working. These knobs exist for exactly this; raising them here
+      # changes nothing about the deployed limits.
+      AUTH_SIGNIN_THROTTLE_LIMIT: '400'
+      AUTH_SIGNUP_THROTTLE_LIMIT: '400'
+      OPS_AUTH_THROTTLE_LIMIT: '400'
+      # The global bucket: /ops pays an identity probe per navigation, so one
+      # operator account walking ~60 journeys back-to-back outruns 120/min.
+      THROTTLE_LIMIT: '2000'
+```
+
+Without it, CI's e2e job will fail on throttling rather than on defects — the local run reproduced this exactly, and setting the four knobs took the suite from 103 × HTTP 429 to **zero**.
 
 New spec added, as the scope requires: `ops-appeals-lifecycle.spec.ts` — a banned user submits an appeal → the **banning** operator is refused the case → a **different** operator claims and overturns → the ban is lifted in the same governed transaction and the appellant is notified. Plus the DB-level "one live appeal" refusal (409) on the same wire.
 

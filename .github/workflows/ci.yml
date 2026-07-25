@@ -78,22 +78,6 @@ jobs:
       JWT_SECRET: e2e-ci-secret-value-not-a-placeholder-000
       NEXT_PUBLIC_API_URL: http://localhost:4001
       API_BASE_URL: http://localhost:4001
-      # CLOSEOUT C5 — the whole browser suite signs in and enters ops from ONE
-      # address (the web server), so every test shares the per-IP auth bucket.
-      # The prod defaults (10/min each) are correct for prod and wrong for a
-      # 60-test serial run: tests started failing with «الحساب مُقفل مؤقتاً»,
-      # which is the limiter working, not a bug. Both knobs exist for exactly
-      # this; raising them here changes nothing about the deployed limits.
-      # This only became visible once the ops specs stopped self-skipping.
-      AUTH_SIGNIN_THROTTLE_LIMIT: '400'
-      OPS_AUTH_THROTTLE_LIMIT: '400'
-      # Same reason, sign-UP side: the journeys register throwaway accounts and
-      # the prod default is 5/min per IP, so several tests in one minute hit
-      # «err=throttle» on /sign-up before they can reach what they test.
-      AUTH_SIGNUP_THROTTLE_LIMIT: '400'
-      # And the global bucket: /ops pays an identity probe per navigation, so one
-      # operator account walking ~60 journeys back-to-back outruns 120/min.
-      THROTTLE_LIMIT: '2000'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
