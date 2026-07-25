@@ -4,7 +4,7 @@
 
 **State: the code is done. Launch is gated by external procurement + a TLS front door.**
 
-> **Updated 2026-07-25 after Batch CLOSEOUT** (PRs #60–#64 · 57 migrations · 78 governed operations · 53 ops read endpoints · **672 API tests green** · web production build green). The residual list from `ops360-census.md` is re-scored in `closeout-batch.md`: 7 of 8 buildable items closed, 1 open and scoped, 3 deferred by decision. **The distance to launch is unchanged.**
+> **Updated 2026-07-25 after Batch CLOSEOUT** (PRs #60–#64 · 57 migrations · 78 governed operations · 53 ops read endpoints · **672 API tests green** · web production build green · **Playwright 128 passed / 0 failed / 2 environment-skipped**). The residual list from `ops360-census.md` is re-scored in `closeout-batch.md`: 7 of 8 buildable items closed, 1 open and scoped, 3 deferred by decision. **The distance to launch is unchanged.**
 >
 > One correction to the record this file has carried: "full Playwright green" was not true. 13 ops e2e specs gated on a 404 health route and had been self-skipping, which reads as green. Arming them surfaced 24 real failures — including a hard 500 on `/ops/analytics` and an appeals decision workspace that crashed on every appeal. Those are fixed; three pre-existing public-journey failures found the same way are logged in `completion-state.md` rather than papered over.
 

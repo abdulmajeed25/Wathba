@@ -68,6 +68,20 @@ The e2e job needs the throttle knobs raised or the browser suite rate-limits its
 
 Without it, CI's e2e job will fail on throttling rather than on defects — the local run reproduced this exactly, and setting the four knobs took the suite from 103 × HTTP 429 to **zero**.
 
+### Gate result
+
+| | Before C5 | After C5 |
+|---|---|---|
+| Ops e2e specs actually executing | **0 of 13** (all self-skipped) | 13 of 13 |
+| Full browser suite | 24 failed · 34 passed · 1 skipped (ops subset), and the pure `toCsv` case had been red since 2026-07-22 | **128 passed · 0 failed · 2 skipped** (5.3 min) |
+| HTTP 429 per suite run | 103 | **0** |
+| Suite wall-clock (ops subset) | 16.9 min | 8 min → 5.3 min full suite |
+
+The two remaining skips are declared environment dependencies, not silent passes:
+
+- `batch-home` carousel — «مفضلات جديدة» holds one card on this dataset, so the track cannot overflow and there is nothing to scroll. The test now skips on that precondition and still asserts the scroll wherever overflow exists.
+- `stakes-s14` media magic-byte — needs the S3-compatible object store the presigned URL points at (MinIO :9000). Neither this box nor CI's e2e job (`services:` declares only postgres + redis) provides one.
+
 New spec added, as the scope requires: `ops-appeals-lifecycle.spec.ts` — a banned user submits an appeal → the **banning** operator is refused the case → a **different** operator claims and overturns → the ban is lifted in the same governed transaction and the appellant is notified. Plus the DB-level "one live appeal" refusal (409) on the same wire.
 
 ---
