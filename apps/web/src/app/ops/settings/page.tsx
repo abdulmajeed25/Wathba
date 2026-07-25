@@ -74,6 +74,9 @@ export default async function OpsSettingsPage() {
 
   // Email templates — degrade to amber on 404/403 rather than fabricate.
   let templates: TemplateListItem[] = [];
+  // CLOSEOUT C2 — the SERVER's locked-kind list. null = the API did not send it
+  // (older build), in which case the panel falls back to its static map.
+  let lockedKinds: string[] | null = null;
   let commsState: CommsState = 'ok';
   try {
     const r = await fetch(`${API_BASE}/v1/ops/comms/templates`, {
@@ -82,7 +85,14 @@ export default async function OpsSettingsPage() {
     });
     if (r.status === 404) commsState = 'building';
     else if (r.status === 403) commsState = 'refused';
-    else if (r.ok) templates = ((await r.json()) as { items: TemplateListItem[] }).items ?? [];
+    else if (r.ok) {
+      const body = (await r.json()) as {
+        items?: TemplateListItem[];
+        lockedNotificationKinds?: string[];
+      };
+      templates = body.items ?? [];
+      lockedKinds = body.lockedNotificationKinds ?? null;
+    }
     else commsState = 'down';
   } catch {
     commsState = 'down';
@@ -154,6 +164,7 @@ export default async function OpsSettingsPage() {
       <CommsPanel
         templates={templates}
         disabledKinds={disabledKinds}
+        lockedKinds={lockedKinds}
         operatorEmail={info.email}
       />
     );

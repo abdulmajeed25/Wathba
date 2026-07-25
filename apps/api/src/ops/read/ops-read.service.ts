@@ -19,6 +19,7 @@ import {
 import { isExcludedCategory } from '../../categories/excluded';
 import { commissionBreakdown } from '../../config/fees';
 import { TEMPLATE_CATALOG, type EmailTemplateName } from '../../email/email-templates';
+import { LOCKED_NOTIFICATION_KINDS } from '../../settings/settings.catalog';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SettingsService } from '../../settings/settings.service';
 import { OpsAuditService } from '../ops-audit.service';
@@ -2271,7 +2272,11 @@ export class OpsReadService {
         effectiveBodyPreview: ov ? textPreview(ov.bodyAr) : textPreview(entry.sample.html),
       };
     });
-    return { items };
+    // CLOSEOUT C2 — the SERVER's locked-kind list, so the comms screen no
+    // longer hand-maintains its own copy. The two had already drifted: the web
+    // marked 5 kinds locked that the server was willing to silence, hiding
+    // toggles the operator was entitled to.
+    return { items, lockedNotificationKinds: [...LOCKED_NOTIFICATION_KINDS] };
   }
 
   /**

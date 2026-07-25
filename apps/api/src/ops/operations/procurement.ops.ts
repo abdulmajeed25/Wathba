@@ -6,6 +6,7 @@ import type { OperationDef } from '../operation.types';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { EmailService } from '../../email/email.service';
+import { notifyAwardOutcome } from '../../procurement/award-notify';
 
 /**
  * Batch OPS-PRO Phase 1 — procurement oversight (STANDARD tier). The
@@ -400,36 +401,15 @@ export function procurementOps(
       });
       return { status: RFQStatus.AWARDED, awardedBidId: input.bidId, bidsRejected: count };
     },
-    // OPS-GAPS R2 — notify the winning supplier (in-app + email). Parity with
-    // the creator path (procurement.service.notifyAwardWinner); same dedupKey
-    // so a bid can't be double-notified across the two award paths.
+    // CLOSEOUT C2 — notify the winner AND the non-winning bidders. Shares ONE
+    // implementation with the creator path (procurement.service) so the two
+    // award routes can never drift apart again.
     async afterCommit(_result, input) {
-      try {
-        const bid = await deps.prisma.supplierBid.findUnique({
-          where: { id: input.bidId },
-          select: { supplierId: true },
-        });
-        if (!bid) return;
-        const rfq = await deps.prisma.rFQ.findUnique({
-          where: { id: input.rfqId },
-          select: { project: { select: { titleAr: true } } },
-        });
-        const projectTitleAr = rfq?.project?.titleAr ?? 'مشروع';
-        await deps.notifications.create({
-          userId: bid.supplierId,
-          kind: NotificationKind.RFQ_AWARDED,
-          payload: { projectTitleAr, rfqId: input.rfqId },
-        });
-        const supplier = await deps.prisma.user.findUnique({
-          where: { id: bid.supplierId },
-          select: { email: true },
-        });
-        if (supplier?.email) {
-          await deps.email.rfqAwarded(supplier.email, { projectTitle: projectTitleAr });
-        }
-      } catch {
-        /* best-effort — the award already committed */
-      }
+      await notifyAwardOutcome(
+        { prisma: deps.prisma, notifications: deps.notifications, email: deps.email },
+        input.rfqId,
+        input.bidId,
+      );
     },
   };
 

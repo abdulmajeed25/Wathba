@@ -67,9 +67,17 @@ describe('ProcurementService.award', () => {
       projectId: 'p1', specsAr: 'x', dueDate: new Date(), createdAt: new Date(),
     });
     prisma.user.findUnique!.mockResolvedValue({ email: 'supplier@wathba.demo' });
-    // OPS-GAPS R2 — spy the winner notification.
+    // CLOSEOUT C2 — the fan-out reads the whole bid set (winner + losers).
+    prisma.supplierBid.findMany!.mockResolvedValue([
+      { id: 'b1', supplierId: 's1' },
+      { id: 'b2', supplierId: 's2' },
+    ]);
+    // Spy both sides of the award fan-out.
     const notif = { create: jest.fn(async () => undefined) };
-    const emailFn = { rfqAwarded: jest.fn(async () => undefined) };
+    const emailFn = {
+      rfqAwarded: jest.fn(async () => undefined),
+      rfqDecided: jest.fn(async () => undefined),
+    };
     const svc = new ProcurementService(
       asPrisma(prisma),
       notif as unknown as import('../notifications/notifications.service').NotificationsService,
@@ -81,6 +89,11 @@ describe('ProcurementService.award', () => {
       expect.objectContaining({ userId: 's1', kind: 'RFQ_AWARDED' }),
     );
     expect(emailFn.rfqAwarded).toHaveBeenCalledWith('supplier@wathba.demo', expect.objectContaining({ projectTitle: 'مشروع الاختبار' }));
+    // CLOSEOUT C2 — the losing bidder is told a decision was made.
+    expect(notif.create).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 's2', kind: 'RFQ_DECIDED' }),
+    );
+    expect(emailFn.rfqDecided).toHaveBeenCalledTimes(1);
     expect(prisma.supplierBid.update).toHaveBeenCalledWith({
       where: { id: 'b1' },
       data: { status: BidStatus.AWARDED },
