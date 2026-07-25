@@ -333,7 +333,10 @@ describe('OpsAnalyticsService', () => {
       db.projectReport.count.mockImplementation((arg?: { where?: { resolvedAt?: unknown } }) =>
         arg?.where?.resolvedAt ? Promise.resolve(8) : Promise.resolve(10),
       );
-      db.commentReport.count.mockResolvedValue(4);
+      // CLOSEOUT C1 — same shape as projectReport: resolvedAt-filtered = resolved.
+      db.commentReport.count.mockImplementation((arg?: { where?: { resolvedAt?: unknown } }) =>
+        arg?.where?.resolvedAt ? Promise.resolve(3) : Promise.resolve(4),
+      );
       db.supportTicket.groupBy.mockResolvedValue([
         { status: 'OPEN', _count: { _all: 12 } },
         { status: 'RESOLVED', _count: { _all: 30 } },
@@ -357,9 +360,9 @@ describe('OpsAnalyticsService', () => {
       expect(out.moderation.projectReportsResolved).toBe(8);
       expect(out.moderation.projectThroughputPct).toBe(80);
       expect(out.moderation.commentReportsOpened).toBe(4);
-      // HONEST NULL — CommentReport has no resolvedAt column.
-      expect(out.moderation.commentReportsResolved).toBeNull();
-      expect(out.moderation.note).toContain('resolvedAt');
+      // CLOSEOUT C1 — comment throughput is now computable (census A4 closed).
+      expect(out.moderation.commentReportsResolved).toBe(3);
+      expect(out.moderation.commentThroughputPct).toBe(75);
       expect(out.supportTicketsByStatus).toEqual({ OPEN: 12, RESOLVED: 30 });
       expect(out.payoutSuccess).toMatchObject({ sentCount: 45, failedCount: 5, successRatePct: 90 });
     });

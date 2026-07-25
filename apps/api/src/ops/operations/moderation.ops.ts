@@ -80,7 +80,7 @@ const commentModerate: OperationDef<
           ? 'سيُخفى نص التعليق علنياً (يبقى السجل)'
           : input.action === 'unhide'
             ? 'سيُعاد إظهار نص التعليق علنياً'
-            : `ستُمسح ${c?.reportCount ?? 0} بلاغات ويبقى التعليق ظاهراً`,
+            : `ستُعلَّم ${c?.reportCount ?? 0} بلاغات كمُعالجة (تبقى للسجل عبر resolvedAt) ويبقى التعليق ظاهراً`,
       before: { hidden: c?.hidden ?? null, reportCount: c?.reportCount ?? null },
       after:
         input.action === 'hide'
@@ -96,7 +96,13 @@ const commentModerate: OperationDef<
     } else if (input.action === 'unhide') {
       await tx.comment.update({ where: { id: input.commentId }, data: { hidden: false } });
     } else {
-      await tx.commentReport.deleteMany({ where: { commentId: input.commentId } });
+      // CLOSEOUT C1 — dismissal RESOLVES the reports (keeps them for the
+      // record + throughput metrics) instead of hard-deleting them. Mirrors
+      // moderation.project-reports.dismiss.
+      await tx.commentReport.updateMany({
+        where: { commentId: input.commentId, resolvedAt: null },
+        data: { resolvedAt: new Date() },
+      });
       await tx.comment.update({ where: { id: input.commentId }, data: { reportCount: 0 } });
     }
     return { ok: true as const, action: input.action };

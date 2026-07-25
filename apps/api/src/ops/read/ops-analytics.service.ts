@@ -354,6 +354,7 @@ export class OpsAnalyticsService {
       projectReportsOpened,
       projectReportsResolved,
       commentReportsOpened,
+      commentReportsResolved,
       ticketStatusGroups,
       payoutStatusGroups,
     ] = await Promise.all([
@@ -367,6 +368,8 @@ export class OpsAnalyticsService {
       // Resolved WITHIN the window (resolvedAt in range), regardless of when opened.
       this.prisma.projectReport.count({ where: { resolvedAt: { gte: from, lte: to } } }),
       this.prisma.commentReport.count({ where: range }),
+      // CLOSEOUT C1 — now computable: resolvedAt landed on CommentReport.
+      this.prisma.commentReport.count({ where: { resolvedAt: { gte: from, lte: to } } }),
       this.prisma.supportTicket.groupBy({ by: ['status'], where: range, _count: { _all: true } }),
       this.prisma.payout.groupBy({ by: ['status'], where: range, _count: { _all: true } }),
     ]);
@@ -405,10 +408,8 @@ export class OpsAnalyticsService {
         projectReportsResolved,
         projectThroughputPct: pct(projectReportsResolved, projectReportsOpened),
         commentReportsOpened,
-        // HONEST NULL — CommentReport has no resolvedAt column in the schema,
-        // so comment-report resolution is not computable from current data.
-        commentReportsResolved: null,
-        note: 'لا يملك CommentReport عموداً لوقت الحل (resolvedAt) في المخطط، لذا يتعذّر حساب معدّل حلّ بلاغات التعليقات — أُعيدت null.',
+        commentReportsResolved,
+        commentThroughputPct: pct(commentReportsResolved, commentReportsOpened),
       },
       supportTicketsByStatus,
       payoutSuccess: {

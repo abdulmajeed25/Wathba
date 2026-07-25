@@ -5,6 +5,7 @@ import type { OperationDef } from '../operation.types';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { EmailService } from '../../email/email.service';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { SettingsService } from '../../settings/settings.service';
 
 /**
  * OPS Part 0 — project review + curation operations (STANDARD tier).
@@ -16,6 +17,8 @@ export interface ProjectsOpsDeps {
   prisma: PrismaService;
   notifications: NotificationsService;
   email: EmailService;
+  /// CLOSEOUT C1 — review duration limits are settings-driven, not hardcoded.
+  settings: SettingsService;
 }
 
 const DAY_MS = 86_400_000;
@@ -76,20 +79,30 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
           return p?.status === ProjectStatus.UNDER_REVIEW;
         },
       },
+      // CLOSEOUT C1 — both duration limits were HARDCODED (120 / 60) while the
+      // settings catalog exposed projects.durationHardMaxDays and
+      // projects.durationSelfServeMaxDays as tunable but unread (census: the
+      // self-serve key was catalog-only). They are now read from settings, so
+      // changing the setting actually changes review behaviour.
       {
         code: 'long-duration-blocked',
-        reasonAr: 'المدد التي تتجاوز ١٢٠ يوماً محظورة (سجل LONG_DURATION — بانتظار الرأي القانوني)',
+        reasonAr:
+          'المدة تتجاوز الحد الأقصى الصلب المسموح (projects.durationHardMaxDays) — محظورة بانتظار الرأي القانوني',
         check: async (db, input) => {
           const p = await db.project.findUnique({ where: { id: input.projectId } });
-          return !p || p.durationDays <= 120;
+          if (!p) return true;
+          return p.durationDays <= (await deps.settings.get('projects.durationHardMaxDays'));
         },
       },
       {
         code: 'duration-grant-required',
-        reasonAr: 'حملة أطول من ٦٠ يوماً تتطلب منح approvedDurationDays صريحاً (٦١–١٢٠)',
+        reasonAr:
+          'حملة أطول من حد الخدمة الذاتية (projects.durationSelfServeMaxDays) تتطلب منح approvedDurationDays صريحاً لا يقل عن مدة الحملة',
         check: async (db, input) => {
           const p = await db.project.findUnique({ where: { id: input.projectId } });
-          if (!p || p.durationDays <= 60) return true;
+          if (!p) return true;
+          const selfServeMax = await deps.settings.get('projects.durationSelfServeMaxDays');
+          if (p.durationDays <= selfServeMax) return true;
           const grant = input.approvedDurationDays ?? p.approvedDurationDays;
           return !!grant && grant >= p.durationDays;
         },
