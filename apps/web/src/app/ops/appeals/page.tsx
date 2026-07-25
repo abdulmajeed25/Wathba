@@ -21,6 +21,8 @@ import { appealStatusLabel } from './status';
 const KIND_OPTIONS = [
   { value: 'ACCOUNT_BAN', labelAr: 'حظر حساب' },
   { value: 'PROJECT_REJECTION', labelAr: 'رفض مشروع' },
+  // CLOSEOUT C4 — a hidden comment is appealable too.
+  { value: 'CONTENT_TAKEDOWN', labelAr: 'إخفاء تعليق' },
 ];
 
 const STATUS_OPTIONS = [

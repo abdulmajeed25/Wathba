@@ -8,7 +8,7 @@ const SESSION_COOKIE = 'wathba_session';
  * OPS-GAPS R1 — appellant BFF for submitting a moderation appeal.
  *
  *   POST /api/appeals → POST /v1/appeals
- *   body { kind:'ACCOUNT_BAN'|'PROJECT_REJECTION', subjectId, reasonAr }
+ *   body { kind:'ACCOUNT_BAN'|'PROJECT_REJECTION'|'CONTENT_TAKEDOWN', subjectId, reasonAr }
  *
  * Uses the caller's bearer (a banned user carries a SUSPENDED-flagged session
  * token that grants only appeal access). The token lives in an httpOnly cookie
