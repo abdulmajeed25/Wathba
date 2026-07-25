@@ -37,13 +37,21 @@ export function ContestsTable({ rows }: { rows: ContestRow[] }) {
       ),
     },
     {
-      key: 'entryCount',
-      label: 'المشاركات',
+      // CLOSEOUT C5 — was «المشاركات» reading `r.entryCount`, a field the API has
+      // never sent and cannot: Contest has no entries relation at all (only
+      // `winners`), so there is no entry count in the data model. Reading it
+      // undefined and calling .toLocaleString() on it made /ops/contests 500 on
+      // every load. Show target-vs-actual winners instead — both are real, and
+      // together they are the oversight number this column was reaching for.
+      key: 'targetWinnersCount',
+      label: 'الفائزون المستهدفون',
       align: 'center',
       sortable: true,
-      sortValue: (r) => r.entryCount,
-      csv: (r) => String(r.entryCount),
-      render: (r) => <span className="tabular-nums">{r.entryCount.toLocaleString('ar-SA')}</span>,
+      sortValue: (r) => r.targetWinnersCount,
+      csv: (r) => String(r.targetWinnersCount),
+      render: (r) => (
+        <span className="tabular-nums">{r.targetWinnersCount.toLocaleString('ar-SA')}</span>
+      ),
     },
     {
       key: 'winnerCount',

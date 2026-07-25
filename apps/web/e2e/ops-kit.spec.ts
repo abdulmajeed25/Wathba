@@ -85,7 +85,12 @@ test('op-runner: dry-run → preview → reason → MONEY confirm gates «تنف
   // Launch a MONEY op from the palette (dry-run returns a preview at {}).
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'لوحة الأوامر' });
-  await palette.getByRole('textbox').fill('صرف');
+  // CLOSEOUT C5 — query the op KEY, not «صرف». Sections rank before ops by
+  // design, and the money section's own hint reads «الصرف والتسويات
+  // والاستردادات», so the first option for «صرف» is that SECTION: clicking it
+  // navigates to /ops/money instead of opening a runner, and the runner dialog
+  // never appears. An op key matches no section, so this selects an operation.
+  await palette.getByRole('textbox').fill('money.payout.disburse');
   const moneyOpt = palette.getByRole('option').first();
   await expect(moneyOpt).toBeVisible();
   await moneyOpt.click();
@@ -95,7 +100,13 @@ test('op-runner: dry-run → preview → reason → MONEY confirm gates «تنف
   await expect(runner).toBeVisible();
 
   // Either a preview (reason + MONEY confirm gate) or explicit blockers.
+  // CLOSEOUT C5 — wait for the dry-run to settle into ONE of those two states
+  // first. isVisible() does not wait, so this raced the in-flight dry-run: the
+  // reason box was not painted yet, the else branch was taken, and it then
+  // asserted a blocker message that was never going to appear.
   const reason = runner.getByRole('textbox').first();
+  const blockedNote = runner.getByText(/لا يمكن التنفيذ|تعذّر/);
+  await expect(reason.or(blockedNote).first()).toBeVisible();
   if (await reason.isVisible().catch(() => false)) {
     const execBtn = runner.getByRole('button', { name: /تنفيذ/ });
     await expect(execBtn).toBeDisabled(); // no reason / no confirm yet

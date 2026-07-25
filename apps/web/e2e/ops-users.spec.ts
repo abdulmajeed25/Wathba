@@ -71,7 +71,9 @@ test('/ops/users renders cross-page census tiles + the KYC queue tab', async ({ 
 
   await page.goto('/ops/users');
   // Cross-page census tiles (users/stats) — active/moderated + verification.
-  await expect(page.getByText('نشط', { exact: true })).toBeVisible();
+  // CLOSEOUT C5 — «نشط» is also the status badge on every table row (40 matches),
+  // so match the TILE: a link whose accessible name is the label plus its count.
+  await expect(page.getByRole('link', { name: /^نشط\s/ }).first()).toBeVisible();
   await expect(page.getByText('موثّق نفاذ', { exact: true })).toBeVisible();
   await expect(page.getByText('موردون موثّقون', { exact: true })).toBeVisible();
 
@@ -88,7 +90,11 @@ test('a user detail page renders the operations panel', async ({ page, request }
   await enterOps(page);
 
   await page.goto(`/ops/users/${id}`);
-  await expect(page.getByRole('heading', { name: 'العمليات', exact: true })).toBeVisible();
+  // CLOSEOUT C5 — scope to the main region: the sidebar groups its nav under an
+  // h2 «العمليات» too, so an unscoped exact query is ambiguous.
+  await expect(
+    page.locator('#ops-main').getByRole('heading', { name: 'العمليات', exact: true }),
+  ).toBeVisible();
   // Governed lifecycle controls are present (suspend/reactivate + ban/unban).
   await expect(page.getByRole('button', { name: /إيقاف الحساب|إعادة تفعيل/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'كشف البريد والهاتف' })).toBeVisible();

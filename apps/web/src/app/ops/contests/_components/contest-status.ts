@@ -39,12 +39,20 @@ export function contestStatusIntent(status: string): StatusIntent {
   return CONTEST_STATUS_INTENT[status] ?? 'muted';
 }
 
-/** The list/detail row shape returned by GET /v1/ops/contests. */
+/**
+ * The list/detail row shape returned by GET /v1/ops/contests.
+ *
+ * CLOSEOUT C5 — `entryCount` was declared here and rendered by the table, but
+ * the API has never sent it and cannot: `Contest` has no entries relation, only
+ * `winners`. The table read it undefined and called .toLocaleString() on it, so
+ * /ops/contests 500ed on every load. Replaced with `targetWinnersCount`, which
+ * the read layer does return.
+ */
 export interface ContestRow {
   id: string;
   projectId: string;
   projectTitleAr: string | null;
   status: string;
-  entryCount: number;
+  targetWinnersCount: number;
   winnerCount: number;
 }
