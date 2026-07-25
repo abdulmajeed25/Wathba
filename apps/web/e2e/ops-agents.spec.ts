@@ -172,7 +172,9 @@ test('«الوكلاء» screen renders with the kill-switch state', async ({ pa
   await page.getByRole('button', { name: 'دخول إلى مركز العمليات' }).click();
   await page.waitForURL(/\/ops$/);
 
-  await page.getByRole('link', { name: 'الوكلاء' }).click();
+  // CLOSEOUT C5 — scope to the sidebar: «الوكلاء» is legitimately also a
+  // quick-link on the /ops home, so an unscoped role query is ambiguous.
+  await page.getByLabel('أقسام مركز العمليات').getByRole('link', { name: 'الوكلاء' }).click();
   await page.waitForURL(/\/ops\/agents/);
   await expect(page.getByText(/واجهة الوكلاء تعمل|مفتاح الإيقاف الشامل/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'إنشاء وكيل' })).toBeVisible();

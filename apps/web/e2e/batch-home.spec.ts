@@ -39,6 +39,13 @@ test('H2: the «مفضلات جديدة» carousel scrolls via its arrow buttons
   const section = page.locator('[data-section="fresh_favorites"]');
   await section.scrollIntoViewIfNeeded();
   const track = section.locator('.wathba-carousel-track');
+  // CLOSEOUT C5 — a track that does not overflow has nothing to scroll, and
+  // asserting a scroll then measures the dataset, not the carousel. This section
+  // is «مفضلات جديدة» (recently favourited), which on a minimal seed can hold a
+  // single card: scrollLeft stays 0 and the test fails for a reason that is not a
+  // defect. Gate on the precondition, keep the behaviour assertion below.
+  const overflows = await track.evaluate((el) => el.scrollWidth > el.clientWidth + 100);
+  test.skip(!overflows, 'carousel track does not overflow with this dataset — nothing to scroll');
   const before = await track.evaluate((el) => el.scrollLeft);
 
   await section.getByRole('button', { name: 'التالي' }).click();

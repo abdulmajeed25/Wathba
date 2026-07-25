@@ -1,13 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
 /** OPS Part 1 — the enter form posts to the BFF, which sets the httpOnly
  *  ops cookie; the raw token never touches client-side JS state beyond the
  *  request/response cycle. */
 export function EnterForm() {
-  const router = useRouter();
   const [password, setPassword] = useState('');
   const [totp, setTotp] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +26,13 @@ export function EnterForm() {
         setError(Array.isArray(body.message) ? body.message.join('، ') : (body.message ?? 'تعذّر الدخول'));
         return;
       }
-      router.push('/ops');
-      router.refresh();
+      // CLOSEOUT C5 — a HARD navigation, deliberately, not router.push().
+      // Entering ops mints a new cookie, and the App Router has already
+      // prefetched /ops from BEFORE it existed: those prefetches were 307s to
+      // /ops/enter, so a soft push replays the cached redirect and dumps the
+      // operator back at the door they just walked through. A full document
+      // load re-requests with the new cookie and discards the RSC cache.
+      window.location.assign('/ops');
     } catch {
       setError('تعذّر الوصول إلى الخادم');
     } finally {

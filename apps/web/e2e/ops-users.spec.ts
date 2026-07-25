@@ -17,7 +17,7 @@ const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 let apiUp = false;
 test.beforeAll(async () => {
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/v1/health`);
     apiUp = r.ok;
   } catch {
     apiUp = false;
@@ -71,7 +71,9 @@ test('/ops/users renders cross-page census tiles + the KYC queue tab', async ({ 
 
   await page.goto('/ops/users');
   // Cross-page census tiles (users/stats) — active/moderated + verification.
-  await expect(page.getByText('نشط', { exact: true })).toBeVisible();
+  // CLOSEOUT C5 — «نشط» is also the status badge on every table row (40 matches),
+  // so match the TILE: a link whose accessible name is the label plus its count.
+  await expect(page.getByRole('link', { name: /^نشط\s/ }).first()).toBeVisible();
   await expect(page.getByText('موثّق نفاذ', { exact: true })).toBeVisible();
   await expect(page.getByText('موردون موثّقون', { exact: true })).toBeVisible();
 
@@ -88,7 +90,11 @@ test('a user detail page renders the operations panel', async ({ page, request }
   await enterOps(page);
 
   await page.goto(`/ops/users/${id}`);
-  await expect(page.getByRole('heading', { name: 'العمليات', exact: true })).toBeVisible();
+  // CLOSEOUT C5 — scope to the main region: the sidebar groups its nav under an
+  // h2 «العمليات» too, so an unscoped exact query is ambiguous.
+  await expect(
+    page.locator('#ops-main').getByRole('heading', { name: 'العمليات', exact: true }),
+  ).toBeVisible();
   // Governed lifecycle controls are present (suspend/reactivate + ban/unban).
   await expect(page.getByRole('button', { name: /إيقاف الحساب|إعادة تفعيل/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'كشف البريد والهاتف' })).toBeVisible();
@@ -106,5 +112,11 @@ test('/ops/trust renders the moderation surface', async ({ page }) => {
   await page.goto('/ops/trust');
   await expect(page.getByRole('heading', { name: 'الثقة والسلامة', exact: true })).toBeVisible();
   await expect(page.getByText('إجمالي البلاغات المفتوحة')).toBeVisible();
-  await expect(page.getByText('إشراف مُوجَّه بالمعرّف')).toBeVisible();
+  // CLOSEOUT C5 — this asserted «إشراف مُوجَّه بالمعرّف», copy that has never
+  // existed in the app: OPS-360 Unit 3 deliberately replaced blind id-paste
+  // moderation with a REAL queue, and the page says so in as many words. The
+  // assertion was left describing the superseded design and, because this whole
+  // file self-skipped on a broken health probe, never failed loudly. Assert the
+  // design that actually shipped.
+  await expect(page.getByText('لا صندوق لصق أعمى هنا')).toBeVisible();
 });

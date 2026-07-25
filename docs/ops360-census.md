@@ -116,3 +116,15 @@ Clean full-loop today: **support ticket**, **single/project refund**, **PDPL exp
 
 ## Distance to launch — unchanged and external
 Coverage and control are now enterprise-grade; the only launch gates remain **external procurement + a TLS front door** (Moyasar/Nafath/ZATCA credentials, payout-provider contract, domain + HTTPS) — not code.
+
+---
+
+# 🔒 RE-SCORED — after Batch CLOSEOUT (2026-07-25)
+
+The residual table above was worked by importance. See **`closeout-batch.md`** for the full artifact (units, fixes, FSM, registry delta). Summary of the re-score:
+
+**7 of the 8 buildable residuals are closed** (appeals workflow · `RFQ_AWARDED` + losing-bidder fan-out · email-template + notification management · content reads on the ops layer incl. hidden categories · `commentReportsResolved` · `durationSelfServeMaxDays` enforcement · maintenance mode). **1 remains open** (server-side cross-cursor table sort — belongs behind a governed streamed export endpoint; not launch-blocking). **3 are deferred by explicit decision** (live impersonation · money-rate DB-tunability · top-of-funnel visit analytics).
+
+Refreshed dashboard platform-coverage: **≈ 90% → ≈ 95%**.
+
+**One correction to this document's own record.** The census reported the browser suite as green. It was not: 13 ops e2e specs gated on `${API}/health`, a 404 (the route is `/v1/health`), so `apiUp` was always false and every test in them self-skipped — "skipped" reading as green. Arming the probe surfaced 24 real failures, including a **hard 500 on `/ops/analytics`** (the page read `dropoffs`, the API returns `dropOff`) and a **middleware bug that deleted a live session on any non-401 identity-probe failure**, so a rate-limited operator was silently signed out. Both are fixed. Coverage figures in this file describe *surface that exists*; until CLOSEOUT C5 they were not evidence that the surface *worked*.

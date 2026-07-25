@@ -274,6 +274,14 @@ const APPEAL_KIND_AR: Record<AppealKind, string> = {
 /** The audit-log action string each appealable decision writes (ops.${key}). */
 const BAN_AUDIT_ACTION = 'ops.moderation.user.ban';
 const REJECT_AUDIT_ACTION = 'ops.projects.review.reject';
+// CLOSEOUT C5 — the third appealable decision. C4 taught the ops and the queue
+// about CONTENT_TAKEDOWN but not this detail read, which fell through to the
+// PROJECT_REJECTION branch: it looked up a Project by a Comment id (null) and
+// found no reject-audit row, so `originalDeciderId` came back null and the
+// workspace could not warn the moderator who hid the comment that the case was
+// theirs. The op still refused the self-review server-side — the invariant held
+// — but the screen was blind to it.
+const TAKEDOWN_AUDIT_ACTION = 'ops.moderation.comment.moderate';
 
 const MS_PER_HOUR = 3_600_000;
 
@@ -1848,6 +1856,35 @@ export class OpsReadService {
           : null,
         decision: banLog
           ? { actorId: banLog.actorId, reason: banLog.reason, at: iso(banLog.createdAt) }
+          : null,
+      };
+    } else if (a.kind === 'CONTENT_TAKEDOWN') {
+      const [comment, hideLog] = await Promise.all([
+        this.prisma.comment.findUnique({
+          where: { id: a.subjectId },
+          // NB: Comment's timestamp column is `date`, not `createdAt`.
+          select: { id: true, bodyAr: true, hidden: true, projectId: true, date: true },
+        }),
+        this.prisma.auditLog.findFirst({
+          where: { action: TAKEDOWN_AUDIT_ACTION, entityId: a.subjectId },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+      originalDeciderId = hideLog?.actorId ?? null;
+      original = {
+        comment: comment
+          ? {
+              id: comment.id,
+              // The contested text itself: an operator cannot judge whether a
+              // takedown was right without reading what was taken down.
+              bodyAr: comment.bodyAr,
+              hidden: comment.hidden,
+              projectId: comment.projectId,
+              createdAt: iso(comment.date),
+            }
+          : null,
+        decision: hideLog
+          ? { actorId: hideLog.actorId, reason: hideLog.reason, at: iso(hideLog.createdAt) }
           : null,
       };
     } else {

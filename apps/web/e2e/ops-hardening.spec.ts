@@ -119,7 +119,13 @@ test('entering through the web mints a DISTINCT httpOnly cookie and lands on the
   await page.locator('#ops-password').fill(SMOKE.pass);
   await page.getByRole('button', { name: 'دخول إلى مركز العمليات' }).click();
   await page.waitForURL(/\/ops$/);
-  await expect(page.getByText('جلسة العمليات نشطة')).toBeVisible();
+  // CLOSEOUT C5 — this asserted «جلسة العمليات نشطة», copy that has never
+  // existed in the app. What the test NAME promises is that entering lands on
+  // the shell, so assert the shell: the ops chrome plus the surveillance notice
+  // the header does carry. (This file self-skipped on a broken health probe, so
+  // the stale assertion never surfaced.)
+  await expect(page.getByText('سطح داخلي — مراقَب ومسجَّل')).toBeVisible();
+  await expect(page.getByLabel('أقسام مركز العمليات')).toBeVisible();
 
   const cookies = await page.context().cookies();
   const pub = cookies.find((c) => c.name === 'wathba_session');

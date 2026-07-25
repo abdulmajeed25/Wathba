@@ -2,6 +2,7 @@ import 'server-only';
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 
 /**
  * OPS Part 1 — server-side guards for the /ops route group.
@@ -20,24 +21,40 @@ export const API_BASE =
 export const OPS_COOKIE = 'wathba_ops_session';
 export const SESSION_COOKIE = 'wathba_session';
 
-/** Public-session ADMIN check — redirects away on any failure. */
-export async function requireAdmin(): Promise<{ token: string }> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) redirect('/sign-in?next=/ops');
-  let ok = false;
+/**
+ * CLOSEOUT C5 — one identity probe per REQUEST, not per component.
+ *
+ * `requireAdmin()` is called by the /ops layout and again by every page and
+ * nested server component beneath it — that is the intended defense in depth,
+ * and it stays. What was not intended is that each call opened its own round
+ * trip: a single board render spent three or four `users/me` calls, and a few
+ * quick navigations were enough to exhaust the operator's own rate-limit bucket
+ * and get them bounced off the surface (19-103 × HTTP 429 per e2e suite run).
+ *
+ * `cache()` is request-scoped memoization: identical calls within one render
+ * collapse into one fetch, and nothing is shared across requests or users. The
+ * check every component performs is unchanged — it is simply not re-asked.
+ */
+const probeIdentity = cache(async (token: string): Promise<{ ok: boolean; roles: string[] }> => {
   try {
     const r = await fetch(`${API_BASE}/v1/users/me`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
-    if (r.ok) {
-      const me = (await r.json()) as { roles: string[] };
-      ok = me.roles.includes('ADMIN');
-    }
+    if (!r.ok) return { ok: false, roles: [] };
+    const me = (await r.json()) as { roles?: string[] };
+    return { ok: true, roles: me.roles ?? [] };
   } catch {
-    ok = false; // API unreachable → refuse, never degrade, on this surface.
+    return { ok: false, roles: [] }; // API unreachable → refuse, never degrade.
   }
-  if (!ok) redirect('/projects');
+});
+
+/** Public-session ADMIN check — redirects away on any failure. */
+export async function requireAdmin(): Promise<{ token: string }> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!token) redirect('/sign-in?next=/ops');
+  const { ok, roles } = await probeIdentity(token!);
+  if (!ok || !roles.includes('ADMIN')) redirect('/projects');
   return { token: token! };
 }
 
@@ -52,20 +69,26 @@ export interface OpsSessionInfo {
   enteredAt: string;
 }
 
+/** Request-scoped, for the same reason as `probeIdentity` above: the ops-session
+ *  resolve is re-asked by every component that needs the token. The API still
+ *  enforces the 60-minute idle window on each real call it receives. */
+const resolveOpsSession = cache(async (opsToken: string): Promise<OpsSessionInfo | null> => {
+  try {
+    const r = await fetch(`${API_BASE}/v1/ops/auth/session`, {
+      headers: { 'x-ops-token': opsToken },
+      cache: 'no-store',
+    });
+    return r.ok ? ((await r.json()) as OpsSessionInfo) : null;
+  } catch {
+    return null;
+  }
+});
+
 /** Resolve the SEPARATE ops session; dead/absent → back to the enter door. */
 export async function requireOpsSession(): Promise<{ opsToken: string; info: OpsSessionInfo }> {
   const opsToken = (await cookies()).get(OPS_COOKIE)?.value;
   if (!opsToken) redirect('/ops/enter');
-  let info: OpsSessionInfo | null = null;
-  try {
-    const r = await fetch(`${API_BASE}/v1/ops/auth/session`, {
-      headers: { 'x-ops-token': opsToken! },
-      cache: 'no-store',
-    });
-    if (r.ok) info = (await r.json()) as OpsSessionInfo;
-  } catch {
-    info = null;
-  }
+  const info = await resolveOpsSession(opsToken!);
   if (!info) redirect('/ops/enter');
-  return { opsToken: opsToken!, info: info! };
+  return { opsToken: opsToken!, info };
 }

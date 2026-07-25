@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { SubjectThrottlerGuard } from './common/subject-throttler.guard';
 import { CommonModule } from './common/common.module';
 import { SupportModule } from './support/support.module';
 import { OpsModule } from './ops/ops.module';
@@ -44,7 +45,14 @@ import { AppealsModule } from './appeals/appeals.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, cache: true }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    // CLOSEOUT C5 — env-tunable like the three route-level knobs already are
+    // (AUTH_SIGNIN / AUTH_SIGNUP / OPS_AUTH). The default is unchanged at 120,
+    // so deployed behaviour is identical; the golden e2e stack drives one
+    // account through ~60 serial operator journeys and needs headroom the
+    // limiter is right to deny a real single user.
+    ThrottlerModule.forRoot([
+      { ttl: 60_000, limit: Number(process.env.THROTTLE_LIMIT ?? 120) },
+    ]),
     HeartbeatModule,
     CommonModule,
     SupportModule,
@@ -82,6 +90,8 @@ import { AppealsModule } from './appeals/appeals.module';
     AppealsModule,
   ],
   controllers: [HealthController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  // CLOSEOUT C5 — per-subject buckets (see subject-throttler.guard.ts); the
+  // stock IP tracker made every signed-in user share one bucket behind the BFF.
+  providers: [{ provide: APP_GUARD, useClass: SubjectThrottlerGuard }],
 })
 export class AppModule {}

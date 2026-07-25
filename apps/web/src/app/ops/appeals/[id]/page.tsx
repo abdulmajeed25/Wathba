@@ -36,58 +36,67 @@ interface AuditEntry {
   createdAt: string;
 }
 
+/**
+ * CLOSEOUT C5 — this interface now matches what `GET /v1/ops/appeals/:id`
+ * actually returns (see ops-read.service.appealDetail). It previously described
+ * a different, flatter shape: `submitter` as a string when the API sends an
+ * object, `decidedAt`/`decisionReason` at the top level when they live under
+ * `decision`, and a `suspension`/`reviewFeedback`/`originalDecision` trio the
+ * API nests under `original`. Rendering `{d.submitter}` therefore handed React
+ * an object and threw, so this workspace — the screen where an appeal is
+ * actually adjudicated — 500ed on every appeal that reached it. It went
+ * unnoticed because the e2e that opens it skips when the queue is empty, and the
+ * queue was empty in every environment.
+ */
 interface AppealDetail {
   id: string;
-  kind: 'ACCOUNT_BAN' | 'PROJECT_REJECTION' | string;
+  kind: 'ACCOUNT_BAN' | 'PROJECT_REJECTION' | 'CONTENT_TAKEDOWN' | string;
   kindAr: string;
   subjectId: string;
   status: string;
   reasonAr: string | null;
-  submitter: string;
-  createdAt: string;
-  decidedAt: string | null;
-  outcome: string | null;
-  decisionReason: string | null;
-  originalDeciderId: string | null;
-  /** Ban context — the suspension block. */
-  suspension?: {
-    reasonAr?: string | null;
-    bannedAt?: string | null;
-    expiresAt?: string | null;
-    permanent?: boolean;
+  /** Age + SLA, resolved server-side against the configured settings key. */
+  ageHours: number;
+  overdue: boolean;
+  slaHours: number;
+  /** PII-masked at the source (email arrives as `a***@e***.sa`). */
+  submitter: { id: string; name: string | null; handle: string | null; email: string | null } | null;
+  decision: {
+    decidedById: string | null;
+    decisionReason: string | null;
+    decidedAt: string | null;
   } | null;
-  /** Rejection context — the project's review feedback. */
-  reviewFeedback?: string | null;
-  projectTitleAr?: string | null;
-  /** The ban/reject AuditLog entry that this appeal contests. */
-  originalDecision?: AuditEntry | null;
-}
-
-/** Session shape — read only for the operator id (four-eyes comparison). */
-interface OpsSessionId {
-  id?: string;
-  operatorId?: string;
-  operatorUserId?: string;
-  userId?: string;
-  sub?: string;
+  originalDeciderId: string | null;
+  /** Computed by the API against the CURRENT operator — the four-eyes verdict. */
+  isSelfReview: boolean;
+  original: {
+    user?: { id: string; handle: string | null } | null;
+    suspension?: {
+      suspendedAt: string | null;
+      suspendedKind: string | null;
+      suspendedReasonAr: string | null;
+    } | null;
+    project?: {
+      id: string;
+      titleAr: string | null;
+      status: string;
+      reviewFeedback: string | null;
+      reviewedAt: string | null;
+    } | null;
+    comment?: {
+      id: string;
+      bodyAr: string | null;
+      hidden: boolean;
+      projectId: string | null;
+      createdAt: string | null;
+    } | null;
+    decision?: { actorId: string | null; reason: string | null; at: string | null } | null;
+  } | null;
+  createdAt: string;
 }
 
 function fmtDate(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-}
-
-async function fetchOperatorId(opsToken: string): Promise<string | null> {
-  try {
-    const r = await fetch(`${API_BASE}/v1/ops/auth/session`, {
-      headers: { 'x-ops-token': opsToken },
-      cache: 'no-store',
-    });
-    if (!r.ok) return null;
-    const s = (await r.json()) as OpsSessionId;
-    return s.operatorUserId ?? s.operatorId ?? s.userId ?? s.id ?? s.sub ?? null;
-  } catch {
-    return null;
-  }
 }
 
 export default async function OpsAppealDetailPage({
@@ -114,8 +123,6 @@ export default async function OpsAppealDetailPage({
   } catch {
     /* API unreachable — states render below */
   }
-
-  const operatorId = detail ? await fetchOperatorId(opsToken) : null;
 
   // The subject entity trail (User for a ban, Project for a rejection).
   if (detail) {
@@ -187,8 +194,13 @@ export default async function OpsAppealDetailPage({
 
   const d = detail;
   const isBan = d.kind === 'ACCOUNT_BAN';
-  const subjectEntity = isBan ? 'User' : 'Project';
-  const conflict = !!operatorId && !!d.originalDeciderId && operatorId === d.originalDeciderId;
+  const isTakedown = d.kind === 'CONTENT_TAKEDOWN';
+  const subjectEntity = isBan ? 'User' : isTakedown ? 'Comment' : 'Project';
+  const subjectLabel = isBan ? 'المستخدم' : isTakedown ? 'التعليق' : 'المشروع';
+  // The API resolves four-eyes against the CURRENT operator and hands down the
+  // verdict; the screen no longer re-derives it from a second session fetch.
+  const conflict = d.isSelfReview;
+  const submitterName = d.submitter?.name?.trim() || d.submitter?.handle || '—';
 
   return (
     <div className="space-y-6">
@@ -198,10 +210,17 @@ export default async function OpsAppealDetailPage({
             <h1 className="text-lg font-bold">تظلّم — {d.kindAr}</h1>
             <StatusBadge intent={appealStatusIntent(d.status)}>{appealStatusLabel(d.status)}</StatusBadge>
             <StatusBadge intent={isBan ? 'danger' : 'warn'}>{d.kindAr}</StatusBadge>
+            {d.overdue ? (
+              <StatusBadge intent="danger">
+                متأخّر عن المهلة ({d.slaHours} ساعة)
+              </StatusBadge>
+            ) : null}
           </div>
           <p className="mt-1 text-sm text-[#8b949e]">
-            مُقدِّم التظلّم: {d.submitter} · قُدِّم {fmtDate(d.createdAt)}
-            {d.decidedAt ? ` · حُسِم ${fmtDate(d.decidedAt)}` : ''}
+            مُقدِّم التظلّم: {submitterName}
+            {d.submitter?.email ? ` (${d.submitter.email})` : ''} · قُدِّم {fmtDate(d.createdAt)} ·
+            العمر {d.ageHours} ساعة
+            {d.decision?.decidedAt ? ` · حُسِم ${fmtDate(d.decision.decidedAt)}` : ''}
           </p>
         </div>
         {back}
@@ -221,26 +240,55 @@ export default async function OpsAppealDetailPage({
         {isBan ? (
           <div className="space-y-2 rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             <p className="font-bold">حظر حساب</p>
-            {d.suspension?.reasonAr ? <p>السبب: {d.suspension.reasonAr}</p> : null}
+            {d.original?.suspension?.suspendedReasonAr ? (
+              <p>السبب: {d.original.suspension.suspendedReasonAr}</p>
+            ) : null}
             <p className="text-xs text-red-200/80">
-              {d.suspension?.permanent
-                ? 'حظر دائم'
-                : d.suspension?.expiresAt
-                  ? `ينتهي ${fmtDate(d.suspension.expiresAt)}`
-                  : 'مدة غير محدَّدة'}
-              {d.suspension?.bannedAt ? ` · حُظِر ${fmtDate(d.suspension.bannedAt)}` : ''}
+              {d.original?.suspension?.suspendedKind
+                ? `نوع الإيقاف: ${d.original.suspension.suspendedKind}`
+                : 'الحساب غير موقوف حالياً'}
+              {d.original?.suspension?.suspendedAt
+                ? ` · حُظِر ${fmtDate(d.original.suspension.suspendedAt)}`
+                : ''}
             </p>
-            {!d.suspension ? (
+            {!d.original?.suspension ? (
               <p className="text-xs text-red-200/80">لم تُرفَق تفاصيل الحظر مع القرار.</p>
+            ) : null}
+          </div>
+        ) : isTakedown ? (
+          <div className="space-y-2 rounded border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            <p className="font-bold">إخفاء تعليق</p>
+            {/* The contested text: an operator cannot judge a takedown without
+                reading what was taken down. */}
+            {d.original?.comment?.bodyAr ? (
+              <blockquote className="rounded border border-red-500/30 bg-[#0d1117] px-3 py-2 text-[#e6edf3]">
+                {d.original.comment.bodyAr}
+              </blockquote>
+            ) : (
+              <p className="text-xs text-red-200/80">التعليق غير متاح (قد يكون حُذف).</p>
+            )}
+            <p className="text-xs text-red-200/80">
+              {d.original?.comment?.hidden ? 'مخفي حالياً' : 'ظاهر حالياً'}
+              {d.original?.comment?.createdAt
+                ? ` · نُشر ${fmtDate(d.original.comment.createdAt)}`
+                : ''}
+            </p>
+            {d.original?.comment?.projectId ? (
+              <Link
+                href={`/ops/projects/${d.original.comment.projectId}/comments`}
+                className="inline-block text-xs text-[#58a6ff] hover:underline"
+              >
+                فتح تعليقات المشروع في مركز العمليات ←
+              </Link>
             ) : null}
           </div>
         ) : (
           <div className="space-y-2 rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
             <p className="font-bold">
-              رفض مشروع{d.projectTitleAr ? ` — ${d.projectTitleAr}` : ''}
+              رفض مشروع{d.original?.project?.titleAr ? ` — ${d.original.project.titleAr}` : ''}
             </p>
-            {d.reviewFeedback ? (
-              <p>ملاحظات المراجعة: {d.reviewFeedback}</p>
+            {d.original?.project?.reviewFeedback ? (
+              <p>ملاحظات المراجعة: {d.original.project.reviewFeedback}</p>
             ) : (
               <p className="text-xs text-amber-200/80">لم تُرفَق ملاحظات مراجعة مع القرار.</p>
             )}
@@ -253,21 +301,20 @@ export default async function OpsAppealDetailPage({
           </div>
         )}
 
-        {d.originalDecision ? (
+        {d.original?.decision ? (
           <div className="rounded border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm">
             <p className="mb-1 text-xs text-[#8b949e]">قيد التدقيق للقرار الأصلي</p>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="tabular-nums text-[#484f58]">#{d.originalDecision.chainSeq}</span>
-              <code className="font-mono text-xs text-[#e6edf3]">{d.originalDecision.action}</code>
               <span className="whitespace-nowrap text-xs text-[#8b949e]">
-                {fmtDate(d.originalDecision.createdAt)}
+                {fmtDate(d.original.decision.at)}
               </span>
               <span className="text-xs text-[#8b949e]">
-                القرار الأصلي: <ActorName id={d.originalDeciderId} className="text-xs" />
+                صاحب القرار الأصلي:{' '}
+                <ActorName id={d.original.decision.actorId ?? d.originalDeciderId} className="text-xs" />
               </span>
             </div>
-            {d.originalDecision.reason ? (
-              <p className="mt-1 text-xs text-[#8b949e]">— {d.originalDecision.reason}</p>
+            {d.original.decision.reason ? (
+              <p className="mt-1 text-xs text-[#8b949e]">— {d.original.decision.reason}</p>
             ) : null}
           </div>
         ) : (
@@ -283,7 +330,9 @@ export default async function OpsAppealDetailPage({
           <h2 className="text-base font-bold">قرار التظلّم</h2>
           <div className="rounded border border-[#30363d] bg-[#0d1117] px-4 py-3 text-sm">
             <StatusBadge intent={appealStatusIntent(d.status)}>{appealStatusLabel(d.status)}</StatusBadge>
-            {d.decisionReason ? <p className="mt-2 text-[#8b949e]">— {d.decisionReason}</p> : null}
+            {d.decision?.decisionReason ? (
+              <p className="mt-2 text-[#8b949e]">— {d.decision.decisionReason}</p>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -357,9 +406,9 @@ export default async function OpsAppealDetailPage({
 
       {/* The subject's immutable audit trail */}
       <section className="space-y-2">
-        <h2 className="text-base font-bold">الخط الزمني للتدقيق ({isBan ? 'المستخدم' : 'المشروع'})</h2>
+        <h2 className="text-base font-bold">الخط الزمني للتدقيق ({subjectLabel})</h2>
         <p className="text-xs text-[#8b949e]">
-          كل عملية محكومة لمست هذا {isBan ? 'الحساب' : 'المشروع'} — من السجل غير القابل للتعديل.{' '}
+          كل عملية محكومة لمست هذا {subjectLabel} — من السجل غير القابل للتعديل.{' '}
           <Link
             href={`/ops/audit?entity=${subjectEntity}&entityId=${d.subjectId}`}
             className="text-[#58a6ff] hover:underline"

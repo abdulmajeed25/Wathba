@@ -21,7 +21,7 @@ const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 let apiUp = false;
 test.beforeAll(async () => {
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/v1/health`);
     apiUp = r.ok;
   } catch {
     apiUp = false;
