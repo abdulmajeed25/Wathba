@@ -66,7 +66,11 @@ interface FunnelDto {
     pledgers: number;
     repeatPledgers: number;
   };
-  dropoffs: {
+  // CLOSEOUT C5 — the API key is `dropOff` (see ops-analytics.service.ts); this
+  // read `dropoffs`, so the object was undefined and the screen 500ed on every
+  // load. The e2e that would have caught it was gate-skipped by a broken health
+  // probe, so a hard-crashing analytics page shipped unnoticed.
+  dropOff: {
     visitToSignupPct: number | null;
     signupToEmailVerifiedPct: number | null;
     emailVerifiedToNafathVerifiedPct: number | null;
@@ -220,20 +224,20 @@ export default async function OpsAnalyticsPage({
           key: 'emailVerified',
           label: 'تأكيد البريد',
           value: f.stages.emailVerified,
-          retentionPct: f.dropoffs.signupToEmailVerifiedPct,
+          retentionPct: f.dropOff.signupToEmailVerifiedPct,
         },
         {
           key: 'nafathVerified',
           label: 'توثيق نفاذ',
           value: f.stages.nafathVerified,
-          retentionPct: f.dropoffs.emailVerifiedToNafathVerifiedPct,
+          retentionPct: f.dropOff.emailVerifiedToNafathVerifiedPct,
         },
         { key: 'pledgers', label: 'المتعهّدون', value: f.stages.pledgers, retentionPct: null },
         {
           key: 'repeatPledgers',
           label: 'تعهّد متكرّر',
           value: f.stages.repeatPledgers,
-          retentionPct: f.dropoffs.pledgerToRepeatPct,
+          retentionPct: f.dropOff.pledgerToRepeatPct,
         },
       ]
     : [];

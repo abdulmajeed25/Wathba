@@ -90,7 +90,9 @@ test('«سجل التدقيق» renders server-first with the chain verdict', as
   await page.getByRole('button', { name: 'دخول إلى مركز العمليات' }).click();
   await page.waitForURL(/\/ops$/);
 
-  await page.getByRole('link', { name: 'سجل التدقيق' }).click();
+  // CLOSEOUT C5 — scope to the sidebar: «سجل التدقيق» is also a quick-link and a
+  // cross-reference on the /ops home, so an unscoped role query is ambiguous.
+  await page.getByLabel('أقسام مركز العمليات').getByRole('link', { name: 'سجل التدقيق' }).click();
   await page.waitForURL(/\/ops\/audit/);
   await expect(page.getByText(/السلسلة سليمة/)).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'الإجراء' })).toBeVisible();

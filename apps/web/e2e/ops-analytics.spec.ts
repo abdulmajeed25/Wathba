@@ -17,7 +17,7 @@ const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 let apiUp = false;
 test.beforeAll(async () => {
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/v1/health`);
     apiUp = r.ok;
   } catch {
     apiUp = false;
@@ -46,9 +46,12 @@ test('the analytics page renders the five sections with a live date-range contro
   await page.goto('/ops/analytics');
 
   await expect(page.getByRole('heading', { name: 'القياس والتقارير', level: 1 })).toBeVisible();
-  // Section headings.
+  // Section headings. CLOSEOUT C5 — scoped to the main region: the sidebar
+  // groups the nav under h2s with some of the same labels («المشاريع»), so an
+  // unscoped level-2 query is ambiguous.
+  const main = page.locator('#ops-main');
   for (const h of ['التقرير المالي', 'قمع التحويل', 'المشاريع', 'المستخدمون', 'التشغيل']) {
-    await expect(page.getByRole('heading', { name: h, level: 2 })).toBeVisible();
+    await expect(main.getByRole('heading', { name: h, level: 2 })).toBeVisible();
   }
   // The date-range control now drives the fetch (real submit button, not dead).
   await expect(page.getByRole('button', { name: 'تطبيق النطاق' })).toBeVisible();

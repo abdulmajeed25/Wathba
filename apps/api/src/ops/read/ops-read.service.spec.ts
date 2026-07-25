@@ -1230,6 +1230,60 @@ describe('OpsReadService', () => {
       assertNoRawPII(out);
     });
 
+    // CLOSEOUT C5 — the third kind. Without its own branch this fell through to
+    // PROJECT_REJECTION: a Project lookup by a Comment id (null) and no
+    // reject-audit row, so originalDeciderId came back null and the workspace
+    // could not warn the moderator who hid the comment that the case was theirs.
+    it('CONTENT_TAKEDOWN: returns the hidden comment + the moderate audit row, and trips self-review', async () => {
+      const db = buildPrisma();
+      db.appeal.findUnique.mockResolvedValue({
+        id: 'a3', kind: 'CONTENT_TAKEDOWN', subjectId: 'c7', submittedById: 'u3',
+        reasonAr: 'تعليقي لم يخالف الشروط', status: 'UNDER_REVIEW',
+        decidedById: null, decisionReason: null, decidedAt: null, createdAt: new Date(),
+      });
+      db.user.findUnique.mockResolvedValue({ id: 'u3', name: 'Sara', handle: 'sara', email: RAW_EMAIL });
+      db.comment.findUnique.mockResolvedValue({
+        id: 'c7', bodyAr: 'نص التعليق المخفي', hidden: true, projectId: 'proj4', date: new Date(),
+      });
+      db.auditLog.findFirst.mockResolvedValue({
+        actorId: 'moderator-5', reason: 'إساءة', createdAt: new Date(),
+      });
+
+      const out = await svc(db).appealDetail('a3', 'moderator-5');
+
+      // The contested text is present: an operator cannot judge a takedown
+      // without reading what was taken down.
+      expect(out.original!.comment).toMatchObject({ bodyAr: 'نص التعليق المخفي', hidden: true });
+      expect(out.original!.decision).toMatchObject({ actorId: 'moderator-5', reason: 'إساءة' });
+      expect(out.originalDeciderId).toBe('moderator-5');
+      expect(out.isSelfReview).toBe(true); // the hiding moderator is warned off
+      // Recovered from the COMMENT takedown row, not a ban/reject row.
+      const w = db.auditLog.findFirst.mock.calls[0]![0].where;
+      expect(w.action).toBe('ops.moderation.comment.moderate');
+      expect(w.entityId).toBe('c7');
+      // It must NOT have gone looking for a project.
+      expect(db.project.findUnique).not.toHaveBeenCalled();
+      assertNoRawPII(out);
+    });
+
+    it('CONTENT_TAKEDOWN: a different operator is not blocked, and a deleted comment degrades to null', async () => {
+      const db = buildPrisma();
+      db.appeal.findUnique.mockResolvedValue({
+        id: 'a4', kind: 'CONTENT_TAKEDOWN', subjectId: 'c8', submittedById: 'u4',
+        reasonAr: 'أرجو إعادة النظر في إخفاء تعليقي', status: 'SUBMITTED',
+        decidedById: null, decisionReason: null, decidedAt: null, createdAt: new Date(),
+      });
+      db.user.findUnique.mockResolvedValue({ id: 'u4', name: 'Nora', handle: 'nora', email: RAW_EMAIL });
+      db.comment.findUnique.mockResolvedValue(null); // comment since deleted
+      db.auditLog.findFirst.mockResolvedValue({
+        actorId: 'moderator-5', reason: 'إساءة', createdAt: new Date(),
+      });
+
+      const out = await svc(db).appealDetail('a4', 'moderator-9');
+      expect(out.original!.comment).toBeNull(); // no crash, an honest null
+      expect(out.isSelfReview).toBe(false);
+    });
+
     it('throws NotFound for a missing appeal', async () => {
       const db = buildPrisma();
       db.appeal.findUnique.mockResolvedValue(null);

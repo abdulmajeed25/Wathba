@@ -114,12 +114,31 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
       url.searchParams.set('next', pathname + (search || ''));
       return NextResponse.redirect(url);
     }
+    // CLOSEOUT C5 — an RSC prefetch does not need the role probe. The gate that
+    // actually protects this surface is the layout's own requireAdmin() (see
+    // app/ops/layout.tsx): it runs on every render, prefetched or not, and
+    // redirects a non-ADMIN before any operator content is produced. Spending a
+    // second network round-trip here per prefetch bought no security and cost
+    // enough quota to lock operators out of their own console. A prefetch with
+    // no session was already turned away above.
+    if (req.headers.get('next-router-prefetch') === '1') {
+      const res = NextResponse.next();
+      res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+      return res;
+    }
     try {
       const meRes = await fetch(`${API_BASE}/v1/users/me`, {
         headers: { Authorization: `Bearer ${session}` },
         cache: 'no-store',
       });
-      if (!meRes.ok) {
+      // CLOSEOUT C5 — ONLY a verdict from the API may destroy a session.
+      // 401/403 means "this credential is not good" → sign out. Anything else
+      // (429 from the shared SSR rate-limit bucket, a 5xx, a blip) is the API
+      // failing to ANSWER, not a rejection of the token: deleting the cookies
+      // there logged the operator out of a live session mid-navigation, and
+      // because every /ops view spends an identity probe, a burst of clicking
+      // was enough to trigger it. Refuse the surface, keep the credential.
+      if (meRes.status === 401 || meRes.status === 403) {
         const url = req.nextUrl.clone();
         url.pathname = '/sign-in';
         url.searchParams.set('next', pathname + (search || ''));
@@ -127,6 +146,14 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
         res.cookies.delete('wathba_session');
         res.cookies.delete('wathba_refresh');
         return res;
+      }
+      if (!meRes.ok) {
+        // Indeterminate — REFUSE rather than degrade on the ops surface, but
+        // never confiscate the session over it (same stance as the catch below).
+        const url = req.nextUrl.clone();
+        url.pathname = '/projects';
+        url.search = '';
+        return NextResponse.redirect(url);
       }
       const me = (await meRes.json()) as { roles: string[] };
       if (!me.roles.includes('ADMIN')) {

@@ -17,7 +17,7 @@ const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 let apiUp = false;
 test.beforeAll(async () => {
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/v1/health`);
     apiUp = r.ok;
   } catch {
     apiUp = false;
@@ -79,9 +79,17 @@ test('«القياس والتقارير» renders without a server error', async
   expect(res?.status() ?? 0).toBeLessThan(500);
   await page.waitForURL(/\/ops\/analytics/);
 
-  await expect(page.getByRole('heading', { name: 'القياس والتقارير' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'المؤشرات الحيوية' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'نسب مشتقّة' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'القياس والتقارير', level: 1 })).toBeVisible();
+  // CLOSEOUT C5 — this asserted «المؤشرات الحيوية», «نسب مشتقّة» and «مؤشرات
+  // بانتظار واجهة تجميع». The first lives on the /ops HOME, not here; the other
+  // two exist nowhere — they are the pre-Unit-5 analytics design, which was
+  // rebuilt into the five named sections asserted in ops-analytics.spec.ts.
+  // The assertion this test uniquely carries is the one above it — status < 500 —
+  // and that one earns its keep: it is exactly the regression that shipped while
+  // this file was self-skipping (the page read `dropoffs`, the API sends
+  // `dropOff`, so /ops/analytics 500ed on every load).
+  const main = page.locator('#ops-main');
+  await expect(main.getByRole('heading', { name: 'التقرير المالي', level: 2 })).toBeVisible();
   // The honesty rail: gaps are labelled, not fabricated.
-  await expect(page.getByRole('heading', { name: 'مؤشرات بانتظار واجهة تجميع' })).toBeVisible();
+  await expect(page.getByText('بيانات غير متوفرة').first()).toBeVisible();
 });

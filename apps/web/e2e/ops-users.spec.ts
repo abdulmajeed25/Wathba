@@ -17,7 +17,7 @@ const OWNER = { email: 'smoke-s1@test.wathba.sa', pass: 'Str0ngPass!x' };
 let apiUp = false;
 test.beforeAll(async () => {
   try {
-    const r = await fetch(`${API}/health`);
+    const r = await fetch(`${API}/v1/health`);
     apiUp = r.ok;
   } catch {
     apiUp = false;
@@ -106,5 +106,11 @@ test('/ops/trust renders the moderation surface', async ({ page }) => {
   await page.goto('/ops/trust');
   await expect(page.getByRole('heading', { name: 'الثقة والسلامة', exact: true })).toBeVisible();
   await expect(page.getByText('إجمالي البلاغات المفتوحة')).toBeVisible();
-  await expect(page.getByText('إشراف مُوجَّه بالمعرّف')).toBeVisible();
+  // CLOSEOUT C5 — this asserted «إشراف مُوجَّه بالمعرّف», copy that has never
+  // existed in the app: OPS-360 Unit 3 deliberately replaced blind id-paste
+  // moderation with a REAL queue, and the page says so in as many words. The
+  // assertion was left describing the superseded design and, because this whole
+  // file self-skipped on a broken health probe, never failed loudly. Assert the
+  // design that actually shipped.
+  await expect(page.getByText('لا صندوق لصق أعمى هنا')).toBeVisible();
 });

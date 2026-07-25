@@ -13,9 +13,22 @@
  * export endpoint (streamed, rate-limited, logged). FOLLOW-UP, not this unit.
  */
 
-/** RFC-4180 escape: quote a field iff it contains a comma, quote, CR or LF. */
+/**
+ * RFC-4180 escape: quote a field iff it contains a comma, quote, CR or LF —
+ * plus, deliberately, the ARABIC comma «،» (U+060C) and Arabic semicolon «؛»
+ * (U+061B).
+ *
+ * CLOSEOUT C5. Strict RFC-4180 only requires quoting the ASCII delimiter, and
+ * an Arabic comma inside an unquoted field parses fine by that letter. But these
+ * exports exist to be opened in Excel by Arabic-locale operators, and Excel
+ * splits on the locale's list separator — which on Arabic Windows is not
+ * reliably `,`. An Arabic title like «مشروع، عادي» then tore into two columns and
+ * shifted every cell after it, silently, in a file the operator trusts. Quoting
+ * is always legal for a compliant parser, so this costs nothing and removes a
+ * class of corrupted export.
+ */
 function escapeField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
+  if (/[",\r\n،؛]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;

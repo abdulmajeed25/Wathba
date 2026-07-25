@@ -26,6 +26,14 @@ export function NavLink({
   return (
     <Link
       href={href}
+      // CLOSEOUT C5 — do NOT prefetch. There are ~20 of these, and every
+      // prefetch is a full server render of an operator board: it runs the
+      // middleware identity probe, the layout's requireAdmin(), and the board's
+      // own read queries. Merely showing the sidebar was firing a dozen-plus API
+      // calls per view — enough to rate-limit an operator out of their own
+      // console. These are deliberate, low-frequency navigations; the render
+      // cost belongs on the click, not on the hover.
+      prefetch={false}
       aria-current={active ? 'page' : undefined}
       className={[
         'flex items-center justify-between gap-2 rounded px-3 py-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]',

@@ -4,6 +4,10 @@
 
 **State: the code is done. Launch is gated by external procurement + a TLS front door.**
 
+> **Updated 2026-07-25 after Batch CLOSEOUT** (PRs #60–#64 · 57 migrations · 78 governed operations · 53 ops read endpoints · **672 API tests green** · web production build green). The residual list from `ops360-census.md` is re-scored in `closeout-batch.md`: 7 of 8 buildable items closed, 1 open and scoped, 3 deferred by decision. **The distance to launch is unchanged.**
+>
+> One correction to the record this file has carried: "full Playwright green" was not true. 13 ops e2e specs gated on a 404 health route and had been self-skipping, which reads as green. Arming them surfaced 24 real failures — including a hard 500 on `/ops/analytics` and an appeals decision workspace that crashed on every appeal. Those are fixed; three pre-existing public-journey failures found the same way are logged in `completion-state.md` rather than papered over.
+
 ---
 
 ## ✅ Code — launch-ready
@@ -30,7 +34,8 @@ The only things standing between here and a live public launch. Code paths for e
 
 - **ZATCA Phase-2 Fatoora reporting client** — the invoice *record* is generated and `money.zatca.retry` heals orphans, but the actual Fatoora submission is still a stub. It can't be exercised end-to-end until the **CSID** exists, so it's written when the credential lands (deliberately deferred/excluded this cycle).
 - **Off-site DB backup + cron** — `infra/backup.sh` is local-only (no timer/S3). Operational safety, ~half a day.
-- **Explicitly excluded (owner/contract decisions):** money/tax-rate DB-tunability (contract-pinned), top-of-funnel visit analytics (no event pipeline).
+- **Explicitly excluded (owner/contract decisions):** money/tax-rate DB-tunability (contract-pinned), top-of-funnel visit analytics (no event pipeline), live cookie-level impersonation (read-only snapshot is the deliberate safe choice).
+- **Reverse-proxy `trust proxy` / real client IP** — added by CLOSEOUT C5. Authenticated traffic is now rate-limited per account, but the anonymous routes (sign-in, sign-up) still key on `req.ip`; behind a proxy that is the proxy's own address, so all visitors would share one bucket. Pairs with item 5 (TLS/domain) and is configuration, not code.
 
 ---
 
