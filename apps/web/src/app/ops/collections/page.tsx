@@ -6,12 +6,14 @@ import { CollectionsManager, type Collection } from './_components/collections-m
 /**
  * OPS Part 5 (CONTENT) — «المجموعات وحملات وثبة»: curated project collections.
  *
- * Read from the ADMIN GET seam (`/v1/admin/collections`) — it lists ALL
- * collections (incl. inactive) WITH their ids + project counts, which the
- * public `/v1/collections` reader omits (it returns neither ids nor inactive
- * rows, so it can't drive update/delete/assign). The seam is `@Roles('ADMIN')`,
- * which the operator holds; we authorize with the session bearer. Every
- * mutation is a governed CONTENT-tier operation (content.collections.*).
+ * CLOSEOUT C3 — the read now comes from the OPS read layer
+ * (`/v1/ops/collections`, ops token + `content.collections`) instead of the
+ * legacy `/v1/admin/collections` JWT seam. That seam was the split-brain the
+ * OPS-360 census flagged: two authorisation paths into the same data, only one
+ * of which is the ops token the rest of the console uses. It lists ALL
+ * collections (incl. inactive) WITH ids + project counts, which the public
+ * `/v1/collections` reader omits. Every mutation was already a governed
+ * CONTENT-tier operation (content.collections.*).
  *
  * NOTE — the admin list returns a project COUNT per collection, not the list
  * of assigned projects; assign/unassign therefore take a project id directly.
@@ -19,18 +21,18 @@ import { CollectionsManager, type Collection } from './_components/collections-m
  * (follow-up gap).
  */
 export default async function OpsCollectionsPage() {
-  const { token } = await requireAdmin();
-  await requireOpsSession();
+  await requireAdmin();
+  const { opsToken } = await requireOpsSession();
 
   let collections: Collection[] = [];
   let refused = false;
   try {
-    const r = await fetch(`${API_BASE}/v1/admin/collections`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const r = await fetch(`${API_BASE}/v1/ops/collections`, {
+      headers: { 'x-ops-token': opsToken },
       cache: 'no-store',
     });
     if (r.status === 403) refused = true;
-    if (r.ok) collections = (await r.json()) as Collection[];
+    if (r.ok) collections = ((await r.json()) as { items: Collection[] }).items ?? [];
   } catch {
     /* API unreachable — the create surface still works below */
   }
@@ -57,7 +59,7 @@ export default async function OpsCollectionsPage() {
 
       {refused ? (
         <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-          تفتقد صلاحية قراءة المجموعات — تحتاج دور ADMIN. يمكنك إنشاء حملة جديدة أدناه.
+          تفتقد صلاحية قراءة المجموعات (content.collections). يمكنك إنشاء حملة جديدة أدناه.
         </p>
       ) : null}
 
