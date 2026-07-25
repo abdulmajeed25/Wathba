@@ -133,6 +133,7 @@ export class OpsModule implements OnModuleInit {
         prisma: this.prisma,
         notifications: this.notifications,
         email: this.email,
+        settings: this.settings,
       }),
       ...moderationOps({
         prisma: this.prisma,

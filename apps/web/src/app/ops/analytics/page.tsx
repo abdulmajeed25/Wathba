@@ -117,6 +117,9 @@ interface OperationsDto {
     projectThroughputPct: number | null;
     commentReportsOpened: number;
     commentReportsResolved: number | null;
+    // CLOSEOUT C1 — computable since CommentReport.resolvedAt landed. Kept
+    // nullable: the null-state rendering stays honest on an older API.
+    commentThroughputPct?: number | null;
   };
   supportTicketsByStatus: Record<string, number>;
   payoutSuccess: Record<string, unknown>;
@@ -504,10 +507,16 @@ export default async function OpsAnalyticsPage({
                 reason="لم تُرجِع الواجهة معدّل النزاعات"
               />
               <PctMetric
-                label="إنتاجية الإشراف"
+                label="إنتاجية الإشراف — المشاريع"
                 pct={o.moderation.projectThroughputPct}
                 direction="higher"
                 reason="لم تُرجِع الواجهة نسبة إنتاجية الإشراف"
+              />
+              <PctMetric
+                label="إنتاجية الإشراف — التعليقات"
+                pct={o.moderation.commentThroughputPct ?? null}
+                direction="higher"
+                reason="لم تُرجِع الواجهة نسبة إنتاجية إشراف التعليقات"
               />
               <PctMetric
                 label="نجاح الصرف"

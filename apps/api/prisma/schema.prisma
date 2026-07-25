@@ -780,15 +780,19 @@ model Comment {
 /// so one user can't inflate the count; the materialised Comment.reportCount
 /// surfaces flagged comments to the creator's moderation queue.
 model CommentReport {
-  id         String   @id @default(uuid()) @db.Uuid
-  commentId  String   @db.Uuid
-  comment    Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  reporterId String   @db.Uuid
+  id         String    @id @default(uuid()) @db.Uuid
+  commentId  String    @db.Uuid
+  comment    Comment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporterId String    @db.Uuid
   reasonAr   String?
-  createdAt  DateTime @default(now())
+  /// Moderator resolution — null = open. Mirrors ProjectReport.resolvedAt so
+  /// dismissal keeps history (CLOSEOUT C1 / census A4: throughput needs it).
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
 
   @@unique([commentId, reporterId])
   @@index([commentId])
+  @@index([resolvedAt, createdAt])
 }
 
 /// STAKES/O1 O3 — privacy-respecting product events. NO IP, NO user-agent,
