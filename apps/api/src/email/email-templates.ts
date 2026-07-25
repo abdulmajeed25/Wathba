@@ -136,6 +136,20 @@ export const emailTemplates = {
         ${cta('{{APP_URL}}/projects/supplier', 'عروضي')}`),
     };
   },
+  /**
+   * CLOSEOUT C2 — the non-winning bidders' notice. Deliberately neutral and
+   * short: it states that a decision was made and invites future bids. It
+   * never names the winner or the winning price (commercially confidential).
+   */
+  rfqDecided(d: { projectTitle: string }): EmailContent {
+    return {
+      subject: `${BRAND} — نتيجة طلب التوريد`,
+      html: layout(`<h1 style="font-size:19px;margin:0 0 10px">صدر قرار الترسية</h1>
+        <p>شكراً لتقديم عرضك على طلب التوريد الخاص بمشروع «${d.projectTitle}». صدر قرار الترسية ولم يتم اختيار عرضك هذه المرة.</p>
+        <p>نُقدّر وقتك، ونتمنى أن نراك في طلبات التوريد القادمة.</p>
+        ${cta('{{APP_URL}}/projects/supplier', 'طلبات التوريد المتاحة')}`),
+    };
+  },
   /** OPS-GAPS R1 — confirmation that an appeal was received. */
   appealReceived(d: { kindAr: string }): EmailContent {
     return {
@@ -523,6 +537,13 @@ export const TEMPLATE_CATALOG: readonly TemplateCatalogEntry[] = [
     critical: isCritical('rfqAwarded'),
     variablesAr: ['projectTitle', '{{APP_URL}}'],
     sample: emailTemplates.rfqAwarded({ projectTitle: 'مشروع تجريبي' }),
+  },
+  {
+    key: 'rfqDecided',
+    labelAr: 'نتيجة طلب توريد (لغير الفائزين)',
+    critical: isCritical('rfqDecided'),
+    variablesAr: ['projectTitle', '{{APP_URL}}'],
+    sample: emailTemplates.rfqDecided({ projectTitle: 'مشروع تجريبي' }),
   },
   {
     key: 'appealReceived',

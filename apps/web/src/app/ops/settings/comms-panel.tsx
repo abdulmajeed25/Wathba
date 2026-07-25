@@ -328,8 +328,21 @@ function TemplatesPanel({
   );
 }
 
-function KindsPanel({ disabledKinds }: { disabledKinds: string[] }) {
+function KindsPanel({
+  disabledKinds,
+  lockedKinds,
+}: {
+  disabledKinds: string[];
+  lockedKinds: string[] | null;
+}) {
   const disabled = new Set(disabledKinds);
+  // CLOSEOUT C2 — LOCK STATE COMES FROM THE SERVER. The hand-maintained map
+  // had drifted: it marked 5 kinds mandatory that the server was willing to
+  // silence, so operators were denied toggles they were entitled to. The static
+  // `locked` flag is now only the fallback for an API that doesn't send the set.
+  const serverLocked = lockedKinds ? new Set(lockedKinds) : null;
+  const isLocked = (kind: string, meta: { locked: boolean }) =>
+    serverLocked ? serverLocked.has(kind) : meta.locked;
   const kinds = Object.entries(NOTIFICATION_KINDS);
 
   return (
@@ -357,7 +370,7 @@ function KindsPanel({ disabledKinds }: { disabledKinds: string[] }) {
                   {kind}
                 </code>
               </div>
-              {meta.locked ? (
+              {isLocked(kind, meta) ? (
                 <StatusBadge intent="warn">إلزامي</StatusBadge>
               ) : (
                 <div className="flex items-center gap-2">
@@ -388,10 +401,12 @@ function KindsPanel({ disabledKinds }: { disabledKinds: string[] }) {
 export function CommsPanel({
   templates,
   disabledKinds,
+  lockedKinds,
   operatorEmail,
 }: {
   templates: TemplateListItem[];
   disabledKinds: string[];
+  lockedKinds?: string[] | null;
   operatorEmail: string;
 }) {
   return (
@@ -403,7 +418,7 @@ export function CommsPanel({
 
       <section className="space-y-3">
         <h2 className="text-base font-bold">أنواع الإشعارات</h2>
-        <KindsPanel disabledKinds={disabledKinds} />
+        <KindsPanel disabledKinds={disabledKinds} lockedKinds={lockedKinds ?? null} />
       </section>
     </div>
   );

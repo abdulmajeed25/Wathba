@@ -165,6 +165,9 @@ enum NotificationKind {
   APPEAL_RECEIVED
   APPEAL_DECIDED
   RFQ_AWARDED
+  /// CLOSEOUT C2 — the neutral "a decision was made" notice sent to bidders
+  /// who were NOT selected, so an RFQ never ends in silence for them.
+  RFQ_DECIDED
 }
 
 /// Batch OPS-GAPS R1 — the two appealable decisions.

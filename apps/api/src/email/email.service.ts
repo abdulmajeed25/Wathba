@@ -187,6 +187,10 @@ export class EmailService {
   rfqAwarded(to: string, d: { projectTitle: string }) {
     return this.deliverKeyed('rfqAwarded', to, emailTemplates.rfqAwarded(d));
   }
+  // CLOSEOUT C2 — the non-winning bidders' neutral outcome notice.
+  rfqDecided(to: string, d: { projectTitle: string }) {
+    return this.deliverKeyed('rfqDecided', to, emailTemplates.rfqDecided(d));
+  }
   // OPS-GAPS R1 — appeals lifecycle.
   appealReceived(to: string, d: { kindAr: string }) {
     return this.deliverKeyed('appealReceived', to, emailTemplates.appealReceived(d));

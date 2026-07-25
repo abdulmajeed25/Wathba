@@ -158,6 +158,24 @@ describe('SettingsService', () => {
       expect(schema.safeParse([]).success).toBe(true);
     });
 
+    it('CLOSEOUT C2 — the money-safety kinds can no longer be silenced', () => {
+      const schema = SETTINGS_CATALOG['notifications.disabledKinds'].schema;
+      // These four were accepted before C2 even though the operator UI showed
+      // them as mandatory. CAPTURE_GRACE is the "your card is about to be
+      // charged" warning — silencing it would charge backers without notice.
+      for (const kind of [
+        'CAPTURE_GRACE',
+        'PLEDGE_CANCELLED',
+        'MILESTONE_APPROVED',
+        'MILESTONE_REJECTED',
+      ]) {
+        expect(schema.safeParse([kind]).success).toBe(false);
+      }
+      // The RFQ outcome notices stay silenceable — commercial courtesy, not
+      // money safety.
+      expect(schema.safeParse(['RFQ_AWARDED', 'RFQ_DECIDED']).success).toBe(true);
+    });
+
     it('a row with a locked kind degrades to the [] default (loud log)', async () => {
       const errorSpy = jest
         .spyOn(Logger.prototype, 'error')

@@ -3,11 +3,16 @@
  * imported by both the server page and the client islands, so it must NOT
  * export React or client-only helpers (the label maps only).
  *
- * The NotificationKind universe mirrors prisma `enum NotificationKind`. The
- * `locked` flag here is a DISPLAY hint only — the backend zod refine on
- * `notifications.disabledKinds` is the source of truth and will reject any
- * transactional-critical kind regardless of what this map says. We keep the two
- * aligned so operators aren't offered a toggle the server will refuse.
+ * The NotificationKind universe mirrors prisma `enum NotificationKind`.
+ *
+ * CLOSEOUT C2 — the `locked` flag is now only a FALLBACK. The comms read
+ * endpoint returns the server's real LOCKED_NOTIFICATION_KINDS and the panel
+ * prefers it, because these two hand-maintained lists had already drifted: this
+ * map marked five kinds mandatory that the server was willing to silence. That
+ * drift was resolved in the SAFE direction: the four money-safety kinds
+ * (CAPTURE_GRACE, PLEDGE_CANCELLED, MILESTONE_APPROVED/REJECTED) are now locked
+ * on the SERVER too, while the RFQ outcome notices — commercial courtesy, not
+ * money safety — are genuinely silenceable. The server remains the truth.
  */
 
 export interface KindMeta {
@@ -17,7 +22,7 @@ export interface KindMeta {
 }
 
 export const NOTIFICATION_KINDS: Record<string, KindMeta> = {
-  // Money / transactional — LOCKED (server refuses to add these).
+  // Money / transactional / account — LOCKED (server refuses to silence these).
   PLEDGE_RECEIVED: { labelAr: 'استلام تعهّد', locked: true },
   PROJECT_FUNDED: { labelAr: 'اكتمال تمويل المشروع', locked: true },
   PROJECT_FAILED: { labelAr: 'إخفاق تمويل المشروع', locked: true },
@@ -31,7 +36,8 @@ export const NOTIFICATION_KINDS: Record<string, KindMeta> = {
   ACCOUNT_REACTIVATED: { labelAr: 'إعادة تفعيل حساب', locked: true },
   APPEAL_DECIDED: { labelAr: 'بتّ في تظلّم', locked: true },
   SUPPLIER_VERIFIED: { labelAr: 'توثيق مورّد', locked: true },
-  RFQ_AWARDED: { labelAr: 'ترسية طلب عرض سعر', locked: true },
+  RFQ_AWARDED: { labelAr: 'ترسية طلب عرض سعر', locked: false },
+  RFQ_DECIDED: { labelAr: 'نتيجة طلب عرض سعر (لغير الفائزين)', locked: false },
 
   // Engagement / informational — silenceable.
   UPDATE_POSTED: { labelAr: 'نشر تحديث', locked: false },

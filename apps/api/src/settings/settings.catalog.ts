@@ -21,6 +21,15 @@ export const LOCKED_NOTIFICATION_KINDS: readonly NotificationKind[] = [
   NotificationKind.ACCOUNT_REACTIVATED,
   NotificationKind.APPEAL_DECIDED,
   NotificationKind.SUPPLIER_VERIFIED,
+  // CLOSEOUT C2 — these four were SILENCEABLE server-side while the operator
+  // UI (correctly) presented them as mandatory. Silencing them is consumer
+  // harm, not a preference: CAPTURE_GRACE is the warning that a card is about
+  // to be charged, PLEDGE_CANCELLED confirms a backer's money is released, and
+  // the milestone verdicts gate an escrow release. Locked to match the UI.
+  NotificationKind.CAPTURE_GRACE,
+  NotificationKind.PLEDGE_CANCELLED,
+  NotificationKind.MILESTONE_APPROVED,
+  NotificationKind.MILESTONE_REJECTED,
 ] as const;
 
 const LOCKED_NOTIFICATION_KIND_SET = new Set<string>(LOCKED_NOTIFICATION_KINDS);
