@@ -54,6 +54,7 @@ const UNWIRED_DEPS = new Proxy(
 const KIND_AR: Record<AppealKind, string> = {
   ACCOUNT_BAN: 'حظر الحساب',
   PROJECT_REJECTION: 'رفض المشروع',
+  CONTENT_TAKEDOWN: 'إخفاء تعليق',
 };
 
 /** Arabic label for the adjudication outcome (email + previews). */
@@ -70,11 +71,15 @@ type AppealSubject = { kind: AppealKind; subjectId: string } | null;
  *  record (nothing to violate four-eyes against — the check then passes). */
 async function originalDeciderId(db: ReadOnlyDb, appeal: AppealSubject): Promise<string | null> {
   if (!appeal) return null;
-  const action =
-    appeal.kind === AppealKind.ACCOUNT_BAN
-      ? 'ops.moderation.user.ban'
-      : 'ops.projects.review.reject';
-  const entity = appeal.kind === AppealKind.ACCOUNT_BAN ? 'User' : 'Project';
+  // CLOSEOUT C4 — CONTENT_TAKEDOWN joins the map. The hide was written by
+  // moderation.comment.moderate against the Comment, so four-eyes recovers the
+  // hiding moderator the same way it recovers a banning or rejecting one.
+  const ACTION_BY_KIND: Record<AppealKind, { action: string; entity: string }> = {
+    ACCOUNT_BAN: { action: 'ops.moderation.user.ban', entity: 'User' },
+    PROJECT_REJECTION: { action: 'ops.projects.review.reject', entity: 'Project' },
+    CONTENT_TAKEDOWN: { action: 'ops.moderation.comment.moderate', entity: 'Comment' },
+  };
+  const { action, entity } = ACTION_BY_KIND[appeal.kind];
   const log = await db.auditLog.findFirst({
     where: { action, entity, entityId: appeal.subjectId },
     orderBy: { createdAt: 'desc' },
@@ -99,7 +104,7 @@ export function appealsOps(deps: AppealsOpsDeps = UNWIRED_DEPS): Array<Operation
     descriptionAr:
       'ينقل التظلّم من «مُقدَّم» (SUBMITTED) إلى «قيد المراجعة» (UNDER_REVIEW): المراجع يأخذه على عاتقه. مبدأ العيون الأربع يُطبَّق عند الحسم، ويُطبَّق هنا أيضاً تحسيناً للتجربة — مُصدِر القرار الأصلي لا يستلم تظلّماً ضد قراره.',
     inputSchema: appealRef,
-    permission: 'moderation.queue',
+    permission: 'trust.appeals',
     riskTier: 'SENSITIVE',
     reversible: false,
     requiresReason: true,
@@ -173,7 +178,7 @@ export function appealsOps(deps: AppealsOpsDeps = UNWIRED_DEPS): Array<Operation
     descriptionAr:
       'يحسم تظلّماً قيد المراجعة بأحد المخرجات الثلاثة: UPHELD (تأييد القرار — لا تعويض)، OVERTURNED (نقض القرار مع التراجع التعويضي في المعاملة نفسها: رفع الحظر / إعادة المشروع للمراجعة)، PARTIALLY_GRANTED (تخفيف: مشروع يعود للمراجعة، وحساب محظور يُخفَّض إلى إيقاف إداري). مبدأ العيون الأربع: مُصدِر القرار الأصلي لا يحسم التظلّم ضده.',
     inputSchema: decideInput,
-    permission: 'moderation.queue',
+    permission: 'trust.appeals',
     riskTier: 'SENSITIVE',
     reversible: false,
     requiresReason: true,
@@ -210,11 +215,15 @@ export function appealsOps(deps: AppealsOpsDeps = UNWIRED_DEPS): Array<Operation
       const compAr =
         input.outcome === 'UPHELD'
           ? 'لا تعويض — القرار قائم'
-          : a?.kind === AppealKind.ACCOUNT_BAN
+          : a?.kind === AppealKind.CONTENT_TAKEDOWN
             ? input.outcome === 'OVERTURNED'
-              ? 'سيُرفع الحظر عن الحساب'
-              : 'سيُخفَّض الحظر إلى إيقاف إداري (SUSPENDED)'
-            : 'سيعود المشروع إلى المراجعة (UNDER_REVIEW)';
+              ? 'سيُعاد إظهار التعليق'
+              : 'سيبقى التعليق مخفياً مع تدوين المعالجة'
+            : a?.kind === AppealKind.ACCOUNT_BAN
+              ? input.outcome === 'OVERTURNED'
+                ? 'سيُرفع الحظر عن الحساب'
+                : 'سيُخفَّض الحظر إلى إيقاف إداري (SUSPENDED)'
+              : 'سيعود المشروع إلى المراجعة (UNDER_REVIEW)';
       return {
         summaryAr: a
           ? `سيُحسم تظلّم «${KIND_AR[a.kind]}» بنتيجة «${OUTCOME_AR[input.outcome]}» — ${compAr}`
@@ -242,7 +251,15 @@ export function appealsOps(deps: AppealsOpsDeps = UNWIRED_DEPS): Array<Operation
       // ── the compensating transition, IN THIS SAME GOVERNED TX ──────────
       let compensation: string | null = null;
       if (input.outcome === 'OVERTURNED') {
-        if (appeal.kind === AppealKind.ACCOUNT_BAN) {
+        if (appeal.kind === AppealKind.CONTENT_TAKEDOWN) {
+          // CLOSEOUT C4 — restore the comment exactly as the 'unhide' branch of
+          // moderation.comment.moderate does, inside this same governed tx.
+          await tx.comment.update({
+            where: { id: appeal.subjectId },
+            data: { hidden: false },
+          });
+          compensation = 'comment-unhidden';
+        } else if (appeal.kind === AppealKind.ACCOUNT_BAN) {
           // Undo the ban exactly as moderation.user.unban does.
           await tx.user.update({
             where: { id: appeal.subjectId },
@@ -265,7 +282,13 @@ export function appealsOps(deps: AppealsOpsDeps = UNWIRED_DEPS): Array<Operation
         //    SUSPENSION (a lesser, reversible sanction) rather than a full
         //    unban — the account stays out but is no longer permanently
         //    banned; support can lift the suspension via users.reactivate.
-        if (appeal.kind === AppealKind.ACCOUNT_BAN) {
+        if (appeal.kind === AppealKind.CONTENT_TAKEDOWN) {
+          // DECISION — there is no "half hidden" comment. A partial grant on a
+          // takedown records the outcome for manual follow-up (the operator's
+          // written reason carries the remedy) and leaves the comment hidden;
+          // only OVERTURNED restores it.
+          compensation = 'takedown-upheld-with-remedy-noted';
+        } else if (appeal.kind === AppealKind.ACCOUNT_BAN) {
           await tx.user.update({
             where: { id: appeal.subjectId },
             data: { suspendedKind: SuspensionKind.SUSPENDED },

@@ -8,6 +8,7 @@ import {
   AppealKind,
   AppealStatus,
   NotificationKind,
+  Prisma,
   ProjectStatus,
   SuspensionKind,
   type Appeal,
@@ -44,6 +45,7 @@ const STATUS_AR: Record<AppealStatus, string> = {
 const KIND_AR: Record<AppealKind, string> = {
   ACCOUNT_BAN: 'حظر الحساب',
   PROJECT_REJECTION: 'رفض المشروع',
+  CONTENT_TAKEDOWN: 'إخفاء تعليق',
 };
 
 /** A prior appeal in one of these states blocks a new one: two are still
@@ -91,16 +93,34 @@ export class AppealsService {
       );
     }
 
-    // 3) Record + notify.
-    const appeal = await this.prisma.appeal.create({
-      data: {
-        kind,
-        subjectId: dto.subjectId,
-        submittedById: appellantId,
-        reasonAr: dto.reasonAr,
-        status: AppealStatus.SUBMITTED,
-      },
-    });
+    // 3) Record + notify. The findFirst above is a friendly pre-check, not the
+    //    guarantee: between it and this insert two concurrent submissions could
+    //    both pass. CLOSEOUT C4 added a PARTIAL unique index over
+    //    (kind, subjectId) WHERE status IN (SUBMITTED, UNDER_REVIEW, UPHELD),
+    //    so the database refuses the second one — translated back into the same
+    //    Arabic conflict the pre-check would have produced.
+    let appeal: Appeal;
+    try {
+      appeal = await this.prisma.appeal.create({
+        data: {
+          kind,
+          subjectId: dto.subjectId,
+          submittedById: appellantId,
+          reasonAr: dto.reasonAr,
+          status: AppealStatus.SUBMITTED,
+        },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' // unique violation — a live appeal already exists
+      ) {
+        throw new ConflictException(
+          'لديك تظلّم سابق على هذا القرار قيد المعالجة — لا يمكن تقديم تظلّم جديد',
+        );
+      }
+      throw err;
+    }
 
     await this.notifications.create({
       userId: appellantId,
@@ -152,6 +172,26 @@ export class AppealsService {
       });
       if (user?.suspendedKind !== SuspensionKind.BANNED) {
         throw new ForbiddenException('حسابك ليس محظوراً — لا يوجد قرار حظر للتظلّم عنه');
+      }
+      return;
+    }
+
+    // CLOSEOUT C4 — CONTENT_TAKEDOWN: only the comment's AUTHOR may contest its
+    // removal, and only while it is actually hidden (nothing to appeal once it
+    // is back up).
+    if (kind === AppealKind.CONTENT_TAKEDOWN) {
+      const comment = await this.prisma.comment.findUnique({
+        where: { id: subjectId },
+        select: { userId: true, hidden: true },
+      });
+      if (!comment) {
+        throw new NotFoundException('التعليق غير موجود');
+      }
+      if (comment.userId !== appellantId) {
+        throw new ForbiddenException('لا يمكنك التظلّم إلا عن تعليقك أنت');
+      }
+      if (!comment.hidden) {
+        throw new ForbiddenException('التعليق ظاهر — لا يوجد قرار إخفاء للتظلّم عنه');
       }
       return;
     }

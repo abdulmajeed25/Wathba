@@ -11,6 +11,11 @@ export const PERMISSIONS = {
   projects: ['projects.review', 'projects.feature', 'projects.lifecycle'],
   procurement: ['procurement.read'],
   moderation: ['moderation.queue'],
+  // CLOSEOUT C4 — appeals adjudication used to ride 'moderation.queue', so it
+  // could not be granted without handing over the whole moderation surface.
+  // The four-eyes original-actor exclusion is DOMAIN logic and overrides this:
+  // the permission lets you into the queue, never onto your own case.
+  trust: ['trust.appeals'],
   users: ['users.lifecycle', 'users.pii.unmask', 'users.roles.assign'],
   money: ['money.execute', 'money.approve'],
   content: ['content.editorial', 'content.collections', 'content.categories'],
@@ -44,6 +49,7 @@ export const ROLE_MATRIX: readonly SeedRole[] = [
       'projects.lifecycle',
       'procurement.read',
       'moderation.queue',
+      'trust.appeals',
       'users.lifecycle',
       'users.roles.assign',
       'content.editorial',
@@ -65,7 +71,11 @@ export const ROLE_MATRIX: readonly SeedRole[] = [
     nameAr: 'الدعم',
     permissions: ['users.lifecycle', 'users.pii.unmask', 'support.tickets'],
   },
-  { key: 'MODERATOR', nameAr: 'الثقة والسلامة', permissions: ['moderation.queue', 'analytics.read'] },
+  {
+    key: 'MODERATOR',
+    nameAr: 'الثقة والسلامة',
+    permissions: ['moderation.queue', 'trust.appeals', 'analytics.read'],
+  },
   {
     key: 'CONTENT_EDITOR',
     nameAr: 'محرر المحتوى',

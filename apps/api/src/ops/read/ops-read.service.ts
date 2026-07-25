@@ -268,6 +268,7 @@ const OPEN_APPEAL_STATUSES: readonly AppealStatus[] = ['SUBMITTED', 'UNDER_REVIE
 const APPEAL_KIND_AR: Record<AppealKind, string> = {
   ACCOUNT_BAN: 'حظر حساب',
   PROJECT_REJECTION: 'رفض مشروع',
+  CONTENT_TAKEDOWN: 'إخفاء تعليق',
 };
 
 /** The audit-log action string each appealable decision writes (ops.${key}). */

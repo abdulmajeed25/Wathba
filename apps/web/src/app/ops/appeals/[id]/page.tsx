@@ -119,7 +119,13 @@ export default async function OpsAppealDetailPage({
 
   // The subject entity trail (User for a ban, Project for a rejection).
   if (detail) {
-    const entity = detail.kind === 'PROJECT_REJECTION' ? 'Project' : 'User';
+    // CLOSEOUT C4 — the audit deep-link follows the subject's entity type.
+    const entity =
+      detail.kind === 'PROJECT_REJECTION'
+        ? 'Project'
+        : detail.kind === 'CONTENT_TAKEDOWN'
+          ? 'Comment'
+          : 'User';
     try {
       const r = await fetch(
         `${API_BASE}/v1/ops/audit/entity/${entity}/${detail.subjectId}?limit=100`,

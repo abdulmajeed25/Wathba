@@ -22,7 +22,7 @@ function model() {
 }
 
 function build() {
-  const prisma = { appeal: model(), user: model(), project: model() };
+  const prisma = { appeal: model(), user: model(), project: model(), comment: model() };
   const notifications = { create: jest.fn().mockResolvedValue(null) };
   const email = { appealReceived: jest.fn().mockResolvedValue(undefined) };
   const service = new AppealsService(
@@ -140,5 +140,82 @@ describe('AppealsService — create + notify', () => {
       expect.objectContaining({ kindAr: expect.any(String) }),
     );
     expect(appeal.id).toBe('appeal-1');
+  });
+});
+
+/* ── CLOSEOUT C4 — CONTENT_TAKEDOWN + the DB race backstop ───────────────── */
+
+const COMMENT_ID = '66666666-6666-4666-8666-666666666666';
+const takedownDto = (subjectId = COMMENT_ID): CreateAppealDto =>
+  ({ kind: 'CONTENT_TAKEDOWN', subjectId, reasonAr: 'تعليقي لا يخالف السياسة وأطلب إعادته' }) as CreateAppealDto;
+
+describe('CLOSEOUT C4 — CONTENT_TAKEDOWN submission', () => {
+  it('accepts the AUTHOR of a currently-hidden comment', async () => {
+    const { service, prisma, notifications } = build();
+    prisma.comment.findUnique.mockResolvedValue({ userId: APPELLANT, hidden: true });
+
+    const appeal = await service.submit(APPELLANT, takedownDto());
+
+    expect(appeal).toMatchObject({ kind: 'CONTENT_TAKEDOWN', status: 'SUBMITTED' });
+    expect(notifications.create).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'APPEAL_RECEIVED' }),
+    );
+  });
+
+  it('refuses somebody else\'s comment', async () => {
+    const { service, prisma } = build();
+    prisma.comment.findUnique.mockResolvedValue({ userId: OTHER, hidden: true });
+
+    await expect(service.submit(APPELLANT, takedownDto())).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('refuses when the comment is VISIBLE — no takedown to contest', async () => {
+    const { service, prisma } = build();
+    prisma.comment.findUnique.mockResolvedValue({ userId: APPELLANT, hidden: false });
+
+    await expect(service.submit(APPELLANT, takedownDto())).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('refuses a missing comment', async () => {
+    const { service, prisma } = build();
+    prisma.comment.findUnique.mockResolvedValue(null);
+
+    await expect(service.submit(APPELLANT, takedownDto())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});
+
+describe('CLOSEOUT C4 — the unique-index race backstop', () => {
+  it('translates a P2002 unique violation into the Arabic conflict', async () => {
+    const { service, prisma } = build();
+    prisma.comment.findUnique.mockResolvedValue({ userId: APPELLANT, hidden: true });
+    // The pre-check finds nothing (the race window), then the DB refuses: this
+    // is exactly what two concurrent submissions produce.
+    prisma.appeal.findFirst.mockResolvedValue(null);
+    const { Prisma } = await import('@prisma/client');
+    prisma.appeal.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('duplicate', {
+        code: 'P2002',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(service.submit(APPELLANT, takedownDto())).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('does NOT swallow an unrelated database error', async () => {
+    const { service, prisma } = build();
+    prisma.comment.findUnique.mockResolvedValue({ userId: APPELLANT, hidden: true });
+    prisma.appeal.findFirst.mockResolvedValue(null);
+    prisma.appeal.create.mockRejectedValue(new Error('connection reset'));
+
+    await expect(service.submit(APPELLANT, takedownDto())).rejects.toThrow(/connection reset/);
   });
 });
