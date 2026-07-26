@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ApiMilestonePublic, ApiSpendLog } from '@/lib/api/wathba';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /* ─── Local types (kept here — no SDK additions required) ──────────────── */
 
@@ -40,7 +41,7 @@ const emptySpendForm: SpendFormState = {
 
 /* ─── Formatting helpers ───────────────────────────────────────────────── */
 
-const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
 const fmtPct = (p: number): string => `${p.toLocaleString('en-US')}%`;
 const fmtDate = (iso: string | null): string => {
   if (!iso) return '—';

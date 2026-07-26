@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { submitProjectAction } from '@/lib/projects/submit-action';
 import { WathbaCategoryPicker } from '@/components/ventures/wathba/wathba-category-picker';
+import { formatSar } from '@/lib/i18n/format';
 
 /**
  * Submit-project wizard (Tier 2.8 rewrite).
@@ -107,7 +108,7 @@ export function SubmissionWizard({
           أطلق مشروعك على وثبة
         </h1>
         <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.65 }}>
-          املأ ${STEPS.length} خطوات سريعة. سيُنشأ المشروع كمسودّة ثم يُرسَل
+          املأ {STEPS.length} خطوات سريعة. سيُنشأ المشروع كمسودّة ثم يُرسَل
           مباشرةً للمراجعة (٥–٧ أيام عادةً).
         </p>
       </header>
@@ -358,7 +359,7 @@ function ReviewCard({ d }: { d: Draft }): React.ReactElement {
       <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>{d.shortDescAr || '—'}</p>
       <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--text-soft)', flexWrap: 'wrap' }}>
         <span>الفئة: {cat}</span>
-        <span>الهدف: {d.fundingGoalSar ? Number(d.fundingGoalSar).toLocaleString('ar-SA') : '—'} ر.س</span>
+        <span>الهدف: {d.fundingGoalSar ? formatSar('ar', Number(d.fundingGoalSar)) : '—'}</span>
         <span>عتبة: {d.releaseThresholdPct || '80'}٪</span>
         <span>المدة: {d.durationDays || '—'} يوم</span>
         {d.expectedDeliveryDate && <span>التسليم المتوقّع: {d.expectedDeliveryDate}</span>}

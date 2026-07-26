@@ -7,6 +7,7 @@ import { useTransition } from 'react';
 import { EmptyState } from './wathba-states';
 import { Icon, Num } from './wathba-icons';
 import type { ApiNotification, NotificationKind } from '@/lib/api/wathba';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Notifications inbox — Tier 2.6.
@@ -87,7 +88,7 @@ function derive(n: ApiNotification): DerivedLine {
       return {
         title: proj ? `أُعيد مبلغك من ${proj}` : 'أُعيد مبلغك',
         body: amt !== null
-          ? `أُعيد إليك ${(amt / 100).toLocaleString('en-US')} ر.س — قد يستغرق ظهوره في حسابك بضعة أيام.`
+          ? `أُعيد إليك ${formatSarFromHalalas('ar', amt)} — قد يستغرق ظهوره في حسابك بضعة أيام.`
           : 'قد يستغرق ظهوره في حسابك بضعة أيام حسب مصرفك.',
         href: '/projects/me/pledges',
       };

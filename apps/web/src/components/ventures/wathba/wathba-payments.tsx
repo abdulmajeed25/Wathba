@@ -8,6 +8,7 @@ import { wathbaProjects } from './wathba-data';
 import { EmptyState } from './wathba-states';
 import { Icon, Num } from './wathba-icons';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
+import { formatSar, formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * §6.5B Payments hub — 4 tabs.
@@ -197,7 +198,7 @@ function HistoryTab({ pledges }: { pledges: ApiBackingRow[] }) {
                 </td>
                 <td style={{ padding: '14px 18px', textAlign: 'end', fontWeight: 700 }}>
                   <Num style={{ color: p.state.toUpperCase() === 'REFUNDED' ? 'var(--muted)' : 'var(--accent)' }}>
-                    {(Number(p.amount) / 100).toLocaleString('en-US')} ر.س
+                    {formatSarFromHalalas('ar', Number(p.amount))}
                   </Num>
                 </td>
                 <td style={{ padding: '14px 18px', textAlign: 'end' }}>
@@ -271,14 +272,14 @@ function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined 
       <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
         <TotalCard
           label="تم التحويل"
-          value={`${sent.toLocaleString('en-US')} ر.س`}
+          value={formatSar('ar', sent)}
           icon="check_circle"
           color="var(--pos)"
           bg="rgba(52,211,153,.10)"
         />
         <TotalCard
           label="قيد التحويل"
-          value={`${pending.toLocaleString('en-US')} ر.س`}
+          value={formatSar('ar', pending)}
           icon="info"
           color="var(--gold)"
           bg="rgba(251,191,36,.10)"
@@ -328,7 +329,7 @@ function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined 
                     <td style={{ padding: '14px 18px' }}>{p.projectId.slice(0, 8)}…</td>
                     <td style={{ padding: '14px 18px', textAlign: 'end', fontWeight: 700 }}>
                       <Num style={{ color: 'var(--accent)' }}>
-                        {(p.amountHalalas / 100).toLocaleString('en-US')} ر.س
+                        {formatSarFromHalalas('ar', p.amountHalalas)}
                       </Num>
                     </td>
                     <td style={{ padding: '14px 18px', textAlign: 'end' }}>

@@ -1,5 +1,6 @@
 import type { ApiMilestonePublic, ApiPayoutRow } from '@/lib/api/wathba';
 import { Num } from '../wathba-icons';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Creator payout/escrow view (Sprint 3 / P1-208) — server component, no
@@ -13,7 +14,7 @@ const TONE: Record<string, { label: string; color: string; bg: string }> = {
   FAILED:  { label: 'تعثّر التحويل',    color: '#ef4444',       bg: 'rgba(239,68,68,.08)' },
 };
 
-const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
 
 export function WathbaDashboardPayouts({
   payouts,

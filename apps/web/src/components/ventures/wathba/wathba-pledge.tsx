@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useId, useMemo, useState, useEffect } from 'react';
 
+import { formatSar } from '@/lib/i18n/format';
 import { track } from '@/lib/analytics';
 
 import {
@@ -275,7 +276,7 @@ export function WathbaPledge({
               <strong>قاعدة عتبة الإطلاق:</strong>{' '}
               يُطلق المشروع عند بلوغ{' '}
               <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>
-                ${Math.round((active.goal * active.releaseThresholdPct) / 100).toLocaleString('en-US')}
+                {formatSar('ar', Math.round((active.goal * active.releaseThresholdPct) / 100))}
               </Num>{' '}
               ({active.releaseThresholdPct}% من الهدف). إذا لم يبلغ ذلك بحلول الموعد
               النهائي، يُعاد كامل دعمك تلقائياً إلى بطاقتك خلال أيام عمل قليلة.
@@ -466,7 +467,7 @@ export function WathbaPledge({
                             color: 'var(--accent)',
                           }}
                         >
-                          ${t.price.toLocaleString('en-US')}
+                          {formatSar('ar', t.price)}
                         </Num>
                         <h4 style={{ fontSize: 16, fontWeight: 700 }}>
                           {t.title}
@@ -993,7 +994,7 @@ export function WathbaPledge({
             >
               <span style={{ color: 'var(--muted)' }}>{selTier.title}</span>
               <Num style={{ fontWeight: 600 }}>
-                ${selTier.price.toLocaleString('en-US')}
+                {formatSar('ar', selTier.price)}
               </Num>
             </div>
             <div
@@ -1020,7 +1021,7 @@ export function WathbaPledge({
             >
               <span>الإجمالي</span>
               <Num style={{ color: 'var(--accent)' }}>
-                ${total.toLocaleString('en-US')}
+                {formatSar('ar', total)}
               </Num>
             </div>
           </div>

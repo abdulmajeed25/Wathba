@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation';
 
 import type { ApiAddOn, ApiRewardTier } from '@/lib/api/wathba';
 import { useConfirm, useToast } from '../wathba-feedback';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
-const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
 
 interface TierFormState {
   titleAr: string;

@@ -7,6 +7,7 @@ import { WathbaAdminHome } from './wathba-admin-home';
 import { Icon, Num } from './wathba-icons';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 import type { ApiKycRow, ApiModerationQueue, ApiProjectDetail } from '@/lib/api/wathba';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * §7 admin console — Tier 2.7 rewrite.
@@ -205,7 +206,7 @@ function ReviewRow({ project }: { project: ApiProjectDetail }): React.ReactEleme
             }}
           >
             <span>الفئة: {project.category}</span>
-            <span>الهدف: {(Number(project.fundingGoalHalalas) / 100).toLocaleString('ar-SA')} ر.س</span>
+            <span>الهدف: {formatSarFromHalalas('ar', Number(project.fundingGoalHalalas))}</span>
             <span>عتبة: {project.releaseThresholdPct}%</span>
           </div>
         </div>

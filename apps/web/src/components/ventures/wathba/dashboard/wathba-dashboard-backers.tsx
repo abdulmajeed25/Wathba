@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Backer roster (Creator-CC / CC-02) + CSV export (CC-03) — Kickstarter
@@ -328,7 +329,7 @@ export function WathbaDashboardBackers({
                       {r.requiresShipping && <span title="يتطلب شحناً" style={{ marginInlineStart: 6 }}>📦</span>}
                     </Td>
                     <Td>{r.addOns.length ? r.addOns.map((a) => `${a.titleAr}×${a.qty}`).join('، ') : '—'}</Td>
-                    <Td><span style={{ fontWeight: 600 }}>{(r.totalHalalas / 100).toLocaleString('ar-SA')} ر.س</span></Td>
+                    <Td><span style={{ fontWeight: 600 }}>{formatSarFromHalalas('ar', r.totalHalalas)}</span></Td>
                     <Td>
                       <span style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: ps.fg, background: ps.bg }}>
                         {ps.ar}

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import type { ApiProjectDetail, ApiRewardTier } from '@/lib/api/wathba';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Draft preview-as-visitor (Creator-CC / CC-19). Renders the project's REAL
@@ -8,7 +9,7 @@ import type { ApiProjectDetail, ApiRewardTier } from '@/lib/api/wathba';
  * the substance — used for DRAFT/UNDER_REVIEW projects that aren't yet on the
  * public campaign page. Owner-gated by the dashboard layout.
  */
-const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
 
 const CATEGORY_AR: Record<string, string> = {
   TECH: 'تقنية', DESIGN: 'تصميم', FILM: 'أفلام', FOOD: 'طعام',

@@ -1,4 +1,5 @@
 import type { ApiAnalytics, ApiFollowerRow } from '@/lib/api/wathba';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Creator analytics (Creator-CC / CC-16) + follower roster (CC-17). Purely
@@ -6,7 +7,7 @@ import type { ApiAnalytics, ApiFollowerRow } from '@/lib/api/wathba';
  * (self-contained, no chart library). Everything shown is derived from real
  * pledge data; untracked dimensions are stated honestly.
  */
-const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
 
 export function WathbaDashboardAnalytics({
   analytics,
