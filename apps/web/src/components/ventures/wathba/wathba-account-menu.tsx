@@ -74,13 +74,21 @@ export function WathbaAccountMenu() {
     }
   };
 
-  // Loading: reserve space, no flash.
-  if (me === undefined) return <div style={{ width: 42, height: 42 }} aria-hidden />;
+  // Loading: reserve the footprint the RESOLVED state will occupy — WIDTH as
+  // well as height. This was a 42px square, but the signed-out state resolves to
+  // two CTAs, so the slot grew 94px → 258px wide when /api/me answered. That
+  // squeezed the nav until the nav itself wrapped (26px → 48px), the header grew
+  // and every page shifted ~0.11 CLS. It only reproduced at ≤1280px, which is
+  // why measuring at 1366 called the page clean.
+  //
+  // .wathba-account-slot reserves the same box in all three states, so the swap
+  // cannot move anything in either direction.
+  if (me === undefined) return <div className="wathba-account-slot" aria-hidden />;
 
   // Signed out — the real CTAs (login now points at /sign-in, not the dashboard).
   if (me === null) {
     return (
-      <>
+      <div className="wathba-account-slot">
         {/* STAKES/S-2 — the text login link hides on mobile (the hamburger sheet
             + the compact start button cover it) so the header fits 360px. */}
         <Link href="/sign-in" className="wathba-desk-only" style={loginLink}>تسجيل الدخول</Link>
@@ -88,7 +96,7 @@ export function WathbaAccountMenu() {
           <span className="wathba-desk-only">ابدأ مشروعك</span>
           <span className="wathba-mob-only" style={{ display: 'none' }}>ابدأ</span>
         </Link>
-      </>
+      </div>
     );
   }
 
@@ -107,7 +115,10 @@ export function WathbaAccountMenu() {
   ];
 
   return (
-    <div ref={rootRef} style={{ position: 'relative' }} onKeyDown={onKey}>
+    // Same reserved slot as the other two states: the avatar sits at its end, so
+    // a signed-in reader's header is the same size as a signed-out one and the
+    // identity swap moves nothing.
+    <div ref={rootRef} className="wathba-account-slot" style={{ position: 'relative' }} onKeyDown={onKey}>
       <button
         ref={btnRef}
         type="button"

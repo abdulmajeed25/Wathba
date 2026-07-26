@@ -133,6 +133,13 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
             fontSize: 14.5,
             color: 'var(--muted)',
             fontWeight: 500,
+            // Nav LABELS must never wrap. Without this they break mid-phrase at
+            // narrow widths («كيف / تعمل»), which both looks broken and doubles
+            // the nav's height — and a height that depends on available width is
+            // a layout shift waiting for anything beside it to change size.
+            // The search field beside it is the flexible element; the nav is not.
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
         >
           {NAV_LINKS.map((l) => {

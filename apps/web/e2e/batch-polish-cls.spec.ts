@@ -17,7 +17,7 @@ import { expect, test } from '@playwright/test';
 const PAGES = ['/projects', '/projects/discover-all', '/spotlight'];
 
 for (const path of PAGES) {
-  test(`CLS: ${path} stays out of the "poor" band while scrolling`, async ({ page }) => {
+  test(`CLS: ${path} stays in the "good" band while scrolling`, async ({ page }) => {
     await page.addInitScript(() => {
       (window as unknown as { __cls: number }).__cls = 0;
       new PerformanceObserver((l) => {
@@ -37,19 +37,18 @@ for (const path of PAGES) {
     await page.waitForTimeout(1200);
 
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
-    // THRESHOLD 0.25 — the boundary of the "poor" band, not the 0.1 "good" one,
-    // and the reason is worth stating rather than hiding behind a round number.
+    // THRESHOLD 0.1 — the Core Web Vitals "good" boundary.
     //
-    // The homepage-specific defect this batch fixed is gone: 0.75 → 0.0035 when
-    // measured to mid-page. But scrolling all the way to the BOTTOM still costs
-    // ~0.11 on EVERY page here — /projects 0.1174, /projects/discover-all
-    // 0.1136, /spotlight 0.1131. That uniformity is the tell: it is one shared
-    // shift low on the page, not three page-specific bugs, and discover carried
-    // it before this batch started (0.108 measured at the outset).
+    // Two defects had to go before this could be tightened from 0.25:
+    //   · every magazine section collapsed from a 420px content-visibility
+    //     placeholder to its real 150–335px height on scroll (homepage, 0.64)
+    //   · the header's account slot reserved 42px while the signed-out state
+    //     resolves to two CTAs — 94px → 258px wide — which squeezed the nav
+    //     until it wrapped, growing the header on EVERY page (~0.11)
     //
-    // So this guard locks in the win — 0.75 can never come back — while being
-    // honest that a shared residual remains and is a separate piece of work.
-    // Tightening to 0.1 is the follow-up, once that shift is found.
-    expect(cls, `${path} shifted ${cls.toFixed(4)} — layout stability regressed`).toBeLessThan(0.25);
+    // The second only reproduced at ≤1280px, so it survived every measurement
+    // taken at 1366. Playwright's default context is 1280x720, which is exactly
+    // why this suite catches it and a hand-run harness did not.
+    expect(cls, `${path} shifted ${cls.toFixed(4)} — layout stability regressed`).toBeLessThan(0.1);
   });
 }
