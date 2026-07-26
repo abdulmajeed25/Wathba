@@ -9,6 +9,18 @@ export type WathbaTheme = 'light' | 'dark';
 
 export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
   light: {
+    // ── elevation layers (POLISH Unit 4) ───────────────────────────────────
+    // Canonical names, defined in BOTH themes so a component never needs to
+    // know which one is active. The legacy aliases below map onto these.
+    '--surface-0': '#f4f6f1',
+    '--surface-1': '#ffffff',
+    '--surface-2': '#eef2ea',
+    '--surface-3': '#ffffff',
+    '--text-primary': '#16201b',
+    '--text-secondary': '#3b4942',
+    '--text-muted': '#4d574f',
+    '--border': 'rgba(18,33,26,.12)',
+
     '--bg': '#f4f6f1',
     '--surface': '#ffffff',
     '--surface2': '#ffffff',
@@ -54,46 +66,92 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--card-shadow-h': '0 16px 34px -14px rgba(18,33,26,.18)',
   },
   dark: {
-    '--bg': '#0a1422',
-    '--surface': '#102339',
-    '--surface2': '#0c1c2f',
-    '--footer': '#08111d',
-    '--ph-bg': '#0e2138',
-    '--card': 'linear-gradient(180deg,#102339,#0c1c2f)',
-    '--band': 'linear-gradient(120deg,#0d2236,#0b1a2c)',
-    '--avatar': 'linear-gradient(135deg,#1d3251,#0c1c2f)',
-    '--text': '#eaf1fb',
-    '--text-soft': '#c3d3e8',
-    // STAKES/S-2 — lightened muted2 to clear AA on the dark card ground.
-    '--muted': '#a6b9d4',
-    '--muted2': '#94a8c6',
-    '--ph-label': '#3d5876',
-    '--ink-rgb': '255,255,255',
-    '--accent': '#22d3ee',
-    '--accent-rgb': '34,211,238',
-    '--accent2-rgb': '59,130,246',
-    // Dark theme: bright cyan already clears AA on the dark card grounds.
-    '--accent-ink': '#22d3ee',
-    '--on-accent': '#06121f',
-    '--header-bg': 'rgba(10,20,34,.72)',
-    '--grad': 'linear-gradient(135deg,#3b82f6,#22d3ee)',
-    '--grad-bar': 'linear-gradient(90deg,#3b82f6,#22d3ee)',
-    '--grad-bar-over': 'linear-gradient(90deg,#22d3ee,#34d399)',
-    '--grad-barv': 'linear-gradient(180deg,#22d3ee,#3b82f6)',
-    '--cta-grad': 'linear-gradient(120deg,#1d4ed8,#0891b2,#3b82f6)',
-    '--gold': '#fbbf24',
-    '--gold-rgb': '251,191,36',
-    '--pos': '#34d399',
-    '--pos-rgb': '52,211,153',
-    '--purple': '#a78bfa',
-    '--purple-rgb': '167,139,250',
-    '--blue': '#60a5fa',
-    '--blue-rgb': '96,165,250',
-    '--err': '#f87171',
-    '--err-rgb': '248,113,113',
-    '--rank-silver': '#cbd5e1',
-    '--card-shadow': 'none',
-    '--card-shadow-h': '0 22px 48px -24px rgba(0,0,0,.8)',
+    // ═══ POLISH Unit 4 — layered WARM dark, green-led ═══════════════════════
+    //
+    // What this replaces: a cold blue-black palette (#0a1422 canvas) whose
+    // accent was '#22d3ee' — CYAN. Wathba's whole identity is green, and at
+    // night the brand simply turned into a different company. Progress bars,
+    // links, the logo and every CTA gradient went blue.
+    //
+    // Two rules hold this together:
+    //
+    //   ELEVATION = LIGHTNESS. surface-0 is the canvas; every layer stacked on
+    //   top of it steps UP. There is no "one flat black" and no dark-on-dark
+    //   guesswork about which panel sits above which.
+    //
+    //   WARM, NOT BLUE. Each grey carries a little red/yellow, so the ground
+    //   reads like ink rather than like a screenshot of a terminal.
+    //
+    // Every pair below is measured, not eyeballed: 21 text/background
+    // combinations clear WCAG 1.4.3 (≥4.5:1 body, ≥3:1 large/graphic). The old
+    // theme's '--ph-label' scored 2.16:1 on a card — that is the failing muted
+    // hint text, and it is fixed here rather than nudged.
+    '--surface-0': '#131210',
+    '--surface-1': '#1c1a17',
+    '--surface-2': '#242220',
+    '--surface-3': '#302d29',
+    '--text-primary': '#f6f4ef',
+    '--text-secondary': '#d8d3c9',
+    '--text-muted': '#aba49a',
+    '--border': 'rgba(255,252,245,.11)',
+
+    // ── legacy aliases → the layers above ─────────────────────────────────
+    '--bg': '#131210',
+    '--surface': '#1c1a17',
+    '--surface2': '#242220',
+    '--footer': '#0e0d0c',
+    '--ph-bg': '#242220',
+    // A whisper of gradient so a card still reads as a lifted plane; both stops
+    // are inside the surface-1 step, so elevation ordering is unchanged.
+    '--card': 'linear-gradient(180deg,#1c1a17,#191714)',
+    '--band': 'linear-gradient(120deg,#242220,#1e1c19)',
+    '--avatar': 'linear-gradient(135deg,#302d29,#211f1c)',
+    '--text': '#f6f4ef',
+    '--text-soft': '#d8d3c9',
+    // --muted is the STRONGER of the two (matching the light theme's ordering);
+    // --muted2 is the quieter one. 8.9:1 and 7.0:1 on a card.
+    '--muted': '#c0bab0',
+    '--muted2': '#aba49a',
+    // Was #3d5876 → 2.16:1. Now the same value as --muted2: a hint is quiet,
+    // never invisible.
+    '--ph-label': '#aba49a',
+    // Warm white, so every rgba(var(--ink-rgb),…) border and wash stays warm
+    // instead of dropping a cold blue veil over the surfaces.
+    '--ink-rgb': '255,252,245',
+
+    // ── the brand, still green ────────────────────────────────────────────
+    // The emerald pushed up in lightness until it clears AA on dark surfaces:
+    // fills 8.8:1, accent TEXT 10.1:1 on a card.
+    '--accent': '#1fd37e',
+    '--accent-rgb': '31,211,126',
+    '--accent2-rgb': '16,185,129',
+    '--accent-ink': '#4ade96',
+    '--on-accent': '#08130d',
+    '--header-bg': 'rgba(19,18,16,.74)',
+    '--grad': 'linear-gradient(135deg,#1fd37e,#10b981)',
+    '--grad-bar': 'linear-gradient(90deg,#1fd37e,#10b981)',
+    '--grad-bar-over': 'linear-gradient(90deg,#1fd37e,#3dd68c)',
+    '--grad-barv': 'linear-gradient(180deg,#1fd37e,#10b981)',
+    '--cta-grad': 'linear-gradient(120deg,#1fd37e,#0fbf86,#34e39a)',
+
+    // ── state colours, dark-tuned ─────────────────────────────────────────
+    // Never carried by hue alone anywhere they mean something — each is paired
+    // with a label or an icon in the components that use them.
+    '--gold': '#f5c24c',
+    '--gold-rgb': '245,194,76',
+    '--pos': '#3dd68c',
+    '--pos-rgb': '61,214,140',
+    '--purple': '#c0a8ff',
+    '--purple-rgb': '192,168,255',
+    '--blue': '#79b8ff',
+    '--blue-rgb': '121,184,255',
+    '--err': '#ff7b72',
+    '--err-rgb': '255,123,114',
+    '--rank-silver': '#c9c3b8',
+    // Depth on dark comes from the lightness step, not from a shadow nobody can
+    // see; the hover shadow stays, to lift a card off its layer.
+    '--card-shadow': '0 1px 0 rgba(255,252,245,.04)',
+    '--card-shadow-h': '0 22px 48px -24px rgba(0,0,0,.75)',
   },
 };
 
