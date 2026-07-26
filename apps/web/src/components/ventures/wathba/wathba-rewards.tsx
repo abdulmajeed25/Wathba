@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import type { RichRewardTier } from './wathba-rich';
 import { Icon, Num } from './wathba-icons';
+import { formatSar } from '@/lib/i18n/format';
 
 
 /**
@@ -142,7 +143,7 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
           <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
-            {t.priceSar.toLocaleString('en-US')} ر.س
+            {formatSar('ar', t.priceSar)}
           </Num>
         </div>
         <Num style={{ fontSize: 12, color: 'var(--muted2)' }}>
@@ -238,7 +239,7 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
             borderRadius: 12, textDecoration: 'none',
           }}
         >
-          تعهّد بـ {t.priceSar.toLocaleString('en-US')} ر.س
+          تعهّد بـ {formatSar('ar', t.priceSar)}
         </Link>
       )}
     </article>

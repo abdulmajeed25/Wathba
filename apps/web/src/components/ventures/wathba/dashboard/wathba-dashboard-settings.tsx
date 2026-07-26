@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { ApiProjectDetail } from '@/lib/api/wathba';
 import { WathbaDashboardCollaborators } from './wathba-dashboard-collaborators';
 import { useConfirm } from '../wathba-feedback';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /* ─────── Static enums + labels ──────────────────────────────────────────────
  * Kept colocated so we don't drag the @prisma/client enum into the browser
@@ -49,7 +50,7 @@ const STATUS_COLORS: Readonly<Record<string, string>> = {
   REFUNDED: '#ef4444',
 };
 
-const fmtSAR = (h: number): string => `${(h / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
 
 /* ─────── Public component ─────────────────────────────────────────────────── */
 

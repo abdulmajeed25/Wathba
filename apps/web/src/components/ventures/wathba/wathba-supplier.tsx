@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 
+import { formatSar } from '@/lib/i18n/format';
 import type { ApiBidPublic, ApiRfqPublic } from '@/lib/api/wathba';
 import { type SupplierBidInput, supplierBidSchema } from '@/lib/validators';
 import {
@@ -278,7 +279,7 @@ function BidList({ bids, isLive }: { bids: WathbaSupplierBid[]; isLive: boolean 
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted2)' }}>السعر</div>
                 <Num style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
-                  ${b.amount.toLocaleString('en-US')}
+                  {formatSar('ar', b.amount)}
                 </Num>
               </div>
               <div>

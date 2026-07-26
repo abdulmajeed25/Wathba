@@ -14,6 +14,7 @@ import {
   wathbaRanks,
   wathbaTickerMessages,
 } from './wathba-data';
+import { formatSarCompact } from '@/lib/i18n/format';
 import { Icon, Num } from './wathba-icons';
 
 type TrendTabId = 'hot' | 'new' | 'near' | 'big';
@@ -189,7 +190,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
           <div style={{ display: 'flex', gap: 36 }}>
             <div>
               <Num style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)' }}>
-                ${compactNum(stats.raised)}
+                {formatSarCompact('ar', stats.raised)}
               </Num>
               <div style={{ fontSize: 13, color: 'var(--muted2)', marginTop: 2 }}>أموال جُمعت</div>
             </div>

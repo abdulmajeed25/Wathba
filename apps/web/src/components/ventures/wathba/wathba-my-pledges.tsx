@@ -5,6 +5,7 @@ import { wathbaProjects } from './wathba-data';
 import { EmptyState } from './wathba-states';
 import { Icon, Num } from './wathba-icons';
 import { PledgeActions } from './wathba-pledge-actions';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Backer's "my pledges" screen — lists the current user's HELD / CAPTURED /
@@ -99,7 +100,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                     </Num>
                   </div>
                   <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent)' }}>
-                    {(Number(p.amount) / 100).toLocaleString('en-US')} ر.س
+                    {formatSarFromHalalas('ar', Number(p.amount))}
                   </Num>
                   <span
                     style={{

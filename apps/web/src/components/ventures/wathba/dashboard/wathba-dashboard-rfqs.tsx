@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import type { ApiBidPublic, ApiRfqDetail, ApiRfqPublic } from '@/lib/api/wathba';
 import { Icon, Num } from '../wathba-icons';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
 /**
  * Creator reverse-auction manager (Sprint 3 / P0-302).
@@ -302,7 +303,7 @@ export function WathbaDashboardRfqs({
                           }}
                         >
                           <Num style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)', minWidth: 110 }}>
-                            {(b.amountHalalas / 100).toLocaleString('en-US')} ر.س
+                            {formatSarFromHalalas('ar', b.amountHalalas)}
                           </Num>
                           <Num style={{ fontSize: 12.5, color: 'var(--muted)' }}>{b.leadTimeDays} يوم</Num>
                           <span style={{ flex: 1, fontSize: 12, color: 'var(--muted2)', minWidth: 180 }}>

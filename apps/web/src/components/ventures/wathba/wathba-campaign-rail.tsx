@@ -8,8 +8,9 @@ import { useLiveFunding } from '@/lib/hooks/use-live-funding';
 import { ReportProjectButton } from './wathba-report-project';
 import { ShareButton } from './wathba-share';
 import { Icon, Num } from './wathba-icons';
+import { formatSar } from '@/lib/i18n/format';
 
-const fmtSAR = (n: number): string => `${n.toLocaleString('en-US')} ر.س`;
+const fmtSAR = (n: number): string => formatSar('ar', n);
 
 /**
  * Right-side sticky funding rail. Top: raised / goal / pct / progress bar +
@@ -139,7 +140,7 @@ export function WathbaCampaignRail({
         <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-soft)' }}>
           يُموَّل عند بلوغ{' '}
           <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
-            {thresholdAmount.toLocaleString('en-US')} ر.س ({releaseThresholdPct}%)
+            {formatSar('ar', thresholdAmount)} ({releaseThresholdPct}%)
           </Num>{' '}
           من الهدف قبل الموعد النهائي. وإلا، تُرَدّ كل الأموال تلقائياً.
         </div>

@@ -51,6 +51,7 @@ const STEPS: readonly StepDef[] = [
 // src/lib/stores/launch-wizard.ts for DraftTier / DraftMilestone types
 // and the seed defaults that pre-populate the form.
 import type { DraftTier, DraftMilestone } from '@/lib/stores/launch-wizard';
+import { formatSar } from '@/lib/i18n/format';
 
 // ── Step 2: number sanitiser (strip commas, parse int) ─────────────────────
 function parseAmount(s: string): number {
@@ -1093,7 +1094,7 @@ function StepReview({
     { label: 'الفئة', value: categoryLabel, accent: false },
     {
       label: 'الهدف',
-      value: goalNum.toLocaleString('en-US') + ' ر.س',
+      value: formatSar('ar', goalNum),
       accent: true,
     },
     { label: 'المدة', value: `${durationNum.toLocaleString('en-US')} يوم`, accent: false },

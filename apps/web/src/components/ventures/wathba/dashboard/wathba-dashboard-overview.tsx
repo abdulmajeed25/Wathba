@@ -2,9 +2,9 @@ import type { ApiProjectDetail } from '@/lib/api/wathba';
 
 import { Num } from '../wathba-icons';
 import { ProjectRejectionAppeal } from './wathba-dashboard-appeal';
+import { formatSarFromHalalas } from '@/lib/i18n/format';
 
-const fmtSAR = (halalas: number): string =>
-  `${(halalas / 100).toLocaleString('en-US')} ر.س`;
+const fmtSAR = (halalas: number): string => formatSarFromHalalas('ar', halalas);
 
 const fmtNum = (n: number): string => n.toLocaleString('en-US');
 
