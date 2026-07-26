@@ -456,6 +456,8 @@ export class ProjectsService {
       publishedAt: { not: null },
       // Batch OPS — moderation takedowns never surface in public rails.
       hiddenAt: null,
+      // POLISH Unit 6 — nor do automated-test fixtures.
+      isTestFixture: false,
     };
 
     const items = proj.categoryId
@@ -564,7 +566,7 @@ export class ProjectsService {
     const take = q.take ?? 20;
     // Batch OPS — this is the PUBLIC listing: projects under a moderation
     // takedown (hiddenAt) are excluded regardless of the requested filters.
-    const where: Prisma.ProjectWhereInput = { hiddenAt: null };
+    const where: Prisma.ProjectWhereInput = { hiddenAt: null, isTestFixture: false };
 
     // Canonical taxonomy filter (categorySlug/subSlug) takes precedence over the
     // legacy enum, which stays for back-compat.

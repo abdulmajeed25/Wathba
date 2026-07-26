@@ -87,8 +87,17 @@ test('F-10: sitemap advertises the /p/[slug] canonical and the slug resolves', a
   const sitemap = await request.get('/sitemap.xml');
   expect(sitemap.status()).toBe(200);
   const xml = await sitemap.text();
-  expect(xml).toContain(`/p/${slug}`);
 
+  // The sitemap advertises real projects. POLISH Unit 6: it must NOT advertise
+  // this one — the golden-journey fixture is titled «مشروع E2E <timestamp>» and
+  // is excluded from every public listing, and the sitemap is the most public
+  // listing there is. Asserting the shape rather than this slug keeps the
+  // canonical mechanism covered without asking a crawler to index test data.
+  expect(xml).toMatch(/\/p\/[a-z0-9-]+/);
+  expect(xml, 'a test fixture reached the sitemap').not.toContain(`/p/${slug}`);
+
+  // The page itself still resolves and still carries the right canonical: the
+  // guard is a listing filter, not a takedown.
   await page.goto(`/p/${slug}`);
   await expect(page.getByText('مشروع E2E').first()).toBeVisible();
   const canonical = page.locator('link[rel="canonical"]');

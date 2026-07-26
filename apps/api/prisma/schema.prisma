@@ -240,72 +240,72 @@ enum UpdateVisibility {
 // ============================================================================
 
 model User {
-  id                  String          @id @default(uuid()) @db.Uuid
-  name                String
-  email               String          @unique
-  phone               String?
-  passwordHash        String?
+  id                   String          @id @default(uuid()) @db.Uuid
+  name                 String
+  email                String          @unique
+  phone                String?
+  passwordHash         String?
   /// STAKES/C7 — unique URL handle for the public profile (/u/[handle]).
   /// Nullable: legacy rows are backfilled from the email local-part; a user
   /// can pick their own in settings (validated + reserved-word checked).
-  handle              String?         @unique
+  handle               String?         @unique
   /// STAKES/C2-C4 — user-level identity surface (every user, not just creators).
-  avatarUrl           String?
-  bioAr               String?         @db.Text
-  city                String?
-  websiteUrl          String?
+  avatarUrl            String?
+  bioAr                String?         @db.Text
+  city                 String?
+  websiteUrl           String?
   /// [{platform:'x'|'instagram'|'linkedin'|'youtube'|'tiktok', url}] — validated in the DTO.
-  socialLinks         Json            @default("[]")
+  socialLinks          Json            @default("[]")
   /// STAKES/E2 — per-type notification opt-outs ({projectUpdates, campaignOutcomes,
   /// comments, marketing}; absent key = the default in NOTIFICATION_PREF_DEFAULTS).
-  notificationPrefs   Json            @default("{}")
+  notificationPrefs    Json            @default("{}")
   /// STAKES/E3 — privacy: public /u/[handle] visibility + backed-count display.
-  profilePublic       Boolean         @default(true)
-  showBackedCount     Boolean         @default(true)
-  roles               UserRole[]      @default([BACKER])
+  profilePublic        Boolean         @default(true)
+  showBackedCount      Boolean         @default(true)
+  roles                UserRole[]      @default([BACKER])
   /// STAKES/S-12 F-11 — BASELINE identity tier: gates commenting/following/
   /// engagement notifications. Existing accounts were grandfathered true
   /// (migration 0035); Nafath below stays the money-tier KYC.
-  emailVerified       Boolean         @default(false)
-  nafathVerified      Boolean         @default(false)
-  nafathVerifiedAt    DateTime?
+  emailVerified        Boolean         @default(false)
+  nafathVerified       Boolean         @default(false)
+  nafathVerifiedAt     DateTime?
   /// Batch OPS-PRO — supplier verification (suppliers.verify). A SUPPLIER-role
   /// account is trusted to bid only once an operator verifies it; null = not
   /// yet verified. verifiedById is the ops actor (User.id, no FK — audit trail
   /// is the authority).
-  supplierVerifiedAt  DateTime?
-  supplierVerifiedById String?        @db.Uuid
-  supplierVerifyNote  String?         @db.Text
+  supplierVerifiedAt   DateTime?
+  supplierVerifiedById String?         @db.Uuid
+  supplierVerifyNote   String?         @db.Text
   /// PDPL (Sprint 2 / P0-702): which consent text version the user accepted, and when.
-  consentVersion      String?
-  consentAt           DateTime?
+  consentVersion       String?
+  consentAt            DateTime?
   /// Batch OPS (registry completion) — suspension/ban. Set only by the
   /// governed operations users.suspend / moderation.user.ban; null = active.
   /// Sign-in refuses and the JWT guard rejects while set; reactivate/unban
   /// clears all three together.
-  suspendedAt         DateTime?
-  suspendedKind       SuspensionKind?
-  suspendedReasonAr   String?
-  reputationTier      ReputationTier  @default(NEWCOMER)
-  totalPledgedHalalas BigInt          @default(0)
-  locale              String          @default("ar")
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  suspendedAt          DateTime?
+  suspendedKind        SuspensionKind?
+  suspendedReasonAr    String?
+  reputationTier       ReputationTier  @default(NEWCOMER)
+  totalPledgedHalalas  BigInt          @default(0)
+  locale               String          @default("ar")
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
 
-  projects            Project[]       @relation("ProjectCreator")
-  pledges             Pledge[]
-  comments            Comment[]
-  notifications       Notification[]
-  supplierBids        SupplierBid[]
-  addresses           Address[]
-  payouts             Payout[]        @relation("PayoutCreator")
-  contestWins         ContestWinner[]
-  faqQuestions        FaqQuestion[]   @relation("FaqAsker")
-  creatorProfile      CreatorProfile?
-  follows             CreatorFollow[] @relation("Follower")
-  updateLikes         UpdateLike[]
-  payoutBeneficiary   PayoutBeneficiary?
-  savedProjects       SavedProject[]
+  projects          Project[]          @relation("ProjectCreator")
+  pledges           Pledge[]
+  comments          Comment[]
+  notifications     Notification[]
+  supplierBids      SupplierBid[]
+  addresses         Address[]
+  payouts           Payout[]           @relation("PayoutCreator")
+  contestWins       ContestWinner[]
+  faqQuestions      FaqQuestion[]      @relation("FaqAsker")
+  creatorProfile    CreatorProfile?
+  follows           CreatorFollow[]    @relation("Follower")
+  updateLikes       UpdateLike[]
+  payoutBeneficiary PayoutBeneficiary?
+  savedProjects     SavedProject[]
 
   @@index([reputationTier])
   @@index([email])
@@ -332,7 +332,7 @@ model Address {
 // ============================================================================
 
 model Project {
-  id                   String          @id @default(uuid()) @db.Uuid
+  id                   String           @id @default(uuid()) @db.Uuid
   titleAr              String
   shortDescAr          String
   /// LEGACY alias — kept nullable for back-compat (search/procurement). The
@@ -342,42 +342,42 @@ model Project {
   /// Canonical taxonomy (Batch CAT). May point at a top-level OR a subcategory
   /// node; the parent is derivable via Category.parentId. Nullable only until
   /// the create/edit wizard requires it.
-  categoryId           String?         @db.Uuid
-  categoryRef          Category?       @relation("ProjectCategoryRef", fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId           String?          @db.Uuid
+  categoryRef          Category?        @relation("ProjectCategoryRef", fields: [categoryId], references: [id], onDelete: SetNull)
   /// Saudi administrative region (Batch CAT — "near you" filter + location facet).
   region               ProjectRegion?
   /// "مختارات وثبة" (Projects We Love) — editorial pick. ADMIN-only toggle,
   /// audited. Surfaced by the `staff_pick` discovery filter (Batch CAT).
-  isStaffPick          Boolean         @default(false)
-  storyAr              String          @db.Text
-  mediaUrls            String[]        @default([])
+  isStaffPick          Boolean          @default(false)
+  storyAr              String           @db.Text
+  mediaUrls            String[]         @default([])
   fundingGoalHalalas   BigInt
-  releaseThresholdPct  Int             @default(80)
+  releaseThresholdPct  Int              @default(80)
   durationDays         Int
   deadline             DateTime
-  status               ProjectStatus   @default(DRAFT)
-  productSpecAr        String?         @db.Text
+  status               ProjectStatus    @default(DRAFT)
+  productSpecAr        String?          @db.Text
   expectedDeliveryDate DateTime?
-  createdById          String          @db.Uuid
-  createdBy            User            @relation("ProjectCreator", fields: [createdById], references: [id])
-  raisedHalalas        BigInt          @default(0)
+  createdById          String           @db.Uuid
+  createdBy            User             @relation("ProjectCreator", fields: [createdById], references: [id])
+  raisedHalalas        BigInt           @default(0)
   /// Batch PAY (Part 2) — REALIZED = actually captured; never conflated with
   /// PLEDGED (raisedHalalas at deadline). Payout milestones use THIS.
-  realizedHalalas      BigInt          @default(0)
+  realizedHalalas      BigInt           @default(0)
   /// Batch PAY (Part 5) — admin-approved 61–120d duration (AuditLogged).
   /// >120d is BLOCKED IN CODE: LONG_DURATION — blocked pending legal counsel
   /// + capture-model decision (owner). Card auths cannot survive a year.
   approvedDurationDays Int?
-  backersCount         Int             @default(0)
+  backersCount         Int              @default(0)
   /// §7 — Wathba-as-co-founder marker. Null = normal community project.
   platformPartner      Json?
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
   publishedAt          DateTime?
   /// Admin review feedback surfaced to the creator on reject (Creator-CC /
   /// CC-04). Previously the reject reason was discarded; now it is persisted
   /// and shown in the dashboard so the creator can fix and resubmit.
-  reviewFeedback       String?         @db.Text
+  reviewFeedback       String?          @db.Text
   reviewedAt           DateTime?
   /// Pause/unpause (Creator-CC / CC-14). `pausedAt` is set while status=PAUSED;
   /// `pausedMsAccrued` accumulates total paused time across pause periods and is
@@ -385,10 +385,10 @@ model Project {
   /// (policy §5), so pausing only freezes NEW pledges — it never extends the
   /// deadline.
   pausedAt             DateTime?
-  pausedMsAccrued      BigInt          @default(0)
+  pausedMsAccrued      BigInt           @default(0)
   /// CC-22 — SEO/social. slug is a human URL alias (unique); ogImage + meta feed
   /// the public page's OpenGraph/description tags.
-  slug                 String?         @unique
+  slug                 String?          @unique
   ogImage              String?
   metaDescription      String?
   /// CC-20 — scheduled go-live. When an admin approves a project that has this
@@ -401,25 +401,32 @@ model Project {
   /// governed operations moderation.project.hide / unhide.
   hiddenAt             DateTime?
   hiddenReasonAr       String?
+  /// Batch POLISH Unit 6 — true when the title looks like an automated-test
+  /// fixture (a fixture token AND a 10+ digit timestamp). SET BY A DATABASE
+  /// TRIGGER on insert/title-update, never by application code: the Playwright
+  /// suite creates real projects through the real API, so the guard has to live
+  /// somewhere a new query cannot forget it. Public reads filter on this;
+  /// operator reads deliberately do not — an operator must see everything.
+  isTestFixture        Boolean          @default(false)
 
-  rewardTiers          RewardTier[]
-  addOns               AddOn[]
-  pledges              Pledge[]
-  milestones           Milestone[]
-  spendLogs            SpendLog[]
-  rfqs                 RFQ[]
-  updates              ProjectUpdate[]
-  comments             Comment[]
-  projectReports       ProjectReport[]
-  payouts              Payout[]
-  contests             Contest[]
-  faqItems             FaqItem[]
-  faqQuestions         FaqQuestion[]
-  communityStats       CommunityStat[]
-  changeLogs           ProjectChangeLog[]
-  collaborators        ProjectCollaborator[]
-  collections          ProjectCollection[]
-  savedBy              SavedProject[]
+  rewardTiers    RewardTier[]
+  addOns         AddOn[]
+  pledges        Pledge[]
+  milestones     Milestone[]
+  spendLogs      SpendLog[]
+  rfqs           RFQ[]
+  updates        ProjectUpdate[]
+  comments       Comment[]
+  projectReports ProjectReport[]
+  payouts        Payout[]
+  contests       Contest[]
+  faqItems       FaqItem[]
+  faqQuestions   FaqQuestion[]
+  communityStats CommunityStat[]
+  changeLogs     ProjectChangeLog[]
+  collaborators  ProjectCollaborator[]
+  collections    ProjectCollection[]
+  savedBy        SavedProject[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -440,37 +447,39 @@ model Project {
   @@index([region, status])
   //  - (isStaffPick, status)     → Batch CAT "staff pick" filter
   @@index([isStaffPick, status])
+  //  - (isTestFixture, status)  → Batch POLISH public-listing fixture filter
+  @@index([isTestFixture, status])
 }
 
 model RewardTier {
-  id                      String     @id @default(uuid()) @db.Uuid
-  projectId               String     @db.Uuid
-  project                 Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                      String    @id @default(uuid()) @db.Uuid
+  projectId               String    @db.Uuid
+  project                 Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   titleAr                 String
   amountHalalas           BigInt
-  descAr                  String     @db.Text
-  includesPhysicalProduct Boolean    @default(false)
-  requiresShipping        Boolean    @default(false)
+  descAr                  String    @db.Text
+  includesPhysicalProduct Boolean   @default(false)
+  requiresShipping        Boolean   @default(false)
   estDeliveryDate         DateTime
   limitQty                Int?
-  claimedQty              Int        @default(0)
-  popular                 Boolean    @default(false)
-  featured                Boolean    @default(false)
+  claimedQty              Int       @default(0)
+  popular                 Boolean   @default(false)
+  featured                Boolean   @default(false)
   /// CC-13 — a closed tier is hidden from new pledges (existing backers keep it).
-  isActive                Boolean    @default(true)
+  isActive                Boolean   @default(true)
   /// CC-13 — time-boxed early-bird price: while now < earlyBirdUntil and stock
   /// remains, the effective minimum pledge is earlyBirdAmountHalalas.
   earlyBirdAmountHalalas  BigInt?
   earlyBirdUntil          DateTime?
   /// [{nameAr, qty, thumbnailUrl}] — the "ما يتضمنه" line items.
-  includedItems           Json       @default("[]")
+  includedItems           Json      @default("[]")
   /// ISO 3166-1 alpha-2 country codes the creator ships physical rewards to.
-  shipsTo                 String[]   @default([])
-  sortOrder               Int        @default(0)
-  createdAt               DateTime   @default(now())
+  shipsTo                 String[]  @default([])
+  sortOrder               Int       @default(0)
+  createdAt               DateTime  @default(now())
 
-  pledges                 Pledge[]
-  contestPrizes           Contest[]  @relation("ContestPrizeRewardTier")
+  pledges       Pledge[]
+  contestPrizes Contest[] @relation("ContestPrizeRewardTier")
 
   // (projectId, sortOrder) → ordered tier list for the project page.
   @@index([projectId, sortOrder])
@@ -493,18 +502,18 @@ model AddOn {
   createdAt     DateTime @default(now())
 
   pledgeAddOns  PledgeAddOn[]
-  contestPrizes Contest[] @relation("ContestPrizeAddOn")
+  contestPrizes Contest[]     @relation("ContestPrizeAddOn")
 
   @@index([projectId, sortOrder])
 }
 
 model PledgeAddOn {
-  id            String  @id @default(uuid()) @db.Uuid
-  pledgeId      String  @db.Uuid
-  pledge        Pledge  @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
-  addOnId       String  @db.Uuid
-  addOn         AddOn   @relation(fields: [addOnId], references: [id])
-  qty           Int     @default(1)
+  id            String   @id @default(uuid()) @db.Uuid
+  pledgeId      String   @db.Uuid
+  pledge        Pledge   @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  addOnId       String   @db.Uuid
+  addOn         AddOn    @relation(fields: [addOnId], references: [id])
+  qty           Int      @default(1)
   amountHalalas BigInt
   createdAt     DateTime @default(now())
 
@@ -517,48 +526,48 @@ model PledgeAddOn {
 // ============================================================================
 
 model Pledge {
-  id            String       @id @default(uuid()) @db.Uuid
-  backerId      String       @db.Uuid
-  backer        User         @relation(fields: [backerId], references: [id])
-  projectId     String       @db.Uuid
-  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                String                  @id @default(uuid()) @db.Uuid
+  backerId          String                  @db.Uuid
+  backer            User                    @relation(fields: [backerId], references: [id])
+  projectId         String                  @db.Uuid
+  project           Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// Batch PAY (Part 3) — nullable: no-reward pledges carry amount only.
-  tierId        String?      @db.Uuid
-  tier          RewardTier?  @relation(fields: [tierId], references: [id])
+  tierId            String?                 @db.Uuid
+  tier              RewardTier?             @relation(fields: [tierId], references: [id])
   /// Batch PAY — CARD | TABBY | TAMARA (BNPL = deferred-INITIATION intents).
-  paymentMethod String       @default("CARD")
-  graceStartedAt  DateTime?
-  graceExpiresAt  DateTime?
-  captureAttempts Int        @default(0)
-  reauthorizedAt  DateTime?
-  amountHalalas BigInt
+  paymentMethod     String                  @default("CARD")
+  graceStartedAt    DateTime?
+  graceExpiresAt    DateTime?
+  captureAttempts   Int                     @default(0)
+  reauthorizedAt    DateTime?
+  amountHalalas     BigInt
   /// Sum of add-on amounts (sub-total) — convenience cache, recomputed on add-on change.
-  addOnsHalalas BigInt       @default(0)
-  status        PledgeStatus @default(HELD)
+  addOnsHalalas     BigInt                  @default(0)
+  status            PledgeStatus            @default(HELD)
   /// Creator-editable fulfillment bookkeeping (Creator-CC / CC-02). No money
   /// effect — never read by any capture/refund/payout path.
-  rewardStatus  RewardFulfillmentStatus @default(PENDING)
-  shipping      Json?
-  contractType  ContractType @default(DONATION)
-  paymentRef    String       @unique
+  rewardStatus      RewardFulfillmentStatus @default(PENDING)
+  shipping          Json?
+  contractType      ContractType            @default(DONATION)
+  paymentRef        String                  @unique
   /// Per-project sequential backer number (#1, #2 …). Assigned in the pledge tx.
   /// Lets us reference backers in contest winner announcements without
   /// exposing user IDs. Always set since migration 0002_backfill_pledge_backerno
   /// (legacy NULLs were backfilled in createdAt order per project).
-  backerNo      Int
-  createdAt     DateTime     @default(now())
-  capturedAt    DateTime?
-  refundedAt    DateTime?
+  backerNo          Int
+  createdAt         DateTime                @default(now())
+  capturedAt        DateTime?
+  refundedAt        DateTime?
   /// Batch OPS-PRO — dispute resolution (money.dispute.resolve). A pledge
   /// enters DISPUTED via the chargeback webhook; an operator resolves it
   /// WON (funds retained → back to CAPTURED) or LOST (→ REFUNDED with counter
   /// compensation). Outcome + timestamp are recorded here; the money movement
   /// is audited through the registry.
-  disputeOutcome String?
+  disputeOutcome    String?
   disputeResolvedAt DateTime?
 
-  addOns        PledgeAddOn[]
-  materialised  CommunityMaterialised?
+  addOns       PledgeAddOn[]
+  materialised CommunityMaterialised?
 
   // (projectId, status)      → funding aggregations
   // (backerId, createdAt)    → /v1/pledges/me chronological list
@@ -595,8 +604,8 @@ model Milestone {
   /// and resubmit; the reject bounces status SUBMITTED→PENDING.
   reviewFeedbackAr String?         @db.Text
 
-  spendLogs        SpendLog[]
-  payouts          Payout[]
+  spendLogs SpendLog[]
+  payouts   Payout[]
 
   @@unique([projectId, order])
   @@index([projectId])
@@ -660,17 +669,17 @@ model SupplierBid {
 // ============================================================================
 
 model Payout {
-  id             String       @id @default(uuid()) @db.Uuid
-  projectId      String       @db.Uuid
-  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  creatorId      String       @db.Uuid
-  creator        User         @relation("PayoutCreator", fields: [creatorId], references: [id])
-  amountHalalas  BigInt
-  milestoneId    String       @db.Uuid
-  milestone      Milestone    @relation(fields: [milestoneId], references: [id])
-  status         PayoutStatus @default(PENDING)
-  zatcaInvoiceId String?
-  sentAt         DateTime?
+  id                 String       @id @default(uuid()) @db.Uuid
+  projectId          String       @db.Uuid
+  project            Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creatorId          String       @db.Uuid
+  creator            User         @relation("PayoutCreator", fields: [creatorId], references: [id])
+  amountHalalas      BigInt
+  milestoneId        String       @db.Uuid
+  milestone          Milestone    @relation(fields: [milestoneId], references: [id])
+  status             PayoutStatus @default(PENDING)
+  zatcaInvoiceId     String?
+  sentAt             DateTime?
   /// OPS-0 correction #2 — commission+VAT withheld at disbursement (offset
   /// settlement of the ZATCA invoice); amountHalalas stays the GROSS release.
   feeWithheldHalalas BigInt?
@@ -681,7 +690,7 @@ model Payout {
   /// When the SENDING claim was taken — stale claims (crash mid-send) are
   /// surfaced every disburse tick and never auto-resent.
   claimedAt          DateTime?
-  createdAt      DateTime     @default(now())
+  createdAt          DateTime     @default(now())
 
   // (creatorId, status, createdAt) → wallet view (SENT vs PENDING ordering)
   // (projectId, status)             → admin payouts queue
@@ -694,31 +703,31 @@ model Payout {
 // ============================================================================
 
 model ProjectUpdate {
-  id            String   @id @default(uuid()) @db.Uuid
-  projectId     String   @db.Uuid
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  titleAr       String
-  bodyAr        String   @db.Text
+  id           String           @id @default(uuid()) @db.Uuid
+  projectId    String           @db.Uuid
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  titleAr      String
+  bodyAr       String           @db.Text
   /// Numbered update order (#1, #2 …) — manually assigned by the creator.
   /// Highest is "latest" on the campaign page.
-  orderNum      Int      @default(0)
+  orderNum     Int              @default(0)
   /// Materialised count over UpdateLike — updated atomically with insert /
   /// delete in UpdatesService.like() so it stays in sync with the join rows.
-  likeCount     Int      @default(0)
-  commentCount  Int      @default(0)
-  date          DateTime @default(now())
+  likeCount    Int              @default(0)
+  commentCount Int              @default(0)
+  date         DateTime         @default(now())
   /// CC-12 — creator-pinned update floats to the top of the list.
-  pinned        Boolean  @default(false)
-  pinnedAt      DateTime?
+  pinned       Boolean          @default(false)
+  pinnedAt     DateTime?
   /// CC-12 — PUBLIC or BACKERS_ONLY (CAPTURED backers, policy §9).
-  visibility    UpdateVisibility @default(PUBLIC)
+  visibility   UpdateVisibility @default(PUBLIC)
   /// CC-12 — scheduled publish time. The public list hides updates until
   /// publishAt <= now; the fan-out notification fires when it becomes due.
-  publishAt     DateTime @default(now())
+  publishAt    DateTime         @default(now())
   /// Set once the CC-01 fan-out has run for this update (guards scheduled fan-out).
-  notifiedAt    DateTime?
+  notifiedAt   DateTime?
 
-  likes         UpdateLike[]
+  likes UpdateLike[]
 
   @@index([projectId, date])
   @@index([projectId, orderNum])
@@ -749,29 +758,29 @@ model CommunityMaterialised {
 }
 
 model Comment {
-  id        String   @id @default(uuid()) @db.Uuid
-  projectId String   @db.Uuid
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId    String   @db.Uuid
-  user      User     @relation(fields: [userId], references: [id])
-  bodyAr    String   @db.Text
-  parentId  String?  @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  projectId   String    @db.Uuid
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id])
+  bodyAr      String    @db.Text
+  parentId    String?   @db.Uuid
   /// Cached: comment author is the project creator. Drives the "Creator"
   /// badge on the public page. Recomputed if creator changes (shouldn't).
-  isCreator Boolean  @default(false)
+  isCreator   Boolean   @default(false)
   /// Creator-pinned: floats to top of the list.
-  pinned    Boolean  @default(false)
-  pinnedAt  DateTime?
+  pinned      Boolean   @default(false)
+  pinnedAt    DateTime?
   /// Moderator hidden — shown as "removed" placeholder, body suppressed.
-  hidden    Boolean  @default(false)
-  likeCount Int      @default(0)
+  hidden      Boolean   @default(false)
+  likeCount   Int       @default(0)
   /// CC-23 — materialised count of user reports (dedup via CommentReport).
-  reportCount Int    @default(0)
+  reportCount Int       @default(0)
   /// STAKES/K1 — set when the author edits within the 15-min window.
-  editedAt  DateTime?
-  date      DateTime @default(now())
+  editedAt    DateTime?
+  date        DateTime  @default(now())
 
-  reports   CommentReport[]
+  reports CommentReport[]
 
   // (projectId, parentId, date) → cursor pagination of top-level vs replies
   // (userId, date)              → user activity feed
@@ -823,14 +832,14 @@ model AnalyticsEvent {
 /// STAKES/K3 — trust & safety: a user reports a whole project. Deduped per
 /// reporter; surfaced (with comment reports) in the admin moderation queue.
 model ProjectReport {
-  id         String   @id @default(uuid()) @db.Uuid
-  projectId  String   @db.Uuid
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  reporterId String   @db.Uuid
+  id         String    @id @default(uuid()) @db.Uuid
+  projectId  String    @db.Uuid
+  project    Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reporterId String    @db.Uuid
   reasonAr   String?
   /// Admin resolution — null = open; 'dismissed' keeps history without count.
   resolvedAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@unique([projectId, reporterId])
   @@index([projectId])
@@ -842,13 +851,13 @@ model ProjectReport {
 /// user edit access to the project's CONTENT (updates + FAQ). Money & lifecycle
 /// controls remain owner-only (CREATOR-NO-MONEY). Managed by the owner.
 model ProjectCollaborator {
-  id         String   @id @default(uuid()) @db.Uuid
-  projectId  String   @db.Uuid
-  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId     String   @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
   /// v1: single EDITOR role (content access). Kept as a column for future roles.
-  role       String   @default("EDITOR")
-  createdAt  DateTime @default(now())
+  role      String   @default("EDITOR")
+  createdAt DateTime @default(now())
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -859,29 +868,29 @@ model ProjectCollaborator {
 // ============================================================================
 
 model Contest {
-  id                  String        @id @default(uuid()) @db.Uuid
-  projectId           String        @db.Uuid
-  project             Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                    String        @id @default(uuid()) @db.Uuid
+  projectId             String        @db.Uuid
+  project               Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   /// Sequential round number for this project (الجولة 1، 2 …).
-  roundNum            Int
-  promptAr            String        @db.Text
+  roundNum              Int
+  promptAr              String        @db.Text
   /// Prize is one of: a RewardTier, an AddOn, or a custom free-text label.
-  prizeRewardTierId   String?       @db.Uuid
-  prizeRewardTier     RewardTier?   @relation("ContestPrizeRewardTier", fields: [prizeRewardTierId], references: [id])
-  prizeAddOnId        String?       @db.Uuid
-  prizeAddOn          AddOn?        @relation("ContestPrizeAddOn", fields: [prizeAddOnId], references: [id])
-  prizeCustomAr       String?
-  winnersCount        Int
-  status              ContestStatus @default(DRAFT)
-  startsAt            DateTime?
-  endsAt              DateTime?
-  announcedAt         DateTime?
+  prizeRewardTierId     String?       @db.Uuid
+  prizeRewardTier       RewardTier?   @relation("ContestPrizeRewardTier", fields: [prizeRewardTierId], references: [id])
+  prizeAddOnId          String?       @db.Uuid
+  prizeAddOn            AddOn?        @relation("ContestPrizeAddOn", fields: [prizeAddOnId], references: [id])
+  prizeCustomAr         String?
+  winnersCount          Int
+  status                ContestStatus @default(DRAFT)
+  startsAt              DateTime?
+  endsAt                DateTime?
+  announcedAt           DateTime?
   /// Pinned creator comment auto-posted on announce — id for later edit/unpin.
-  announcementCommentId String?     @db.Uuid
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  announcementCommentId String?       @db.Uuid
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
-  winners             ContestWinner[]
+  winners ContestWinner[]
 
   @@unique([projectId, roundNum])
   @@index([projectId, status])
@@ -993,7 +1002,7 @@ model CreatorProfile {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  follows              CreatorFollow[]
+  follows CreatorFollow[]
 }
 
 model CreatorFollow {
@@ -1027,7 +1036,6 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, createdAt])
 }
-
 
 /// Inbound PSP webhook deliveries — idempotency ledger for async payment
 /// truth (Sprint 1 / P0-003). One row per unique delivery; `dedupKey`
@@ -1089,17 +1097,17 @@ model LedgerEntry {
 /// creator 5% commission + 15% VAT, with the Phase-1 TLV QR embedded and a
 /// Phase-2 reporting timestamp once cleared.
 model ZatcaInvoice {
-  id                 String    @id @default(uuid()) @db.Uuid
-  invoiceNumber      String    @unique
-  payoutId           String    @unique @db.Uuid
-  creatorId          String    @db.Uuid
-  commissionHalalas  BigInt
-  vatHalalas         BigInt
-  totalHalalas       BigInt
-  qrTlv              String
-  payload            Json
-  issuedAt           DateTime  @default(now())
-  reportedAt         DateTime?
+  id                String    @id @default(uuid()) @db.Uuid
+  invoiceNumber     String    @unique
+  payoutId          String    @unique @db.Uuid
+  creatorId         String    @db.Uuid
+  commissionHalalas BigInt
+  vatHalalas        BigInt
+  totalHalalas      BigInt
+  qrTlv             String
+  payload           Json
+  issuedAt          DateTime  @default(now())
+  reportedAt        DateTime?
 
   @@index([creatorId, issuedAt])
 }
@@ -1181,16 +1189,16 @@ model RefreshToken {
 /// revocation. stepUpAt records the last password/TOTP re-entry — MONEY and
 /// SENSITIVE operations demand it within the last 10 minutes.
 model OpsSession {
-  id          String    @id @default(uuid()) @db.Uuid
-  userId      String    @db.Uuid
-  tokenHash   String    @unique
-  createdAt   DateTime  @default(now())
-  lastSeenAt  DateTime  @default(now())
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
   /// Null when TOTP is required but not yet enrolled — the session can browse
   /// /ops and enroll, but step-up (and therefore MONEY/SENSITIVE) is refused.
-  stepUpAt    DateTime?
-  revokedAt   DateTime?
-  ip          String?
+  stepUpAt   DateTime?
+  revokedAt  DateTime?
+  ip         String?
 
   @@index([userId, revokedAt])
 }
@@ -1345,19 +1353,19 @@ enum BeneficiaryType {
 /// is set once the beneficiary is registered as a Moyasar payout account
 /// (credential-gated). A payout cannot be disbursed without a row here.
 model PayoutBeneficiary {
-  id              String          @id @default(uuid()) @db.Uuid
-  userId          String          @unique @db.Uuid
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type            BeneficiaryType @default(BANK_ACCOUNT)
-  iban            String?
-  name            String
-  mobile          String
-  country         String          @default("SA")
-  city            String?
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @unique @db.Uuid
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type             BeneficiaryType @default(BANK_ACCOUNT)
+  iban             String?
+  name             String
+  mobile           String
+  country          String          @default("SA")
+  city             String?
   moyasarAccountId String?
-  verifiedAt      DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  verifiedAt       DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 }
 
 // ============================================================================
@@ -1469,7 +1477,7 @@ model SupportTicket {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @default(now()) @updatedAt
 
-  notes        SupportTicketNote[]
+  notes SupportTicketNote[]
 
   @@index([createdAt])
   @@index([status, createdAt])
@@ -1565,10 +1573,6 @@ model Appeal {
   decidedAt      DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @default(now()) @updatedAt
-
-  @@index([kind, subjectId])
-  @@index([status, createdAt])
-  @@index([submittedById])
   /// CLOSEOUT C4 — a PARTIAL unique index enforces "one live appeal per
   /// decision" in the DATABASE (migration 0056): unique on (kind, subjectId)
   /// but only WHERE status IN (SUBMITTED, UNDER_REVIEW, UPHELD). It cannot be
@@ -1576,6 +1580,10 @@ model Appeal {
   /// Deliberately PARTIAL, not total: an OVERTURNED appeal leaves nothing to
   /// contest, so if the platform later re-imposes the same enforcement the user
   /// must be able to appeal that new decision.
+
+  @@index([kind, subjectId])
+  @@index([status, createdAt])
+  @@index([submittedById])
 }
 
 /// Batch HOME — editorial content powering the magazine homepage. kind:
@@ -1583,18 +1591,18 @@ model Appeal {
 /// TRUST_GUIDE (DTO-validated). slug set ⇒ the card has an article page at
 /// /stories/[slug] rendering bodyLongAr.
 model EditorialCard {
-  id          String    @id @default(uuid()) @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
   kind        String
-  slug        String?   @unique
+  slug        String?  @unique
   titleAr     String
-  bodyAr      String    @db.Text
-  bodyLongAr  String?   @db.Text
+  bodyAr      String   @db.Text
+  bodyLongAr  String?  @db.Text
   imageUrl    String?
   linkUrl     String?
   linkLabelAr String?
-  isActive    Boolean   @default(true)
-  sortOrder   Int       @default(0)
-  publishedAt DateTime  @default(now())
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  publishedAt DateTime @default(now())
 
   @@index([kind, isActive, sortOrder])
 }

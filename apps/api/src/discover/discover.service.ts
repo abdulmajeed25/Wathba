@@ -151,7 +151,19 @@ export class DiscoverService {
     // Batch OPS — moderation takedowns (hiddenAt) never surface publicly.
     // Not a facet dimension: it is never relaxed by an "except" pass, so
     // hidden projects don't leak into facet counts either.
-    c.visible = Prisma.sql`p."hiddenAt" IS NULL`;
+    //
+    // POLISH Unit 6 — automated-test fixtures ride along in the same clause, for
+    // the same reason: this is the one place the whole discover surface (rows AND
+    // facet counts) passes through, so a fixture cannot reappear in a count even
+    // if it is filtered out of the list.
+    //
+    // EXCEPT on «المحفوظة»: a saved list is a record of what THIS user chose to
+    // bookmark, not a discovery surface. Silently dropping a row someone
+    // deliberately saved would be a worse bug than the one being fixed here, so
+    // the fixture filter applies to browsing, never to a personal list.
+    c.visible = f.savedOnly
+      ? Prisma.sql`p."hiddenAt" IS NULL`
+      : Prisma.sql`p."hiddenAt" IS NULL AND p."isTestFixture" = false`;
 
     const wantLive = f.statuses.includes('live');
     const wantFunded = f.statuses.includes('funded');
@@ -492,6 +504,8 @@ export class DiscoverService {
           status: 'LIVE',
           publishedAt: { not: null },
           hiddenAt: null,
+          // POLISH Unit 6 — automated-test fixtures never appear publicly.
+          isTestFixture: false,
           id: { notIn: backedIds },
           categoryId: { in: catIds },
         },
