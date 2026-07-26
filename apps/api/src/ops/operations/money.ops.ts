@@ -383,7 +383,7 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       const settle = await deps.funding.settleProject(input.projectId);
       // Residue sweep is best-effort: it throws when there is nothing to do
       // (e.g. still LIVE before deadline) — that is not a failure of settle.
-      let residue: unknown = null;
+      let residue: unknown;
       try {
         residue = await deps.funding.resettleResidue(input.projectId);
       } catch {

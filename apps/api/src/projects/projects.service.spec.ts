@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { ProjectStatus } from '@prisma/client';
+import { Prisma, ProjectStatus } from '@prisma/client';
 import { ProjectsService } from './projects.service';
 
 /**
@@ -179,7 +179,6 @@ describe('ProjectsService.report (STAKES/K3)', () => {
   const UUIDP = 'f18ae89b-f072-4e7e-b40c-a1a185923783';
 
   it('creates a report and dedups a second one from the same reporter', async () => {
-    const { Prisma } = require('@prisma/client');
     const create = jest
       .fn()
       .mockResolvedValueOnce({ id: 'r1' })
