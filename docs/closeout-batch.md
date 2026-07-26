@@ -190,7 +190,7 @@ Two invariants the diagram encodes:
 | Permissions | — | **+1 `trust.appeals`** → OWNER (`'*'`), OPS_MANAGER, MODERATOR |
 | Migrations | 0053 | **0056** (0054 `resolvedAt`, 0055 `RFQ_DECIDED`, 0056 appeals hardening) |
 | Notification kinds | — | **+1 `RFQ_DECIDED`**; locked money-safety kinds 9 → **13** |
-| API tests | 634 | **670** (62 suites) |
+| API tests | 634 | **672** (62 suites) |
 
 **No operation was added, renamed, or removed.** That is the intended result: this batch wired, enforced, and exposed what the registry already had. The one behavioural change to an existing op is `moderation.comment.moderate`'s `dismiss` branch, which now resolves reports (auditable) instead of zeroing the count (lossy).
 
