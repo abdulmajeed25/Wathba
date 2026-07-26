@@ -22,7 +22,20 @@ export default async function globalSetup(): Promise<void> {
     method: 'POST',
     headers: auth,
     body: JSON.stringify({
-      titleAr: `مشروع E2E ${Date.now()}`,
+      // POLISH Unit 6 — PRESENTABLE, deliberately.
+      //
+      // This was `مشروع E2E ${Date.now()}`, which the fixture guard now hides
+      // from every public listing. But this project's whole job is to guarantee
+      // a card on the technology/apps subcategory page for category-discovery,
+      // and in CI it is the only project that exists at all — so it has to BE
+      // publicly listable.
+      //
+      // The guard needs a fixture token AND a timestamp. Dropping the token is
+      // enough: the title still carries a timestamp so runs never collide on the
+      // slug, and it reads like a real campaign rather than «مشروع E2E …».
+      // The genuinely throwaway per-run projects (creator-journey, batch-pay)
+      // keep their tokens and stay hidden.
+      titleAr: `مشروع الرحلة الذهبية ${Date.now()}`,
       shortDescAr: 'هدف اختبار آلي للرحلة الذهبية للداعم',
       ...(appsId ? { categoryId: appsId } : { category: 'TECH' }),
       storyAr: 'قصة اختبار آلي طويلة بما يكفي لتجاوز حد المئتي حرف. '.repeat(6),
@@ -45,7 +58,7 @@ export default async function globalSetup(): Promise<void> {
   });
   // STAKES/S-10 F-10 — a human slug set at draft time (slug edits lock after
   // submission) so the sitemap/canonical specs have a slugged LIVE project.
-  const slug = `e2e-sirb-${Date.now()}`;
+  const slug = `rihla-thahabiya-${Date.now()}`;
   await fetch(`${API}/v1/projects/${proj.id}`, {
     method: 'PATCH',
     headers: auth,

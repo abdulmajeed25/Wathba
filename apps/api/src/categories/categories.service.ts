@@ -61,7 +61,7 @@ export class CategoriesService {
       this.prisma.project.groupBy({
         by: ['categoryId'],
         // Batch OPS — public counts skip moderation-hidden projects.
-        where: { status: 'LIVE', categoryId: { not: null }, hiddenAt: null },
+        where: { status: 'LIVE', categoryId: { not: null }, hiddenAt: null, isTestFixture: false },
         _count: { _all: true },
       }),
     ]);

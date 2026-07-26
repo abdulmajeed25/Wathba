@@ -65,7 +65,7 @@ export class HomeService {
         ? this.prisma.project.findMany({
             // Batch OPS — hiddenAt: null on every homepage rail: moderation
             // takedowns never surface on the public magazine page.
-            where: { status: ProjectStatus.LIVE, isStaffPick: true, hiddenAt: null },
+            where: { status: ProjectStatus.LIVE, isStaffPick: true, hiddenAt: null, isTestFixture: false },
             orderBy: { publishedAt: 'desc' },
             take: 1,
             select: CARD_SELECT,
@@ -102,7 +102,7 @@ export class HomeService {
   /** Anonymous «موصى بها» substitute — most-backed LIVE projects. */
   private trending(take: number): Promise<ProjectCardRow[]> {
     return this.prisma.project.findMany({
-      where: { status: ProjectStatus.LIVE, hiddenAt: null },
+      where: { status: ProjectStatus.LIVE, hiddenAt: null, isTestFixture: false },
       orderBy: { backersCount: 'desc' },
       take,
       select: CARD_SELECT,
@@ -115,6 +115,7 @@ export class HomeService {
       SELECT id FROM "Project"
       WHERE status = 'LIVE'
         AND "hiddenAt" IS NULL
+        AND "isTestFixture" = false
         AND "fundingGoalHalalas" > 0
         AND "raisedHalalas" * 100 >= "fundingGoalHalalas" * 75
       ORDER BY ("raisedHalalas" * 100 / "fundingGoalHalalas") DESC
@@ -132,14 +133,14 @@ export class HomeService {
   /** S9 — recently-launched staff picks, falling back to just-launched. */
   private async freshFavorites(take: number): Promise<ProjectCardRow[]> {
     const picks = await this.prisma.project.findMany({
-      where: { status: ProjectStatus.LIVE, isStaffPick: true, hiddenAt: null },
+      where: { status: ProjectStatus.LIVE, isStaffPick: true, hiddenAt: null, isTestFixture: false },
       orderBy: { publishedAt: 'desc' },
       take,
       select: CARD_SELECT,
     });
     if (picks.length >= 3) return picks;
     return this.prisma.project.findMany({
-      where: { status: ProjectStatus.LIVE, hiddenAt: null },
+      where: { status: ProjectStatus.LIVE, hiddenAt: null, isTestFixture: false },
       orderBy: { publishedAt: 'desc' },
       take,
       select: CARD_SELECT,
@@ -156,7 +157,7 @@ export class HomeService {
           take: 8,
           // Batch OPS — a hidden project stays in the curated collection
           // (ops-side) but never renders on the public showcase.
-          where: { project: { hiddenAt: null } },
+          where: { project: { hiddenAt: null, isTestFixture: false } },
           include: { project: { select: CARD_SELECT } },
         },
       },
@@ -194,7 +195,7 @@ export class HomeService {
    * Sections ship data or nothing — the page renders no empty rails.
    */
   async spotlight(): Promise<Record<string, unknown>> {
-    const LIVE = { status: ProjectStatus.LIVE, hiddenAt: null } as const;
+    const LIVE = { status: ProjectStatus.LIVE, hiddenAt: null, isTestFixture: false } as const;
 
     const [picks, biggest, inclusion, stories, collections] = await Promise.all([
       this.prisma.project.findMany({

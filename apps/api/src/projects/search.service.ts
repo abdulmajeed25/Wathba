@@ -151,7 +151,7 @@ export class SearchService {
           profilePublic: true,
           // Batch OPS — a creator whose only published work is hidden by
           // moderation doesn't surface in public suggestions.
-          projects: { some: { publishedAt: { not: null }, hiddenAt: null } },
+          projects: { some: { publishedAt: { not: null }, hiddenAt: null, isTestFixture: false } },
           OR: [
             { name: { contains: cleaned, mode: 'insensitive' } },
             { handle: { contains: cleaned.toLowerCase() } },
@@ -159,7 +159,7 @@ export class SearchService {
         },
         select: {
           id: true, name: true, handle: true, avatarUrl: true,
-          _count: { select: { projects: { where: { publishedAt: { not: null }, hiddenAt: null } } } },
+          _count: { select: { projects: { where: { publishedAt: { not: null }, hiddenAt: null, isTestFixture: false } } } },
         },
         take: 3,
       }),

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { SITE_URL } from '@/lib/site';
 import { notFound } from 'next/navigation';
 
-import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
+import { adaptApiProjectDetail, adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
 import { WathbaCampaignHeader } from '@/components/ventures/wathba/wathba-campaign-header';
 import { WathbaCampaignTabBar } from '@/components/ventures/wathba/wathba-campaign-tabbar';
 import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/wathba/wathba-tab-story';
@@ -63,7 +63,11 @@ export default async function ProjectBySlugPage({
 
   const live = await listVentures();
   const apiRow = live?.find((v) => v.id === detail.id);
-  const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
+  // POLISH — fall back to the API DETAIL, not to a demo fixture. adaptApiVenture
+  // can only match a project present in the hardcoded demo table, so for every
+  // real project it returned null and resolveCampaign silently rendered
+  // wathbaProjects[0] — every campaign page showed «سِرب» as its heading.
+  const liveProject = (apiRow ? adaptApiVenture(apiRow) : null) ?? adaptApiProjectDetail(detail);
   const paused = detail.status === 'PAUSED';
   const similar = await getSimilarProjects(detail.id).catch(() => []);
 

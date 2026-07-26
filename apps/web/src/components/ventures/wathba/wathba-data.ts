@@ -383,6 +383,62 @@ export function adaptApiVenture(v: ApiVentureLike): (WathbaProject & { apiId: st
   };
 }
 
+/**
+ * Batch POLISH — build a campaign shape from the REAL API detail payload.
+ *
+ * THE BUG THIS FIXES: every campaign page rendered «سِرب — درون التصوير الذكي»
+ * as its heading, whatever project you opened. The chain was
+ *
+ *   listVentures()      → maps `slug: p.id` (a UUID; the API has no slug column)
+ *   adaptApiVenture()   → looks that "slug" up against wathbaProjects[].titleEn,
+ *                         never matches a UUID, returns null
+ *   resolveCampaign()   → `project ?? find(id) ?? wathbaProjects[0]` and so falls
+ *                         all the way through to the FIRST DEMO FIXTURE
+ *
+ * so the page showed correct <title> metadata (taken from the detail payload)
+ * over another project's body. It was invisible because the demo project it fell
+ * back to looks like a real campaign.
+ *
+ * Every field the API actually knows now comes from the API. The demo fixture is
+ * spread underneath for the purely cosmetic slots the API has no column for
+ * (placeholder art, badge, location) — the same trick adaptApiVenture used, minus
+ * the lookup that could not succeed.
+ */
+export function adaptApiProjectDetail(d: {
+  id: string;
+  titleAr: string;
+  shortDescAr: string;
+  slug?: string | null;
+  status: string;
+  fundingGoalHalalas: number;
+  raisedHalalas: number;
+  backersCount: number;
+  deadline: string;
+  releaseThresholdPct?: number;
+  createdBy?: string;
+  platformPartner?: Record<string, unknown> | null;
+}): WathbaProject & { apiId: string } {
+  const base = wathbaProjects[0]!;
+  return {
+    ...base,
+    id: d.slug ?? d.id,
+    apiId: d.id,
+    titleAr: d.titleAr.replace(SEED_PREFIX, '').trim() || d.titleAr,
+    desc: d.shortDescAr?.trim() ? d.shortDescAr.trim() : base.desc,
+    raised: d.raisedHalalas / 100,
+    goal: d.fundingGoalHalalas / 100,
+    backers: d.backersCount,
+    daysLeft: daysUntil(d.deadline),
+    ...(d.releaseThresholdPct !== undefined ? { releaseThresholdPct: d.releaseThresholdPct } : {}),
+    ...(d.platformPartner
+      ? {
+          platformPartner: d.platformPartner as unknown as WathbaProject['platformPartner'],
+        }
+      : { platformPartner: null }),
+    ...(d.createdBy ? { createdById: d.createdBy } : {}),
+  };
+}
+
 export interface ApiForumThreadLike {
   id: string;
   title: string;

@@ -41,6 +41,30 @@ const FUNDED_ID = '6fff784b-21b0-4249-b254-384e96612e68';
 const DEMO_PW = 'Wathba!2026';
 const OWNER_PW = 'Str0ngPass!x';
 
+/**
+ * Batch POLISH Unit 6 — the demo dataset is what a human browses, so it must
+ * contain only presentable Arabic projects. Automated-test fixtures come from
+ * the Playwright suite (which POSTs real projects through the real API), not
+ * from here — but this asserts the seed never becomes a second source of them,
+ * using the same predicate as the migration-0058 trigger.
+ */
+function assertPresentableTitle(titleAr) {
+  const looksLikeFixture =
+    /(E2E|إي٢إي|PAY|SMOKE|TEST|SEED|FIXTURE)/.test(titleAr) && /[0-9]{10,}/.test(titleAr);
+  if (looksLikeFixture) {
+    throw new Error(
+      `[seed-demo-projects] refusing to seed a test-fixture title: "${titleAr}". ` +
+        'The demo dataset is browsable by humans; fixtures belong to the e2e suite.',
+    );
+  }
+}
+
+/** Every demo project goes through here, so the guard cannot be bypassed. */
+async function upsertProject(prisma, args) {
+  assertPresentableTitle(args.create.titleAr);
+  return prisma.project.upsert(args);
+}
+
 async function main() {
   const demoHash = await bcrypt.hash(DEMO_PW, 12);
   const ownerHash = await bcrypt.hash(OWNER_PW, 12);
@@ -132,7 +156,7 @@ async function main() {
   const GOAL = 50_000_000; // 500,000 SAR
   const REALIZED = 68_420_000; // 684,200 SAR — reconciles M1 (30% = 20,526,000 h)
 
-  await prisma.project.upsert({
+  await upsertProject(prisma, {
     where: { id: DRONE_ID },
     update: {},
     create: {
@@ -160,7 +184,7 @@ async function main() {
     },
   });
 
-  await prisma.project.upsert({
+  await upsertProject(prisma, {
     where: { id: FUNDED_ID },
     update: {},
     create: {
@@ -312,7 +336,7 @@ async function main() {
   for (const p of extras) {
     const pid = `33333333-0000-4000-8000-00000000000${p.n}`;
     const cid = await catId(p.cat);
-    await prisma.project.upsert({
+    await upsertProject(prisma, {
       where: { id: pid },
       update: {},
       create: {
