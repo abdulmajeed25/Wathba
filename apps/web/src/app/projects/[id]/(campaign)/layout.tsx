@@ -1,4 +1,4 @@
-import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
+import { adaptApiProjectDetail, adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
 import { WathbaCampaignHeader } from '@/components/ventures/wathba/wathba-campaign-header';
 import { WathbaCampaignTabBar } from '@/components/ventures/wathba/wathba-campaign-tabbar';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
@@ -29,7 +29,12 @@ export default async function CampaignLayout({
     getProjectDetail(id).catch(() => null),
   ]);
   const apiRow = live?.find((v) => v.slug.toLowerCase() === id.toLowerCase());
-  const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
+  // POLISH — fall back to the API DETAIL, not to a demo fixture. adaptApiVenture
+  // can only match a project that exists in the hardcoded demo table, so for
+  // every real project it returned null and resolveCampaign silently rendered
+  // wathbaProjects[0]. The detail payload is already fetched above; use it.
+  const liveProject =
+    (apiRow ? adaptApiVenture(apiRow) : null) ?? (detail ? adaptApiProjectDetail(detail) : null);
   const paused = detail?.status === 'PAUSED';
 
   return (

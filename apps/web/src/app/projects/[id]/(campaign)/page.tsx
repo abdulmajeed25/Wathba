@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
 import { SITE_URL } from '@/lib/site';
 
-import {
-  adaptApiVenture,
-  wathbaProjects,
-} from '@/components/ventures/wathba/wathba-data';
+import { adaptApiProjectDetail, adaptApiVenture, wathbaProjects } from '@/components/ventures/wathba/wathba-data';
 import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/wathba/wathba-tab-story';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
@@ -71,7 +68,12 @@ export default async function ProjectStoryPage({
     getProjectDetail(id).catch(() => null),
   ]);
   const apiRow = live?.find((v) => v.slug.toLowerCase() === id.toLowerCase());
-  const liveProject = apiRow ? adaptApiVenture(apiRow) : null;
+  // POLISH — fall back to the API DETAIL, not to a demo fixture. adaptApiVenture
+  // can only match a project that exists in the hardcoded demo table, so for
+  // every real project it returned null and resolveCampaign silently rendered
+  // wathbaProjects[0]. The detail payload is already fetched above; use it.
+  const liveProject =
+    (apiRow ? adaptApiVenture(apiRow) : null) ?? (detail ? adaptApiProjectDetail(detail) : null);
   // STAKES/J3 — same-subcategory rail (empty for fixture ids).
   const similar = detail ? await getSimilarProjects(detail.id).catch(() => []) : [];
 

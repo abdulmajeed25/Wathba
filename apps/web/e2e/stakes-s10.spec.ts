@@ -65,7 +65,7 @@ test('F-03: المحفوظة tab shows LIVE bookmarks, and the empty state when 
   await uiSignIn(page, SMOKE_EMAIL, SMOKE_PASS);
   await page.goto('/projects/me/profile');
   await page.getByRole('tab', { name: 'المحفوظة' }).click();
-  await expect(page.getByText('مشروع E2E').first()).toBeVisible();
+  await expect(page.getByText('مشروع الرحلة الذهبية').first()).toBeVisible();
 
   // Remove EVERY bookmark (earlier aborted runs leave orphans on the shared
   // smoke user) → the tab shows the real empty state, never fixtures.
@@ -88,18 +88,13 @@ test('F-10: sitemap advertises the /p/[slug] canonical and the slug resolves', a
   expect(sitemap.status()).toBe(200);
   const xml = await sitemap.text();
 
-  // The sitemap advertises real projects. POLISH Unit 6: it must NOT advertise
-  // this one — the golden-journey fixture is titled «مشروع E2E <timestamp>» and
-  // is excluded from every public listing, and the sitemap is the most public
-  // listing there is. Asserting the shape rather than this slug keeps the
-  // canonical mechanism covered without asking a crawler to index test data.
-  expect(xml).toMatch(/\/p\/[a-z0-9-]+/);
-  expect(xml, 'a test fixture reached the sitemap').not.toContain(`/p/${slug}`);
-
-  // The page itself still resolves and still carries the right canonical: the
-  // guard is a listing filter, not a takedown.
+  // POLISH Unit 6 — the golden-journey project is deterministic and presentable
+  // now, so it is a first-class public project and belongs in the sitemap. The
+  // throwaway per-run fixtures are the ones excluded, and batch-polish-fixtures
+  // asserts that separately.
+  expect(xml).toContain(`/p/${slug}`);
   await page.goto(`/p/${slug}`);
-  await expect(page.getByText('مشروع E2E').first()).toBeVisible();
+  await expect(page.getByText('مشروع الرحلة الذهبية').first()).toBeVisible();
   const canonical = page.locator('link[rel="canonical"]');
   await expect(canonical).toHaveAttribute('href', new RegExp(`/p/${slug}$`));
 });
