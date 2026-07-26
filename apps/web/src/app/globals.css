@@ -136,17 +136,202 @@
   --spacing: 0.2rem;
 }
 
-/* ---- DARK (default): fix ONLY the failing muted-hint token ----
- * #484f58 on #0d1117/#161b22 is ~1.7:1 — fails WCAG 1.4.3. Lift it to a token
- * that clears 4.5:1 on both ops surfaces while staying visibly "faint". */
+/* ---- DARK: the ops surface joins the ONE theme system (POLISH Unit 4) ----
+ *
+ * Every ops screen is painted with the fixed GitHub-dark palette baked into
+ * Tailwind arbitrary values (bg-[#0d1117], text-[#8b949e], …). Rewriting ~60
+ * screens to reference variables is a different project; remapping the finite
+ * palette here is not. So the ops surface now resolves to the SAME warm layered
+ * tokens as the public site: one dark theme, not two.
+ *
+ * The old block fixed exactly one token (.text-[#484f58] → #848d97) and left
+ * the rest of the cold GitHub palette in place, so the Ops Center and the public
+ * site were visibly different products at night. Measured: #484f58 scored
+ * 2.09:1 on a card and 1.84:1 on a raised row — both fail WCAG 1.4.3, and the
+ * partial fix only covered two selectors out of 79 uses.
+ *
+ * These rules are unlayered, so they win over the layered Tailwind utilities. */
 [data-ops-root][data-theme='dark'] {
   color-scheme: dark;
+  /* Same ramp as wathba-tokens.ts: elevation = lightness, warm not blue. */
+  --ops-surface-0: #131210;
+  --ops-surface-1: #1c1a17;
+  --ops-surface-2: #242220;
+  --ops-surface-3: #302d29;
+  --ops-deepest: #0e0d0c;
+  --ops-border: #3a3630;
+  --ops-fg: #f6f4ef;
+  --ops-fg-muted: #c0bab0;
+  --ops-fg-faint: #aba49a;
+  /* Wathba green leads here too — the ops surface used GitHub blue for links. */
+  --ops-link: #4ade96;
+  --ops-success: #1fd37e;
+  --ops-danger: #ff7b72;
+}
+[data-ops-root][data-theme='dark'] .bg-\[\#0d1117\] {
+  background-color: var(--ops-surface-0);
+}
+[data-ops-root][data-theme='dark'] .hover\:bg-\[\#0d1117\]:hover {
+  background-color: var(--ops-surface-0);
+}
+[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#0d1117\]:focus-visible {
+  background-color: var(--ops-surface-0);
+}
+[data-ops-root][data-theme='dark'] .bg-\[\#010409\] {
+  background-color: var(--ops-deepest);
+}
+[data-ops-root][data-theme='dark'] .hover\:bg-\[\#010409\]:hover {
+  background-color: var(--ops-deepest);
+}
+[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#010409\]:focus-visible {
+  background-color: var(--ops-deepest);
+}
+[data-ops-root][data-theme='dark'] .bg-\[\#161b22\] {
+  background-color: var(--ops-surface-1);
+}
+[data-ops-root][data-theme='dark'] .hover\:bg-\[\#161b22\]:hover {
+  background-color: var(--ops-surface-1);
+}
+[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#161b22\]:focus-visible {
+  background-color: var(--ops-surface-1);
+}
+[data-ops-root][data-theme='dark'] .bg-\[\#21262d\] {
+  background-color: var(--ops-surface-2);
+}
+[data-ops-root][data-theme='dark'] .hover\:bg-\[\#21262d\]:hover {
+  background-color: var(--ops-surface-2);
+}
+[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#21262d\]:focus-visible {
+  background-color: var(--ops-surface-2);
+}
+[data-ops-root][data-theme='dark'] .bg-\[\#1c2128\] {
+  background-color: var(--ops-surface-2);
+}
+[data-ops-root][data-theme='dark'] .hover\:bg-\[\#1c2128\]:hover {
+  background-color: var(--ops-surface-2);
+}
+[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#1c2128\]:focus-visible {
+  background-color: var(--ops-surface-2);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#e6edf3\] {
+  color: var(--ops-fg);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#e6edf3\]:hover {
+  color: var(--ops-fg);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#e6edf3\]::placeholder {
+  color: var(--ops-fg);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#c9d1d9\] {
+  color: var(--ops-fg-muted);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#c9d1d9\]:hover {
+  color: var(--ops-fg-muted);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#c9d1d9\]::placeholder {
+  color: var(--ops-fg-muted);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#8b949e\] {
+  color: var(--ops-fg-faint);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#8b949e\]:hover {
+  color: var(--ops-fg-faint);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#8b949e\]::placeholder {
+  color: var(--ops-fg-faint);
 }
 [data-ops-root][data-theme='dark'] .text-\[\#484f58\] {
-  color: #848d97;
+  color: var(--ops-fg-faint);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#484f58\]:hover {
+  color: var(--ops-fg-faint);
 }
 [data-ops-root][data-theme='dark'] .placeholder\:text-\[\#484f58\]::placeholder {
-  color: #848d97;
+  color: var(--ops-fg-faint);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#58a6ff\] {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#58a6ff\]:hover {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#58a6ff\]::placeholder {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#79c0ff\] {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#79c0ff\]:hover {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#79c0ff\]::placeholder {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#1f6feb\] {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#1f6feb\]:hover {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#1f6feb\]::placeholder {
+  color: var(--ops-link);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#238636\] {
+  color: var(--ops-success);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#238636\]:hover {
+  color: var(--ops-success);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#238636\]::placeholder {
+  color: var(--ops-success);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#2ea043\] {
+  color: var(--ops-success);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#2ea043\]:hover {
+  color: var(--ops-success);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#2ea043\]::placeholder {
+  color: var(--ops-success);
+}
+[data-ops-root][data-theme='dark'] .text-\[\#f78166\] {
+  color: var(--ops-danger);
+}
+[data-ops-root][data-theme='dark'] .hover\:text-\[\#f78166\]:hover {
+  color: var(--ops-danger);
+}
+[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#f78166\]::placeholder {
+  color: var(--ops-danger);
+}
+[data-ops-root][data-theme='dark'] .border-\[\#30363d\] {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .hover\:border-\[\#30363d\]:hover {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .divide-\[\#30363d\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .border-\[\#21262d\] {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .hover\:border-\[\#21262d\]:hover {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .divide-\[\#21262d\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .border-\[\#1c2128\] {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .hover\:border-\[\#1c2128\]:hover {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .divide-\[\#1c2128\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--ops-border);
+}
+[data-ops-root][data-theme='dark'] .focus-visible\:ring-\[\#58a6ff\]:focus-visible {
+  --tw-ring-color: var(--ops-link);
 }
 
 /* ---- LIGHT: full palette remap (GitHub-light, all foregrounds ≥ 4.5:1) ---- */
