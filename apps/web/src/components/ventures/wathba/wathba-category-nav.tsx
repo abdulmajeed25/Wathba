@@ -48,6 +48,51 @@ function toArabicDigits(n: number): string {
   return String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]!);
 }
 
+/**
+ * POLISH Unit 3 — ONE source for the strip's height, used by both the loading
+ * placeholder and the loaded strip. They used to be 46px and "whatever the
+ * content came out as", which is a layout shift on every first paint.
+ */
+const STRIP_H = 48;
+
+/** Scroll affordance. Overlaid, never in flow, so showing it shifts nothing. */
+function StripArrow({ dir, onClick }: { dir: 'start' | 'end'; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="wathba-cat-arrow"
+      onClick={onClick}
+      // Decorative duplicate of what arrow keys and swipe already do, so it is
+      // hidden from assistive tech rather than announced as a third way to move.
+      aria-hidden
+      tabIndex={-1}
+      style={{
+        position: 'absolute',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        ...(dir === 'start' ? { insetInlineStart: 18 } : { insetInlineEnd: 18 }),
+        zIndex: 3,
+        width: 28,
+        height: 28,
+        display: 'grid',
+        placeItems: 'center',
+        borderRadius: 999,
+        background: 'var(--surface-2)',
+        border: '1px solid rgba(var(--ink-rgb),.12)',
+        color: 'var(--text-soft)',
+        cursor: 'pointer',
+        padding: 0,
+      }}
+    >
+      {/* RTL: the inline-START edge is the RIGHT one, so the glyph that points
+          "back toward the start" is the right-pointing arrow. Naming a direction
+          after the writing order rather than the screen is how these end up
+          backwards. */}
+      <Icon name={dir === 'start' ? 'arrow_forward' : 'arrow_back'} size={16} color="currentColor" />
+    </button>
+  );
+}
+
 export function WathbaCategoryNav() {
   const pathname = usePathname();
   const [tree, setTree] = useState<CatNode[] | null>(null);
@@ -60,6 +105,14 @@ export function WathbaCategoryNav() {
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [overflow, setOverflow] = useState<{ start: boolean; end: boolean }>({ start: false, end: false });
+  /** One screenful, minus a sliver so the next pill peeks in. */
+  const nudge = (sign: 1 | -1) => {
+    const el = stripRef.current;
+    if (!el) return;
+    el.scrollBy({ left: sign * (el.clientWidth * 0.8), behavior: 'smooth' });
+  };
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -196,7 +249,31 @@ export function WathbaCategoryNav() {
     }
   };
 
-  if (!tree) return <div style={{ height: 46 }} aria-hidden />;
+  // POLISH Unit 3 — the placeholder and the loaded strip are the SAME height,
+  // from one constant, so the bar cannot contribute layout shift when the
+  // categories arrive.
+  // POLISH Unit 3 — which edges have content off-screen. Drives the fades and
+  // the arrows; recomputed on scroll and on resize so it never goes stale.
+  // Math.abs on scrollLeft because RTL reports it negative in Blink.
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const measure = () => {
+      const x = Math.abs(el.scrollLeft);
+      const max = el.scrollWidth - el.clientWidth;
+      setOverflow({ start: x > 4, end: max - x > 4 });
+    };
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, [tree]);
+
+  if (!tree) return <div style={{ height: STRIP_H }} aria-hidden />;
 
   const openIndex = openSlug ? tree.findIndex((t) => t.slug === openSlug) : -1;
   const cur = openIndex >= 0 ? tree[openIndex]! : null;
@@ -212,18 +289,49 @@ export function WathbaCategoryNav() {
       }}
       onMouseLeave={onHoverLeave}
     >
-      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px', position: 'relative' }}>
+        {/* Edge fades tell you there IS more, before you try to scroll. Only
+            rendered on the side that actually has content off-screen, and RTL
+            aware: `start` is the right edge here. */}
+        {overflow.start && (
+          <div
+            className="wathba-cat-fade"
+            aria-hidden
+            style={{ insetInlineStart: 26, background: 'linear-gradient(to left, var(--surface-0), transparent)' }}
+          />
+        )}
+        {overflow.end && (
+          <div
+            className="wathba-cat-fade"
+            aria-hidden
+            style={{ insetInlineEnd: 26, background: 'linear-gradient(to right, var(--surface-0), transparent)' }}
+          />
+        )}
+        {overflow.start && <StripArrow dir="start" onClick={() => nudge(-1)} />}
+        {overflow.end && <StripArrow dir="end" onClick={() => nudge(1)} />}
+
         <div
+          ref={stripRef}
+          className="wathba-catstrip"
           role="menubar"
           aria-label="فئات المشاريع"
+          // The strip is a horizontally scrollable region, so it must be
+          // reachable and pannable by keyboard for anyone who cannot swipe.
+          // Arrow keys already move focus between pills (onStripKey); this makes
+          // the container itself a scroll target too.
+          data-cat-nav-ready="1"
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 4,
+            // Rhythm: enough air that the labels read as separate destinations
+            // rather than one run-on line of text.
+            gap: 6,
             overflowX: 'auto',
-            scrollbarWidth: 'thin',
-            padding: '6px 0',
+            padding: '7px 0',
+            height: STRIP_H,
+            boxSizing: 'border-box',
             WebkitOverflowScrolling: 'touch',
+            scrollBehavior: 'smooth',
           }}
         >
           {tree.map((c, i) => {
@@ -257,20 +365,43 @@ export function WathbaCategoryNav() {
                   }}
                   data-cat-slug={c.slug}
                   aria-current={onPage ? 'page' : undefined}
+                  className="wathba-cat-pill"
                   style={{
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
-                    background: active ? 'rgba(var(--accent-rgb),.12)' : 'transparent',
-                    border: 'none',
-                    borderRadius: 10,
-                    padding: '8px 13px',
+                    // A pill, so the hit area reads as a control rather than as
+                    // a word in a sentence.
+                    background:
+                      onPage || active ? 'rgba(var(--accent-rgb),.14)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: onPage ? 'rgba(var(--accent-rgb),.45)' : 'transparent',
+                    borderRadius: 999,
+                    padding: '7px 15px',
                     fontFamily: 'inherit',
                     fontSize: 14,
-                    fontWeight: onPage ? 700 : 600,
+                    // WCAG 1.4.1 — the CURRENT category is never signalled by
+                    // colour alone. It carries three non-colour cues at once:
+                    // heavier weight, a ring, and the leading dot below.
+                    fontWeight: onPage ? 800 : active ? 700 : 600,
                     color: active || onPage ? 'var(--accent-ink)' : 'var(--text-soft)',
-                    boxShadow: onPage ? 'inset 0 -2px 0 var(--accent)' : 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    lineHeight: 1.3,
                   }}
                 >
+                  {onPage && (
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: 999,
+                        background: 'var(--accent)',
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
                   {c.nameAr}
                 </button>
               </div>

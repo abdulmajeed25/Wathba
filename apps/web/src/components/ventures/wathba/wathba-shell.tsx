@@ -53,6 +53,21 @@ export function WathbaShell({
             [data-pillar="ventures"]{overflow-x:clip}
             [data-pillar="ventures"] .wathba-ph{background-color:var(--ph-bg);background-image:repeating-linear-gradient(135deg,rgba(var(--accent-rgb),.07) 0,rgba(var(--accent-rgb),.07) 2px,transparent 2px,transparent 11px)}
             [data-pillar="ventures"] .wathba-fade{animation:wathba-fadeUp .45s ease both}
+
+            /* ── POLISH Unit 3 — category strip ────────────────────────────
+               Hover/focus and scrollbar hiding cannot be expressed as inline
+               styles, so the strip's interaction states live here. */
+            [data-pillar="ventures"] .wathba-catstrip{scrollbar-width:none;-ms-overflow-style:none}
+            [data-pillar="ventures"] .wathba-catstrip::-webkit-scrollbar{width:0;height:0;display:none}
+            [data-pillar="ventures"] .wathba-cat-pill{transition:background-color .16s ease,color .16s ease}
+            [data-pillar="ventures"] .wathba-cat-pill:hover{background-color:rgba(var(--ink-rgb),.06);color:var(--text)}
+            [data-pillar="ventures"] .wathba-cat-pill[aria-expanded="true"]:hover,
+            [data-pillar="ventures"] .wathba-cat-pill[aria-current="page"]:hover{background-color:rgba(var(--accent-rgb),.18)}
+            [data-pillar="ventures"] .wathba-cat-pill:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+            /* Edge fades: pure decoration, so they never take pointer events. */
+            [data-pillar="ventures"] .wathba-cat-fade{pointer-events:none;position:absolute;top:0;bottom:0;width:56px;z-index:2}
+            [data-pillar="ventures"] .wathba-cat-arrow{transition:opacity .16s ease,background-color .16s ease}
+            [data-pillar="ventures"] .wathba-cat-arrow:hover{background-color:var(--surface-3)}
             /* STAKES/S-2 — responsive toggles inlined here so they load on EVERY
                ventures page (Next route-split the globals.css copy off the pages
                that needed it). */
