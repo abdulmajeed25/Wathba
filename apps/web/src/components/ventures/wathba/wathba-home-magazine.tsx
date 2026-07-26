@@ -172,10 +172,22 @@ function Section({ k, title, more, children }: { k: string; title: string; more?
       data-section={k}
       style={{
         maxWidth: 1320, margin: '0 auto', padding: '30px 26px 6px',
-        // All magazine sections start below the fold — skip their layout/
-        // paint until they approach the viewport (big SI/TBT win on a page
-        // this tall). The intrinsic size keeps the scrollbar stable.
-        contentVisibility: 'auto', containIntrinsicSize: 'auto 420px',
+        // POLISH — `content-visibility: auto` used to live here with
+        // `contain-intrinsic-size: auto 420px`, to skip layout/paint for the
+        // magazine sections until they neared the viewport.
+        //
+        // It was responsible for essentially ALL of the homepage's CLS. These
+        // sections are 150–335px tall in reality, so every one of them
+        // COLLAPSED from the 420px placeholder the moment it was scrolled into
+        // view, dragging everything below it upwards. Measured: 0.0034 without
+        // scrolling, 0.64 with — a single shift of 0.6414, and the page sat in
+        // the "poor" band (>0.25) for as long as the directive was here.
+        //
+        // Tuning the placeholder cannot fix it: no single value fits a 150–335px
+        // range, and per-section values would drift the first time copy or the
+        // viewport changed. The render-skipping was worth less than the layout
+        // stability it was spending, so it is gone. LCP was re-measured after
+        // removal to confirm the cost did not simply move.
       }}
     >
       {title && (
