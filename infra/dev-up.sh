@@ -46,7 +46,16 @@ tmux kill-session -t studio 2>/dev/null || true
 
 tmux new-session -d -s api    -c "$ROOT/apps/api" "npx nest start --path tsconfig.json 2>&1 | tee $LOGS/api.log"
 tmux new-session -d -s studio -c "$ROOT/apps/api" "npx prisma studio --port 5555 --browser none 2>&1 | tee $LOGS/studio.log"
-tmux new-session -d -s web    -c "$ROOT/apps/web" "npx next start -p 3000 -H 0.0.0.0 2>&1 | tee $LOGS/web.log"
+# `next dev`, NOT `next start`, and the reason matters: every production
+# runner (`next start`, and the generated .next/standalone/server.js, which
+# hardcodes it on line 5) forces NODE_ENV=production. All three cookie
+# setters are `secure: NODE_ENV === 'production'`, so in production mode the
+# session cookies come back Secure — and no browser stores a Secure cookie
+# over plain http://<ip>. That makes sign-in and the whole /ops surface
+# unusable from anywhere but this box until TLS is in front. Dev mode keeps
+# the stack browser-usable over the public IP; switch back to `next start`
+# (after `npx next build`) once there is a real HTTPS front door.
+tmux new-session -d -s web    -c "$ROOT/apps/web" "npx next dev -p 3000 -H 0.0.0.0 2>&1 | tee $LOGS/web.log"
 
 # ── readiness ───────────────────────────────────────────────────────────────
 printf 'waiting for api + web'
