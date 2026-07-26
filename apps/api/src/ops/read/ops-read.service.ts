@@ -1822,8 +1822,8 @@ export class OpsReadService {
     const ageHours = Math.floor((now - a.createdAt.getTime()) / MS_PER_HOUR);
     const isOpen = OPEN_APPEAL_STATUSES.includes(a.status);
 
-    let originalDeciderId: string | null = null;
-    let original: Record<string, unknown> | null = null;
+    let originalDeciderId: string | null;
+    let original: Record<string, unknown> | null;
 
     if (a.kind === 'ACCOUNT_BAN') {
       const [user, banLog] = await Promise.all([
@@ -2010,7 +2010,7 @@ export class OpsReadService {
     ]);
 
     // Chain verdict — a broken/failed verification is itself a critical alert.
-    let chainOk = true;
+    let chainOk: boolean;
     let chainBrokenAt: string | null = null;
     try {
       const v = await this.audit.verify();
