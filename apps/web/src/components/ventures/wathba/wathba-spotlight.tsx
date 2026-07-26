@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ApiEditorialCard, ApiHomeProjectCard, ApiSpotlightPayload } from '@/lib/api/wathba';
 
 import { Icon, Num } from './wathba-icons';
+import { HeroParallax, Reveal } from './wathba-motion';
 
 /**
  * Batch POLISH Unit 1/2 — «تحت الأضواء» (/spotlight).
@@ -106,14 +107,39 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
         position: 'relative',
         overflow: 'hidden',
         borderBottom: '1px solid rgba(var(--ink-rgb),.07)',
-        // The wash IS the art direction while there is no photography: two
-        // brand-green stops over the page ground, so it reads as Wathba rather
-        // than as a missing image.
-        background:
-          'radial-gradient(1200px 420px at 82% -10%, rgba(var(--accent-rgb),.20), transparent 70%),' +
-          'radial-gradient(900px 380px at 8% 110%, rgba(var(--accent2-rgb),.16), transparent 70%)',
+        // Full-bleed: the wash runs edge to edge behind a contained column, so
+        // the section reads cinematic without the text ever leaving the grid.
+        background: 'var(--surface-0)',
+        // Reserved so the wash and the entrance can never change the section's
+        // height — the hero is the LCP element here and must not move.
+        minHeight: 'clamp(430px, 46vw, 560px)',
+        display: 'grid',
+        alignItems: 'center',
       }}
     >
+      {/* Decorative depth. Two brand-green washes plus a fine grain, drifting
+          slowly on scroll — the art direction while this dataset has no
+          photography at all. Sized in %, so it costs no layout. */}
+      <HeroParallax>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'radial-gradient(1200px 460px at 82% -12%, rgba(var(--accent-rgb),.24), transparent 68%),' +
+              'radial-gradient(980px 420px at 6% 112%, rgba(var(--accent2-rgb),.18), transparent 70%)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: 0.5,
+            background:
+              'repeating-linear-gradient(115deg, rgba(var(--ink-rgb),.028) 0 1px, transparent 1px 8px)',
+          }}
+        />
+      </HeroParallax>
       <div
         style={{
           maxWidth: MAX,
@@ -123,6 +149,8 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
           gridTemplateColumns: p.imageUrl ? '1.05fr .95fr' : '1fr',
           gap: 40,
           alignItems: 'center',
+          position: 'relative',
+          zIndex: 1,
         }}
         className="wathba-spotlight-hero"
       >
@@ -261,7 +289,8 @@ function Section({
   const [lead, ...rest] = items;
 
   return (
-    <section
+    <Reveal
+      as="section"
       id={id}
       // scroll-margin so the sticky header never covers the heading when the nav
       // menu deep-links to #id.
@@ -311,7 +340,7 @@ function Section({
           )}
         </div>
       </div>
-    </section>
+    </Reveal>
   );
 }
 
@@ -430,7 +459,7 @@ function Funded({ p, compact }: { p: ApiHomeProjectCard; compact?: boolean }) {
 
 function Stories({ items }: { items: ApiEditorialCard[] }) {
   return (
-    <section id="stories" style={{ scrollMarginTop: 90, padding: '58px 0' }} aria-labelledby="stories-title">
+    <Reveal as="section" id="stories" style={{ scrollMarginTop: 90, padding: '58px 0' }} aria-labelledby="stories-title">
       <div style={{ maxWidth: MAX, margin: '0 auto', padding: '0 26px' }}>
         <div style={{ marginBottom: 26, maxWidth: 720 }}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '1.4px', color: 'var(--accent-ink)', marginBottom: 9 }}>
@@ -491,7 +520,7 @@ function Stories({ items }: { items: ApiEditorialCard[] }) {
           ))}
         </div>
       </div>
-    </section>
+    </Reveal>
   );
 }
 

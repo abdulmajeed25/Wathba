@@ -54,6 +54,18 @@ export function WathbaShell({
             [data-pillar="ventures"] .wathba-ph{background-color:var(--ph-bg);background-image:repeating-linear-gradient(135deg,rgba(var(--accent-rgb),.07) 0,rgba(var(--accent-rgb),.07) 2px,transparent 2px,transparent 11px)}
             [data-pillar="ventures"] .wathba-fade{animation:wathba-fadeUp .45s ease both}
 
+            /* ── POLISH Unit 2 — reveal-on-scroll ─────────────────────────
+               The hidden state exists ONLY inside no-preference, so a
+               reduced-motion reader can never end up looking at opacity:0
+               content even if the JS misbehaves. And it only applies with
+               data-revealed="0", which the server never emits — so no-JS and
+               first paint are always the finished page. */
+            @media (prefers-reduced-motion: no-preference){
+              [data-pillar="ventures"] .wathba-reveal{transition:opacity .62s ease,transform .62s cubic-bezier(.22,.68,.24,1)}
+              [data-pillar="ventures"] .wathba-reveal[data-revealed="0"]{opacity:.001;transform:translateY(20px)}
+              [data-pillar="ventures"] .wathba-reveal[data-revealed="1"]{opacity:1;transform:none}
+            }
+
             /* ── POLISH Unit 3 — category strip ────────────────────────────
                Hover/focus and scrollbar hiding cannot be expressed as inline
                styles, so the strip's interaction states live here. */
