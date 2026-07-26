@@ -21,6 +21,13 @@ const CARD_SELECT = {
 
 type ProjectCardRow = Prisma.ProjectGetPayload<{ select: typeof CARD_SELECT }>;
 
+/**
+ * Batch POLISH — the inclusion rail on /spotlight selects on this CATEGORY, a
+ * property of the project, never on any attribute of the creator. Named here so
+ * the intent is explicit at the one place it is used.
+ */
+const INCLUSION_CATEGORY_SLUG = 'people-with-disabilities';
+
 function toCard(p: ProjectCardRow) {
   const goal = p.fundingGoalHalalas;
   const pct = goal > 0n ? Number((p.raisedHalalas * 100n) / goal) : 0;
@@ -168,6 +175,101 @@ export class HomeService {
       }
     }
     return null;
+  }
+
+  /**
+   * Batch POLISH Unit 1/2 — «تحت الأضواء» (/spotlight).
+   *
+   * Merit-based curation only: every section is ordered by what the work has
+   * achieved, never by who made it. There is deliberately no identity-derived
+   * section here — the one inclusion rail («أصحاب الهمم») selects on the
+   * project's own CATEGORY, which creators choose for their project, not on any
+   * attribute of the creator.
+   *
+   * Content is admin-governed through infrastructure that already exists:
+   * `isStaffPick` (ops-governed flag) drives مختارات وثبة and the hero,
+   * SUCCESS_STORY editorial cards drive قصص ملهمة, and active Collections
+   * supply the curated rails. No new content model.
+   *
+   * Sections ship data or nothing — the page renders no empty rails.
+   */
+  async spotlight(): Promise<Record<string, unknown>> {
+    const LIVE = { status: ProjectStatus.LIVE, hiddenAt: null } as const;
+
+    const [picks, biggest, inclusion, stories, collections] = await Promise.all([
+      this.prisma.project.findMany({
+        where: { ...LIVE, isStaffPick: true },
+        orderBy: [{ raisedHalalas: 'desc' }, { publishedAt: 'desc' }],
+        take: 7,
+        select: CARD_SELECT,
+      }),
+      this.prisma.project.findMany({
+        where: { ...LIVE },
+        orderBy: [{ raisedHalalas: 'desc' }, { backersCount: 'desc' }],
+        take: 6,
+        select: CARD_SELECT,
+      }),
+      this.prisma.project.findMany({
+        where: {
+          ...LIVE,
+          // The canonical taxonomy is categoryRef (Batch CAT); `category` is the
+          // legacy enum. A project may sit on the node itself OR on one of its
+          // children, so both are matched — otherwise a project filed under a
+          // subcategory of أصحاب الهمم would silently miss the rail.
+          categoryRef: {
+            OR: [{ slug: INCLUSION_CATEGORY_SLUG }, { parent: { slug: INCLUSION_CATEGORY_SLUG } }],
+          },
+        },
+        orderBy: [{ raisedHalalas: 'desc' }],
+        take: 6,
+        select: CARD_SELECT,
+      }),
+      this.prisma.editorialCard.findMany({
+        where: { kind: 'SUCCESS_STORY', isActive: true, slug: { not: null } },
+        orderBy: [{ sortOrder: 'asc' }, { publishedAt: 'desc' }],
+        take: 6,
+      }),
+      this.prisma.collection.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        select: { slug: true, nameAr: true, descriptionAr: true },
+        take: 8,
+      }),
+    ]);
+
+    // The hero is the strongest staff pick, else the strongest project overall.
+    // Staff-pick IS the admin's pick — the flag is set through the governed ops
+    // surface, so no separate "spotlight hero" content type is needed.
+    const heroRow = picks[0] ?? biggest[0] ?? null;
+    const heroId = heroRow?.id;
+
+    // «إبداعات مميزة» — boldest work. There is no "inventiveness" column and
+    // inventing a score would be fiction, so this reads as: momentum among
+    // projects the editors have NOT already surfaced as staff picks. That keeps
+    // the rail genuinely additive instead of repeating مختارات وثبة.
+    const pickIds = new Set(picks.map((p) => p.id));
+    const inventive = await this.prisma.project.findMany({
+      where: {
+        ...LIVE,
+        isStaffPick: false,
+        id: { notIn: [...pickIds, heroId].filter(Boolean) as string[] },
+      },
+      orderBy: [{ backersCount: 'desc' }, { publishedAt: 'desc' }],
+      take: 6,
+      select: CARD_SELECT,
+    });
+
+    const drop = (rows: ProjectCardRow[]) => rows.filter((p) => p.id !== heroId).map(toCard);
+
+    return {
+      hero: heroRow ? toCard(heroRow) : null,
+      biggest: drop(biggest).slice(0, 5),
+      staffPicks: drop(picks).slice(0, 5),
+      inventive: inventive.map(toCard).slice(0, 5),
+      inclusion: drop(inclusion).slice(0, 5),
+      stories,
+      collections,
+    };
   }
 
   /** OPS Part 0 — admin reads (mutations live in the operations registry). */
