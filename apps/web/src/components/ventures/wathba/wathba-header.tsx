@@ -9,7 +9,7 @@ import type { WathbaTheme } from './wathba-tokens';
 import { WathbaNotificationBell } from './wathba-notification-bell';
 import { WathbaCategoryNav } from './wathba-category-nav';
 import { WathbaHeaderSearch, WathbaMobileSearchButton } from './wathba-header-search';
-import { WathbaDiscoverMenu } from './wathba-discover-menu';
+import { WathbaSpotlightMenu } from './wathba-spotlight-menu';
 import { WathbaAccountMenu } from './wathba-account-menu';
 
 export interface WathbaHeaderProps {
@@ -17,12 +17,21 @@ export interface WathbaHeaderProps {
   onToggleTheme: () => void;
 }
 
+// Batch POLISH Unit 1 — the nav carried «اكتشف» TWICE: once here as a plain
+// link, once as the mega-menu next to the search bar. Now there is exactly one
+// of each idea: «تحت الأضواء» (curated, /spotlight — rendered by
+// WathbaSpotlightMenu below) and «اكتشف» (browse everything, a plain compass
+// link in the mega-menu's old slot).
 const NAV_LINKS: Array<{ href: string; label: string }> = [
-// Batch SEARCH Part 1 — ONE discovery entry: «اكتشف» (discover-all, the
-// canonical page). The duplicate «استكشف» was removed; its route
-// permanently redirects (next.config).
   { href: '/projects/how', label: 'كيف تعمل' },
   { href: '/projects/ranks', label: 'رتب الداعمين' },
+];
+
+// The mobile sheet IS the menu, so both discovery entries are plain rows in it —
+// no nested dropdown on a surface that is already a list.
+const SHEET_LINKS: Array<{ href: string; label: string }> = [
+  ...NAV_LINKS,
+  { href: '/spotlight', label: 'تحت الأضواء' },
   { href: '/projects/discover-all', label: 'اكتشف' },
 ];
 
@@ -126,7 +135,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
             fontWeight: 500,
           }}
         >
-          {NAV_LINKS.slice(0, 3).map((l) => {
+          {NAV_LINKS.map((l) => {
             const active = isActive(l.href);
             return (
               <Link
@@ -146,8 +155,34 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
               </Link>
             );
           })}
-          {/* Batch DISC — the power discover page + its three-zone mega-menu. */}
-          <WathbaDiscoverMenu />
+          {/* Batch POLISH Unit 1 — curated: opens the /spotlight menu. */}
+          <WathbaSpotlightMenu active={isActive('/spotlight')} />
+
+          {/* Batch POLISH Unit 1 — browse everything. A DIRECT link, no menu and
+              no hover panel: this is a destination, and the compass says so.
+              The chevron is gone because there is nothing left to expand. */}
+          <Link
+            href="/projects/discover-all"
+            aria-current={isActive('/projects/discover-all') ? 'page' : undefined}
+            style={{
+              cursor: 'pointer',
+              color: 'var(--accent)',
+              fontWeight: 700,
+              textDecoration: 'none',
+              paddingInlineStart: 16,
+              borderInlineStart: '1px solid rgba(var(--ink-rgb),.12)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              borderBottom: isActive('/projects/discover-all')
+                ? '2px solid var(--accent)'
+                : '2px solid transparent',
+              paddingBottom: 2,
+            }}
+          >
+            <Icon name="explore" size={18} color="var(--accent)" />
+            اكتشف
+          </Link>
         </nav>
 
         {/* STAKES/L1 — real input + typeahead (was a Link styled as a box). */}
@@ -211,7 +246,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
             gap: 2,
           }}
         >
-          {NAV_LINKS.map((l) => {
+          {SHEET_LINKS.map((l) => {
             const active = isActive(l.href);
             return (
               <Link

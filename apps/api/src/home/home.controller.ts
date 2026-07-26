@@ -43,6 +43,12 @@ export class HomeController {
     return this.home.compose();
   }
 
+  @Get('spotlight')
+  @ApiOperation({ summary: 'Batch POLISH — «تحت الأضواء» curated payload (public, cacheable)' })
+  spotlight() {
+    return this.home.spotlight();
+  }
+
   @Get('stories/:slug')
   @ApiOperation({ summary: 'Batch HOME — editorial article (bodyLongAr) by slug' })
   async article(@Param('slug') slug: string) {

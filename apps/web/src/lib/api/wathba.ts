@@ -1235,6 +1235,32 @@ export async function getHomePayload(): Promise<ApiHomePayload | null> {
   }
 }
 
+/** Batch POLISH — «تحت الأضواء» curated payload for /spotlight. */
+export interface ApiSpotlightPayload {
+  hero: ApiHomeProjectCard | null;
+  biggest: ApiHomeProjectCard[];
+  staffPicks: ApiHomeProjectCard[];
+  inventive: ApiHomeProjectCard[];
+  inclusion: ApiHomeProjectCard[];
+  stories: ApiEditorialCard[];
+  collections: Array<{ slug: string; nameAr: string; descriptionAr: string }>;
+}
+
+export async function getSpotlightPayload(): Promise<ApiSpotlightPayload | null> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/spotlight`, {
+      // Same tag as the homepage: a staff-pick toggle or editorial edit in the
+      // Ops Center busts both surfaces at once instead of leaving /spotlight
+      // stale for up to a minute.
+      next: { revalidate: 60, tags: ['wathba-home'] },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ApiSpotlightPayload;
+  } catch {
+    return null;
+  }
+}
+
 /** Editorial article by slug (same tag — admin edits bust it too). */
 export async function getStory(slug: string): Promise<ApiEditorialCard | null> {
   try {

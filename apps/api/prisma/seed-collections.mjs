@@ -7,7 +7,11 @@ export const COLLECTIONS = [
   { slug: 'ramadan-khair', nameAr: 'رمضان الخير', descriptionAr: 'مبادرات ومشاريع خيرية وموسمية في شهر رمضان المبارك.' },
   { slug: 'riyadh-season', nameAr: 'موسم الرياض', descriptionAr: 'مشاريع وتجارب مستوحاة من موسم الرياض والفعاليات الترفيهية.' },
   { slug: 'graduation-projects', nameAr: 'مشاريع التخرج', descriptionAr: 'أفكار طلاب الجامعات ومشاريع التخرج الباحثة عن التمويل الأول.' },
-  { slug: 'women-creators', nameAr: 'مبدعات سعوديات', descriptionAr: 'مشاريع تقودها رائدات أعمال ومبدعات سعوديات — تمكيناً يتماشى مع رؤية ٢٠٣٠.' },
+  // Batch POLISH — the fifth slot used to be «مبدعات سعوديات», a collection
+  // defined by who the creator is. Wathba's curated surfaces select on the WORK,
+  // so it is replaced by a merit/theme-based campaign open to every creator.
+  // (Migration 0057 retires the seeded row where it holds no projects.)
+  { slug: 'first-campaign', nameAr: 'الحملة الأولى', descriptionAr: 'مشاريع تخوض حملتها الأولى على وثبة — أعمال جديدة تبحث عن أول داعميها.' },
 ];
 
 export async function seedCollections(prisma) {

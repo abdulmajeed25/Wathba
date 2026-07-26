@@ -82,6 +82,16 @@ const config: NextConfig = {
   async redirects() {
     return [
       { source: '/projects/discover', destination: '/projects/discover-all', permanent: true },
+      // Batch POLISH Unit 1 — «تحت الأضواء» became a page of its own. Anything
+      // that used to reach the curated surface through a pre-filtered discovery
+      // URL now lands on /spotlight, permanently.
+      { source: '/projects/spotlight', destination: '/spotlight', permanent: true },
+      {
+        source: '/projects/discover-all',
+        has: [{ type: 'query', key: 'collection', value: 'women-creators' }],
+        destination: '/spotlight',
+        permanent: true,
+      },
     ];
   },
 };
