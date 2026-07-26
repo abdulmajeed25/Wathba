@@ -54,6 +54,20 @@ export function WathbaShell({
             [data-pillar="ventures"] .wathba-ph{background-color:var(--ph-bg);background-image:repeating-linear-gradient(135deg,rgba(var(--accent-rgb),.07) 0,rgba(var(--accent-rgb),.07) 2px,transparent 2px,transparent 11px)}
             [data-pillar="ventures"] .wathba-fade{animation:wathba-fadeUp .45s ease both}
 
+            /* ── POLISH — the account slot reserves WIDTH, not just height ──
+               /api/me resolves after mount and the signed-out state renders two
+               CTAs where the loading placeholder was a 42px square. The slot
+               went 94px → 258px wide, which squeezed the nav until IT wrapped
+               too (26px → 48px) — so the header grew and every page shifted
+               ~0.11. Reserving only the height does not help: the WIDTH change
+               is what drives the wrap.
+               Below 880px the desktop login link is hidden and the header is
+               tight, so the reservation is dropped there. */
+            [data-pillar="ventures"] .wathba-account-slot{min-width:206px;height:42px;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;white-space:nowrap}
+            @media (max-width:880px){
+              [data-pillar="ventures"] .wathba-account-slot{min-width:0}
+            }
+
             /* ── POLISH Unit 2 — reveal-on-scroll ─────────────────────────
                The hidden state exists ONLY inside no-preference, so a
                reduced-motion reader can never end up looking at opacity:0
