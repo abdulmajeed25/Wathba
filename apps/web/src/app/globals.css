@@ -40,7 +40,13 @@
 @theme {
   --font-arabic: var(--font-ibm-plex-arabic), 'IBM Plex Sans Arabic', system-ui, sans-serif;
 
-  --color-base: var(--bg-base);
+  /* NOT `--color-base`. Tailwind v4 derives utility names from the theme key,
+     and `base` is already the name of a core FONT-SIZE step — so `--color-base`
+     replaced `.text-base{font-size:1rem}` with `.text-base{color:…}`. All 48
+     uses of `text-base` in the ops screens are `text-base font-bold` headings
+     asking for a size; they were silently getting a near-white colour instead,
+     invisible the moment the ops surface turned light (measured 1.02:1). */
+  --color-canvas: var(--bg-base);
   --color-elevated: var(--bg-elevated);
   --color-floating: var(--bg-floating);
   --color-brand: var(--brand-primary);
@@ -123,8 +129,7 @@
  * one to reference variables, we REMAP the finite palette here, keyed off
  * `data-theme`/`data-density` on the ops root (`#ops-root`). These rules are
  * unlayered, so they win over the layered Tailwind utilities regardless of
- * specificity. Dark is the default look and stays byte-for-byte identical
- * except for the ONE contrast fix below; light is a full, WCAG-1.4.3 remap.
+ * specificity. Dark is the default look; light is a full, WCAG-1.4.3 remap.
  *
  * DENSITY rides Tailwind v4's dynamic spacing: every p-/gap-/space-/m- utility
  * resolves through `--spacing`, so overriding it on the ops root tightens the
@@ -136,19 +141,29 @@
   --spacing: 0.2rem;
 }
 
-/* ---- DARK: the ops surface joins the ONE theme system (POLISH Unit 4) ----
+/* ---- The ops surface joins the ONE theme system (POLISH Unit 4) ------------
  *
  * Every ops screen is painted with the fixed GitHub-dark palette baked into
  * Tailwind arbitrary values (bg-[#0d1117], text-[#8b949e], …). Rewriting ~60
  * screens to reference variables is a different project; remapping the finite
- * palette here is not. So the ops surface now resolves to the SAME warm layered
- * tokens as the public site: one dark theme, not two.
+ * palette here is not. So the ops surface resolves to the SAME warm layered
+ * tokens as the public site: one dark theme, not two — and a light theme that
+ * is a real palette rather than a partial patch.
  *
- * The old block fixed exactly one token (.text-[#484f58] → #848d97) and left
- * the rest of the cold GitHub palette in place, so the Ops Center and the public
- * site were visibly different products at night. Measured: #484f58 scored
- * 2.09:1 on a card and 1.84:1 on a raised row — both fail WCAG 1.4.3, and the
- * partial fix only covered two selectors out of 79 uses.
+ * TWO STRUCTURAL RULES, both learned the hard way:
+ *
+ *  1. The mapping is written ONCE against --ops-* variables and each theme only
+ *     redefines the variables. When the two themes carried their own hand-written
+ *     rule lists, light silently covered 20 of dark's 40 mappings — every gap was
+ *     a GitHub-dark value surviving onto a white card (measured: 57/48/65
+ *     contrast failures on /ops, /ops/money, /ops/users, worst 1.18:1).
+ *
+ *  2. The selector is :is([data-ops-root], [data-ops-root] *), NOT a descendant
+ *     combinator. The ops ROOT element carries both the theme attribute AND
+ *     `bg-[#0d1117] text-[#e6edf3]`, so a descendant selector can never reach it:
+ *     the page canvas and the inherited body text stayed GitHub-dark in light
+ *     mode while everything inside them turned white. That is the 1.18:1 —
+ *     #e6edf3 text inherited onto a white header.
  *
  * These rules are unlayered, so they win over the layered Tailwind utilities. */
 [data-ops-root][data-theme='dark'] {
@@ -167,242 +182,314 @@
   --ops-link: #4ade96;
   --ops-success: #1fd37e;
   --ops-danger: #ff7b72;
+  /* Primary-button fill. White-on-green is the one pair the ops surface gets
+     wrong in BOTH themes: bg-emerald-600 scores 3.65:1 with white 14px bold,
+     and the bg-[#238636]/hover:bg-[#2ea043] pair passes at rest (4.63) then
+     drops to 4.0 on hover. So the fill is a token, and hover moves the way
+     that keeps it passing: lighter here, darker in light. */
+  --ops-accent: #16712d;
+  --ops-accent-hover: #1a7f37;
 }
-[data-ops-root][data-theme='dark'] .bg-\[\#0d1117\] {
+
+/* LIGHT — the mirror image of the ramp above: elevation = whiter, canvas grey.
+ * Every foreground below clears 4.5:1 on ALL FOUR surfaces, not just on white
+ * (measured: fg 12.71–15.80, muted 6.10–7.59, faint 4.77–5.93, link 5.24–6.51,
+ * danger 5.27–6.55) — a value that only passes on #ffffff fails the moment it
+ * lands on a raised row, which is exactly how the old light block failed. */
+[data-ops-root][data-theme='light'] {
+  color-scheme: light;
+  --ops-surface-0: #f6f8fa;
+  --ops-surface-1: #ffffff;
+  --ops-surface-2: #eaeef2;
+  --ops-surface-3: #e3e7eb;
+  /* In light the "deepest" band is the CRISPEST, not the darkest: white lifted
+     off the grey canvas reads as the same elevation cue, inverted. */
+  --ops-deepest: #ffffff;
+  --ops-border: #d0d7de;
+  --ops-fg: #1f2328;
+  --ops-fg-muted: #4c555e;
+  --ops-fg-faint: #5b6570;
+  /* Green leads in light too — a darkened Wathba green, not GitHub blue. */
+  --ops-link: #076c3e;
+  --ops-success: #076c3e;
+  --ops-danger: #b3242e;
+  --ops-accent: #076c3e;
+  --ops-accent-hover: #0a5c35;
+}
+
+/* backgrounds */
+:is([data-ops-root], [data-ops-root] *).bg-\[\#0d1117\] {
   background-color: var(--ops-surface-0);
 }
-[data-ops-root][data-theme='dark'] .hover\:bg-\[\#0d1117\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:bg-\[\#0d1117\]:hover {
   background-color: var(--ops-surface-0);
 }
-[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#0d1117\]:focus-visible {
+:is([data-ops-root], [data-ops-root] *).focus-visible\:bg-\[\#0d1117\]:focus-visible {
   background-color: var(--ops-surface-0);
 }
-[data-ops-root][data-theme='dark'] .bg-\[\#010409\] {
+:is([data-ops-root], [data-ops-root] *).bg-\[\#010409\] {
   background-color: var(--ops-deepest);
 }
-[data-ops-root][data-theme='dark'] .hover\:bg-\[\#010409\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:bg-\[\#010409\]:hover {
   background-color: var(--ops-deepest);
 }
-[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#010409\]:focus-visible {
+:is([data-ops-root], [data-ops-root] *).focus-visible\:bg-\[\#010409\]:focus-visible {
   background-color: var(--ops-deepest);
 }
-[data-ops-root][data-theme='dark'] .bg-\[\#161b22\] {
+:is([data-ops-root], [data-ops-root] *).bg-\[\#161b22\] {
   background-color: var(--ops-surface-1);
 }
-[data-ops-root][data-theme='dark'] .hover\:bg-\[\#161b22\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:bg-\[\#161b22\]:hover {
   background-color: var(--ops-surface-1);
 }
-[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#161b22\]:focus-visible {
+:is([data-ops-root], [data-ops-root] *).focus-visible\:bg-\[\#161b22\]:focus-visible {
   background-color: var(--ops-surface-1);
 }
-[data-ops-root][data-theme='dark'] .bg-\[\#21262d\] {
+:is([data-ops-root], [data-ops-root] *).bg-\[\#21262d\] {
   background-color: var(--ops-surface-2);
 }
-[data-ops-root][data-theme='dark'] .hover\:bg-\[\#21262d\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:bg-\[\#21262d\]:hover {
   background-color: var(--ops-surface-2);
 }
-[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#21262d\]:focus-visible {
+:is([data-ops-root], [data-ops-root] *).focus-visible\:bg-\[\#21262d\]:focus-visible {
   background-color: var(--ops-surface-2);
 }
-[data-ops-root][data-theme='dark'] .bg-\[\#1c2128\] {
+:is([data-ops-root], [data-ops-root] *).bg-\[\#1c2128\] {
   background-color: var(--ops-surface-2);
 }
-[data-ops-root][data-theme='dark'] .hover\:bg-\[\#1c2128\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:bg-\[\#1c2128\]:hover {
   background-color: var(--ops-surface-2);
 }
-[data-ops-root][data-theme='dark'] .focus-visible\:bg-\[\#1c2128\]:focus-visible {
+:is([data-ops-root], [data-ops-root] *).focus-visible\:bg-\[\#1c2128\]:focus-visible {
   background-color: var(--ops-surface-2);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#e6edf3\] {
+
+/* foregrounds */
+:is([data-ops-root], [data-ops-root] *).text-\[\#e6edf3\] {
   color: var(--ops-fg);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#e6edf3\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#e6edf3\]:hover {
   color: var(--ops-fg);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#e6edf3\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#e6edf3\]::placeholder {
   color: var(--ops-fg);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#c9d1d9\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#c9d1d9\] {
   color: var(--ops-fg-muted);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#c9d1d9\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#c9d1d9\]:hover {
   color: var(--ops-fg-muted);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#c9d1d9\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#c9d1d9\]::placeholder {
   color: var(--ops-fg-muted);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#8b949e\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#8b949e\] {
   color: var(--ops-fg-faint);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#8b949e\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#8b949e\]:hover {
   color: var(--ops-fg-faint);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#8b949e\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#8b949e\]::placeholder {
   color: var(--ops-fg-faint);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#484f58\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#484f58\] {
   color: var(--ops-fg-faint);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#484f58\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#484f58\]:hover {
   color: var(--ops-fg-faint);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#484f58\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#484f58\]::placeholder {
   color: var(--ops-fg-faint);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#58a6ff\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#30363d\] {
+  color: var(--ops-border);
+}
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#30363d\]:hover {
+  color: var(--ops-border);
+}
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#30363d\]::placeholder {
+  color: var(--ops-border);
+}
+:is([data-ops-root], [data-ops-root] *).text-\[\#58a6ff\] {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#58a6ff\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#58a6ff\]:hover {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#58a6ff\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#58a6ff\]::placeholder {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#79c0ff\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#79c0ff\] {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#79c0ff\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#79c0ff\]:hover {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#79c0ff\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#79c0ff\]::placeholder {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#1f6feb\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#1f6feb\] {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#1f6feb\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#1f6feb\]:hover {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#1f6feb\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#1f6feb\]::placeholder {
   color: var(--ops-link);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#238636\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#238636\] {
   color: var(--ops-success);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#238636\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#238636\]:hover {
   color: var(--ops-success);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#238636\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#238636\]::placeholder {
   color: var(--ops-success);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#2ea043\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#2ea043\] {
   color: var(--ops-success);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#2ea043\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#2ea043\]:hover {
   color: var(--ops-success);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#2ea043\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#2ea043\]::placeholder {
   color: var(--ops-success);
 }
-[data-ops-root][data-theme='dark'] .text-\[\#f78166\] {
+:is([data-ops-root], [data-ops-root] *).text-\[\#f78166\] {
   color: var(--ops-danger);
 }
-[data-ops-root][data-theme='dark'] .hover\:text-\[\#f78166\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:text-\[\#f78166\]:hover {
   color: var(--ops-danger);
 }
-[data-ops-root][data-theme='dark'] .placeholder\:text-\[\#f78166\]::placeholder {
+:is([data-ops-root], [data-ops-root] *).placeholder\:text-\[\#f78166\]::placeholder {
   color: var(--ops-danger);
 }
-[data-ops-root][data-theme='dark'] .border-\[\#30363d\] {
+
+/* borders + dividers */
+:is([data-ops-root], [data-ops-root] *).border-\[\#30363d\] {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .hover\:border-\[\#30363d\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:border-\[\#30363d\]:hover {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .divide-\[\#30363d\] > :not([hidden]) ~ :not([hidden]) {
+:is([data-ops-root], [data-ops-root] *).divide-\[\#30363d\] > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .border-\[\#21262d\] {
+:is([data-ops-root], [data-ops-root] *).border-\[\#21262d\] {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .hover\:border-\[\#21262d\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:border-\[\#21262d\]:hover {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .divide-\[\#21262d\] > :not([hidden]) ~ :not([hidden]) {
+:is([data-ops-root], [data-ops-root] *).divide-\[\#21262d\] > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .border-\[\#1c2128\] {
+:is([data-ops-root], [data-ops-root] *).border-\[\#1c2128\] {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .hover\:border-\[\#1c2128\]:hover {
+:is([data-ops-root], [data-ops-root] *).hover\:border-\[\#1c2128\]:hover {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .divide-\[\#1c2128\] > :not([hidden]) ~ :not([hidden]) {
+:is([data-ops-root], [data-ops-root] *).divide-\[\#1c2128\] > :not([hidden]) ~ :not([hidden]) {
   border-color: var(--ops-border);
 }
-[data-ops-root][data-theme='dark'] .focus-visible\:ring-\[\#58a6ff\]:focus-visible {
+
+/* focus ring */
+:is([data-ops-root], [data-ops-root] *).focus-visible\:ring-\[\#58a6ff\]:focus-visible {
   --tw-ring-color: var(--ops-link);
 }
 
-/* ---- LIGHT: full palette remap (GitHub-light, all foregrounds ≥ 4.5:1) ---- */
-[data-ops-root][data-theme='light'] {
-  color-scheme: light;
+/* primary action fill — the ops surface writes it two ways */
+:is([data-ops-root], [data-ops-root] *).bg-\[\#238636\],
+:is([data-ops-root], [data-ops-root] *).bg-emerald-600 {
+  background-color: var(--ops-accent);
+}
+:is([data-ops-root], [data-ops-root] *).hover\:bg-\[\#2ea043\]:hover,
+:is([data-ops-root], [data-ops-root] *).hover\:bg-emerald-500:hover {
+  background-color: var(--ops-accent-hover);
 }
 
-/* backgrounds: canvas/inset → subtle grey; cards/header → white; hovers */
-[data-ops-root][data-theme='light'] .bg-\[\#0d1117\] {
-  background-color: #f6f8fa;
-}
-[data-ops-root][data-theme='light'] .bg-\[\#010409\] {
-  background-color: #ffffff;
-}
-[data-ops-root][data-theme='light'] .bg-\[\#161b22\] {
-  background-color: #ffffff;
-}
-[data-ops-root][data-theme='light'] .bg-\[\#21262d\] {
-  background-color: #eaeef2;
-}
-[data-ops-root][data-theme='light'] .hover\:bg-\[\#161b22\]:hover {
-  background-color: #eef1f4;
-}
-[data-ops-root][data-theme='light'] .hover\:bg-\[\#1c2128\]:hover {
-  background-color: #eaeef2;
-}
-[data-ops-root][data-theme='light'] .hover\:bg-\[\#21262d\]:hover {
-  background-color: #e1e6eb;
-}
-[data-ops-root][data-theme='light'] .focus-visible\:bg-\[\#161b22\]:focus-visible {
-  background-color: #eef1f4;
+/* ---- LIGHT only: the Tailwind status palette ------------------------------
+ *
+ * Everything above is theme-symmetric because both themes need a mapping. This
+ * block is not, and deliberately: the chips are authored in Tailwind's palette
+ * for a DARK ground (`text-amber-300` on `bg-amber-500/10`), and dark is
+ * therefore the correct rendering — measured 0 failures. Light is the deviation,
+ * because /10 over white is a pale tint that a -300 foreground cannot sit on
+ * (measured: 1.22:1 «١٣», 1.30:1 «نشط», 1.38:1 «نشط — عمليات المال متاحة»).
+ *
+ * Only the FOREGROUNDS move. The tints stay, so a chip still reads amber/red/
+ * green/blue at a glance — the hue is the status cue and it survives; what
+ * changes is that you can now read the word inside it. Each value clears 4.5:1
+ * on its own tint AND on both page surfaces (warn 6.31–7.40, danger 5.58–6.55,
+ * success 5.55–6.51, info 5.55–6.96). */
+[data-theme='light'] {
+  --ops-warn: #7a4b06;
+  --ops-status-danger: #b3242e;
+  --ops-status-success: #076c3e;
+  --ops-info: #0b5f8a;
 }
 
-/* borders */
-[data-ops-root][data-theme='light'] .border-\[\#21262d\] {
-  border-color: #d0d7de;
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-200,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-amber-200:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-200\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-200\/70,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-300,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-amber-300:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-300\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-300\/70,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-400,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-amber-400:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-400\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-amber-400\/70 {
+  color: var(--ops-warn);
 }
-[data-ops-root][data-theme='light'] .border-\[\#30363d\] {
-  border-color: #d0d7de;
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-200,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-red-200:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-200\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-200\/70,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-300,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-red-300:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-300\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-300\/70,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-400,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-red-400:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-400\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-red-400\/70 {
+  color: var(--ops-status-danger);
 }
-[data-ops-root][data-theme='light'] .hover\:border-\[\#30363d\]:hover {
-  border-color: #afb8c1;
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-emerald-300,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-emerald-300:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-emerald-300\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-emerald-300\/70,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-emerald-400,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-emerald-400:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-emerald-400\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-emerald-400\/70 {
+  color: var(--ops-status-success);
 }
-[data-ops-root][data-theme='light'] .divide-\[\#21262d\] > * {
-  border-color: #d0d7de;
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-sky-300,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-sky-300:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-sky-300\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-sky-300\/70,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-sky-400,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).hover\:text-sky-400:hover,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-sky-400\/80,
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).text-sky-400\/70 {
+  color: var(--ops-info);
 }
-
-/* foregrounds — every value below clears 4.5:1 on #ffffff and #f6f8fa */
-[data-ops-root][data-theme='light'] .text-\[\#e6edf3\] {
-  color: #1f2328;
+/* Status DOTS carry meaning on their own (severity, liveness) and nothing else
+ * conveys it, so WCAG 1.4.11 applies: 3:1 against the surface behind them. The
+ * -400 shades are 1.7:1 on white. The analytics BAR fills (bg-*-500/70, /60) are
+ * deliberately NOT in this list — each bar carries its number as a label on top,
+ * so the fill is not the sole carrier, and darkening it took the label from
+ * readable to 2.27:1. Non-text contrast is not a rule to apply everywhere. */
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).bg-emerald-400 {
+  background-color: var(--ops-status-success);
 }
-[data-ops-root][data-theme='light'] .hover\:text-\[\#e6edf3\]:hover {
-  color: #1f2328;
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).bg-amber-400 {
+  background-color: var(--ops-warn);
 }
-[data-ops-root][data-theme='light'] .text-\[\#8b949e\] {
-  color: #59636e;
-}
-[data-ops-root][data-theme='light'] .text-\[\#484f58\] {
-  color: #636c76;
-}
-[data-ops-root][data-theme='light'] .placeholder\:text-\[\#484f58\]::placeholder {
-  color: #6e7781;
-}
-[data-ops-root][data-theme='light'] .text-\[\#30363d\] {
-  color: #d0d7de;
-}
-
-/* accent (links + focus ring) → GitHub-light accent */
-[data-ops-root][data-theme='light'] .text-\[\#58a6ff\] {
-  color: #0969da;
-}
-[data-ops-root][data-theme='light'] .focus-visible\:ring-\[\#58a6ff\]:focus-visible {
-  --tw-ring-color: #0969da;
+:is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).bg-red-400 {
+  background-color: var(--ops-status-danger);
 }

@@ -41,7 +41,7 @@ export function VentureCard({
             target: formatSar(locale, venture.targetSar),
           })}
         </p>
-        <div className="h-1.5 rounded-full bg-base/60">
+        <div className="h-1.5 rounded-full bg-canvas/60">
           <div className="h-1.5 rounded-full bg-brand" style={{ width: `${pct}%` }} />
         </div>
       </div>
