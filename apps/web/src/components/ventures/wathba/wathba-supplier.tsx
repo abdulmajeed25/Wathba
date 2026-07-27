@@ -35,11 +35,11 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 ];
 
 const STATUS_TONE: Record<string, { label: string; color: string; bg: string }> = {
-  OPEN:     { label: 'مفتوح',  color: 'var(--pos)',    bg: 'rgba(52,211,153,.10)' },
-  AWARDED:  { label: 'مُرسى',   color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
+  OPEN:     { label: 'مفتوح',  color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
+  AWARDED:  { label: 'مُرسى',   color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
   CLOSED:   { label: 'مغلق',   color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
-  PENDING:  { label: 'قيد التقييم', color: 'var(--gold)',   bg: 'rgba(251,191,36,.10)' },
-  SUBMITTED:{ label: 'قيد التقييم', color: 'var(--gold)',   bg: 'rgba(251,191,36,.10)' },
+  PENDING:  { label: 'قيد التقييم', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
+  SUBMITTED:{ label: 'قيد التقييم', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
   REJECTED: { label: 'مرفوض',    color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
 };
 
@@ -90,14 +90,14 @@ export function WathbaSupplier({
     <div className="wathba-fade">
       {/* hero */}
       <section style={{ maxWidth: 1160, margin: '0 auto', padding: '48px 26px 0' }}>
-        <Num style={{ fontSize: 12, letterSpacing: 2, color: 'var(--accent)', display: 'block', marginBottom: 8 }}>
+        <Num style={{ fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', display: 'block', marginBottom: 8 }}>
           SUPPLIER PORTAL · بوابة الموردين
         </Num>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
           المزاد العكسي للموردين
         </h1>
         {isLive && (
-          <div style={{ marginBottom: 10, fontSize: 11, color: 'var(--pos)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ marginBottom: 10, fontSize: 11, color: 'var(--pos-ink)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Icon name="verified" size={13} color="var(--pos)" /> بيانات مباشرة من API
           </div>
         )}
@@ -156,7 +156,7 @@ function RfqList({ rfqs, onApply }: { rfqs: WathbaRfq[]; onApply: (id: string) =
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
                 <Icon name="category" size={16} color="var(--accent)" />
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{r.category}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-ink)' }}>{r.category}</span>
               </div>
               <span
                 style={{
@@ -278,7 +278,7 @@ function BidList({ bids, isLive }: { bids: WathbaSupplierBid[]; isLive: boolean 
             <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted2)' }}>السعر</div>
-                <Num style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+                <Num style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-ink)' }}>
                   {formatSar('ar', b.amount)}
                 </Num>
               </div>

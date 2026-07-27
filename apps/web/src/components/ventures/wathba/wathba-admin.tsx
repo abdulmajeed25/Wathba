@@ -56,7 +56,7 @@ export function WathbaAdmin({
           style={{
             fontSize: 12,
             letterSpacing: 2,
-            color: 'var(--accent)',
+            color: 'var(--accent-ink)',
             display: 'block',
             marginBottom: 8,
           }}

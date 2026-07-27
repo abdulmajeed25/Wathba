@@ -167,7 +167,7 @@ export function WathbaTransparency({
         <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.65 }}>
           نوضّح بالضبط كيف يُنفَق كل ريال تدعمنا به. الأرقام تتحدّث تلقائياً مع كل
           خطوة في الحملة. إجمالي المُجمَّع حتى الآن:{' '}
-          <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>{raisedFmt}</Num>.
+          <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>{raisedFmt}</Num>.
         </p>
       </header>
 
@@ -263,7 +263,7 @@ export function WathbaTransparency({
                     {formatDateAr(s.date)}
                   </div>
                 </div>
-                <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>
+                <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
                   {halalasToSar(s.amountHalalas)} ر.س
                 </Num>
               </div>
@@ -404,7 +404,7 @@ function MilestoneCard({ m }: { m: MilestoneRow }): React.ReactElement {
         <div style={{ display: 'flex', gap: 18, marginTop: 8, fontSize: 12, color: 'var(--muted)', flexWrap: 'wrap' }}>
           <span>نسبة الصرف: <Num style={{ fontWeight: 700, color: 'var(--text)' }}>{m.releasePct}%</Num></span>
           {m.releasedHalalas > 0 && (
-            <span>تم صرف: <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>{halalasToSar(m.releasedHalalas)} ر.س</Num></span>
+            <span>تم صرف: <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>{halalasToSar(m.releasedHalalas)} ر.س</Num></span>
           )}
           {m.releasedAt && <span>تاريخ الصرف: {formatDateAr(m.releasedAt)}</span>}
           {!m.releasedAt && m.approvedAt && <span>الموافقة: {formatDateAr(m.approvedAt)}</span>}
@@ -420,7 +420,7 @@ function MilestoneCard({ m }: { m: MilestoneRow }): React.ReactElement {
               alignItems: 'center',
               gap: 4,
               fontSize: 12,
-              color: 'var(--accent)',
+              color: 'var(--accent-ink)',
               marginTop: 8,
               textDecoration: 'none',
             }}

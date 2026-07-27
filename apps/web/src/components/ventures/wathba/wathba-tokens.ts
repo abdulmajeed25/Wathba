@@ -35,16 +35,45 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     // ground; the old #5d6b62 / #8a958c failed (axe: color-contrast).
     '--muted': '#4d574f',
     '--muted2': '#646f68',
-    '--ph-label': '#6f7a73',
+    // Was #6f7a73 → 3.80:1 on --ph-bg (#eaeee7), the placeholder's own ground.
+    // A hint is quiet, never unreadable — same rule the dark theme follows.
+    '--ph-label': '#5c665f',
     '--ink-rgb': '18,33,26',
     '--accent': '#05a661',
     '--accent-rgb': '5,166,97',
     '--accent2-rgb': '6,140,110',
-    // STAKES/S-2 — deeper emerald for accent-colored TEXT on light grounds:
-    // #05a661 on #fff is only 4.5 (fails AA for the stat numerals). --accent
-    // stays the brand green for fills/buttons.
+    // Deeper emerald for accent-coloured TEXT on light grounds. --accent stays
+    // the brand green for fills/buttons.
+    //
+    // CORRECTION: the note that used to sit here said "#05a661 on #fff is only
+    // 4.5". It is 3.17 — the original measurement was taken with a sampler that
+    // could not composite, and the wrong number made --accent look borderline
+    // rather than failing. Anything painting TEXT with var(--accent) on a light
+    // ground fails 1.4.3; that is what --accent-ink is for.
     '--accent-ink': '#04773a',
-    '--on-accent': '#ffffff',
+    // The ink that goes ON the brand green — buttons, badges, the logo mark.
+    // Was #ffffff: white on --grad's lightest stop is 2.39:1, which made every
+    // primary CTA on the public site fail. The dark theme already puts dark ink
+    // on its green; light now does the same, so the GREEN ITSELF is unchanged
+    // and only what sits on top of it moves. 5.98:1 against the worst of the
+    // six accent grounds (#05a661, and the five gradient stops).
+    '--on-accent': '#08130d',
+    // ── ON A DARK SCRIM ────────────────────────────────────────────────────
+    // A handful of overlays (the category pill and bookmark button on a card
+    // image, the «مميّز» badge) paint a fixed near-black scrim in BOTH themes.
+    // Their ink therefore cannot be a theme token: --text-soft on that scrim is
+    // 1.16:1 in light and fine in dark, which is exactly how it shipped. These
+    // three are identical in both themes and are measured against the WORST
+    // case — the scrim over pure white, rgb(56,65,76): 9.60, 6.00, 6.26.
+    // The INVERSE chip that sits on the accent band («ابدأ مشروعك الآن»). It
+    // used to borrow --on-accent as its fill, which broke the moment that token
+    // became dark ink: fill and text were then both dark (1.13:1). A fill needs
+    // its own name.
+    '--chip-fill': '#ffffff',
+    '--chip-ink': '#16201b',
+    '--on-scrim': '#f4f7f5',
+    '--on-scrim-accent': '#4ade96',
+    '--on-scrim-gold': '#f5c24c',
     '--header-bg': 'rgba(255,255,255,.82)',
     '--grad': 'linear-gradient(135deg,#05c074,#03a98e)',
     '--grad-bar': 'linear-gradient(90deg,#05c074,#03a98e)',
@@ -53,7 +82,15 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--cta-grad': 'linear-gradient(120deg,#05c074,#02b39a,#12c86d)',
     '--gold': '#b9820a',
     '--gold-rgb': '185,130,10',
+    // --gold is a FILL (rank badges, medals). As text on a light ground it is
+    // 3.35:1, so accent-coloured gold copy («سفير») gets its own darker ink,
+    // exactly as --accent/--accent-ink are split. 5.83:1 at worst.
+    '--gold-ink': '#7a5305',
     '--pos': '#05a661',
+    // Same fill/ink split as the accent: --pos is a bar/dot fill, --pos-ink is
+    // the readable value for POSITIVE copy on a light ground (--pos as text is
+    // 2.70:1 at worst).
+    '--pos-ink': '#046b40',
     '--pos-rgb': '5,166,97',
     '--purple': '#6d4df0',
     '--purple-rgb': '109,77,240',
@@ -127,6 +164,18 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--accent2-rgb': '16,185,129',
     '--accent-ink': '#4ade96',
     '--on-accent': '#08130d',
+    // ── ON A DARK SCRIM ────────────────────────────────────────────────────
+    // A handful of overlays (the category pill and bookmark button on a card
+    // image, the «مميّز» badge) paint a fixed near-black scrim in BOTH themes.
+    // Their ink therefore cannot be a theme token: --text-soft on that scrim is
+    // 1.16:1 in light and fine in dark, which is exactly how it shipped. These
+    // three are identical in both themes and are measured against the WORST
+    // case — the scrim over pure white, rgb(56,65,76): 9.60, 6.00, 6.26.
+    '--chip-fill': '#08130d',
+    '--chip-ink': '#f6f4ef',
+    '--on-scrim': '#f4f7f5',
+    '--on-scrim-accent': '#4ade96',
+    '--on-scrim-gold': '#f5c24c',
     '--header-bg': 'rgba(19,18,16,.74)',
     '--grad': 'linear-gradient(135deg,#1fd37e,#10b981)',
     '--grad-bar': 'linear-gradient(90deg,#1fd37e,#10b981)',
@@ -139,7 +188,11 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     // with a label or an icon in the components that use them.
     '--gold': '#f5c24c',
     '--gold-rgb': '245,194,76',
+    // On dark surfaces the fill is already the readable value; the split exists
+    // so components can say "gold TEXT" without knowing which theme they're in.
+    '--gold-ink': '#f5c24c',
     '--pos': '#3dd68c',
+    '--pos-ink': '#3dd68c',
     '--pos-rgb': '61,214,140',
     '--purple': '#c0a8ff',
     '--purple-rgb': '192,168,255',

@@ -26,7 +26,7 @@ export function WathbaLegalPage({
               fontFamily: '"Space Grotesk", sans-serif',
               fontSize: 12,
               letterSpacing: 2,
-              color: 'var(--accent)',
+              color: 'var(--accent-ink)',
               marginBottom: 8,
             }}
           >
@@ -68,7 +68,7 @@ export function LegalSection({
           gap: 10,
         }}
       >
-        <span style={{ color: 'var(--accent)', fontSize: 14 }}>{n}.</span>
+        <span style={{ color: 'var(--accent-ink)', fontSize: 14 }}>{n}.</span>
         {title}
       </h2>
       <div style={{ fontSize: 15, color: 'var(--text-soft)', lineHeight: 1.85 }}>{body}</div>
@@ -101,7 +101,7 @@ export function HelpTopicCard({
         style={{
           width: 40, height: 40, borderRadius: 11,
           background: 'rgba(var(--accent-rgb),.10)',
-          color: 'var(--accent)',
+          color: 'var(--accent-ink)',
           display: 'grid', placeItems: 'center',
           flexShrink: 0,
         }}

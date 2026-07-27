@@ -173,7 +173,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
             aria-current={isActive('/projects/discover-all') ? 'page' : undefined}
             style={{
               cursor: 'pointer',
-              color: 'var(--accent)',
+              color: 'var(--accent-ink)',
               fontWeight: 700,
               textDecoration: 'none',
               paddingInlineStart: 16,

@@ -223,7 +223,7 @@ const changeBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'inherit',
   fontSize: 13,
-  color: 'var(--accent)',
+  color: 'var(--accent-ink)',
 };
 
 const backBtnStyle: React.CSSProperties = {

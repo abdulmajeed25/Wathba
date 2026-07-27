@@ -31,12 +31,12 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 ];
 
 const STATE_TONE: Record<string, { label: string; color: string; bg: string }> = {
-  HELD:     { label: 'محجوز',     color: 'var(--gold)',   bg: 'rgba(251,191,36,.10)' },
-  CAPTURED: { label: 'تم الخصم',  color: 'var(--pos)',    bg: 'rgba(52,211,153,.10)' },
+  HELD:     { label: 'محجوز',     color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
+  CAPTURED: { label: 'تم الخصم',  color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
   REFUNDED: { label: 'مسترَد',    color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
   FAILED:   { label: 'فشل',       color: '#dc2626',       bg: 'rgba(239,68,68,.08)' },
-  PENDING:  { label: 'قيد الإرسال', color: 'var(--gold)', bg: 'rgba(251,191,36,.10)' },
-  SENT:     { label: 'تم التحويل',  color: 'var(--pos)',  bg: 'rgba(52,211,153,.10)' },
+  PENDING:  { label: 'قيد الإرسال', color: 'var(--gold-ink)', bg: 'rgba(251,191,36,.10)' },
+  SENT:     { label: 'تم التحويل',  color: 'var(--pos-ink)',  bg: 'rgba(52,211,153,.10)' },
 };
 
 export function WathbaPayments({
@@ -52,7 +52,7 @@ export function WathbaPayments({
   return (
     <div className="wathba-fade">
       <section style={{ maxWidth: 1040, margin: '0 auto', padding: '48px 26px 0' }}>
-        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 }}>
+        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
           PAYMENTS · المدفوعات
         </Num>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
@@ -104,7 +104,7 @@ function MethodsTab() {
           style={{
             width: 44, height: 44, borderRadius: 12,
             background: 'rgba(var(--accent-rgb),.10)',
-            color: 'var(--accent)',
+            color: 'var(--accent-ink)',
             display: 'grid', placeItems: 'center',
             flexShrink: 0,
           }}
@@ -197,7 +197,7 @@ function HistoryTab({ pledges }: { pledges: ApiBackingRow[] }) {
                   {projectAr}
                 </td>
                 <td style={{ padding: '14px 18px', textAlign: 'end', fontWeight: 700 }}>
-                  <Num style={{ color: p.state.toUpperCase() === 'REFUNDED' ? 'var(--muted)' : 'var(--accent)' }}>
+                  <Num style={{ color: p.state.toUpperCase() === 'REFUNDED' ? 'var(--muted)' : 'var(--accent-ink)' }}>
                     {formatSarFromHalalas('ar', Number(p.amount))}
                   </Num>
                 </td>
@@ -328,13 +328,13 @@ function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined 
                     </td>
                     <td style={{ padding: '14px 18px' }}>{p.projectId.slice(0, 8)}…</td>
                     <td style={{ padding: '14px 18px', textAlign: 'end', fontWeight: 700 }}>
-                      <Num style={{ color: 'var(--accent)' }}>
+                      <Num style={{ color: 'var(--accent-ink)' }}>
                         {formatSarFromHalalas('ar', p.amountHalalas)}
                       </Num>
                     </td>
                     <td style={{ padding: '14px 18px', textAlign: 'end' }}>
                       {p.zatcaInvoiceId ? (
-                        <Num style={{ fontSize: 12, color: 'var(--accent)' }}>
+                        <Num style={{ fontSize: 12, color: 'var(--accent-ink)' }}>
                           {p.zatcaInvoiceId.slice(0, 10)}…
                         </Num>
                       ) : (

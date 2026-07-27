@@ -49,7 +49,7 @@ export function WathbaCampaignHeader({
                 background: rich.weLoveBadge === 'بشراكة وثبة'
                   ? 'rgba(var(--purple-rgb),.10)'
                   : 'rgba(var(--accent-rgb),.10)',
-                color: rich.weLoveBadge === 'بشراكة وثبة' ? 'var(--purple)' : 'var(--accent)',
+                color: rich.weLoveBadge === 'بشراكة وثبة' ? 'var(--purple)' : 'var(--accent-ink)',
                 border: `1px solid ${rich.weLoveBadge === 'بشراكة وثبة' ? 'rgba(var(--purple-rgb),.30)' : 'rgba(var(--accent-rgb),.30)'}`,
                 padding: '4px 11px', borderRadius: 20,
                 display: 'inline-flex', alignItems: 'center', gap: 5,

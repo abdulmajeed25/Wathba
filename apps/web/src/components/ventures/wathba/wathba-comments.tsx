@@ -362,7 +362,7 @@ function ApiCommentRow({
           height: 40,
           borderRadius: 11,
           background: c.isCreator ? 'rgba(var(--accent-rgb),.10)' : 'var(--avatar)',
-          color: c.isCreator ? 'var(--accent)' : 'var(--text)',
+          color: c.isCreator ? 'var(--accent-ink)' : 'var(--text)',
           border: '1px solid rgba(var(--ink-rgb),.10)',
           display: 'grid',
           placeItems: 'center',
@@ -392,7 +392,7 @@ function ApiCommentRow({
                 fontWeight: 700,
                 padding: '2px 9px',
                 borderRadius: 20,
-                color: 'var(--accent)',
+                color: 'var(--accent-ink)',
                 border: '1px solid rgba(var(--accent-rgb),.5)',
                 background: 'rgba(var(--accent-rgb),.08)',
               }}
@@ -407,7 +407,7 @@ function ApiCommentRow({
                 fontWeight: 700,
                 padding: '2px 9px',
                 borderRadius: 20,
-                color: 'var(--accent)',
+                color: 'var(--accent-ink)',
                 background: 'rgba(var(--accent-rgb),.10)',
               }}
             >
@@ -708,7 +708,7 @@ function CommentRow({ comment: c, depth = 0 }: { comment: RichComment; depth?: n
         style={{
           width: 40, height: 40, borderRadius: 11,
           background: c.isCreatorReply ? 'rgba(var(--accent-rgb),.10)' : 'var(--avatar)',
-          color: c.isCreatorReply ? 'var(--accent)' : 'var(--text)',
+          color: c.isCreatorReply ? 'var(--accent-ink)' : 'var(--text)',
           border: '1px solid rgba(var(--ink-rgb),.10)',
           display: 'grid', placeItems: 'center',
           fontWeight: 700, fontSize: 14, flexShrink: 0,
@@ -724,7 +724,7 @@ function CommentRow({ comment: c, depth = 0 }: { comment: RichComment; depth?: n
               style={{
                 fontSize: 11, fontWeight: 700,
                 padding: '2px 9px', borderRadius: 20,
-                color: 'var(--accent)',
+                color: 'var(--accent-ink)',
                 border: '1px solid rgba(var(--accent-rgb),.5)',
                 background: 'rgba(var(--accent-rgb),.08)',
               }}

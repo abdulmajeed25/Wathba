@@ -175,7 +175,7 @@ export function WathbaStart() {
             display: 'block',
             fontSize: 12,
             letterSpacing: '2px',
-            color: 'var(--accent)',
+            color: 'var(--accent-ink)',
             marginBottom: 8,
           }}
         >
@@ -516,7 +516,7 @@ function StepFunding({
               padding: '0 14px',
             }}
           >
-            <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>ر.س</span>
+            <span style={{ color: 'var(--accent-ink)', fontWeight: 700, fontSize: 13 }}>ر.س</span>
             <input
               aria-label="هدف التمويل"
               value={goalText}
@@ -788,7 +788,7 @@ function StepTiers({
                 height: 64,
                 borderRadius: 13,
                 background: 'rgba(var(--accent-rgb),.1)',
-                color: 'var(--accent)',
+                color: 'var(--accent-ink)',
                 display: 'grid',
                 placeItems: 'center',
                 fontWeight: 700,
@@ -807,7 +807,7 @@ function StepTiers({
                     background: 'transparent',
                     border: 'none',
                     textAlign: 'center',
-                    color: 'var(--accent)',
+                    color: 'var(--accent-ink)',
                     fontWeight: 700,
                     fontSize: 16,
                     fontFamily: '"Space Grotesk", sans-serif',
@@ -871,7 +871,7 @@ function StepTiers({
           padding: 16,
           textAlign: 'center',
           cursor: 'pointer',
-          color: 'var(--accent)',
+          color: 'var(--accent-ink)',
           fontWeight: 600,
           fontSize: 14,
           display: 'flex',
@@ -929,7 +929,7 @@ function StepMilestones({
           borderRadius: 12,
           background: valid ? 'rgba(52,211,153,.08)' : 'rgba(251,191,36,.10)',
           border: `1px solid ${valid ? 'rgba(52,211,153,.30)' : 'rgba(251,191,36,.30)'}`,
-          color: valid ? 'var(--pos)' : 'var(--gold)',
+          color: valid ? 'var(--pos-ink)' : 'var(--gold-ink)',
           fontSize: 13,
           fontWeight: 700,
           display: 'inline-flex',
@@ -960,7 +960,7 @@ function StepMilestones({
               style={{
                 width: 32, height: 32, borderRadius: 9,
                 background: 'rgba(var(--accent-rgb),.10)',
-                color: 'var(--accent)',
+                color: 'var(--accent-ink)',
                 display: 'grid', placeItems: 'center',
                 fontWeight: 700, fontSize: 14,
                 fontFamily: '"Space Grotesk", sans-serif',
@@ -1058,7 +1058,7 @@ function StepMilestones({
           padding: '10px 16px',
           fontSize: 13,
           fontWeight: 600,
-          color: 'var(--accent)',
+          color: 'var(--accent-ink)',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
@@ -1125,7 +1125,7 @@ function StepReview({
           >
             <div style={{ fontSize: 12, color: 'var(--muted2)', marginBottom: 5 }}>{c.label}</div>
             {c.accent ? (
-              <Num style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>
+              <Num style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent-ink)' }}>
                 {c.value}
               </Num>
             ) : (

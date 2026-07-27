@@ -249,7 +249,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                   background: 'rgba(6,18,31,.85)',
                   backdropFilter: 'blur(6px)',
                   border: '1px solid rgba(var(--accent-rgb),.4)',
-                  color: 'var(--accent-ink)',
+                  color: 'var(--on-scrim-accent)',
                   padding: '7px 13px',
                   borderRadius: 30,
                   fontSize: 12.5,
@@ -377,7 +377,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
               gap: 8,
               fontSize: 13,
               fontWeight: 700,
-              color: 'var(--pos)',
+              color: 'var(--pos-ink)',
             }}
           >
             <span
@@ -583,7 +583,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                     background: 'rgba(6,18,31,.8)',
                     backdropFilter: 'blur(5px)',
                     border: '1px solid rgba(var(--ink-rgb),.12)',
-                    color: 'var(--text-soft)',
+                    color: 'var(--on-scrim)',
                     padding: '5px 10px',
                     borderRadius: 20,
                     fontSize: 11,
@@ -608,7 +608,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                     placeItems: 'center',
                   }}
                 >
-                  <Icon name="bookmark" size={16} color="var(--muted)" />
+                  <Icon name="bookmark" size={16} color="var(--on-scrim)" />
                 </div>
                 {/* §7 platform-partner — mandatory badge on the card */}
                 {p.platformPartner && (
@@ -733,7 +733,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                 gap: 8,
                 background: 'rgba(52,211,153,.1)',
                 border: '1px solid rgba(52,211,153,.3)',
-                color: 'var(--pos)',
+                color: 'var(--pos-ink)',
                 padding: '6px 13px',
                 borderRadius: 30,
                 fontSize: 12.5,
@@ -838,7 +838,7 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
             gap: 8,
             background: 'rgba(251,191,36,.1)',
             border: '1px solid rgba(251,191,36,.3)',
-            color: 'var(--gold)',
+            color: 'var(--gold-ink)',
             padding: '6px 13px',
             borderRadius: 30,
             fontSize: 12.5,
@@ -1038,8 +1038,8 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
                 style={{
                   border: 'none',
                   cursor: 'pointer',
-                  background: 'var(--on-accent)',
-                  color: 'var(--text)',
+                  background: 'var(--chip-fill)',
+                  color: 'var(--chip-ink)',
                   fontWeight: 700,
                   fontSize: 16,
                   padding: '15px 30px',

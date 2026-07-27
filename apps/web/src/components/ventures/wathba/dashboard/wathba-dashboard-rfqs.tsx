@@ -14,8 +14,8 @@ import { formatSarFromHalalas } from '@/lib/i18n/format';
  */
 
 const STATUS_TONE: Record<string, { label: string; color: string; bg: string }> = {
-  OPEN:    { label: 'مفتوح',  color: 'var(--pos)',    bg: 'rgba(52,211,153,.10)' },
-  AWARDED: { label: 'مُرسى',   color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
+  OPEN:    { label: 'مفتوح',  color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
+  AWARDED: { label: 'مُرسى',   color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
   CLOSED:  { label: 'مغلق',   color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
 };
 
@@ -302,7 +302,7 @@ export function WathbaDashboardRfqs({
                             padding: '12px 14px',
                           }}
                         >
-                          <Num style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)', minWidth: 110 }}>
+                          <Num style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-ink)', minWidth: 110 }}>
                             {formatSarFromHalalas('ar', b.amountHalalas)}
                           </Num>
                           <Num style={{ fontSize: 12.5, color: 'var(--muted)' }}>{b.leadTimeDays} يوم</Num>
@@ -330,7 +330,7 @@ export function WathbaDashboardRfqs({
                               إرساء على هذا العرض
                             </button>
                           ) : (
-                            <span style={{ fontSize: 12, fontWeight: 700, color: b.status === 'AWARDED' ? 'var(--accent)' : 'var(--muted2)' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: b.status === 'AWARDED' ? 'var(--accent-ink)' : 'var(--muted2)' }}>
                               {b.status === 'AWARDED' ? '★ الفائز' : b.status === 'REJECTED' ? 'مرفوض' : b.status}
                             </span>
                           )}

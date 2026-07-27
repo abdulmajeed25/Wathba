@@ -62,7 +62,7 @@ export function WathbaTabs({
                   borderTop: 'none',
                   borderInline: 'none',
                   borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
-                  color: active ? 'var(--accent)' : 'var(--muted)',
+                  color: active ? 'var(--accent-ink)' : 'var(--muted)',
                   fontSize: 14.5, fontWeight: 600,
                   display: 'flex', alignItems: 'center', gap: 8,
                   whiteSpace: 'nowrap', fontFamily: 'inherit',

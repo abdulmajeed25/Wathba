@@ -147,7 +147,7 @@ function CompareCol({ label, body, tone }: { label: string; body: string; tone: 
       <div
         style={{
           fontSize: 11, fontWeight: 700, letterSpacing: 1,
-          color: accent ? 'var(--accent)' : 'var(--muted2)',
+          color: accent ? 'var(--accent-ink)' : 'var(--muted2)',
           marginBottom: 6,
         }}
       >
@@ -271,7 +271,7 @@ export function WathbaStoryTOC({ blocks }: { blocks: StoryBlock[] }) {
                 href={`#${h.id}`}
                 style={{
                   display: 'block', padding: '4px 0',
-                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  color: isActive ? 'var(--accent-ink)' : 'var(--muted)',
                   textDecoration: 'none',
                   fontWeight: isActive ? 700 : 500,
                   fontSize: h.depth === 2 ? 12.5 : 13.5,

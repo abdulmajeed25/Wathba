@@ -223,7 +223,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
                   fontWeight: 700,
                   padding: '5px 14px',
                   borderRadius: 20,
-                  color: 'var(--gold)',
+                  color: 'var(--gold-ink)',
                   border: '1px solid rgba(251,191,36,.4)',
                   background: 'rgba(251,191,36,.1)',
                   display: 'inline-flex',
@@ -273,7 +273,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
                 marginBottom: 12,
               }}
             >
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold)' }}>سفير</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold-ink)' }}>سفير</span>
               <span style={{ fontSize: 13, color: 'var(--purple)', fontWeight: 600 }}>
                 شريك مؤسس
               </span>
@@ -332,7 +332,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
                   fontWeight: 600,
                   padding: '10px 18px',
                   borderRadius: 12,
-                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  color: isActive ? 'var(--accent-ink)' : 'var(--muted)',
                   background: isActive ? 'rgba(var(--accent-rgb),.1)' : 'transparent',
                   border: `1px solid ${
                     isActive ? 'rgba(var(--accent-rgb),.3)' : 'rgba(var(--ink-rgb),.1)'
@@ -456,7 +456,7 @@ function CreatedList({ projects }: { projects: DerivedProject[] }) {
           <div style={{ flex: 1, minWidth: 200 }}>
             <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 6 }}>{p.titleAr}</h3>
             <div style={{ display: 'flex', gap: 24, marginBottom: 12 }}>
-              <Num className="num" style={{ fontSize: 14, color: 'var(--accent)', fontWeight: 700 }}>
+              <Num className="num" style={{ fontSize: 14, color: 'var(--accent-ink)', fontWeight: 700 }}>
                 {p.raisedFmt}
               </Num>
               <Num className="num" style={{ fontSize: 14, color: 'var(--muted)' }}>
@@ -513,7 +513,7 @@ function CreatedList({ projects }: { projects: DerivedProject[] }) {
           padding: 24,
           textAlign: 'center',
           cursor: 'pointer',
-          color: 'var(--accent)',
+          color: 'var(--accent-ink)',
           fontWeight: 600,
           fontSize: 15,
           display: 'flex',
@@ -581,7 +581,7 @@ function SavedGrid({ projects }: { projects: SavedRow[] }) {
                 placeItems: 'center',
               }}
             >
-              <Icon name="bookmark" size={17} fill color="var(--gold)" />
+              <Icon name="bookmark" size={17} fill color="var(--on-scrim-gold)" />
             </div>
             <div
               style={{

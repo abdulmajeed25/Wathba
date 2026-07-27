@@ -182,8 +182,8 @@ export interface WathbaRank {
 export const wathbaRanks: WathbaRank[] = [
   { id: 'r1', ar: 'مستكشف', en: 'EXPLORER', req: 'أول دعم', icon: 'explore', bg: 'rgba(148,163,184,.15)', icoColor: 'var(--rank-silver)', titleColor: 'var(--rank-silver)', border: 'rgba(var(--ink-rgb),.08)', glow: 'none', perks: ['شارة رقمية على ملفك', 'تحديثات حصرية من المشاريع', 'الوصول لمجتمع الداعمين'] },
   { id: 'r2', ar: 'داعم', en: 'BACKER', req: '٣ مشاريع', icon: 'favorite', bg: 'rgba(var(--accent2-rgb),.18)', icoColor: 'var(--blue)', titleColor: 'var(--blue)', border: 'rgba(var(--accent2-rgb),.25)', glow: 'none', perks: ['كل مزايا المستكشف', 'أولوية في الردود', 'إشعارات مبكرة بالمشاريع الجديدة'] },
-  { id: 'r3', ar: 'محسن', en: 'PATRON', req: '١٬٠٠٠+ ر.س', icon: 'volunteer_activism', bg: 'rgba(var(--accent-rgb),.18)', icoColor: 'var(--accent)', titleColor: 'var(--accent)', border: 'rgba(var(--accent-rgb),.3)', glow: '0 0 24px -6px rgba(var(--accent-rgb),.5)', perks: ['كل مزايا الداعم', 'وصول مبكر لمكافآت محدودة', 'شارة «محسن» مميزة'] },
-  { id: 'r4', ar: 'سفير', en: 'AMBASSADOR', req: '١٠ مشاريع', icon: 'workspace_premium', bg: 'rgba(251,191,36,.18)', icoColor: 'var(--gold)', titleColor: 'var(--gold)', border: 'rgba(251,191,36,.35)', glow: '0 0 28px -6px rgba(251,191,36,.55)', perks: ['كل مزايا المحسن', 'لقاءات افتراضية مع المبدعين', 'دعوات لفعاليات وثبة الحصرية'] },
+  { id: 'r3', ar: 'محسن', en: 'PATRON', req: '١٬٠٠٠+ ر.س', icon: 'volunteer_activism', bg: 'rgba(var(--accent-rgb),.18)', icoColor: 'var(--accent)', titleColor: 'var(--accent-ink)', border: 'rgba(var(--accent-rgb),.3)', glow: '0 0 24px -6px rgba(var(--accent-rgb),.5)', perks: ['كل مزايا الداعم', 'وصول مبكر لمكافآت محدودة', 'شارة «محسن» مميزة'] },
+  { id: 'r4', ar: 'سفير', en: 'AMBASSADOR', req: '١٠ مشاريع', icon: 'workspace_premium', bg: 'rgba(251,191,36,.18)', icoColor: 'var(--gold)', titleColor: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)', glow: '0 0 28px -6px rgba(251,191,36,.55)', perks: ['كل مزايا المحسن', 'لقاءات افتراضية مع المبدعين', 'دعوات لفعاليات وثبة الحصرية'] },
   { id: 'r5', ar: 'شريك مؤسس', en: 'FOUNDER', req: '١٠٬٠٠٠+ ر.س', icon: 'diamond', bg: 'linear-gradient(135deg,var(--purple),var(--accent))', icoColor: 'var(--on-accent)', titleColor: 'var(--purple)', border: 'rgba(167,139,250,.4)', glow: '0 0 32px -4px rgba(167,139,250,.6)', perks: ['كل المزايا السابقة', 'اسمك في «جدار المؤسسين»', 'استشارات مع فريق وثبة', 'منتجات حصرية للمؤسسين'] },
 ];
 
@@ -450,8 +450,8 @@ export interface ApiForumThreadLike {
 }
 
 const RANK_BY_HANDLE: Record<string, { rank: string; rankColor: string }> = {
-  'mona-otaibi': { rank: 'سفير', rankColor: 'var(--gold)' },
-  'yousef-haddad': { rank: 'محسن', rankColor: 'var(--accent)' },
+  'mona-otaibi': { rank: 'سفير', rankColor: 'var(--gold-ink)' },
+  'yousef-haddad': { rank: 'محسن', rankColor: 'var(--accent-ink)' },
   'rahaf-a': { rank: 'داعم', rankColor: 'var(--blue)' },
 };
 
@@ -583,8 +583,8 @@ export const wathbaProjectUpdates = [
 ];
 
 export const wathbaProjectComments = [
-  { name: 'منى العتيبي', rank: 'سفير', rankColor: 'var(--gold)', time: 'قبل ٣ ساعات', body: 'فكرة رائعة وتنفيذ احترافي. متحمسة جداً لاستلام وحدتي! هل ستتوفر ألوان إضافية لاحقاً؟', likes: 24, reply: 'نعم منى، خططنا لطرح لونين جديدين بعد الحملة مباشرةً 🎉' },
-  { name: 'يوسف حدّاد', rank: 'محسن', rankColor: 'var(--accent)', time: 'قبل ٨ ساعات', body: 'دعمت المشروع من اليوم الأول. لوحة الشفافية أقنعتني تماماً — هذا ما ينقص بقية المنصات.', likes: 41, reply: null as string | null },
+  { name: 'منى العتيبي', rank: 'سفير', rankColor: 'var(--gold-ink)', time: 'قبل ٣ ساعات', body: 'فكرة رائعة وتنفيذ احترافي. متحمسة جداً لاستلام وحدتي! هل ستتوفر ألوان إضافية لاحقاً؟', likes: 24, reply: 'نعم منى، خططنا لطرح لونين جديدين بعد الحملة مباشرةً 🎉' },
+  { name: 'يوسف حدّاد', rank: 'محسن', rankColor: 'var(--accent-ink)', time: 'قبل ٨ ساعات', body: 'دعمت المشروع من اليوم الأول. لوحة الشفافية أقنعتني تماماً — هذا ما ينقص بقية المنصات.', likes: 41, reply: null as string | null },
   { name: 'رهف ا.', rank: 'داعم', rankColor: 'var(--blue)', time: 'قبل يوم', body: 'سؤال عن الشحن لخارج الخليج، هل متاح؟', likes: 7, reply: 'متاح يا رهف، ستُضاف رسوم الشحن الدولي عند الدفع.' },
 ];
 
