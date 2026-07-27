@@ -53,7 +53,7 @@ export function VenturesCompareView({ locale, dict }: { locale: Locale; dict: Di
                 const next = FIXTURE_VENTURES.find((v) => v.id === event.target.value);
                 if (next) onSwap(next);
               }}
-              className="rounded-md border border-edge bg-base px-4 py-2 text-sm text-fg"
+              className="rounded-md border border-edge bg-canvas px-4 py-2 text-sm text-fg"
             >
               {FIXTURE_VENTURES.map((option) => (
                 <option key={option.id} value={option.id}>
