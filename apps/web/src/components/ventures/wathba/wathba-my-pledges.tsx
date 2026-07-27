@@ -17,22 +17,22 @@ const STATE_TONE: Record<
   string,
   { label: string; bg: string; color: string; border: string }
 > = {
-  HELD:      { label: 'محجوز · بانتظار النجاح',  bg: 'rgba(251,191,36,.10)',  color: 'var(--gold)',   border: 'rgba(251,191,36,.30)' },
-  CAPTURED:  { label: 'تم الخصم',                bg: 'rgba(52,211,153,.10)',  color: 'var(--pos)',    border: 'rgba(52,211,153,.30)' },
+  HELD:      { label: 'محجوز · بانتظار النجاح',  bg: 'rgba(251,191,36,.10)',  color: 'var(--gold-ink)',   border: 'rgba(251,191,36,.30)' },
+  CAPTURED:  { label: 'تم الخصم',                bg: 'rgba(52,211,153,.10)',  color: 'var(--pos-ink)',    border: 'rgba(52,211,153,.30)' },
   REFUNDED:  { label: 'مسترَد',                   bg: 'rgba(var(--ink-rgb),.06)', color: 'var(--muted)', border: 'rgba(var(--ink-rgb),.20)' },
   FAILED:    { label: 'فشل الدفع',                bg: 'rgba(239,68,68,.08)',  color: '#dc2626',       border: 'rgba(239,68,68,.30)' },
   // Batch PAY — the new pledge states.
   PENDING_BNPL:   { label: 'تقسيط معلّق · حتى نجاح الحملة', bg: 'rgba(96,165,250,.10)', color: 'var(--blue)', border: 'rgba(96,165,250,.30)' },
-  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع · ٧٢ ساعة', bg: 'rgba(251,191,36,.12)', color: 'var(--gold)', border: 'rgba(251,191,36,.35)' },
+  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع · ٧٢ ساعة', bg: 'rgba(251,191,36,.12)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)' },
   FAILED_CAPTURE: { label: 'أُلغي — تعذّر السحب',            bg: 'rgba(239,68,68,.08)', color: '#dc2626', border: 'rgba(239,68,68,.30)' },
-  PENDING_REAUTH: { label: 'بحاجة لتحديث البطاقة',           bg: 'rgba(251,191,36,.10)', color: 'var(--gold)', border: 'rgba(251,191,36,.30)' },
+  PENDING_REAUTH: { label: 'بحاجة لتحديث البطاقة',           bg: 'rgba(251,191,36,.10)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.30)' },
 };
 
 export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null }) {
   return (
     <div className="wathba-fade">
       <section style={{ maxWidth: 920, margin: '0 auto', padding: '48px 26px 80px' }}>
-        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 }}>
+        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
           MY PLEDGES · مكفوفاتي
         </Num>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
@@ -99,7 +99,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                       {new Date(p.committedAt).toLocaleDateString('ar-SA')}
                     </Num>
                   </div>
-                  <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent)' }}>
+                  <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent-ink)' }}>
                     {formatSarFromHalalas('ar', Number(p.amount))}
                   </Num>
                   <span

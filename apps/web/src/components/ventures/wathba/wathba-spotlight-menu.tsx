@@ -278,7 +278,7 @@ function MenuLink({
         textDecoration: 'none',
         fontSize: 14,
         fontWeight: accent ? 700 : 500,
-        color: accent ? 'var(--accent)' : 'var(--text-soft)',
+        color: accent ? 'var(--accent-ink)' : 'var(--text-soft)',
       }}
     >
       <Icon name={icon} size={18} color="var(--accent)" />

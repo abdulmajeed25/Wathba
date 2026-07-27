@@ -87,7 +87,7 @@ export function WathbaBeneficiaryForm({ current }: { current: ApiBeneficiary | n
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>
               {current.type === 'BANK_ACCOUNT' ? `آيبان: ${current.ibanMasked}` : `محفظة: ${current.mobile}`} · {current.name}
             </div>
-            <div style={{ fontSize: 11.5, color: current.registered ? 'var(--pos)' : 'var(--gold)', marginTop: 4 }}>
+            <div style={{ fontSize: 11.5, color: current.registered ? 'var(--pos-ink)' : 'var(--gold-ink)', marginTop: 4 }}>
               {current.registered ? '✓ جاهز لاستلام الدفعات' : 'بانتظار التحقق قبل أول دفعة'}
             </div>
           </div>
@@ -128,7 +128,7 @@ export function WathbaBeneficiaryForm({ current }: { current: ApiBeneficiary | n
               cursor: 'pointer', flex: 1, padding: '9px 12px', borderRadius: 10, fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
               background: type === t ? 'rgba(var(--accent-rgb),.08)' : 'transparent',
               border: `1.5px solid ${type === t ? 'var(--accent)' : 'rgba(var(--ink-rgb),.14)'}`,
-              color: type === t ? 'var(--accent)' : 'var(--muted)',
+              color: type === t ? 'var(--accent-ink)' : 'var(--muted)',
             }}
           >
             {t === 'BANK_ACCOUNT' ? 'حساب بنكي (آيبان)' : 'محفظة رقمية'}

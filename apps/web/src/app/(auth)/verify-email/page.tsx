@@ -45,7 +45,7 @@ export default async function VerifyEmailPage({
             <input type="hidden" name="next" value={next} />
             <button
               type="submit"
-              className="w-full rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700"
+              className="w-full rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"
             >
               فعّل حسابي
             </button>

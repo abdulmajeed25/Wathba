@@ -25,19 +25,19 @@ const ICON_FOR: Record<
   NotificationKind,
   { icon: string; color: string; bg: string }
 > = {
-  PLEDGE_RECEIVED:    { icon: 'favorite',         color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
-  PROJECT_FUNDED:     { icon: 'rocket_launch',    color: 'var(--pos)',    bg: 'rgba(var(--pos-rgb),.10)' },
+  PLEDGE_RECEIVED:    { icon: 'favorite',         color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
+  PROJECT_FUNDED:     { icon: 'rocket_launch',    color: 'var(--pos-ink)',    bg: 'rgba(var(--pos-rgb),.10)' },
   PROJECT_FAILED:     { icon: 'sentiment_dissatisfied', color: 'var(--err, #dc2626)', bg: 'rgba(var(--err-rgb), .10)' },
-  MILESTONE_APPROVED: { icon: 'flag',             color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
+  MILESTONE_APPROVED: { icon: 'flag',             color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
   REFUND_COMPLETED:   { icon: 'currency_exchange', color: 'var(--blue)',  bg: 'rgba(var(--blue-rgb),.10)' },
-  PAYOUT_SENT:        { icon: 'payments',         color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
+  PAYOUT_SENT:        { icon: 'payments',         color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
   UPDATE_POSTED:      { icon: 'campaign',         color: 'var(--blue)',   bg: 'rgba(var(--blue-rgb),.10)' },
-  CREATOR_NEW_PROJECT:{ icon: 'rocket_launch',    color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
-  RANK_UP:            { icon: 'military_tech',    color: 'var(--gold)',   bg: 'rgba(var(--gold-rgb),.10)' },
+  CREATOR_NEW_PROJECT:{ icon: 'rocket_launch',    color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
+  RANK_UP:            { icon: 'military_tech',    color: 'var(--gold-ink)',   bg: 'rgba(var(--gold-rgb),.10)' },
   CONTEST_OPENED:     { icon: 'celebration',      color: 'var(--purple)', bg: 'rgba(var(--purple-rgb),.10)' },
-  CONTEST_ANNOUNCED:  { icon: 'emoji_events',     color: 'var(--gold)',   bg: 'rgba(var(--gold-rgb),.10)' },
+  CONTEST_ANNOUNCED:  { icon: 'emoji_events',     color: 'var(--gold-ink)',   bg: 'rgba(var(--gold-rgb),.10)' },
   FAQ_ANSWERED:       { icon: 'help_outline',     color: 'var(--blue)',   bg: 'rgba(var(--blue-rgb),.10)' },
-  COMMENT_REPLY:      { icon: 'forum',            color: 'var(--accent)', bg: 'rgba(var(--accent-rgb),.10)' },
+  COMMENT_REPLY:      { icon: 'forum',            color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
 };
 
 interface DerivedLine {
@@ -196,7 +196,7 @@ export function WathbaNotifications({
   return (
     <div className="wathba-fade">
       <section style={{ maxWidth: 820, margin: '0 auto', padding: '48px 26px 80px' }}>
-        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 }}>
+        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
           NOTIFICATIONS · صندوق الإشعارات
         </Num>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
@@ -210,7 +210,7 @@ export function WathbaNotifications({
                   padding: '5px 12px',
                   borderRadius: 20,
                   background: 'rgba(var(--accent-rgb),.10)',
-                  color: 'var(--accent)',
+                  color: 'var(--accent-ink)',
                   border: '1px solid rgba(var(--accent-rgb),.30)',
                 }}
               >

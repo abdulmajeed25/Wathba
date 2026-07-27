@@ -275,7 +275,7 @@ export function WathbaPledge({
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-soft)' }}>
               <strong>قاعدة عتبة الإطلاق:</strong>{' '}
               يُطلق المشروع عند بلوغ{' '}
-              <Num style={{ fontWeight: 700, color: 'var(--accent)' }}>
+              <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
                 {formatSar('ar', Math.round((active.goal * active.releaseThresholdPct) / 100))}
               </Num>{' '}
               ({active.releaseThresholdPct}% من الهدف). إذا لم يبلغ ذلك بحلول الموعد
@@ -464,7 +464,7 @@ export function WathbaPledge({
                           style={{
                             fontSize: 20,
                             fontWeight: 700,
-                            color: 'var(--accent)',
+                            color: 'var(--accent-ink)',
                           }}
                         >
                           {formatSar('ar', t.price)}
@@ -739,7 +739,7 @@ export function WathbaPledge({
                   alignItems: 'center',
                   gap: 9,
                   fontSize: 12.5,
-                  color: 'var(--pos)',
+                  color: 'var(--pos-ink)',
                   background: 'rgba(52,211,153,.06)',
                   border: '1px solid rgba(52,211,153,.18)',
                   borderRadius: 11,
@@ -818,7 +818,7 @@ export function WathbaPledge({
                     style={{
                       fontSize: 17,
                       fontWeight: 700,
-                      color: 'var(--gold)',
+                      color: 'var(--gold-ink)',
                     }}
                   >
                     {selTier.rank}
@@ -1020,7 +1020,7 @@ export function WathbaPledge({
               }}
             >
               <span>الإجمالي</span>
-              <Num style={{ color: 'var(--accent)' }}>
+              <Num style={{ color: 'var(--accent-ink)' }}>
                 {formatSar('ar', total)}
               </Num>
             </div>

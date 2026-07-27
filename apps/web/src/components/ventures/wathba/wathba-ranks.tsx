@@ -31,7 +31,7 @@ export function WathbaRanks() {
             gap: 8,
             background: 'rgba(251,191,36,.1)',
             border: '1px solid rgba(251,191,36,.3)',
-            color: 'var(--gold)',
+            color: 'var(--gold-ink)',
             padding: '7px 15px',
             borderRadius: 30,
             fontSize: 13,

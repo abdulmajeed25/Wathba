@@ -33,10 +33,10 @@ const dashTabs = [
 type DashTabId = (typeof dashTabs)[number]['id'];
 
 const dashStats = [
-  { label: 'إجمالي التمويل', value: '684,200 ر.س', delta: '+12% هذا الأسبوع', icon: 'trending_up', color: 'var(--accent)' },
+  { label: 'إجمالي التمويل', value: '684,200 ر.س', delta: '+12% هذا الأسبوع', icon: 'trending_up', color: 'var(--accent-ink)' },
   { label: 'الداعمون', value: '2,847', delta: '+184 جديد', icon: 'groups', color: 'var(--blue)' },
-  { label: 'نسبة الإنجاز', value: '171%', delta: 'تجاوز الهدف', icon: 'check_circle', color: 'var(--pos)' },
-  { label: 'الأيام المتبقية', value: '12', delta: 'تنتهي 28 يناير', icon: 'schedule', color: 'var(--gold)' },
+  { label: 'نسبة الإنجاز', value: '171%', delta: 'تجاوز الهدف', icon: 'check_circle', color: 'var(--pos-ink)' },
+  { label: 'الأيام المتبقية', value: '12', delta: 'تنتهي 28 يناير', icon: 'schedule', color: 'var(--gold-ink)' },
 ];
 
 const chartBars = [
@@ -52,7 +52,7 @@ const chartBars = [
 const recentBackersFixture = [
   { name: 'عبدالله الشمري', tier: 'الباقة المزدوجة', amount: '149 ر.س', time: 'قبل ٥ دقائق', rank: 'داعم', rc: 'var(--blue)' },
   { name: 'نورة ع.', tier: 'الباقة الأساسية', amount: '79 ر.س', time: 'قبل ١٨ دقيقة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
-  { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '399 ر.س', time: 'قبل ٤٢ دقيقة', rank: 'محسن', rc: 'var(--accent)' },
+  { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '399 ر.س', time: 'قبل ٤٢ دقيقة', rank: 'محسن', rc: 'var(--accent-ink)' },
   { name: 'ريم خالد', tier: 'داعم مبكر', amount: '25 ر.س', time: 'قبل ساعة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
   { name: 'سلطان ا.', tier: 'الشريك المؤسس', amount: '2,500 ر.س', time: 'قبل ٣ ساعات', rank: 'شريك مؤسس', rc: 'var(--purple)' },
 ];
@@ -157,7 +157,7 @@ export function WathbaDashboard(props: WathbaDashboardProps = {}) {
                 style={{
                   fontSize: 12,
                   letterSpacing: '2px',
-                  color: 'var(--accent)',
+                  color: 'var(--accent-ink)',
                   display: 'block',
                 }}
               >
@@ -239,7 +239,7 @@ export function WathbaDashboard(props: WathbaDashboardProps = {}) {
                   padding: '11px 16px',
                   marginBottom: -1,
                   borderBottom: `2px solid ${isActive ? 'rgba(var(--accent-rgb),.3)' : 'transparent'}`,
-                  color: isActive ? 'var(--accent)' : 'var(--muted)',
+                  color: isActive ? 'var(--accent-ink)' : 'var(--muted)',
                   fontSize: 14,
                   fontWeight: 600,
                   display: 'flex',
@@ -443,7 +443,7 @@ function OverviewPanel({ recentBackers }: { recentBackers: (typeof recentBackers
                 </div>
                 <div style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{b.time}</div>
               </div>
-              <Num className="num" style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
+              <Num className="num" style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-ink)' }}>
                 {b.amount}
               </Num>
             </div>
@@ -516,7 +516,7 @@ function BackersPanel({ recentBackers }: { recentBackers: (typeof recentBackersF
             <span style={{ fontSize: 14, fontWeight: 600 }}>{b.name}</span>
           </div>
           <span style={{ fontSize: 13, color: 'var(--muted)' }}>{b.tier}</span>
-          <Num className="num" style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>
+          <Num className="num" style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-ink)' }}>
             {b.amount}
           </Num>
           <span
@@ -564,7 +564,7 @@ function UpdatesPanel() {
               height: 40,
               borderRadius: 11,
               background: 'rgba(var(--accent-rgb),.12)',
-              color: 'var(--accent)',
+              color: 'var(--accent-ink)',
               display: 'grid',
               placeItems: 'center',
               fontWeight: 700,
@@ -786,7 +786,7 @@ function Toggle({ title, desc, last = false }: { title: string; desc: string; la
             width: 20,
             height: 20,
             borderRadius: '50%',
-            background: 'var(--on-accent)',
+            background: 'var(--chip-fill)',
             position: 'absolute',
             top: 3,
             left: 3,

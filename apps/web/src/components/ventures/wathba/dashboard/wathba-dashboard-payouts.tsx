@@ -9,8 +9,8 @@ import { formatSarFromHalalas } from '@/lib/i18n/format';
  */
 
 const TONE: Record<string, { label: string; color: string; bg: string }> = {
-  PENDING: { label: 'بانتظار التحويل', color: 'var(--gold)',   bg: 'rgba(251,191,36,.10)' },
-  SENT:    { label: 'تم التحويل',      color: 'var(--pos)',    bg: 'rgba(52,211,153,.10)' },
+  PENDING: { label: 'بانتظار التحويل', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
+  SENT:    { label: 'تم التحويل',      color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
   FAILED:  { label: 'تعثّر التحويل',    color: '#ef4444',       bg: 'rgba(239,68,68,.08)' },
 };
 
@@ -89,7 +89,7 @@ export function WathbaDashboardPayouts({
                     {p.sentAt ? ` · حُوِّلت: ${p.sentAt.slice(0, 10)}` : ''}
                   </Num>
                 </div>
-                <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent)' }}>
+                <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent-ink)' }}>
                   {fmtSAR(p.amountHalalas)}
                 </Num>
                 <span

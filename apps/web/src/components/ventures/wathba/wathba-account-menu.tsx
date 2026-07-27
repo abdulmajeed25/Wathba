@@ -181,7 +181,7 @@ const startBtn: React.CSSProperties = {
 };
 const avatarBtn: React.CSSProperties = {
   width: 42, height: 42, borderRadius: 13, border: '1px solid rgba(var(--ink-rgb),.12)',
-  background: 'rgba(var(--accent-rgb),.12)', color: 'var(--accent)', fontWeight: 800, fontSize: 17,
+  background: 'rgba(var(--accent-rgb),.12)', color: 'var(--accent-ink)', fontWeight: 800, fontSize: 17,
   cursor: 'pointer', display: 'grid', placeItems: 'center', fontFamily: 'inherit',
 };
 const panel: React.CSSProperties = {

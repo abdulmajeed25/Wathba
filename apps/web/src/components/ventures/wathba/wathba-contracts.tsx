@@ -77,7 +77,7 @@ export function WathbaContracts() {
                   style={{
                     width: 44, height: 44, borderRadius: 12,
                     background: 'rgba(var(--accent-rgb),.10)',
-                    color: 'var(--accent)',
+                    color: 'var(--accent-ink)',
                     display: 'grid', placeItems: 'center',
                   }}
                 >

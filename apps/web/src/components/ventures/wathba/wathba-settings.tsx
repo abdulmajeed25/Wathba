@@ -53,7 +53,7 @@ export function WathbaSettings({
   return (
     <div className="wathba-fade">
       <section style={{ maxWidth: 1040, margin: '0 auto', padding: '48px 26px 0' }}>
-        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent)', marginBottom: 8 }}>
+        <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
           SETTINGS · الإعدادات
         </Num>
         <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
@@ -129,7 +129,7 @@ function ProfileTab({
       {okFlag === 'profile' && (
         <div style={{
           padding: '10px 14px', borderRadius: 11,
-          background: 'rgba(52,211,153,.10)', color: 'var(--pos)',
+          background: 'rgba(52,211,153,.10)', color: 'var(--pos-ink)',
           border: '1px solid rgba(52,211,153,.30)',
           fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 8,
         }}>
@@ -288,7 +288,7 @@ function AddressesTab() {
       </p>
       <p style={{ fontSize: 13, color: 'var(--muted2)' }}>
         لمراجعة عنوان دعمٍ سابق، افتح صفحة الدعم من{' '}
-        <Link href="/projects/me/pledges" style={{ color: 'var(--accent)' }}>«مكفوفاتي»</Link>.
+        <Link href="/projects/me/pledges" style={{ color: 'var(--accent-ink)' }}>«مكفوفاتي»</Link>.
       </p>
     </div>
   );
@@ -568,7 +568,7 @@ function Flash({ okFlag, errFlag, scope }: { okFlag?: string | null; errFlag?: s
     <div role={msg.ok ? 'status' : 'alert'} style={{
       padding: '10px 14px', borderRadius: 11, fontSize: 13,
       background: msg.ok ? 'rgba(52,211,153,.10)' : 'rgba(239,68,68,.08)',
-      color: msg.ok ? 'var(--pos)' : '#dc2626',
+      color: msg.ok ? 'var(--pos-ink)' : '#dc2626',
       border: `1px solid ${msg.ok ? 'rgba(52,211,153,.30)' : 'rgba(239,68,68,.30)'}`,
     }}>
       {msg.text}
@@ -603,7 +603,7 @@ function PrefToggle({ name, label, hint, defaultOn }: { name: string; label: str
       >
         <span style={{
           position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
-          background: 'var(--on-accent)',
+          background: 'var(--chip-fill)',
           ...(on ? { right: 3 } : { left: 3 }),
           transition: 'all .2s',
         }} />

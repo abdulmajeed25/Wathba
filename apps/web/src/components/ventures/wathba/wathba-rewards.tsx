@@ -47,7 +47,7 @@ export function WathbaRewards({
           style={{
             width: 38, height: 38, borderRadius: 11,
             background: 'rgba(var(--accent-rgb),.08)',
-            color: 'var(--accent)',
+            color: 'var(--accent-ink)',
             display: 'grid', placeItems: 'center', flexShrink: 0,
           }}
         >
@@ -127,7 +127,7 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
         <span
           style={{
             fontSize: 11, fontWeight: 700,
-            color: 'var(--gold)',
+            color: 'var(--gold-ink)',
             background: 'rgba(251,191,36,.10)',
             border: '1px solid rgba(251,191,36,.30)',
             padding: '3px 10px', borderRadius: 20,
@@ -142,7 +142,7 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
 
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
         <div>
-          <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent)' }}>
+          <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--accent-ink)' }}>
             {formatSar('ar', t.priceSar)}
           </Num>
         </div>
@@ -203,7 +203,7 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
         <div
           style={{
             fontSize: 11.5, fontWeight: 700,
-            color: 'var(--gold)',
+            color: 'var(--gold-ink)',
             background: 'rgba(251,191,36,.07)',
             padding: '6px 10px', borderRadius: 9,
             marginBottom: 10,
@@ -233,7 +233,7 @@ function RewardCard({ projectId, tier: t }: { projectId: string; tier: RichRewar
           style={{
             display: 'block', textAlign: 'center',
             background: t.featured ? 'var(--grad)' : 'transparent',
-            color: t.featured ? 'var(--on-accent)' : 'var(--accent)',
+            color: t.featured ? 'var(--on-accent)' : 'var(--accent-ink)',
             border: t.featured ? 'none' : '1px solid var(--accent)',
             fontWeight: 700, fontSize: 14, padding: 12,
             borderRadius: 12, textDecoration: 'none',

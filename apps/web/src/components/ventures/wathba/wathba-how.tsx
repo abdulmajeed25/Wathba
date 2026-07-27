@@ -48,7 +48,7 @@ export function WathbaHow() {
           style={{
             fontSize: 12,
             letterSpacing: '2px',
-            color: 'var(--accent)',
+            color: 'var(--accent-ink)',
             marginBottom: 12,
             display: 'block',
           }}
@@ -132,6 +132,7 @@ export function WathbaHow() {
               }}
             >
               <Num
+                decorative
                 style={{
                   position: 'absolute',
                   top: -14,
@@ -251,7 +252,7 @@ export function WathbaHow() {
               style={{
                 fontSize: 46,
                 fontWeight: 700,
-                color: 'var(--accent)',
+                color: 'var(--accent-ink)',
                 display: 'block',
               }}
             >
@@ -283,7 +284,7 @@ export function WathbaHow() {
               style={{
                 fontSize: 46,
                 fontWeight: 700,
-                color: 'var(--pos)',
+                color: 'var(--pos-ink)',
                 display: 'block',
               }}
             >
@@ -367,8 +368,8 @@ export function WathbaHow() {
               style={{
                 border: 'none',
                 cursor: 'pointer',
-                background: 'var(--on-accent)',
-                color: 'var(--text)',
+                background: 'var(--chip-fill)',
+                color: 'var(--chip-ink)',
                 fontWeight: 700,
                 fontSize: 16,
                 padding: '15px 30px',
