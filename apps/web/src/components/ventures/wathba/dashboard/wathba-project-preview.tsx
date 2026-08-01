@@ -53,7 +53,7 @@ export function WathbaProjectPreview({
 
       {/* header */}
       <div style={{ marginBottom: 20 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-primary, #05a661)' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-ink, #047649)' }}>
           {CATEGORY_AR[project.category] ?? project.category}
         </span>
         <h1 style={{ fontSize: 30, fontWeight: 800, margin: '6px 0 8px', lineHeight: 1.3 }}>{project.titleAr}</h1>
@@ -83,7 +83,7 @@ export function WathbaProjectPreview({
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 64 }}>
           <div style={{ background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))', borderRadius: 14, padding: 18 }}>
             <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>هدف التمويل</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--brand-primary, #05a661)' }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--brand-ink, #047649)' }}>
               {fmtSAR(project.fundingGoalHalalas)}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', marginTop: 8, lineHeight: 1.9 }}>
@@ -96,7 +96,7 @@ export function WathbaProjectPreview({
               disabled
               style={{
                 width: '100%', marginTop: 14, padding: '11px', borderRadius: 11, border: 'none',
-                background: 'var(--grad, linear-gradient(135deg,#05a661,#0bd47f))', color: '#fff',
+                background: 'var(--grad, linear-gradient(135deg,#05a661,#0bd47f))', color: 'var(--on-accent, #08130d)',
                 fontWeight: 700, fontSize: 14, fontFamily: 'inherit', opacity: 0.7, cursor: 'not-allowed',
               }}
             >
@@ -111,7 +111,7 @@ export function WathbaProjectPreview({
                 <div key={t.id} style={{ background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))', borderRadius: 12, padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                     <strong style={{ fontSize: 14 }}>{t.titleAr}</strong>
-                    <span style={{ fontWeight: 700, color: 'var(--brand-primary, #05a661)', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--brand-ink, #047649)', whiteSpace: 'nowrap' }}>
                       {fmtSAR(t.amountHalalas)}
                     </span>
                   </div>

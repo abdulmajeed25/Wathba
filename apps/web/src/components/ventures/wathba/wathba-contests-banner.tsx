@@ -52,7 +52,7 @@ function OpenBanner({ contest }: { contest: ApiContest }): React.ReactElement {
           height: 44,
           borderRadius: '50%',
           background: 'var(--brand-primary, #05a661)',
-          color: '#fff',
+          color: 'var(--on-brand, #08130d)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -66,7 +66,7 @@ function OpenBanner({ contest }: { contest: ApiContest }): React.ReactElement {
           style={{
             display: 'inline-block',
             background: 'var(--brand-primary, #05a661)',
-            color: '#fff',
+            color: 'var(--on-brand, #08130d)',
             padding: '2px 8px',
             borderRadius: 999,
             fontSize: 11,
@@ -98,7 +98,7 @@ function OpenBanner({ contest }: { contest: ApiContest }): React.ReactElement {
           style={{
             fontSize: 13,
             fontWeight: 600,
-            color: 'var(--brand-primary, #05a661)',
+            color: 'var(--brand-ink, #047649)',
             marginTop: 10,
           }}
         >

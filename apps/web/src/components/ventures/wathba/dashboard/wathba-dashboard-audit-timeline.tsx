@@ -36,9 +36,9 @@ const ACTION_AR: Record<string, string> = {
 };
 
 const ACTOR: Record<AuditRow['actorType'], { ar: string; fg: string; bg: string }> = {
-  you: { ar: 'أنت', fg: '#05a661', bg: 'rgba(5,166,97,0.10)' },
-  admin: { ar: 'الإدارة', fg: '#a96400', bg: 'rgba(245,158,11,0.12)' },
-  system: { ar: 'النظام', fg: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
+  you: { ar: 'أنت', fg: '#047649', bg: 'rgba(5,166,97,0.10)' },
+  admin: { ar: 'الإدارة', fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
+  system: { ar: 'النظام', fg: '#4f46e5', bg: 'rgba(99,102,241,0.12)' },
 };
 
 const FILTERS: Array<{ v: string; ar: string }> = [
@@ -124,7 +124,7 @@ export function WathbaDashboardAuditTimeline({ projectId }: { projectId: string 
               fontFamily: 'inherit',
               border: `1px solid ${action === f.v ? 'rgba(5,166,97,0.5)' : 'rgba(18,33,26,0.14)'}`,
               background: action === f.v ? 'rgba(5,166,97,0.08)' : 'transparent',
-              color: action === f.v ? 'var(--brand-primary, #05a661)' : 'var(--text-secondary, #3b4942)',
+              color: action === f.v ? 'var(--brand-ink, #047649)' : 'var(--text-secondary, #3b4942)',
             }}
           >
             {f.ar}
@@ -220,7 +220,7 @@ function Card({ tone, children }: { tone: 'error' | 'empty'; children: React.Rea
         padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14,
         background: 'var(--bg-elevated, #fff)',
         border: `1px dashed ${tone === 'error' ? 'rgba(239,68,68,0.4)' : 'var(--border-strong, rgba(18,33,26,0.16))'}`,
-        color: tone === 'error' ? '#ef4444' : 'var(--text-secondary, #3b4942)',
+        color: tone === 'error' ? '#b91c1c' : 'var(--text-secondary, #3b4942)',
       }}
     >
       {children}
@@ -260,7 +260,7 @@ function absoluteAr(iso: string): string {
 
 const linkBtn: React.CSSProperties = {
   background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
-  color: 'var(--brand-primary, #05a661)', fontWeight: 600, fontFamily: 'inherit', fontSize: 13,
+  color: 'var(--brand-ink, #047649)', fontWeight: 600, fontFamily: 'inherit', fontSize: 13,
 };
 const ghostBtn: React.CSSProperties = {
   cursor: 'pointer', background: 'transparent', border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',

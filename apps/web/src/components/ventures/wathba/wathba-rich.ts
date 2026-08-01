@@ -253,9 +253,9 @@ function buildRewards(opts: { earlyTitle: string; standardTitle: string; deluxeT
 const RANK_COLORS = {
   newcomer: 'var(--rank-silver)',
   supporter: 'var(--blue)',
-  patron: 'var(--accent)',
-  ambassador: 'var(--gold)',
-  founder: 'var(--purple)',
+  patron: 'var(--accent-ink)',
+  ambassador: 'var(--gold-ink)',
+  founder: 'var(--purple-ink)',
 };
 
 function buildComments(slug: string): RichComment[] {

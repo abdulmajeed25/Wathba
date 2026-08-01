@@ -477,7 +477,7 @@ function AvatarPicker({
           style={{
             fontWeight: 700,
             fontSize: 22,
-            color: 'var(--brand-primary, #05a661)',
+            color: 'var(--brand-ink, #047649)',
           }}
         >
           {name.slice(0, 1) || '?'}
@@ -546,7 +546,7 @@ const inputStyle: React.CSSProperties = {
 const primaryBtnStyle: React.CSSProperties = {
   padding: '10px 18px',
   background: 'var(--brand-primary, #05a661)',
-  color: '#fff',
+  color: 'var(--on-brand, #08130d)',
   border: 'none',
   borderRadius: 10,
   fontWeight: 700,

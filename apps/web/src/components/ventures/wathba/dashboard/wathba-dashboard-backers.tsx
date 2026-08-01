@@ -35,11 +35,11 @@ interface TierLite {
 }
 
 const PLEDGE_STATUS: Record<string, { ar: string; fg: string; bg: string }> = {
-  HELD: { ar: 'محجوز', fg: '#a96400', bg: 'rgba(245,158,11,0.12)' },
-  CAPTURED: { ar: 'محصّل', fg: '#05a661', bg: 'rgba(5,166,97,0.10)' },
-  REFUNDED: { ar: 'مُسترَد', fg: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
-  FAILED: { ar: 'فشل', fg: '#ef4444', bg: 'rgba(239,68,68,0.10)' },
-  DISPUTED: { ar: 'متنازع عليه', fg: '#a96400', bg: 'rgba(245,158,11,0.12)' },
+  HELD: { ar: 'محجوز', fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
+  CAPTURED: { ar: 'محصّل', fg: '#047649', bg: 'rgba(5,166,97,0.10)' },
+  REFUNDED: { ar: 'مُسترَد', fg: '#b91c1c', bg: 'rgba(239,68,68,0.10)' },
+  FAILED: { ar: 'فشل', fg: '#b91c1c', bg: 'rgba(239,68,68,0.10)' },
+  DISPUTED: { ar: 'متنازع عليه', fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
 };
 
 const REWARD_STATUS: Array<{ v: RosterRow['rewardStatus']; ar: string }> = [
@@ -382,7 +382,7 @@ function StateCard({ tone, children }: { tone: 'error' | 'empty'; children: Reac
         padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14,
         background: 'var(--bg-elevated, #fff)',
         border: `1px dashed ${tone === 'error' ? 'rgba(239,68,68,0.4)' : 'var(--border-strong, rgba(18,33,26,0.16))'}`,
-        color: tone === 'error' ? '#ef4444' : 'var(--text-secondary, #3b4942)',
+        color: tone === 'error' ? '#b91c1c' : 'var(--text-secondary, #3b4942)',
       }}
     >
       {children}
@@ -428,11 +428,11 @@ const ghostBtn: React.CSSProperties = {
   color: 'var(--text-primary, #16201b)', fontWeight: 600, padding: '8px 16px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
 };
 const primaryBtn: React.CSSProperties = {
-  cursor: 'pointer', background: 'var(--brand-primary, #05a661)', color: '#fff', border: 'none',
+  cursor: 'pointer', background: 'var(--brand-primary, #05a661)', color: 'var(--on-brand, #08130d)', border: 'none',
   fontWeight: 700, padding: '8px 18px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
 };
 const exportBtn: React.CSSProperties = {
-  cursor: 'pointer', background: 'rgba(5,166,97,0.08)', color: 'var(--brand-primary, #05a661)',
+  cursor: 'pointer', background: 'rgba(5,166,97,0.08)', color: 'var(--brand-ink, #047649)',
   border: '1px solid rgba(5,166,97,0.4)', fontWeight: 700, padding: '8px 14px', borderRadius: 10,
   fontFamily: 'inherit', fontSize: 12.5, textDecoration: 'none',
 };

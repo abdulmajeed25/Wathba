@@ -98,13 +98,13 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
           disabled={busy || !email.trim()}
           style={{
             padding: '9px 18px', borderRadius: 10, border: 'none', fontWeight: 700, fontSize: 13, fontFamily: 'inherit',
-            background: 'var(--brand-primary, #05a661)', color: '#fff', cursor: busy ? 'wait' : 'pointer', opacity: busy || !email.trim() ? 0.6 : 1,
+            background: 'var(--brand-primary, #05a661)', color: 'var(--on-brand, #08130d)', cursor: busy ? 'wait' : 'pointer', opacity: busy || !email.trim() ? 0.6 : 1,
           }}
         >
           {busy ? 'جارٍ…' : 'إضافة'}
         </button>
       </div>
-      {error && <p role="alert" style={{ fontSize: 12.5, color: '#ef4444', margin: '0 0 10px' }}>{error}</p>}
+      {error && <p role="alert" style={{ fontSize: 12.5, color: '#b91c1c', margin: '0 0 10px' }}>{error}</p>}
       {loaded && items.length === 0 && (
         <p style={{ fontSize: 13, color: 'var(--text-tertiary, #5d6b62)', margin: 0 }}>لا يوجد متعاونون بعد.</p>
       )}
@@ -116,11 +116,11 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
                 <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.name}</div>
                 {c.email && <div style={{ fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>{c.email}</div>}
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: 'var(--brand-primary, #05a661)', background: 'rgba(5,166,97,0.10)' }}>محرِّر</span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: 'var(--brand-ink, #047649)', background: 'rgba(5,166,97,0.10)' }}>محرِّر</span>
               <button
                 type="button"
                 onClick={() => void remove(c.userId)}
-                style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, color: '#ef4444', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, color: '#b91c1c', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 إزالة
               </button>

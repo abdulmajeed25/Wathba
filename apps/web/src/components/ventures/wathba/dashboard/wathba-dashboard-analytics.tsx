@@ -131,7 +131,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       }}
     >
       <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: accent ? 'var(--brand-primary, #05a661)' : 'var(--text-primary, #16201b)' }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: accent ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)' }}>{value}</div>
     </div>
   );
 }
@@ -151,7 +151,7 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
 
 function StateCard({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div style={{ padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14, background: 'var(--bg-elevated, #fff)', border: '1px dashed rgba(239,68,68,0.4)', color: '#ef4444' }}>
+    <div style={{ padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14, background: 'var(--bg-elevated, #fff)', border: '1px dashed rgba(239,68,68,0.4)', color: '#b91c1c' }}>
       {children}
     </div>
   );

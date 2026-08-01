@@ -185,7 +185,7 @@ export function WathbaCreatorTab({
                 border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
                 borderRadius: 999,
                 fontSize: 12,
-                color: 'var(--brand-primary, #05a661)',
+                color: 'var(--brand-ink, #047649)',
                 textDecoration: 'none',
                 fontWeight: 600,
               }}
@@ -262,7 +262,7 @@ function Avatar({ url, name }: { url: string | null; name: string }): React.Reac
         justifyContent: 'center',
         fontWeight: 700,
         fontSize: 22,
-        color: 'var(--brand-primary, #05a661)',
+        color: 'var(--brand-ink, #047649)',
         flexShrink: 0,
       }}
     >
@@ -282,7 +282,7 @@ function VerifiedBadge(): React.ReactElement {
         gap: 4,
         padding: '2px 8px',
         background: 'rgba(5,166,97,0.12)',
-        color: 'var(--brand-primary, #05a661)',
+        color: 'var(--brand-ink, #047649)',
         borderRadius: 999,
         fontSize: 11,
         fontWeight: 700,
@@ -312,7 +312,7 @@ function FollowButton({
           padding: '8px 16px',
           background: 'var(--bg-elevated, #fff)',
           border: '1px solid var(--brand-primary, #05a661)',
-          color: 'var(--brand-primary, #05a661)',
+          color: 'var(--brand-ink, #047649)',
           borderRadius: 8,
           fontWeight: 600,
           fontSize: 13,
@@ -331,7 +331,7 @@ function FollowButton({
       style={{
         padding: '8px 16px',
         background: following ? 'var(--bg-elevated, #fff)' : 'var(--brand-primary, #05a661)',
-        color: following ? 'var(--brand-primary, #05a661)' : '#fff',
+        color: following ? 'var(--brand-ink, #047649)' : 'var(--on-brand, #08130d)',
         border: '1px solid var(--brand-primary, #05a661)',
         borderRadius: 8,
         fontWeight: 600,
@@ -413,7 +413,7 @@ function PastProjectCard({
               padding: '2px 6px',
               borderRadius: 999,
               background: 'rgba(5,166,97,0.12)',
-              color: 'var(--brand-primary, #05a661)',
+              color: 'var(--brand-ink, #047649)',
             }}
           >
             تم الوفاء

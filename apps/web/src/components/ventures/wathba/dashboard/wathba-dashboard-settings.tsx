@@ -39,15 +39,15 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
 
 const STATUS_COLORS: Readonly<Record<string, string>> = {
   DRAFT: '#6b7280',
-  UNDER_REVIEW: '#f59e0b',
-  LIVE: '#05a661',
-  PAUSED: '#f59e0b',
-  SUCCESSFUL: '#05a661',
-  FUNDED: '#05a661',
-  IN_PRODUCTION: '#6366f1',
-  DELIVERED: '#6366f1',
-  FAILED: '#ef4444',
-  REFUNDED: '#ef4444',
+  UNDER_REVIEW: '#9a5a06',
+  LIVE: '#047649',
+  PAUSED: '#9a5a06',
+  SUCCESSFUL: '#047649',
+  FUNDED: '#047649',
+  IN_PRODUCTION: '#4f46e5',
+  DELIVERED: '#4f46e5',
+  FAILED: '#b91c1c',
+  REFUNDED: '#b91c1c',
 };
 
 const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
@@ -460,7 +460,7 @@ export function DashboardSettings({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 16 }}>📝</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#a96400' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#9a5a06' }}>
                 طلب تعديلات من فريق المراجعة
               </span>
             </div>
@@ -472,7 +472,7 @@ export function DashboardSettings({
               style={{
                 display: 'inline-block', fontSize: 13, fontWeight: 700,
                 padding: '8px 16px', borderRadius: 10, textDecoration: 'none',
-                color: '#fff', background: 'var(--brand-primary, #05a661)',
+                color: 'var(--on-brand, #08130d)', background: 'var(--brand-primary, #05a661)',
               }}
             >
               عدّل وأعد الإرسال ←
@@ -527,7 +527,7 @@ export function DashboardSettings({
               type="button"
               disabled={actionBusy !== null}
               onClick={() => void doAction('pause', 'تم إيقاف الحملة مؤقتاً')}
-              style={lifecycleBtn('#f59e0b', actionBusy === null)}
+              style={lifecycleBtn('#9a5a06', actionBusy === null)}
             >
               {actionBusy === 'pause' ? 'جارٍ الإيقاف…' : 'إيقاف مؤقت للحملة'}
             </button>
@@ -551,7 +551,7 @@ export function DashboardSettings({
               type="button"
               disabled={actionBusy !== null}
               onClick={() => void doAction('unpause', 'تم استئناف الحملة')}
-              style={lifecycleBtn('#05a661', actionBusy === null)}
+              style={lifecycleBtn('#047649', actionBusy === null)}
             >
               {actionBusy === 'unpause' ? 'جارٍ الاستئناف…' : 'استئناف الحملة'}
             </button>
@@ -568,7 +568,7 @@ export function DashboardSettings({
               type="button"
               disabled={actionBusy !== null}
               onClick={() => void doAction('deliver', 'تم وسم الحملة كمُسلَّمة')}
-              style={lifecycleBtn('#05a661', actionBusy === null)}
+              style={lifecycleBtn('#047649', actionBusy === null)}
             >
               {actionBusy === 'deliver' ? 'جارٍ…' : 'وسم الحملة كمُسلَّمة'}
             </button>
@@ -578,7 +578,7 @@ export function DashboardSettings({
         {actionMsg && (
           <p
             role="alert"
-            style={{ fontSize: 13, marginTop: 8, color: actionMsg.kind === 'ok' ? '#05a661' : '#ef4444' }}
+            style={{ fontSize: 13, marginTop: 8, color: actionMsg.kind === 'ok' ? '#047649' : '#b91c1c' }}
           >
             {actionMsg.text}
           </p>
@@ -629,7 +629,7 @@ export function DashboardSettings({
       {/* ── CC-21 duplicate ──────────────────────────────────────────────── */}
       <Card title="أدوات">
         <Hint>أنشئ نسخة (مسودّة جديدة) من هذا المشروع بمكافآته — لإعادة الإطلاق أو كقالب.</Hint>
-        <button type="button" disabled={dupBusy} onClick={() => void duplicate()} style={{ ...primaryBtnStyle(!dupBusy), background: dupBusy ? 'rgba(0,0,0,0.12)' : '#6366f1' }}>
+        <button type="button" disabled={dupBusy} onClick={() => void duplicate()} style={{ ...primaryBtnStyle(!dupBusy), background: dupBusy ? 'rgba(0,0,0,0.12)' : '#4f46e5', color: '#fff' }}>
           {dupBusy ? 'جارٍ الإنشاء…' : 'نسخ المشروع'}
         </button>
       </Card>
@@ -720,7 +720,7 @@ function CancelCampaign({
     <>
       <Hint>{copy.hint}</Hint>
       {err && (
-        <p role="alert" style={{ fontSize: 13, color: '#ef4444', margin: '6px 0' }}>
+        <p role="alert" style={{ fontSize: 13, color: '#b91c1c', margin: '6px 0' }}>
           {err}
         </p>
       )}
@@ -734,7 +734,7 @@ function CancelCampaign({
           style={{
             padding: '10px 18px',
             background: 'rgba(239,68,68,.08)',
-            color: '#ef4444',
+            color: '#b91c1c',
             border: '1px solid rgba(239,68,68,.35)',
             borderRadius: 10,
             fontWeight: 700,
@@ -761,7 +761,7 @@ function CancelCampaign({
                 color: 'var(--text-primary, #16201b)',
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: 4, color: '#ef4444' }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, color: '#b91c1c' }}>
                 إجراء لا يمكن التراجع عنه
               </div>
               سيقوم النظام تلقائياً بإرجاع كامل المبالغ إلى{' '}
@@ -816,7 +816,7 @@ function CancelCampaign({
               onClick={() => void doCancel()}
               style={{
                 padding: '10px 18px',
-                background: '#ef4444',
+                background: '#b91c1c',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 10,
@@ -1037,7 +1037,7 @@ function SectionFooter({
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 600 }}>
-        {status?.kind === 'ok' && <span style={{ color: '#05a661' }}>✓ {status.text}</span>}
+        {status?.kind === 'ok' && <span style={{ color: '#047649' }}>✓ {status.text}</span>}
         {status?.kind === 'err' && <span style={{ color: '#b91c1c' }}>{status.text}</span>}
       </div>
       <div>{action}</div>
@@ -1062,7 +1062,7 @@ const inputStyle = (enabled: boolean): React.CSSProperties => ({
 const primaryBtnStyle = (enabled: boolean): React.CSSProperties => ({
   padding: '10px 18px',
   background: enabled ? 'var(--brand-primary, #05a661)' : 'rgba(0,0,0,0.12)',
-  color: '#fff',
+  color: 'var(--on-brand, #08130d)',
   border: 'none',
   borderRadius: 10,
   fontWeight: 700,

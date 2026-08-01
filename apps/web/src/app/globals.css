@@ -29,6 +29,16 @@
   --brand-primary-dark: #047649;
   --brand-primary-light: #10c777;
 
+  /* Fill vs ink. The three values above paint FILLS — buttons, bars, dots —
+     and stay vivid. `--brand-primary` is 3.17:1 on white, which is a legal
+     ratio for a fill and an illegal one for copy, so every `color:` site in
+     the creator dashboard reads from `--brand-ink` instead. `--on-brand` is
+     the ink that goes ON a vivid green fill; the public site's `--on-accent`
+     does the same job over the brand gradient. The green itself does not
+     move. */
+  --brand-ink: #047649;
+  --on-brand: #08130d;
+
   --radius-sm: 9px;
   --radius-md: 10px;
   --radius-lg: 11px;

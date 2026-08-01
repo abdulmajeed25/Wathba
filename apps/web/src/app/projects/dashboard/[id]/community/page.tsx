@@ -97,7 +97,7 @@ export default async function CommunityDashboardPage({
             style={{
               padding: '10px 18px',
               background: 'var(--brand-primary, #05a661)',
-              color: '#fff',
+              color: 'var(--on-brand, #08130d)',
               border: 0,
               borderRadius: 8,
               fontWeight: 600,
