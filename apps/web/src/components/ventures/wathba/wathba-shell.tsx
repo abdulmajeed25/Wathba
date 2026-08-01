@@ -39,7 +39,6 @@ export function WathbaShell({
   };
 
   return (
-    <WathbaFeedbackProvider>
     <div data-theme={theme} data-pillar="ventures" style={styleVars}>
       {/* keyframes + a couple shared utility styles scoped via :where to leak no specificity */}
       <style
@@ -149,15 +148,23 @@ export function WathbaShell({
           `,
         }}
       />
-      <PageViewTracker />
-      <WathbaHeader theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
-      {/* NO framer-motion wrap on main — first paint must show content
-       *  without waiting for hydration (SEO + no-JS users). Inner cards
-       *  still use motion.div for soft entrances where the loss of
-       *  visibility-on-load is acceptable. */}
-      <main className="wathba-fade">{children}</main>
-      <WathbaFooter />
+      {/* The provider lives INSIDE this div, not around it. Its toasts and
+       *  confirm dialog are emitted after {children}, so mounting it as the
+       *  parent left them siblings of the themed element — `var(--card)`,
+       *  `var(--text)`, `var(--grad)` and `var(--on-accent)` all resolved to
+       *  nothing and the dialog's copy sat on the bare scrim at 3.74:1 in
+       *  BOTH themes. Nothing here creates a containing block, so the
+       *  overlays stay position:fixed against the viewport. */}
+      <WathbaFeedbackProvider>
+        <PageViewTracker />
+        <WathbaHeader theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
+        {/* NO framer-motion wrap on main — first paint must show content
+         *  without waiting for hydration (SEO + no-JS users). Inner cards
+         *  still use motion.div for soft entrances where the loss of
+         *  visibility-on-load is acceptable. */}
+        <main className="wathba-fade">{children}</main>
+        <WathbaFooter />
+      </WathbaFeedbackProvider>
     </div>
-    </WathbaFeedbackProvider>
   );
 }
