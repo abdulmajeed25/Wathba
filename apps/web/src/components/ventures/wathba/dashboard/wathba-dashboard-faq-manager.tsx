@@ -461,7 +461,7 @@ function primaryButtonStyle(disabled: boolean): React.CSSProperties {
     borderRadius: 10,
     border: 'none',
     background: disabled ? '#9ca3af' : 'var(--brand-primary, #05a661)',
-    color: '#fff',
+    color: 'var(--on-brand, #08130d)',
     fontSize: 13,
     fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',

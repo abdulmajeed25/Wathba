@@ -189,7 +189,7 @@ export function DashboardUpdatesComposer({
             disabled={submitting}
             style={{
               background: 'var(--brand-primary, #05a661)',
-              color: '#fff',
+              color: 'var(--on-brand, #08130d)',
               border: 'none',
               borderRadius: 10,
               padding: '10px 20px',
@@ -280,7 +280,7 @@ function UpdateAdminRow({
             height: 30,
             borderRadius: 10,
             background: 'rgba(5,166,97,0.12)',
-            color: 'var(--brand-primary, #05a661)',
+            color: 'var(--brand-ink, #047649)',
             display: 'inline-grid',
             placeItems: 'center',
             fontSize: 12.5,
@@ -326,7 +326,7 @@ function UpdateAdminRow({
           style={{
             marginInlineStart: 'auto',
             fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8,
-            color: row.pinned ? 'var(--brand-primary, #05a661)' : 'var(--text-primary, #16201b)',
+            color: row.pinned ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
             background: row.pinned ? 'rgba(5,166,97,0.10)' : 'transparent',
             border: `1px solid ${row.pinned ? 'rgba(5,166,97,0.4)' : 'rgba(18,33,26,0.16)'}`,
             cursor: 'pointer', fontFamily: 'inherit',
@@ -342,7 +342,7 @@ function UpdateAdminRow({
             fontWeight: 600,
             padding: '5px 12px',
             borderRadius: 8,
-            color: '#ef4444',
+            color: '#b91c1c',
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             cursor: 'pointer',
@@ -358,9 +358,9 @@ function UpdateAdminRow({
 
 function Badge({ tone, children }: { tone: 'brand' | 'amber' | 'indigo'; children: React.ReactNode }): React.ReactElement {
   const palette = {
-    brand: { fg: 'var(--brand-primary, #05a661)', bg: 'rgba(5,166,97,0.10)' },
-    amber: { fg: '#a96400', bg: 'rgba(245,158,11,0.12)' },
-    indigo: { fg: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
+    brand: { fg: 'var(--brand-ink, #047649)', bg: 'rgba(5,166,97,0.10)' },
+    amber: { fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
+    indigo: { fg: '#4f46e5', bg: 'rgba(99,102,241,0.12)' },
   }[tone];
   return (
     <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: palette.fg, background: palette.bg }}>

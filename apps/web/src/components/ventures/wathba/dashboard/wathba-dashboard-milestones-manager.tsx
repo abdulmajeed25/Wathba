@@ -65,9 +65,9 @@ const STATUS_AR: Record<ApiMilestonePublic['status'], string> = {
 
 const STATUS_COLOR: Record<ApiMilestonePublic['status'], string> = {
   PENDING: '#9ca3af',
-  SUBMITTED: '#f59e0b',
-  APPROVED: '#6366f1',
-  RELEASED: '#10b981',
+  SUBMITTED: '#9a5a06',
+  APPROVED: '#4f46e5',
+  RELEASED: '#0a7653',
 };
 
 /* Allowed to edit the entire milestone plan in one shot.
@@ -439,7 +439,7 @@ export function DashboardMilestonesManager({
               >
                 + إضافة مرحلة
               </button>
-              <div style={{ fontSize: 12, color: draftPctTotal === 100 ? 'var(--brand-primary, #05a661)' : '#b91c1c', fontWeight: 700 }}>
+              <div style={{ fontSize: 12, color: draftPctTotal === 100 ? 'var(--brand-ink, #047649)' : '#b91c1c', fontWeight: 700 }}>
                 المجموع: {fmtPct(draftPctTotal)}
               </div>
             </div>
@@ -565,10 +565,10 @@ function SummaryStrip({
         marginBottom: 16,
       }}
     >
-      <Stat label="المُجمَّع من الداعمين" value={fmtSAR(raisedHalalas)} color="var(--brand-primary, #05a661)" />
-      <Stat label="المُفرَج عنه" value={fmtSAR(releasedHalalas)} color="#10b981" />
-      <Stat label="المُتبقّي في الضمان" value={fmtSAR(remaining)} color="#6366f1" />
-      <Stat label="عدد المراحل" value={`${milestoneCount}`} color="#f59e0b" extra={`صُرفَ منها ${fmtSAR(spentHalalas)}`} />
+      <Stat label="المُجمَّع من الداعمين" value={fmtSAR(raisedHalalas)} color="var(--brand-ink, #047649)" />
+      <Stat label="المُفرَج عنه" value={fmtSAR(releasedHalalas)} color="#0a7653" />
+      <Stat label="المُتبقّي في الضمان" value={fmtSAR(remaining)} color="#4f46e5" />
+      <Stat label="عدد المراحل" value={`${milestoneCount}`} color="#9a5a06" extra={`صُرفَ منها ${fmtSAR(spentHalalas)}`} />
     </div>
   );
 }
@@ -726,7 +726,7 @@ function MilestoneCard({
               height: 24,
               borderRadius: '50%',
               background: 'rgba(5,166,97,0.10)',
-              color: 'var(--brand-primary, #05a661)',
+              color: 'var(--brand-ink, #047649)',
               fontSize: 12,
               fontWeight: 700,
             }}
@@ -737,7 +737,7 @@ function MilestoneCard({
           <Pill label={STATUS_AR[milestone.status]} color={STATUS_COLOR[milestone.status]} />
         </div>
         <div style={{ textAlign: 'end' }}>
-          <div style={{ fontWeight: 700, color: 'var(--brand-primary, #05a661)' }}>
+          <div style={{ fontWeight: 700, color: 'var(--brand-ink, #047649)' }}>
             {fmtPct(milestone.releasePct)} · {fmtSAR(releasedDisplay)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)' }}>
@@ -756,7 +756,7 @@ function MilestoneCard({
             href={milestone.evidenceUrl}
             target="_blank"
             rel="noreferrer"
-            style={{ color: 'var(--brand-primary, #05a661)', textDecoration: 'underline' }}
+            style={{ color: 'var(--brand-ink, #047649)', textDecoration: 'underline' }}
           >
             عرض الإثبات المُرسَل
           </a>
@@ -926,7 +926,7 @@ function SpendLogRow({
               href={log.proofUrl}
               target="_blank"
               rel="noreferrer"
-              style={{ color: 'var(--brand-primary, #05a661)', textDecoration: 'underline' }}
+              style={{ color: 'var(--brand-ink, #047649)', textDecoration: 'underline' }}
             >
               إثبات
             </a>
@@ -957,7 +957,7 @@ const primaryBtnStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 14px',
   background: 'var(--brand-primary, #05a661)',
-  color: '#fff',
+  color: 'var(--on-brand, #08130d)',
   border: 'none',
   borderRadius: 10,
   fontWeight: 700,
@@ -1016,7 +1016,7 @@ function TabBtn({
       style={{
         padding: '8px 14px',
         background: active ? 'var(--brand-primary, #05a661)' : 'transparent',
-        color: active ? '#fff' : 'var(--text-primary, #16201b)',
+        color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, #16201b)',
         border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',
         borderRadius: 10,
         fontWeight: 600,

@@ -93,6 +93,11 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--pos-ink': '#046b40',
     '--pos-rgb': '5,166,97',
     '--purple': '#6d4df0',
+    // Same split again. --purple is 4.49:1 on the profile band #ebede9, which
+    // is a fill ratio; «شريك مؤسس» is copy, so it reads from --purple-ink.
+    // 4.64:1 at worst, and close enough to the fill that the rank still looks
+    // like the same purple.
+    '--purple-ink': '#6a4be9',
     '--purple-rgb': '109,77,240',
     '--blue': '#2563eb',
     '--blue-rgb': '37,99,235',
@@ -195,6 +200,7 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--pos-ink': '#3dd68c',
     '--pos-rgb': '61,214,140',
     '--purple': '#c0a8ff',
+    '--purple-ink': '#c0a8ff',
     '--purple-rgb': '192,168,255',
     '--blue': '#79b8ff',
     '--blue-rgb': '121,184,255',

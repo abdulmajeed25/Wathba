@@ -225,7 +225,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: 'var(--brand-primary, #05a661)',
+              color: 'var(--brand-ink, #047649)',
               border: '1px solid rgba(5,166,97,0.5)',
               background: 'rgba(5,166,97,0.08)',
             }}
@@ -240,7 +240,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: 'var(--brand-primary, #05a661)',
+              color: 'var(--brand-ink, #047649)',
               background: 'rgba(5,166,97,0.10)',
             }}
           >
@@ -254,7 +254,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: '#a96400',
+              color: '#9a5a06',
               background: 'rgba(245,158,11,0.12)',
             }}
           >
@@ -268,7 +268,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: '#ef4444',
+              color: '#b91c1c',
               background: 'rgba(239,68,68,0.10)',
             }}
           >
@@ -328,7 +328,7 @@ function CommentManagerRow({
               <span
                 style={{
                   fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 20,
-                  color: 'var(--brand-primary, #05a661)', border: '1px solid rgba(5,166,97,0.5)',
+                  color: 'var(--brand-ink, #047649)', border: '1px solid rgba(5,166,97,0.5)',
                   background: 'rgba(5,166,97,0.08)',
                 }}
               >
@@ -356,7 +356,7 @@ function CommentManagerRow({
             }}
           />
           {replyError && (
-            <span role="alert" style={{ fontSize: 12.5, color: '#ef4444' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
+            <span role="alert" style={{ fontSize: 12.5, color: '#b91c1c' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -366,7 +366,7 @@ function CommentManagerRow({
               style={{
                 fontSize: 12.5, fontWeight: 700, padding: '7px 16px', borderRadius: 10,
                 cursor: replyBusy ? 'wait' : 'pointer', border: 'none',
-                background: 'var(--brand-primary, #05a661)', color: '#fff',
+                background: 'var(--brand-primary, #05a661)', color: 'var(--on-brand, #08130d)',
                 opacity: replyBusy || !replyText.trim() ? 0.6 : 1, fontFamily: 'inherit',
               }}
             >
@@ -392,9 +392,9 @@ function ManagerButton({
   danger?: boolean;
 }): React.ReactElement {
   const palette = danger
-    ? { fg: '#ef4444', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)' }
+    ? { fg: '#b91c1c', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)' }
     : active
-      ? { fg: 'var(--brand-primary, #05a661)', bg: 'rgba(5,166,97,0.10)', border: 'rgba(5,166,97,0.4)' }
+      ? { fg: 'var(--brand-ink, #047649)', bg: 'rgba(5,166,97,0.10)', border: 'rgba(5,166,97,0.4)' }
       : { fg: 'var(--text-primary, #16201b)', bg: 'transparent', border: 'rgba(18,33,26,0.12)' };
   return (
     <button

@@ -56,7 +56,7 @@ export default async function ProjectUpdatesIndexPage({
               >
                 <article style={{ background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))', borderRadius: 12, padding: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--brand-primary, #05a661)' }}>#{u.orderNum}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--brand-ink, #047649)' }}>#{u.orderNum}</span>
                     <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{u.titleAr}</h2>
                     {u.locked && (
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: '#a96400', background: 'rgba(245,158,11,0.12)' }}>

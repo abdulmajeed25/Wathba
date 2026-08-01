@@ -274,7 +274,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
               }}
             >
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold-ink)' }}>سفير</span>
-              <span style={{ fontSize: 13, color: 'var(--purple)', fontWeight: 600 }}>
+              <span style={{ fontSize: 13, color: 'var(--purple-ink)', fontWeight: 600 }}>
                 شريك مؤسس
               </span>
             </div>

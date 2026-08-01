@@ -114,7 +114,7 @@ function Stat({
         style={{
           fontSize: 22,
           fontWeight: 700,
-          color: accent ? 'var(--brand-primary, #05a661)' : 'var(--text-primary, #16201b)',
+          color: accent ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
         }}
       >
         {value}
@@ -149,7 +149,7 @@ function PanelLink({
       }}
     >
       <span>{label}</span>
-      <span style={{ color: 'var(--brand-primary, #05a661)', fontWeight: 700 }}>{cta}</span>
+      <span style={{ color: 'var(--brand-ink, #047649)', fontWeight: 700 }}>{cta}</span>
     </a>
   );
 }

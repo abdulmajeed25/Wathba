@@ -198,7 +198,7 @@ export function DashboardStoryEditor({
           {tooShort && <span style={{ color: '#b91c1c' }}>الحد الأدنى 50 حرف</span>}
           {dirty && <span style={{ color: '#b45309' }}>• فيه تعديلات ما انحفظت</span>}
           {!dirty && savedAt !== null && (
-            <span style={{ color: 'var(--brand-primary, #05a661)' }}>
+            <span style={{ color: 'var(--brand-ink, #047649)' }}>
               • انحفظت {timeAgo(savedAt)}
             </span>
           )}
@@ -213,7 +213,7 @@ export function DashboardStoryEditor({
             border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.06)',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#a96400', marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#9a5a06', marginBottom: 6 }}>
             الحملة منشورة — أي تعديل على القصة يُسجَّل علناً للداعمين
           </div>
           <input
@@ -749,7 +749,7 @@ const paneHeader: React.CSSProperties = {
 const primaryBtnStyle: React.CSSProperties = {
   padding: '10px 18px',
   background: 'var(--brand-primary, #05a661)',
-  color: '#fff',
+  color: 'var(--on-brand, #08130d)',
   border: 'none',
   borderRadius: 10,
   fontWeight: 700,

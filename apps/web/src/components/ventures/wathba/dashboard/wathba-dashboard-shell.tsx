@@ -140,7 +140,7 @@ export function DashboardShell({
             <span style={{ fontSize: 12, color: 'var(--text-secondary, #3b4942)' }}>
               {STATUS_AR[projectStatus] ?? projectStatus}
             </span>
-            <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-primary, #05a661)' }}>
+            <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-ink, #047649)' }}>
               {projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW' ? 'معاينة كزائر ←' : 'عرض الحملة ←'}
             </span>
           </div>
@@ -163,7 +163,7 @@ export function DashboardShell({
                   fontSize: 14,
                   fontWeight: active ? 600 : 500,
                   background: active ? 'rgba(5,166,97,0.08)' : 'transparent',
-                  color: active ? 'var(--brand-primary, #05a661)' : 'var(--text-primary, #16201b)',
+                  color: active ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
                 }}
               >
                 <Icon name={it.icon} size={18} />
