@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { WathbaFeedbackProvider } from '../wathba-feedback';
 import { Icon } from '../wathba-icons';
 
 /**
@@ -96,85 +97,96 @@ export function DashboardShell({
         fontFamily: 'var(--font-arabic), system-ui, sans-serif',
       }}
     >
-      <aside
-        style={{
-          background: 'var(--bg-elevated, #fff)',
-          borderInlineStart: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
-          padding: '24px 16px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}
-      >
-        <Link
-          href={
-            projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW'
-              ? `/projects/dashboard/${projectId}/preview`
-              : `/projects/${projectId}`
-          }
+      {/* Six dashboard screens call useConfirm() and the rewards manager calls
+       *  useToast(), but nothing here ever mounted the provider — so every
+       *  confirm degraded to the browser's own window.confirm (LTR, off-design)
+       *  and every toast to a silent no-op, i.e. the rewards manager reported
+       *  success and failure identically: not at all.
+       *  Inside the div, not around it, so the overlays inherit the RTL
+       *  direction and the Arabic font. The tokens they read resolve through
+       *  the fallback chain in wathba-feedback.tsx — this surface has no
+       *  data-theme and none of the ventures variables. */}
+      <WathbaFeedbackProvider>
+        <aside
           style={{
-            display: 'block',
-            padding: '8px 12px 16px',
-            color: 'var(--text-primary, #16201b)',
-            textDecoration: 'none',
-            borderBottom: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
-            marginBottom: 12,
+            background: 'var(--bg-elevated, #fff)',
+            borderInlineStart: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
+            padding: '24px 16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
           }}
         >
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>
-            مشروعك
-          </div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, lineHeight: 1.35 }}>
-            {projectTitle}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span
-              style={{
-                display: 'inline-block',
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: STATUS_COLOR[projectStatus] ?? '#9ca3af',
-              }}
-            />
-            <span style={{ fontSize: 12, color: 'var(--text-secondary, #3b4942)' }}>
-              {STATUS_AR[projectStatus] ?? projectStatus}
-            </span>
-            <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-ink, #047649)' }}>
-              {projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW' ? 'معاينة كزائر ←' : 'عرض الحملة ←'}
-            </span>
-          </div>
-        </Link>
-
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {items.map((it) => {
-            const active = isActive(it.href);
-            return (
-              <Link
-                key={it.href}
-                href={it.href}
+          <Link
+            href={
+              projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW'
+                ? `/projects/dashboard/${projectId}/preview`
+                : `/projects/${projectId}`
+            }
+            style={{
+              display: 'block',
+              padding: '8px 12px 16px',
+              color: 'var(--text-primary, #16201b)',
+              textDecoration: 'none',
+              borderBottom: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>
+              مشروعك
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, lineHeight: 1.35 }}>
+              {projectTitle}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  padding: '10px 12px',
-                  borderRadius: 10,
-                  textDecoration: 'none',
-                  fontSize: 14,
-                  fontWeight: active ? 600 : 500,
-                  background: active ? 'rgba(5,166,97,0.08)' : 'transparent',
-                  color: active ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: STATUS_COLOR[projectStatus] ?? '#9ca3af',
                 }}
-              >
-                <Icon name={it.icon} size={18} />
-                <span>{it.labelAr}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </aside>
+              />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary, #3b4942)' }}>
+                {STATUS_AR[projectStatus] ?? projectStatus}
+              </span>
+              <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-ink, #047649)' }}>
+                {projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW' ? 'معاينة كزائر ←' : 'عرض الحملة ←'}
+              </span>
+            </div>
+          </Link>
 
-      <main style={{ padding: '32px 40px', minWidth: 0 }}>{children}</main>
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {items.map((it) => {
+              const active = isActive(it.href);
+              return (
+                <Link
+                  key={it.href}
+                  href={it.href}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    textDecoration: 'none',
+                    fontSize: 14,
+                    fontWeight: active ? 600 : 500,
+                    background: active ? 'rgba(5,166,97,0.08)' : 'transparent',
+                    color: active ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
+                  }}
+                >
+                  <Icon name={it.icon} size={18} />
+                  <span>{it.labelAr}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <main style={{ padding: '32px 40px', minWidth: 0 }}>{children}</main>
+      </WathbaFeedbackProvider>
     </div>
   );
 }

@@ -35,6 +35,28 @@ interface FeedbackApi {
 
 const FeedbackContext = createContext<FeedbackApi | null>(null);
 
+/**
+ * The overlays are mounted by two shells that speak different token
+ * vocabularies: `wathba-shell.tsx` defines the ventures set per `data-theme`,
+ * while the creator dashboard has no `data-theme` at all and paints from the
+ * app-level `:root` block in globals.css. So each value falls back down that
+ * chain — ventures token, then the dashboard equivalent, then a literal.
+ *
+ * An unresolved `var()` is not an error, it just paints nothing: that is how
+ * the confirm dialog spent its life with no panel, its copy on the bare scrim
+ * at 3.74:1. Anything reachable from here has to name its own fallback.
+ */
+const CARD = 'var(--card, var(--bg-elevated, #ffffff))';
+const INK = 'var(--text, var(--text-primary, #16201b))';
+const MUTED = 'var(--muted, var(--text-secondary, #3b4942))';
+// The dashboard has no gradient; its brand fill is the flat green, and both
+// grounds take the same dark ink.
+const GRAD = 'var(--grad, var(--brand-primary, #05a661))';
+// Bare channel triples for rgba() — the fallback is everything after the first
+// comma, so `var(--ink-rgb, 18,33,26)` is one fallback, not three arguments.
+const INK_RGB = 'var(--ink-rgb, 18,33,26)';
+const ACCENT_RGB = 'var(--accent-rgb, 5,166,97)';
+
 export function useToast(): FeedbackApi['toast'] {
   const ctx = useContext(FeedbackContext);
   // Degrade silently when a component renders outside the shell (tests).
@@ -103,8 +125,8 @@ export function WathbaFeedbackProvider({ children }: { children: React.ReactNode
             role="status"
             style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 13,
-              background: 'var(--card)', color: 'var(--text)',
-              border: `1px solid ${t.kind === 'success' ? 'rgba(var(--accent-rgb),.4)' : 'rgba(220,38,38,.4)'}`,
+              background: CARD, color: INK,
+              border: `1px solid ${t.kind === 'success' ? `rgba(${ACCENT_RGB},.4)` : 'rgba(220,38,38,.4)'}`,
               boxShadow: '0 18px 40px -16px rgba(0,0,0,.4)', fontSize: 13.5, fontWeight: 600,
               animation: 'wathba-fadeUp .25s ease both',
             }}
@@ -112,7 +134,7 @@ export function WathbaFeedbackProvider({ children }: { children: React.ReactNode
             <Icon
               name={t.kind === 'success' ? 'check_circle' : 'error'}
               size={18}
-              color={t.kind === 'success' ? 'var(--accent-ink)' : '#dc2626'}
+              color={t.kind === 'success' ? 'var(--accent-ink, var(--brand-ink, #047649))' : '#dc2626'}
             />
             {t.text}
           </div>
@@ -133,13 +155,13 @@ export function WathbaFeedbackProvider({ children }: { children: React.ReactNode
             aria-modal="true"
             aria-label={pending.title}
             style={{
-              background: 'var(--card)', borderRadius: 18, padding: '22px 24px', maxWidth: 400, width: '100%',
-              border: '1px solid rgba(var(--ink-rgb),.1)', boxShadow: '0 40px 80px -30px rgba(0,0,0,.55)',
+              background: CARD, color: INK, borderRadius: 18, padding: '22px 24px', maxWidth: 400, width: '100%',
+              border: `1px solid rgba(${INK_RGB},.1)`, boxShadow: '0 40px 80px -30px rgba(0,0,0,.55)',
             }}
           >
             <h2 style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>{pending.title}</h2>
             {pending.body && (
-              <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 4 }}>{pending.body}</p>
+              <p style={{ fontSize: 13.5, color: MUTED, lineHeight: 1.7, marginBottom: 4 }}>{pending.body}</p>
             )}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-start', marginTop: 18 }}>
               <button
@@ -149,8 +171,8 @@ export function WathbaFeedbackProvider({ children }: { children: React.ReactNode
                 style={{
                   cursor: 'pointer', border: 'none', fontFamily: 'inherit', fontWeight: 700, fontSize: 14,
                   padding: '11px 20px', borderRadius: 12,
-                  background: pending.danger ? '#dc2626' : 'var(--grad)',
-                  color: pending.danger ? '#fff' : 'var(--on-accent)',
+                  background: pending.danger ? '#dc2626' : GRAD,
+                  color: pending.danger ? '#fff' : 'var(--on-accent, var(--on-brand, #08130d))',
                 }}
               >
                 {pending.confirmLabel ?? 'تأكيد'}
@@ -161,7 +183,7 @@ export function WathbaFeedbackProvider({ children }: { children: React.ReactNode
                 style={{
                   cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 14,
                   padding: '11px 20px', borderRadius: 12, background: 'transparent',
-                  border: '1px solid rgba(var(--ink-rgb),.16)', color: 'var(--text)',
+                  border: `1px solid rgba(${INK_RGB},.16)`, color: INK,
                 }}
               >
                 {pending.cancelLabel ?? 'إلغاء'}

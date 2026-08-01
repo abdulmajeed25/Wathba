@@ -196,6 +196,60 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
+test('O3: the creator dashboard has a provider, and it is the styled dialog', async ({ page }) => {
+  // A different failure with the same root: this surface mounted no provider at
+  // all, so `useConfirm` fell through to native `window.confirm` and `useToast`
+  // to a silent no-op. A native dialog is invisible to a contrast sampler — it
+  // would score a clean zero while the creator looks at an LTR browser box — so
+  // the assertion that no dialog fires is doing more work than the ratios.
+  //
+  // The dashboard carries no `data-theme` and none of the ventures variables,
+  // so the overlays reach their colours through the fallback chain in
+  // wathba-feedback.tsx. That chain is what the computed values below check.
+  await signIn(page);
+  const { projectId } = seededIds();
+  const natives: string[] = [];
+  page.on('dialog', (d) => {
+    natives.push(d.message());
+    void d.dismiss();
+  });
+
+  // The story editor's revert is the one confirm call site that touches nothing
+  // — it needs the textarea dirty, and reverting is local state.
+  await page.goto(`/projects/dashboard/${projectId}/story`);
+  const ta = page.locator('textarea').first();
+  await ta.fill(`${await ta.inputValue()}\nسطر قياس.`);
+  await page.getByRole('button', { name: /تراجع/ }).first().click();
+  await expect(page.locator(CONFIRM)).toBeVisible();
+
+  expect(natives, 'a native window.confirm means the provider is not mounted').toEqual([]);
+  const fails = await failures(page, CONFIRM);
+  expect(
+    fails.map((f) => `  ${f.ratio}<${f.need} "${f.txt}" ${f.fg} on ${f.bg}`).join('\n'),
+  ).toEqual('');
+
+  const t = await page.evaluate(() => {
+    const d = document.querySelector('[role="alertdialog"]')!;
+    const cs = getComputedStyle(d);
+    return {
+      background: cs.backgroundColor,
+      color: cs.color,
+      // `rgba(var(--ink-rgb, 18,33,26),.1)` — the fallback is everything after
+      // the FIRST comma, so this one var() supplies all three channels. If that
+      // ever stops parsing, the border silently goes transparent.
+      border: cs.borderTopColor,
+      // Inside the shell div, so it inherits RTL and the Arabic face.
+      direction: cs.direction,
+    };
+  });
+  expect(t.background).toBe('rgb(255, 255, 255)'); // --bg-elevated
+  expect(t.color).toBe('rgb(22, 32, 27)'); // --text-primary
+  expect(t.border).toBe('rgba(18, 33, 26, 0.1)');
+  expect(t.direction).toBe('rtl');
+
+  await page.locator(CONFIRM).getByRole('button', { name: 'إلغاء' }).click();
+});
+
 test('O2: the overlays render INSIDE the themed element', async ({ page }) => {
   // The one that matters. The ratios in O1 are a consequence; this is the
   // cause. If a refactor lifts WathbaFeedbackProvider back out of the themed
