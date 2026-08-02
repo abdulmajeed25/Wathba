@@ -1,0 +1,27 @@
+{
+  "//": [
+    "The e2e suite was invisible to typecheck: tsconfig.json includes only src/**,",
+    "and CI runs a bare `tsc --noEmit`. A spec with an outright SYNTAX ERROR passed",
+    "that check — the only thing that caught it was Playwright refusing to parse the",
+    "file at run time. Anything relying on typecheck to vet a test change was relying",
+    "on nothing.",
+    "",
+    "This is a separate project rather than an addition to tsconfig.json on purpose:",
+    "that config is also what `next build` typechecks, and Playwright specs have no",
+    "business in the production build's project.",
+    "",
+    "noUncheckedIndexedAccess is deliberately off HERE and stays on for src. It",
+    "accounted for 90 of the 103 errors this exposed, all inside contrast probes that",
+    "index arrays they just built themselves (`const [r,g,b] = parse(str)`, a 1x1",
+    "ImageData that always has four bytes). Paying for that in `!` noise across four",
+    "measurement specs buys nothing, while the flag keeps its real value in src."
+  ],
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["e2e/**/*.ts", "playwright.config.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules"]
+}
