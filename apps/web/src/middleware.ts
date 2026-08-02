@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { cookiesAreSecure } from '@/lib/cookie-security';
+
 /**
  * Auth middleware — **public-by-default** for browsing, auth-gated only for
  * acting (Kickstarter pattern).
@@ -200,7 +202,14 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
         if (r.ok) {
           const body = (await r.json()) as { accessToken: string; refreshToken: string };
           const res = NextResponse.next();
-          const secure = process.env.NODE_ENV === 'production';
+          // The FOURTH site of the Secure-cookie bug, missed when the other
+          // three were fixed. `process.env.NODE_ENV` is inlined at build time
+          // and `next build` always sets production, so on a plain-HTTP
+          // deployment rotation handed back a `Secure` cookie the browser
+          // refuses — and the session died the moment it was renewed, roughly
+          // an hour in. The three sign-in paths were fixed; this one renews
+          // what they issue, so it could undo all of them.
+          const secure = cookiesAreSecure();
           res.cookies.set('wathba_session', body.accessToken, {
             httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 60 * 60 * 24 * 30,
           });
