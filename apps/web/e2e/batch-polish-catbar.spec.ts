@@ -34,7 +34,10 @@ test('C2: the raw scrollbar is gone but the strip still scrolls', async ({ page 
   await page.goto('/projects');
   await expect(page.locator(STRIP)).toBeAttached({ timeout: 20000 });
 
-  const state = await page.locator(STRIP).evaluate((el) => {
+  // Typed as HTMLElement, not the default SVGElement | HTMLElement: offsetHeight
+  // below exists only on the HTML side of that union, and the strip is a div.
+  // Nothing caught this before because e2e was never typechecked at all.
+  const state = await page.locator(STRIP).evaluate((el: HTMLElement) => {
     const cs = getComputedStyle(el);
     return {
       scrollbarWidth: cs.scrollbarWidth,
