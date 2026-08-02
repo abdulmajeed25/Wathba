@@ -298,6 +298,12 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
               ]
             : [
                 { href: '/sign-in', label: 'تسجيل الدخول' },
+                // Registration is otherwise two clicks deep (sign-in → «أنشئ
+                // حساباً جديداً»). It goes HERE and not in the header: the
+                // desktop header has no room — measured, the signed-in row
+                // already overflows ~34px at 1280px and any third CTA pushes
+                // the account avatar out of clickable range.
+                { href: '/sign-up', label: 'إنشاء حساب' },
                 { href: '/projects/start', label: 'ابدأ مشروعك' },
               ]
           ).map((l) => (

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { getMe } from '@/lib/api/wathba';
+import { cookiesAreSecure } from '@/lib/cookie-security';
 import { destinationFor } from '@/lib/auth/guard';
 
 /**
@@ -49,7 +50,7 @@ async function setSessionCookie(
     value: token,
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: cookiesAreSecure(),
     path: '/',
     /* Access JWT is short-lived (1h on apps/api since Sprint 2); middleware
      * rotates it via the refresh cookie before it lapses. */
@@ -61,7 +62,7 @@ async function setSessionCookie(
       value: refreshToken,
       httpOnly: true,
       sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      secure: cookiesAreSecure(),
       path: '/',
       ...(persist ? { maxAge: 60 * 60 * 24 * 30 } : {}),
     });
