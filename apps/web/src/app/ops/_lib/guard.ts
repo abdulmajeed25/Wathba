@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 
+import { OPS_COOKIE } from '@/lib/ops-session';
+
 /**
  * OPS Part 1 — server-side guards for the /ops route group.
  *
@@ -18,7 +20,8 @@ import { cache } from 'react';
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BASE_URL ?? 'http://localhost:4000';
-export const OPS_COOKIE = 'wathba_ops_session';
+// One home for the name, in lib/ so the public sign-out can reach it too.
+export { OPS_COOKIE };
 export const SESSION_COOKIE = 'wathba_session';
 
 /**
