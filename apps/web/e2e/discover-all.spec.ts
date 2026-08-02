@@ -1,5 +1,25 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signUpAndVerify, uniqueEmail } from './helpers';
+
+/**
+ * Every filter control on this page is a `<div role="checkbox">` with an
+ * onClick — there is no native behaviour behind it, so a click before the page
+ * hydrates does nothing at all and the assertion that follows fails 5s later.
+ * Under full-suite load hydration is slow enough for that to happen, which is
+ * what made this spec flaky. `toHaveAttribute` will not help: it waits for a
+ * state change that the lost click is never going to produce.
+ *
+ * So the click is retried until it registers. It is GUARDED on aria-checked —
+ * these are toggles, and a blind second click would switch the filter back off
+ * and turn a flaky failure into a flaky success, which is worse.
+ */
+async function check(page: Page, control: Locator, url: RegExp): Promise<void> {
+  await expect(async () => {
+    if ((await control.getAttribute('aria-checked')) !== 'true') await control.click();
+    await expect(control).toHaveAttribute('aria-checked', 'true', { timeout: 1_500 });
+  }).toPass({ timeout: 20_000 });
+  await expect(page).toHaveURL(url);
+}
 
 /**
  * Batch DISC — advanced discover page journeys.
@@ -11,27 +31,23 @@ test('discover-all: two categories + percent radio + sort encode to URL and surv
   await page.goto('/projects/discover-all');
   await expect(page.getByTestId('discover-total')).toBeVisible();
 
-  // Two category checkboxes (both in the default first-8 list). Wait for each
-  // soft-nav re-render (aria-checked) before the next click to avoid a stale
-  // closure on the previous filter set.
-  const art = page.getByTestId('cat-art');
-  await art.click();
-  await expect(art).toHaveAttribute('aria-checked', 'true');
-  await expect(page).toHaveURL(/cat=art/);
-  const food = page.getByTestId('cat-food');
-  await food.click();
-  await expect(food).toHaveAttribute('aria-checked', 'true');
-  await expect(page).toHaveURL(/cat=art%2Cfood|cat=art,food/);
+  // Two category checkboxes (both in the default first-8 list). Each waits for
+  // its own soft-nav re-render before the next click, so a filter set is never
+  // built on a stale closure.
+  await check(page, page.getByTestId('cat-art'), /cat=art/);
+  await check(page, page.getByTestId('cat-food'), /cat=art%2Cfood|cat=art,food/);
 
   // A percent-raised radio.
-  const pctRadio = page.getByTestId('pct-lt25');
-  await pctRadio.click();
-  await expect(pctRadio).toHaveAttribute('aria-checked', 'true');
-  await expect(page).toHaveURL(/pct=lt25/);
+  await check(page, page.getByTestId('pct-lt25'), /pct=lt25/);
 
-  // Change the sort.
-  await page.getByTestId('discover-sort').selectOption('newest');
-  await expect(page).toHaveURL(/sort=newest/);
+  // Change the sort. Same hydration problem, different control: the <select>
+  // has an onChange, so selectOption before hydration sets the value and
+  // nothing else. Re-selecting the same option is idempotent, so this one needs
+  // no guard.
+  await expect(async () => {
+    await page.getByTestId('discover-sort').selectOption('newest');
+    await expect(page).toHaveURL(/sort=newest/, { timeout: 1_500 });
+  }).toPass({ timeout: 20_000 });
 
   // Reload the shareable URL → state restored (boxes still checked).
   await page.reload();
