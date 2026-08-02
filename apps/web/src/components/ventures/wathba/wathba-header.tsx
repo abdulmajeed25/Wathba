@@ -36,10 +36,13 @@ const SHEET_LINKS: Array<{ href: string; label: string }> = [
 ];
 
 export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
-  // STAKES/S-2/D6 — collapse the nav + search below 880px. Done with CSS media
-  // queries (wathba-desk-only / wathba-mob-only in globals.css), NOT a JS hook,
-  // so it's correct on the SSR/standalone first paint (a hook's post-hydration
-  // flip left the desktop nav in the DOM and kept the horizontal scroll).
+  // STAKES/S-2/D6 — the header collapses in two stages: the search field
+  // becomes an icon below 1200px, and the nav follows it into this sheet below
+  // 1000px. Both are CSS media queries (wathba-wide-only / wathba-desk-only /
+  // wathba-mob-only, declared in wathba-shell.tsx with the measurements that
+  // set the thresholds), NOT a JS hook, so they are correct on the SSR/
+  // standalone first paint — a hook's post-hydration flip left the desktop nav
+  // in the DOM and kept the horizontal scroll.
   const [sheet, setSheet] = useState(false);
   // STAKES/S-11 F-14 (D5) — active-page indication in the top nav.
   const pathname = usePathname();
@@ -80,6 +83,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
       }}
     >
       <div
+        className="wathba-header-row"
         style={{
           maxWidth: 1320,
           margin: '0 auto',
@@ -118,7 +122,10 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           </div>
           <div style={{ lineHeight: 1.05 }}>
             <div style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-.3px' }}>وثبة</div>
-            <Num style={{ fontSize: 9.5, letterSpacing: '3px', color: 'var(--muted2)' }}>
+            <Num
+              className="wathba-wordmark-tag"
+              style={{ fontSize: 9.5, letterSpacing: '3px', color: 'var(--muted2)' }}
+            >
               LEAP FORWARD
             </Num>
           </div>
@@ -300,9 +307,10 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
                 { href: '/sign-in', label: 'تسجيل الدخول' },
                 // Registration is otherwise two clicks deep (sign-in → «أنشئ
                 // حساباً جديداً»). It goes HERE and not in the header: the
-                // desktop header has no room — measured, the signed-in row
-                // already overflows ~34px at 1280px and any third CTA pushes
-                // the account avatar out of clickable range.
+                // desktop header has no room for a third CTA. The wide tier is
+                // capped at maxWidth:1320 and measures 1314 full — 6px spare —
+                // so anything added beside «ابدأ مشروعك» comes straight out of
+                // the search field.
                 { href: '/sign-up', label: 'إنشاء حساب' },
                 { href: '/projects/start', label: 'ابدأ مشروعك' },
               ]

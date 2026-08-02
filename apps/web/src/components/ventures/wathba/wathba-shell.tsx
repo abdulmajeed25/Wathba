@@ -60,10 +60,10 @@ export function WathbaShell({
                too (26px → 48px) — so the header grew and every page shifted
                ~0.11. Reserving only the height does not help: the WIDTH change
                is what drives the wrap.
-               Below 880px the desktop login link is hidden and the header is
-               tight, so the reservation is dropped there. */
+               Below the mobile breakpoint the desktop login link is hidden and
+               the header is tight, so the reservation is dropped there. */
             [data-pillar="ventures"] .wathba-account-slot{min-width:206px;height:42px;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;white-space:nowrap}
-            @media (max-width:880px){
+            @media (max-width:999px){
               [data-pillar="ventures"] .wathba-account-slot{min-width:0}
             }
 
@@ -98,10 +98,62 @@ export function WathbaShell({
                that needed it). */
             [data-pillar="ventures"] .wathba-mob-only{display:none}
             [data-pillar="ventures"] .wathba-mob-sheet{display:none}
-            @media (max-width:880px){
+            @media (max-width:999px){
               [data-pillar="ventures"] .wathba-desk-only{display:none!important}
               [data-pillar="ventures"] .wathba-mob-only{display:inline-flex!important}
               [data-pillar="ventures"] .wathba-mob-sheet{display:flex}
+            }
+
+            /* ── The header has THREE tiers, not two ──────────────────────────
+               Measured min-content cost of the header row, signed in (the
+               expensive case — it carries the bell the signed-out row does not):
+
+                 logo + nav + search + controls   1314px
+                 logo + nav +  icon  + controls    998px
+                 logo +              + controls    519px
+
+               The row was showing the first configuration from 881px upward, so
+               everything from 881 to 1313 overflowed — up to 433px of it. That
+               is invisible to document.scrollWidth because [data-pillar] clips
+               overflow-x, which is why an earlier audit called the header clean.
+               What it cost in practice: the account control is the LAST child,
+               so the whole overflow lands on it. It sat at a negative x, clipped
+               and un-hittable, and a signed-in reader between 881 and 1280 could
+               not open the account menu at all.
+
+               So each configuration now gets the width it actually needs. The
+               search field is the flexible one: everything beside it costs a
+               fixed 972px, so the field gets (viewport - 972), and the tier
+               boundary is simply the width below which that is too little to
+               type into — measured 202px at 1200, 102px at 1100.
+
+                 >=1200  the search field (322px at the 1320 cap, 282 at 1280,
+                         202 at 1200 — the row is capped at maxWidth:1320, so
+                         this tier never gets wider than 322)
+                 1000..  the field would be under 200px, so it collapses to the
+                  1199   icon that opens the full-screen search sheet. The nav
+                         stays: losing it to a hamburger on an 1100px desktop
+                         costs discoverability, whereas the icon opens the SAME
+                         combobox and costs nothing.
+                 <=999   the mobile sheet (was <=880; 881..999 cannot fit the
+                         nav, which is what made that band overflow). */
+            [data-pillar="ventures"] .wathba-wide-only{display:none}
+            [data-pillar="ventures"] .wathba-narrow-only{display:inline-flex}
+            @media (min-width:1200px){
+              [data-pillar="ventures"] .wathba-wide-only{display:block}
+              [data-pillar="ventures"] .wathba-narrow-only{display:none}
+            }
+
+            /* The smallest phones. Signed-in the row carries four 42px controls
+               (search, bell, avatar, hamburger) beside the wordmark, and it ran
+               over by 47px at 360 and 17px at 320. Two things give way, in the
+               order of what costs the reader least: the wordmark's Latin
+               tagline, which is the widest part of the logo (~59px of its 157)
+               and carries no function, then the row's own breathing room.
+               !important because the padding and gap are inline styles. */
+            @media (max-width:420px){
+              [data-pillar="ventures"] .wathba-wordmark-tag{display:none}
+              [data-pillar="ventures"] .wathba-header-row{padding-inline:14px!important;gap:16px!important}
             }
             /* STAKES/S-15 (Q3) — print: strip chrome, black-on-white body,
                expand campaign links for paper readers. */

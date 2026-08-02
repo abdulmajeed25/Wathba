@@ -76,13 +76,24 @@ interface Option {
 
 export function WathbaHeaderSearch() {
   return (
-    <div className="wathba-desk-only" style={{ flex: 1, maxWidth: 380, position: 'relative' }}>
+    // minWidth:0 overrides a flex item's default `min-width:auto`, which pins
+    // it at its content's min-content width (342px here). Without it this box
+    // is the one element that claims to be flexible and then refuses to shrink,
+    // and the row overflows onto the account control instead. The tier swap
+    // below 1200px is the designed behaviour; this is the safety valve that
+    // keeps the row from overflowing if anything beside it ever grows.
+    <div className="wathba-wide-only" style={{ flex: 1, minWidth: 0, maxWidth: 380, position: 'relative' }}>
       <SearchCombobox variant="desktop" />
     </div>
   );
 }
 
-/** Mobile: the header search icon opens a full-screen sheet (same combobox). */
+/**
+ * Below 1200px the header cannot give the search FIELD enough width to type
+ * into, so it holds this icon instead — it opens the same combobox full-screen,
+ * so nothing is lost. Named "mobile" because it started there; it now covers
+ * every width under the wide tier.
+ */
 export function WathbaMobileSearchButton({ style }: { style?: React.CSSProperties }) {
   const [open, setOpen] = useState(false);
   return (
@@ -90,7 +101,7 @@ export function WathbaMobileSearchButton({ style }: { style?: React.CSSPropertie
       <button
         type="button"
         aria-label="بحث"
-        className="wathba-mob-only"
+        className="wathba-narrow-only"
         onClick={() => setOpen(true)}
         style={{ ...style, cursor: 'pointer', background: 'transparent', border: 'none' }}
       >
@@ -335,7 +346,14 @@ function SearchCombobox({
           aria-autocomplete="list"
           autoFocus={variant === 'sheet'}
           style={{
-            flex: 1, background: 'transparent', border: 'none', outline: 'none',
+            // minWidth:0 — an <input>'s min-content width is its placeholder,
+            // 280px here, and `flex:1` will not shrink past that by default. The
+            // desktop field only ever gets 322px of the 1320 row, so the shell
+            // was overflowing its own box by 4px at EVERY desktop width, and far
+            // more as the viewport narrowed. With this the placeholder truncates
+            // and the field simply gets narrower, which is what it looks like it
+            // should do. The sheet variant is full-width and unaffected.
+            flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
             color: 'var(--text)', fontSize: 14, fontFamily: 'inherit',
           }}
         />
