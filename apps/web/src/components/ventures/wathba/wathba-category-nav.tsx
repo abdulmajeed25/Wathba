@@ -107,11 +107,25 @@ export function WathbaCategoryNav() {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
   const [overflow, setOverflow] = useState<{ start: boolean; end: boolean }>({ start: false, end: false });
-  /** One screenful, minus a sliver so the next pill peeks in. */
-  const nudge = (sign: 1 | -1) => {
+  /**
+   * One screenful, minus a sliver so the next pill peeks in.
+   *
+   * `toward` is +1 for the strip's END and -1 for its START — reading order,
+   * not screen order. Converting that to a scrollBy delta is where this was
+   * wrong: in RTL, Blink starts scrollLeft at 0 and runs NEGATIVE toward the
+   * end, so the end arrow asked for a POSITIVE delta, the browser clamped it at
+   * 0, and the strip never moved. At rest only the end arrow is rendered — so
+   * the one arrow a reader could see was the one that did nothing, and 13 of
+   * the 21 categories were unreachable by mouse.
+   *
+   * The keyboard path (onStripKey) already had this right, which is why this
+   * survived: arrow keys moved the strip and the arrows did not.
+   */
+  const nudge = (toward: 1 | -1) => {
     const el = stripRef.current;
     if (!el) return;
-    el.scrollBy({ left: sign * (el.clientWidth * 0.8), behavior: 'smooth' });
+    const rtl = getComputedStyle(el).direction === 'rtl';
+    el.scrollBy({ left: el.clientWidth * 0.8 * toward * (rtl ? -1 : 1), behavior: 'smooth' });
   };
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
