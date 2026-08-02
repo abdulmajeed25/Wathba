@@ -24,6 +24,20 @@ import { destinationFor } from '@/lib/auth/guard';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const SESSION_COOKIE = 'wathba_session';
 const REFRESH_COOKIE = 'wathba_refresh';
+/**
+ * Records the «تذكرني» choice so middleware can honour it when it rotates.
+ *
+ * A browser sends back only `name=value` — never Max-Age or Expires — so
+ * middleware cannot tell a browser-session cookie from a persistent one, and it
+ * was renewing every session as a 30-day persistent cookie. Unchecking
+ * «تذكرني» therefore held only until the first rotation, about an hour in.
+ *
+ * Values: '1' persistent, '0' session-scoped. ABSENT means a session minted
+ * before this cookie existed, and those were all persistent — so absence must
+ * keep meaning persistent, or this change would sign people out when they close
+ * the browser.
+ */
+const REMEMBER_COOKIE = 'wathba_remember';
 
 interface AuthResponse {
   accessToken: string;
@@ -68,6 +82,17 @@ async function setSessionCookie(
       ...(persist ? { maxAge: 60 * 60 * 24 * 30 } : {}),
     });
   }
+  // The marker itself follows the same lifetime as what it describes, so a
+  // session-scoped choice cannot outlive the session it applies to.
+  store.set({
+    name: REMEMBER_COOKIE,
+    value: persist ? '1' : '0',
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: cookiesAreSecure(),
+    path: '/',
+    ...(persist ? { maxAge: 60 * 60 * 24 * 30 } : {}),
+  });
 }
 
 async function clearSessionCookie(): Promise<void> {
@@ -88,6 +113,7 @@ async function clearSessionCookie(): Promise<void> {
   }
   store.delete(SESSION_COOKIE);
   store.delete(REFRESH_COOKIE);
+  store.delete(REMEMBER_COOKIE);
   // The ops session is layered on top of this one and MUST NOT outlive it. It
   // used to: sign-out left `wathba_ops_session` in place and live, and every
   // /api/ops/* proxy kept answering with full operator permissions. See

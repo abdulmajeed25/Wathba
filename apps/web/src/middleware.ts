@@ -210,11 +210,26 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
           // an hour in. The three sign-in paths were fixed; this one renews
           // what they issue, so it could undo all of them.
           const secure = cookiesAreSecure();
+          // STAKES/S-12 F-17 — honour «تذكرني» across rotation. A browser sends
+          // back only `name=value`, never Max-Age, so there is no way to tell a
+          // browser-session cookie from a persistent one by inspection: rotation
+          // re-set BOTH as 30-day persistent cookies and quietly promoted every
+          // "don't remember me" session about an hour in. `wathba_remember`
+          // carries the choice. Absent means a session minted before that cookie
+          // existed, and those were all persistent — so absent must stay
+          // persistent, or this would sign people out on browser close.
+          const persist = req.cookies.get('wathba_remember')?.value !== '0';
+          const life = persist ? { maxAge: 60 * 60 * 24 * 30 } : {};
           res.cookies.set('wathba_session', body.accessToken, {
-            httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 60 * 60 * 24 * 30,
+            httpOnly: true, sameSite: 'lax', secure, path: '/', ...life,
           });
           res.cookies.set('wathba_refresh', body.refreshToken, {
-            httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 60 * 60 * 24 * 30,
+            httpOnly: true, sameSite: 'lax', secure, path: '/', ...life,
+          });
+          // Re-stamp the marker on the same lifetime, so a session-scoped choice
+          // survives rotation without ever becoming persistent itself.
+          res.cookies.set('wathba_remember', persist ? '1' : '0', {
+            httpOnly: true, sameSite: 'lax', secure, path: '/', ...life,
           });
           return res;
         }
