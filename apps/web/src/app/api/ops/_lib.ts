@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
 import { cookiesAreSecure } from '@/lib/cookie-security';
+import { OPS_COOKIE } from '@/lib/ops-session';
 
 /**
  * OPS Part 1 — shared plumbing for the /api/ops/* BFF proxies. The browser
@@ -11,7 +12,7 @@ import { cookiesAreSecure } from '@/lib/cookie-security';
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BASE_URL ?? 'http://localhost:4000';
-export const OPS_COOKIE = 'wathba_ops_session';
+export { OPS_COOKIE };
 export const SESSION_COOKIE = 'wathba_session';
 
 /** Cookie lifetime = the API's ABSOLUTE cap (8h); the 60-min IDLE window is
@@ -37,7 +38,23 @@ export async function proxyWithOpsToken(
   path: string,
   init: { method?: string; body?: string } = {},
 ): Promise<Response> {
-  const token = await opsToken();
+  const store = await cookies();
+  // BOTH credentials, every call. Middleware enforces this pairing for the /ops
+  // PAGES — public session first, ops session second — but these proxies only
+  // ever checked the ops cookie, so they kept serving operator reads and
+  // operations to a browser with no public session at all. That is how a signed
+  // -out shared machine retained full operator reach through fetch().
+  //
+  // Presence, not validity: the ops token is the credential the API actually
+  // verifies on every call, and re-validating the JWT here would add a
+  // users/me round trip to every ops request — the exact cost that once
+  // exhausted operators' own rate-limit bucket (CLOSEOUT C5). Presence is
+  // enough for what this guards: sign-out and the middleware rejection paths
+  // both DELETE the public cookie.
+  if (!store.get(SESSION_COOKIE)?.value) {
+    return NextResponse.json({ message: 'انتهت الجلسة العامة — سجّل الدخول من جديد' }, { status: 401 });
+  }
+  const token = store.get(OPS_COOKIE)?.value;
   if (!token) {
     return NextResponse.json({ message: 'مطلوب دخول صريح إلى مركز العمليات' }, { status: 401 });
   }

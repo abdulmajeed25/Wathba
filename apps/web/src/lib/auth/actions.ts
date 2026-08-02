@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 
 import { getMe } from '@/lib/api/wathba';
 import { cookiesAreSecure } from '@/lib/cookie-security';
+import { revokeOpsSession } from '@/lib/ops-session';
 import { destinationFor } from '@/lib/auth/guard';
 
 /**
@@ -87,6 +88,11 @@ async function clearSessionCookie(): Promise<void> {
   }
   store.delete(SESSION_COOKIE);
   store.delete(REFRESH_COOKIE);
+  // The ops session is layered on top of this one and MUST NOT outlive it. It
+  // used to: sign-out left `wathba_ops_session` in place and live, and every
+  // /api/ops/* proxy kept answering with full operator permissions. See
+  // lib/ops-session.ts for the measurements.
+  await revokeOpsSession();
 }
 
 /**

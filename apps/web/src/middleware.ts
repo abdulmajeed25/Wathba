@@ -145,6 +145,12 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
         const res = NextResponse.redirect(url);
         res.cookies.delete('wathba_session');
         res.cookies.delete('wathba_refresh');
+        // The ops session is layered on the public one — when the API rejects the
+        // public credential the operator credential must go with it, or it
+        // outlives the session it was granted under. Literal, like the two
+        // above: middleware is the edge runtime and cannot import the
+        // next/headers module that owns the name.
+        res.cookies.delete('wathba_ops_session');
         return res;
       }
       if (!meRes.ok) {
@@ -212,6 +218,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
           const res = NextResponse.redirect(url);
           res.cookies.delete('wathba_session');
           res.cookies.delete('wathba_refresh');
+          res.cookies.delete('wathba_ops_session'); // see the note at the ops gate above
           return res;
         }
       } catch {
@@ -249,6 +256,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
           const res = NextResponse.redirect(url);
           res.cookies.delete('wathba_session');
           res.cookies.delete('wathba_refresh');
+          res.cookies.delete('wathba_ops_session'); // see the note at the ops gate above
           return res;
         }
         const me = (await meRes.json()) as { roles: string[]; createdProjectsCount?: number };
