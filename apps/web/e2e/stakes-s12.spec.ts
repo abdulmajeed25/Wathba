@@ -140,6 +140,15 @@ test('F-17: remember-me controls whether the session cookie persists', async ({ 
   await p1.waitForURL((url) => !url.pathname.startsWith('/sign-in'));
   const sessionCookie = (await ctx1.cookies()).find((c) => c.name === 'wathba_session');
   expect(sessionCookie?.expires).toBe(-1);
+  // The choice must also be RECORDED, because middleware has to honour it when
+  // it rotates the token an hour later and a browser sends back only
+  // `name=value` — no Max-Age, nothing to infer the choice from. Rotation used
+  // to re-set both cookies as 30-day persistent ones, so unchecking «تذكرني»
+  // held only until the first rotation. The marker is itself session-scoped
+  // here, so the choice cannot outlive the session it applies to.
+  const marker1 = (await ctx1.cookies()).find((c) => c.name === 'wathba_remember');
+  expect(marker1?.value, 'unchecked «تذكرني» must record wathba_remember=0').toBe('0');
+  expect(marker1?.expires, 'the marker must not outlive a session-scoped choice').toBe(-1);
   await ctx1.close();
 
   // Checked (default) → persistent 30-day cookie.
@@ -152,7 +161,20 @@ test('F-17: remember-me controls whether the session cookie persists', async ({ 
   await p2.waitForURL((url) => !url.pathname.startsWith('/sign-in'));
   const persistent = (await ctx2.cookies()).find((c) => c.name === 'wathba_session');
   expect(persistent && persistent.expires > Date.now() / 1000 + 86_400).toBe(true);
+  const marker2 = (await ctx2.cookies()).find((c) => c.name === 'wathba_remember');
+  expect(marker2?.value, 'checked «تذكرني» must record wathba_remember=1').toBe('1');
   await ctx2.close();
+
+  // NOTE on what this test can and cannot reach. It covers the RECORDING of the
+  // choice; it cannot cover middleware HONOURING it, because rotation only fires
+  // within 5 minutes of a 1-hour token's expiry and no browser test can produce
+  // a ~55-minute-old token. Forcing it needs a build with ROTATE_AHEAD_MS
+  // raised, which cannot be done for one spec in a suite that shares one server
+  // — and a globally raised value rotates on every request, replaying the
+  // one-time refresh token until the session dies. The rotation half was
+  // verified out-of-band against such a build: marker 0 → no Max-Age,
+  // marker 1 → Max-Age, marker absent → Max-Age (legacy sessions were all
+  // persistent, so absence must stay persistent or upgrading signs people out).
 });
 
 test('F-08: a refund webhook lands the in-app notification + email', async ({ page }) => {
