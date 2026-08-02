@@ -79,7 +79,25 @@ function jwtExpMs(token: string): number | null {
   }
 }
 
-const ROTATE_AHEAD_MS = 5 * 60 * 1000; // rotate when <5 min of access left
+/**
+ * Rotate when the access token has less than this left. 5 minutes everywhere
+ * real; the only reason it is readable from the environment is that the block
+ * below could not otherwise be reached by a test.
+ *
+ * Three bugs have been found in that block — the Secure flag, cookie
+ * persistence, and the ops-cookie teardown — and none of them could be caught,
+ * because reaching rotation needs an access token within 5 minutes of its
+ * 1-hour expiry and no browser test can age a token. e2e therefore runs a
+ * SECOND instance of this same build with the window widened past the token's
+ * whole lifetime, so every request rotates. See e2e/session-rotation.spec.ts.
+ *
+ * NEVER set this in a real deployment. A window wider than the token's lifetime
+ * makes every request rotate, and the refresh token is one-time use — so the
+ * concurrent requests of a single page load replay a consumed token, and the
+ * session dies. That is a property of the test harness, not a bug in it: the
+ * harness only ever makes one request at a time.
+ */
+const ROTATE_AHEAD_MS = Number(process.env.SESSION_ROTATE_AHEAD_MS) || 5 * 60 * 1000;
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const session = req.cookies.get('wathba_session')?.value;
