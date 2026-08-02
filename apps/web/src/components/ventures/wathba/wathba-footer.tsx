@@ -29,6 +29,7 @@ export function WathbaFooter() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 16 }}>
             <div
+              data-testid="wathba-logo-mark"
               style={{
                 width: 38,
                 height: 38,
@@ -38,7 +39,7 @@ export function WathbaFooter() {
                 placeItems: 'center',
               }}
             >
-              <Icon name="rocket_launch" size={22} fill color="var(--on-accent)" />
+              <Icon name="rocket_launch" size={22} fill color="var(--logo-mark)" />
             </div>
             <div style={{ fontWeight: 700, fontSize: 18 }}>وثبة</div>
           </div>

@@ -106,6 +106,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           }}
         >
           <div
+            data-testid="wathba-logo-mark"
             style={{
               width: 42,
               height: 42,
@@ -118,7 +119,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
               overflow: 'hidden',
             }}
           >
-            <Icon name="rocket_launch" size={26} fill color="var(--on-accent)" />
+            <Icon name="rocket_launch" size={26} fill color="var(--logo-mark)" />
           </div>
           <div style={{ lineHeight: 1.05 }}>
             <div style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-.3px' }}>وثبة</div>
