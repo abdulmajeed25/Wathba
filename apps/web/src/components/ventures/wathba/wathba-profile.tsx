@@ -275,7 +275,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
             >
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--gold-ink)' }}>سفير</span>
               <span style={{ fontSize: 13, color: 'var(--purple-ink)', fontWeight: 600 }}>
-                شريك مؤسس
+                داعم مؤسس
               </span>
             </div>
             <div
@@ -297,7 +297,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
               />
             </div>
             <Num className="num" style={{ fontSize: 12, color: 'var(--muted)' }}>
-              6,160 ر.س تفصلك عن رتبة «شريك مؤسس»
+              6,160 ر.س تفصلك عن رتبة «داعم مؤسس»
             </Num>
           </div>
         </div>

@@ -179,12 +179,48 @@ export interface WathbaRank {
   perks: string[];
 }
 
+/**
+ * Batch FIX Unit 6 — the ladder now lists ONLY perks the platform delivers
+ * automatically today.
+ *
+ * What came out, and why: virtual meetups with creators, invitations to Wathba
+ * events, a name on a "founders' wall", consultations with the Wathba team,
+ * founder-exclusive merchandise, and early access to limited rewards. Not one
+ * of those has a system behind it — they were promises the product cannot keep,
+ * printed next to a price. Anything still wanted lives in the clearly separated
+ * «قريباً» block on the ranks page, never mixed in with what is active.
+ *
+ * What stayed is what actually exists: the profile rank badge, the badge-driven
+ * ordering of creator replies, new-project launch notifications, the backer
+ * community feed, backer-only project updates, and the rank title itself.
+ *
+ * The top tier used to be labelled FOUNDER, with an Arabic word meaning
+ * PARTNER. A partner tier bought with money reads as an equity stake in Wathba
+ * — a claim the platform must not make. It is now «داعم مؤسس» / FOUNDING
+ * SUPPORTER: early, top of the ladder, and a supporter, nothing more.
+ * Thresholds are unchanged.
+ *
+ * One use of the old word was deliberately left alone: the platform-partner
+ * disclosure, where Wathba describes its OWN co-investment stake in a venture.
+ * That is a real equity position and renaming it would misstate the business.
+ */
 export const wathbaRanks: WathbaRank[] = [
-  { id: 'r1', ar: 'مستكشف', en: 'EXPLORER', req: 'أول دعم', icon: 'explore', bg: 'rgba(148,163,184,.15)', icoColor: 'var(--rank-silver)', titleColor: 'var(--rank-silver)', border: 'rgba(var(--ink-rgb),.08)', glow: 'none', perks: ['شارة رقمية على ملفك', 'تحديثات حصرية من المشاريع', 'الوصول لمجتمع الداعمين'] },
-  { id: 'r2', ar: 'داعم', en: 'BACKER', req: '٣ مشاريع', icon: 'favorite', bg: 'rgba(var(--accent2-rgb),.18)', icoColor: 'var(--blue)', titleColor: 'var(--blue)', border: 'rgba(var(--accent2-rgb),.25)', glow: 'none', perks: ['كل مزايا المستكشف', 'أولوية في الردود', 'إشعارات مبكرة بالمشاريع الجديدة'] },
-  { id: 'r3', ar: 'محسن', en: 'PATRON', req: '١٬٠٠٠+ ر.س', icon: 'volunteer_activism', bg: 'rgba(var(--accent-rgb),.18)', icoColor: 'var(--accent)', titleColor: 'var(--accent-ink)', border: 'rgba(var(--accent-rgb),.3)', glow: '0 0 24px -6px rgba(var(--accent-rgb),.5)', perks: ['كل مزايا الداعم', 'وصول مبكر لمكافآت محدودة', 'شارة «محسن» مميزة'] },
-  { id: 'r4', ar: 'سفير', en: 'AMBASSADOR', req: '١٠ مشاريع', icon: 'workspace_premium', bg: 'rgba(251,191,36,.18)', icoColor: 'var(--gold)', titleColor: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)', glow: '0 0 28px -6px rgba(251,191,36,.55)', perks: ['كل مزايا المحسن', 'لقاءات افتراضية مع المبدعين', 'دعوات لفعاليات وثبة الحصرية'] },
-  { id: 'r5', ar: 'شريك مؤسس', en: 'FOUNDER', req: '١٠٬٠٠٠+ ر.س', icon: 'diamond', bg: 'linear-gradient(135deg,var(--purple),var(--accent))', icoColor: 'var(--on-accent)', titleColor: 'var(--purple-ink)', border: 'rgba(167,139,250,.4)', glow: '0 0 32px -4px rgba(167,139,250,.6)', perks: ['كل المزايا السابقة', 'اسمك في «جدار المؤسسين»', 'استشارات مع فريق وثبة', 'منتجات حصرية للمؤسسين'] },
+  { id: 'r1', ar: 'مستكشف', en: 'EXPLORER', req: 'أول دعم', icon: 'explore', bg: 'rgba(148,163,184,.15)', icoColor: 'var(--rank-silver)', titleColor: 'var(--rank-silver)', border: 'rgba(var(--ink-rgb),.08)', glow: 'none', perks: ['شارة رتبتك على ملفك الشخصي', 'الوصول لمجتمع الداعمين والتعليقات', 'تحديثات المشاريع الخاصة بالداعمين'] },
+  { id: 'r2', ar: 'داعم', en: 'BACKER', req: '٣ مشاريع', icon: 'favorite', bg: 'rgba(var(--accent2-rgb),.18)', icoColor: 'var(--blue)', titleColor: 'var(--blue)', border: 'rgba(var(--accent2-rgb),.25)', glow: 'none', perks: ['كل مزايا المستكشف', 'إشعار فور إطلاق أي مشروع جديد'] },
+  { id: 'r3', ar: 'محسن', en: 'PATRON', req: '١٬٠٠٠+ ر.س', icon: 'volunteer_activism', bg: 'rgba(var(--accent-rgb),.18)', icoColor: 'var(--accent)', titleColor: 'var(--accent-ink)', border: 'rgba(var(--accent-rgb),.3)', glow: '0 0 24px -6px rgba(var(--accent-rgb),.5)', perks: ['كل مزايا الداعم', 'أولوية في ترتيب ردود المبدعين على تعليقاتك'] },
+  { id: 'r4', ar: 'سفير', en: 'AMBASSADOR', req: '١٠ مشاريع', icon: 'workspace_premium', bg: 'rgba(251,191,36,.18)', icoColor: 'var(--gold)', titleColor: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)', glow: '0 0 28px -6px rgba(251,191,36,.55)', perks: ['كل مزايا المحسن', 'لقب «سفير» ووسم مميّز على تعليقاتك'] },
+  { id: 'r5', ar: 'داعم مؤسس', en: 'FOUNDING SUPPORTER', req: '١٠٬٠٠٠+ ر.س', icon: 'diamond', bg: 'linear-gradient(135deg,var(--purple),var(--accent))', icoColor: 'var(--on-accent)', titleColor: 'var(--purple-ink)', border: 'rgba(167,139,250,.4)', glow: '0 0 32px -4px rgba(167,139,250,.6)', perks: ['كل المزايا السابقة', 'لقب «داعم مؤسس» — أعلى وسم على المنصة'] },
+];
+
+/**
+ * Kept OUT of the ladder on purpose, and shown under «قريباً» on the ranks page
+ * so an aspiration is never mistaken for an active perk. Nothing here has a
+ * system behind it yet.
+ */
+export const wathbaRanksSoon: string[] = [
+  'لقاءات افتراضية مع المبدعين',
+  'دعوات لفعاليات وثبة',
+  'وصول مبكر لمكافآت محدودة',
 ];
 
 export const wathbaBudgetRows = [
@@ -565,13 +601,13 @@ export const wathbaTiers: WathbaTier[] = [
   {
     id: 't4',
     price: 2500,
-    title: 'الشريك المؤسس',
+    title: 'الداعم المؤسس',
     desc: 'تجربة كاملة: زيارة الاستوديو، نسخة موقّعة بالرقم #001، وعشاء مع الفريق.',
     items: ['كل ما سبق', 'جولة في الاستوديو', 'نسخة موقّعة رقم #001', 'عشاء مع المؤسسين'],
     backers: 6,
     left: 4,
     est: 'مايو ٢٠٢٦',
-    rank: 'شريك مؤسس',
+    rank: 'داعم مؤسس',
   },
 ];
 

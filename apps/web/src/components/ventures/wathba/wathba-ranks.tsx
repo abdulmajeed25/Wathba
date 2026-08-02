@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-import { wathbaRanks } from './wathba-data';
+import { wathbaRanks, wathbaRanksSoon } from './wathba-data';
 import { Icon, Num } from './wathba-icons';
 
 /**
@@ -71,9 +71,43 @@ export function WathbaRanks() {
             margin: '0 auto',
           }}
         >
-          على وثبة، دعمك ليس مجرد تبرّع — إنه رحلة. كل مشروع تدعمه يقرّبك من رتبة أعلى ومزايا حصرية
-          تليق بشغفك.
+          على وثبة، دعمك ليس مجرد تبرّع — إنه رحلة. كل مشروع تدعمه يقرّبك من رتبة أعلى على المنصّة.
         </p>
+      </section>
+
+      {/* Batch FIX Unit 6 — what a rank IS, and what it is not.
+          The page kept getting read as "these are the rewards I get for
+          backing", which is the creator's rewards tab, a different thing
+          entirely. Saying so plainly is cheaper than any amount of design. */}
+      <section
+        data-testid="wathba-ranks-explainer"
+        style={{ maxWidth: 780, margin: '30px auto 0', padding: '0 26px' }}
+      >
+        <div
+          style={{
+            background: 'var(--card)',
+            border: '1px solid rgba(var(--ink-rgb),.09)',
+            borderRadius: 16,
+            padding: '20px 22px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {[
+            { icon: 'workspace_premium', t: 'ما هي الرتب؟', b: 'رتبتك هي مكانتك على وثبة ككل — تتقدّم كلما دعمت مشاريع أكثر أو ساهمت بمبالغ أكبر عبر المنصّة.' },
+            { icon: 'trending_up', t: 'كيف ترتفع؟', b: 'تلقائياً. لا تسجيل ولا طلب: بمجرد أن يتجاوز سجلّك حدّ الرتبة التالية تنتقل إليها، ويظهر ذلك على ملفك.' },
+            { icon: 'info', t: 'ما الفرق عن مكافآت المشروع؟', b: 'مزايا الرتب يقدّمها وثبة على مستوى المنصّة. أما مكافآت المشروع — المنتجات والنسخ المحدودة وما شابه — فيقدّمها المبدع داخل حملته، وتجدها في تبويب «المكافآت» بصفحة المشروع.' },
+          ].map((row) => (
+            <div key={row.t} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <Icon name={row.icon} size={19} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14.5, marginBottom: 3 }}>{row.t}</div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-soft)' }}>{row.b}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       {/* 5-card rank grid — design 1154-1169 */}
@@ -176,6 +210,41 @@ export function WathbaRanks() {
             </div>
           ))}
         </div>
+
+        {/* Batch FIX Unit 6 — «قريباً», kept OUTSIDE the cards on purpose.
+            These used to sit in the tier lists as though they were live: virtual
+            meetups, Wathba events, early access to limited rewards. None has a
+            system behind it, so listing them beside a price was a promise the
+            product could not keep. Muted, dashed, no check marks, and its own
+            heading — nothing here can be mistaken for something you get today. */}
+        <section
+          data-testid="wathba-ranks-soon"
+          style={{ marginTop: 34, paddingTop: 26, borderTop: '1px dashed rgba(var(--ink-rgb),.16)' }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+            <Icon name="schedule" size={18} color="var(--muted2)" />
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--muted)' }}>قريباً — قيد التطوير</h2>
+          </div>
+          <p style={{ fontSize: 13.5, color: 'var(--muted2)', marginBottom: 14, maxWidth: 620, lineHeight: 1.7 }}>
+            هذه ليست جزءاً من مزايا الرتب الحالية، ولا نلتزم بموعد لإطلاقها. نذكرها هنا للشفافية فقط.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {wathbaRanksSoon.map((s) => (
+              <span
+                key={s}
+                style={{
+                  fontSize: 12.5,
+                  color: 'var(--muted2)',
+                  border: '1px dashed rgba(var(--ink-rgb),.2)',
+                  borderRadius: 999,
+                  padding: '6px 13px',
+                }}
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </section>
 
         {/* CTA strip — design 1170-1172 */}
         <div style={{ textAlign: 'center', marginTop: 40 }}>
