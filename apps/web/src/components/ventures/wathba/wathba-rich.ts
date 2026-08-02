@@ -243,7 +243,7 @@ function buildRewards(opts: { earlyTitle: string; standardTitle: string; deluxeT
       description: 'تجربة كاملة — زيارة للاستوديو + نسخة موقّعة برقم #001 + عشاء مع الفريق المؤسس.',
       includes: ['كل ما سبق', 'جولة في الاستوديو ليوم كامل', 'نسخة موقّعة برقم تسلسلي مميز', 'عشاء خاص مع المؤسسين'],
       shipsTo: 'الرياض / دبي', estDelivery: 'مايو ٢٠٢٦', backers: 6, limit: 10, claimed: 6,
-      rank: 'شريك مؤسس', limitedBadge: 'إصدار «شريك مؤسس» — ٤ متبقٍ',
+      rank: 'داعم مؤسس', limitedBadge: 'إصدار «داعم مؤسس» — ٤ متبقٍ',
     },
   ];
 }
@@ -267,7 +267,7 @@ function buildComments(slug: string): RichComment[] {
     ['علي الحربي', 'ع', 'سفير', RANK_COLORS.ambassador],
     ['ليلى منصور', 'ل', 'داعم', RANK_COLORS.supporter],
     ['كريم الحاج', 'ك', 'محسن', RANK_COLORS.patron],
-    ['منى العتيبي', 'م', 'شريك مؤسس', RANK_COLORS.founder],
+    ['منى العتيبي', 'م', 'داعم مؤسس', RANK_COLORS.founder],
     ['يوسف حدّاد', 'ي', 'مستكشف', RANK_COLORS.newcomer],
     ['رهف ا.', 'ر', 'داعم', RANK_COLORS.supporter],
   ] as const;
@@ -387,7 +387,7 @@ export const wathbaRichCampaigns: Record<string, RichCampaign> = {
       earlyTitle: 'الإصدار المبكر — وحدة كاملة',
       standardTitle: 'الباقة الموسّعة',
       deluxeTitle: 'باقة المحترفين',
-      founderTitle: 'الشريك المؤسس',
+      founderTitle: 'الداعم المؤسس',
       includes: ['١× درون سِرب', '٣× بطارية', '٤× مراوح احتياطية', 'حقيبة كتف', 'كرت SD ١٢٨ غيغا'],
       earlyPrice: 1850, standardPrice: 2400, deluxePrice: 9500, founderPrice: 24000,
       shipsFrom: 'دول الخليج',
@@ -478,7 +478,7 @@ export function getRichCampaign(projectId: string, titleAr: string): RichCampaig
       earlyTitle: 'الإصدار المبكر',
       standardTitle: 'الباقة الموسّعة',
       deluxeTitle: 'باقة المحترفين',
-      founderTitle: 'الشريك المؤسس',
+      founderTitle: 'الداعم المؤسس',
       includes: ['١× المنتج الأساسي', 'تحديثات حصرية'],
       earlyPrice: 200, standardPrice: 380, deluxePrice: 980, founderPrice: 3500,
       shipsFrom: 'دول الخليج',

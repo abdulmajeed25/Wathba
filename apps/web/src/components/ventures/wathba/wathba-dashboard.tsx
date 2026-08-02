@@ -54,7 +54,7 @@ const recentBackersFixture = [
   { name: 'نورة ع.', tier: 'الباقة الأساسية', amount: '79 ر.س', time: 'قبل ١٨ دقيقة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
   { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '399 ر.س', time: 'قبل ٤٢ دقيقة', rank: 'محسن', rc: 'var(--accent-ink)' },
   { name: 'ريم خالد', tier: 'داعم مبكر', amount: '25 ر.س', time: 'قبل ساعة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
-  { name: 'سلطان ا.', tier: 'الشريك المؤسس', amount: '2,500 ر.س', time: 'قبل ٣ ساعات', rank: 'شريك مؤسس', rc: 'var(--purple-ink)' },
+  { name: 'سلطان ا.', tier: 'الداعم المؤسس', amount: '2,500 ر.س', time: 'قبل ٣ ساعات', rank: 'داعم مؤسس', rc: 'var(--purple-ink)' },
 ];
 
 const updates = [
