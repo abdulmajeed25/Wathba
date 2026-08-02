@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
+import { cookiesAreSecure } from '@/lib/cookie-security';
+
 /**
  * OPS Part 1 — shared plumbing for the /api/ops/* BFF proxies. The browser
  * never sees the raw ops token: it lives in the httpOnly `wathba_ops_session`
@@ -20,7 +22,7 @@ export function opsCookieOptions() {
   return {
     httpOnly: true,
     sameSite: 'strict' as const,
-    secure: process.env.NODE_ENV === 'production',
+    secure: cookiesAreSecure(),
     path: '/',
     maxAge: OPS_COOKIE_MAX_AGE,
   };
