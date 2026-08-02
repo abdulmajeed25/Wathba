@@ -43,6 +43,30 @@ async function enterOps(page: import('@playwright/test').Page): Promise<void> {
   await page.waitForURL(/\/ops$/);
 }
 
+/**
+ * Open the command palette, tolerating the fact that it only exists once the
+ * page has hydrated.
+ *
+ * `waitForURL` resolves when the URL changes, which is well before the client
+ * bundle has run — and the palette is a `window` keydown listener registered in
+ * a useEffect, with NO rendered affordance to wait on. Press too early and the
+ * key goes nowhere. On a warm server hydration wins the race and this looks
+ * solid; measured right after a server restart the plain press failed 4 times
+ * in 8, and a suite starts against a server that was just booted.
+ *
+ * The retry is GUARDED, because the handler toggles: pressing blindly a second
+ * time closes a palette that had just opened. So it presses only while the
+ * dialog is absent.
+ */
+async function openPalette(page: import('@playwright/test').Page) {
+  const palette = page.getByRole('dialog', { name: 'لوحة الأوامر' });
+  await expect(async () => {
+    if (!(await palette.isVisible())) await page.keyboard.press('Control+k');
+    await expect(palette).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 20_000 });
+  return palette;
+}
+
 const NAV_LABELS = [
   'المركز', 'التنبيهات', 'المشاريع', 'المراجعة', 'المال', 'المستخدمون', 'الثقة والأمان',
   'التظلّمات', 'الفئات', 'التحرير', 'المجموعات', 'المورّدون', 'التحليلات', 'الإشعارات',
@@ -63,9 +87,7 @@ test('Ctrl+K opens the command palette and filters', async ({ page }) => {
   test.skip(!apiUp, 'API unreachable — skipping live ops-kit spec');
   await enterOps(page);
 
-  await page.keyboard.press('Control+k');
-  const palette = page.getByRole('dialog', { name: 'لوحة الأوامر' });
-  await expect(palette).toBeVisible();
+  const palette = await openPalette(page);
 
   const search = palette.getByRole('textbox', { name: 'ابحث في الأقسام والعمليات' });
   // At least the 20 sections are listed before any query (ops manifest adds more).
@@ -83,8 +105,7 @@ test('op-runner: dry-run → preview → reason → MONEY confirm gates «تنف
   await enterOps(page);
 
   // Launch a MONEY op from the palette (dry-run returns a preview at {}).
-  await page.keyboard.press('Control+k');
-  const palette = page.getByRole('dialog', { name: 'لوحة الأوامر' });
+  const palette = await openPalette(page);
   // CLOSEOUT C5 — query the op KEY, not «صرف». Sections rank before ops by
   // design, and the money section's own hint reads «الصرف والتسويات
   // والاستردادات», so the first option for «صرف» is that SECTION: clicking it
