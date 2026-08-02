@@ -592,7 +592,11 @@ export const wathbaTiers: WathbaTier[] = [
     price: 399,
     title: 'باقة المحترفين',
     desc: 'خمس وحدات للفرق والاستوديوهات، مع دعم فني مخصص لمدة عام.',
-    items: ['٥× المنتج', 'دعم فني سنوي', 'اسمك كـ«شريك» في الصفحة'],
+    // Was «اسمك كـ"شريك" في الصفحة». A reward bought for 399 ر.س cannot call
+    // the buyer a partner — same reasoning that renamed the top supporter rank.
+    // The substance of the reward is name credit on the campaign page, and that
+    // survives the wording change intact.
+    items: ['٥× المنتج', 'دعم فني سنوي', 'اسمك ضمن داعمي المشروع في الصفحة'],
     backers: 94,
     left: 30,
     est: 'أبريل ٢٠٢٦',
