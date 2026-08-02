@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * Batch CAT / Part 3 — golden journey:
@@ -26,15 +26,36 @@ test('mega-menu → subcategory → trending filter → filtered discover page w
   // Pick the "Apps" subcategory from the open panel.
   const appsLink = page.locator('a[href="/projects/discover/technology/apps"]').first();
   await expect(appsLink).toBeVisible();
-  await appsLink.click();
+  await navigateVia(page, appsLink, /\/projects\/discover\/technology\/apps/);
 
-  await expect(page).toHaveURL(/\/projects\/discover\/technology\/apps/);
   // Subcategory page renders with its breadcrumb + at least one card.
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(page.locator('[data-testid="discover-card"]').first()).toBeVisible();
 
   // Apply the trending filter chip → URL reflects it, results still present.
-  await page.locator('a[data-filter="trending"]').click();
-  await expect(page).toHaveURL(/filter=trending/);
+  await navigateVia(page, page.locator('a[data-filter="trending"]'), /filter=trending/);
   await expect(page.locator('[data-testid="discover-card"]').first()).toBeVisible();
 });
+
+/**
+ * Click a `<Link>` and insist the navigation actually happens.
+ *
+ * These chips are real anchors, so this is not a hydration problem — it is the
+ * App Router dropping a soft navigation issued while it is still settling the
+ * previous one. Observed in CI as the URL simply never changing:
+ *
+ *   Expected pattern: /filter=trending/
+ *   Received string:  ".../projects/discover/technology/apps"
+ *   13 × unexpected value
+ *
+ * `toHaveURL` alone cannot rescue that: it polls for a transition that the lost
+ * click will never start. Re-clicking is safe here precisely BECAUSE these are
+ * links to a fixed href — unlike the filter toggles in discover-all.spec.ts,
+ * clicking twice cannot undo anything.
+ */
+async function navigateVia(page: Page, link: Locator, url: RegExp): Promise<void> {
+  await expect(async () => {
+    if (!url.test(page.url())) await link.click();
+    await expect(page).toHaveURL(url, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
