@@ -15,6 +15,7 @@ import {
   wathbaTickerMessages,
 } from './wathba-data';
 import { formatSarCompact } from '@/lib/i18n/format';
+import { WathbaHeroRotator, type HeroSlideData } from './wathba-hero-rotator';
 import { Icon, Num } from './wathba-icons';
 
 type TrendTabId = 'hot' | 'new' | 'near' | 'big';
@@ -29,7 +30,10 @@ function fmtNum(n: number): string {
   return Math.round(n).toLocaleString('en-US');
 }
 
-export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
+export function WathbaHome({
+  projects,
+  heroSlides,
+}: { projects?: WathbaProject[]; heroSlides?: HeroSlideData[] } = {}) {
   const list = (projects ?? wathbaProjects).map(deriveProject);
   const [stats, setStats] = useState({ projects: 0, raised: 0, backers: 0 });
   const [trendTab, setTrendTab] = useState<TrendTabId>('hot');
@@ -211,147 +215,154 @@ export function WathbaHome({ projects }: { projects?: WathbaProject[] } = {}) {
           </div>
         </div>
 
-        <div style={{ position: 'relative' }}>
-          <div
-            style={{
-              position: 'absolute',
-              inset: -24,
-              background: 'radial-gradient(circle at 60% 30%,rgba(var(--accent-rgb),.22),transparent 65%)',
-              filter: 'blur(8px)',
-              zIndex: 0,
-            }}
-          />
-          <Link
-            href={`/projects/${featured.id}`}
-            style={{
-              position: 'relative',
-              zIndex: 1,
-              background: 'var(--card)',
-              border: '1px solid rgba(var(--ink-rgb),.09)',
-              borderRadius: 24,
-              overflow: 'hidden',
-              cursor: 'pointer',
-              boxShadow: '0 30px 70px -30px rgba(0,0,0,.8)',
-              textDecoration: 'none',
-              color: 'inherit',
-              display: 'block',
-            }}
-          >
-            <div className="wathba-ph" style={{ height: 248, position: 'relative' }}>
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 16,
-                  right: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  background: 'rgba(6,18,31,.85)',
-                  backdropFilter: 'blur(6px)',
-                  border: '1px solid rgba(var(--accent-rgb),.4)',
-                  color: 'var(--on-scrim-accent)',
-                  padding: '7px 13px',
-                  borderRadius: 30,
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                }}
-              >
-                <Icon name="favorite" size={16} fill />
-                مشروع نحبه
-              </div>
-              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-                <Num style={{ fontSize: 12, color: 'var(--ph-label)', letterSpacing: '1px' }}>
-                  [ صورة المشروع ]
-                </Num>
-              </div>
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: 90,
-                  background: 'linear-gradient(0deg,var(--surface2),transparent)',
-                }}
-              />
-            </div>
-            <div style={{ padding: '22px 24px 26px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 12.5,
-                  color: 'var(--muted2)',
-                  marginBottom: 10,
-                }}
-              >
-                <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{featured.cat}</span>·
-                <span>{featured.loc}</span>
-              </div>
-              <h3 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6, letterSpacing: '-.4px' }}>
-                {featured.titleAr}
-              </h3>
-              <p
-                style={{
-                  fontSize: 14,
-                  color: 'var(--muted)',
-                  lineHeight: 1.6,
-                  marginBottom: 20,
-                }}
-              >
-                {featured.desc}
-              </p>
-              <div
-                style={{
-                  height: 9,
-                  borderRadius: 30,
-                  background: 'rgba(var(--ink-rgb),.08)',
-                  overflow: 'hidden',
-                  marginBottom: 14,
-                }}
-              >
+        {/* Batch HERO — the rotating showcase. The static card below is the
+            fallback and stays reachable: an API that returns nothing must
+            leave a hero on the page, not a hole where the hero was. */}
+        {heroSlides && heroSlides.length > 0 ? (
+          <WathbaHeroRotator slides={heroSlides} />
+        ) : (
+          <div style={{ position: 'relative' }}>
+            <div
+              style={{
+                position: 'absolute',
+                inset: -24,
+                background: 'radial-gradient(circle at 60% 30%,rgba(var(--accent-rgb),.22),transparent 65%)',
+                filter: 'blur(8px)',
+                zIndex: 0,
+              }}
+            />
+            <Link
+              href={`/projects/${featured.id}`}
+              style={{
+                position: 'relative',
+                zIndex: 1,
+                background: 'var(--card)',
+                border: '1px solid rgba(var(--ink-rgb),.09)',
+                borderRadius: 24,
+                overflow: 'hidden',
+                cursor: 'pointer',
+                boxShadow: '0 30px 70px -30px rgba(0,0,0,.8)',
+                textDecoration: 'none',
+                color: 'inherit',
+                display: 'block',
+              }}
+            >
+              <div className="wathba-ph" style={{ height: 248, position: 'relative' }}>
                 <div
                   style={{
-                    height: '100%',
-                    width: featured.pctW,
-                    background: 'var(--grad-bar)',
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 7,
+                    background: 'rgba(6,18,31,.85)',
+                    backdropFilter: 'blur(6px)',
+                    border: '1px solid rgba(var(--accent-rgb),.4)',
+                    color: 'var(--on-scrim-accent)',
+                    padding: '7px 13px',
                     borderRadius: 30,
-                    transition: 'width 1.4s cubic-bezier(.2,.7,.2,1)',
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                  }}
+                >
+                  <Icon name="favorite" size={16} fill />
+                  مشروع نحبه
+                </div>
+                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
+                  <Num style={{ fontSize: 12, color: 'var(--ph-label)', letterSpacing: '1px' }}>
+                    [ صورة المشروع ]
+                  </Num>
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 90,
+                    background: 'linear-gradient(0deg,var(--surface2),transparent)',
                   }}
                 />
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-end',
-                }}
-              >
-                <div>
-                  <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
-                    {featured.raisedFmt}
-                  </Num>
-                  <span style={{ fontSize: 13, color: 'var(--muted2)', marginInlineStart: 6 }}>
-                    من {featured.goalFmt}
-                  </span>
+              <div style={{ padding: '22px 24px 26px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12.5,
+                    color: 'var(--muted2)',
+                    marginBottom: 10,
+                  }}
+                >
+                  <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{featured.cat}</span>·
+                  <span>{featured.loc}</span>
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-ink)' }}>
-                    {featured.pct}%
-                  </Num>
-                  <div style={{ fontSize: 11, color: 'var(--muted2)' }}>مُموَّل</div>
+                <h3 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6, letterSpacing: '-.4px' }}>
+                  {featured.titleAr}
+                </h3>
+                <p
+                  style={{
+                    fontSize: 14,
+                    color: 'var(--muted)',
+                    lineHeight: 1.6,
+                    marginBottom: 20,
+                  }}
+                >
+                  {featured.desc}
+                </p>
+                <div
+                  style={{
+                    height: 9,
+                    borderRadius: 30,
+                    background: 'rgba(var(--ink-rgb),.08)',
+                    overflow: 'hidden',
+                    marginBottom: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: featured.pctW,
+                      background: 'var(--grad-bar)',
+                      borderRadius: 30,
+                      transition: 'width 1.4s cubic-bezier(.2,.7,.2,1)',
+                    }}
+                  />
                 </div>
-                <div style={{ textAlign: 'center' }}>
-                  <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
-                    {featured.daysLeft}
-                  </Num>
-                  <div style={{ fontSize: 11, color: 'var(--muted2)' }}>يوم متبقٍ</div>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-end',
+                  }}
+                >
+                  <div>
+                    <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
+                      {featured.raisedFmt}
+                    </Num>
+                    <span style={{ fontSize: 13, color: 'var(--muted2)', marginInlineStart: 6 }}>
+                      من {featured.goalFmt}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-ink)' }}>
+                      {featured.pct}%
+                    </Num>
+                    <div style={{ fontSize: 11, color: 'var(--muted2)' }}>مُموَّل</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
+                      {featured.daysLeft}
+                    </Num>
+                    <div style={{ fontSize: 11, color: 'var(--muted2)' }}>يوم متبقٍ</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        </div>
+            </Link>
+          </div>
+        )}
       </section>
 
       {/* ============================ LIVE TICKER ============================ */}

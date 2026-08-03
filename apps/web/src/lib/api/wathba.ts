@@ -1219,6 +1219,46 @@ export interface ApiHomePayload {
   trustGuides: ApiEditorialCard[];
 }
 
+export interface ApiHeroSlide {
+  id: string;
+  slug: string | null;
+  titleAr: string;
+  shortDescAr: string;
+  imageUrl: string | null;
+  creatorName: string;
+  categoryAr: string | null;
+  categorySlug: string | null;
+  region: string | null;
+  fundedPct: number;
+  raisedHalalas: string;
+  goalHalalas: string;
+  backersCount: number;
+  daysLeft: number;
+  isStaffPick: boolean;
+  bucket: 'strong' | 'diverse' | 'almost' | 'fresh';
+}
+
+/**
+ * Batch HERO — the four-bucket pool behind the rotating featured card.
+ *
+ * Fetched on the SERVER and passed down, deliberately. A client fetch would put
+ * the largest above-the-fold image behind a request that only starts after
+ * hydration, which is exactly how a good LCP becomes a bad one. The API memoises
+ * this for 60s of its own, so the ISR window here matches it.
+ */
+export async function getHeroProjects(): Promise<ApiHeroSlide[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/hero-projects`, {
+      next: { revalidate: 60, tags: ['wathba-hero'] },
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { slides?: ApiHeroSlide[] };
+    return body.slides ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** ISR 60 — project numbers stay fresh without hammering the API. */
 export async function getHomePayload(): Promise<ApiHomePayload | null> {
   // Tagged so the admin BFF mutations can revalidateTag('wathba-home') and
