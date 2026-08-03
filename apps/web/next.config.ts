@@ -9,13 +9,21 @@ validateEnv();
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
- * Project media (covers, story images) is served by MinIO, which this demo
- * exposes over PLAIN HTTP on :9000. The `https:` source in img-src below covers
- * a TLS deployment and does nothing for that origin, so every cover was blocked
- * — and the failure is silent in a way worth naming: the browser issues NO
- * request at all, so the network tab is empty, the <img> reports
- * complete === true, and the only tell is naturalWidth === 0. It reads exactly
- * like a missing file.
+ * Project media (covers, story images, story video) is served by MinIO, which
+ * this demo exposes over PLAIN HTTP on :9000. The `https:` source in img-src
+ * and media-src below covers a TLS deployment and does nothing for that origin,
+ * so every cover was blocked — and the failure misleads in a way worth naming:
+ * the browser issues NO request at all, so the NETWORK tab is empty and the
+ * <img> reports complete === true with naturalWidth === 0, which reads exactly
+ * like a missing file. The CONSOLE does say so (Chromium logs the violation and
+ * fires `securitypolicyviolation` with effectiveDirective), so the rule is:
+ * an empty network tab plus a broken image means look at the console, not at
+ * the bucket.
+ *
+ * It belongs in BOTH directives. img-src governs the cover and the story image;
+ * media-src governs <video>, which wathba-start.tsx points at `res.publicUrl` —
+ * the MinIO origin, not a blob: URL — so the story-video preview fails the same
+ * silent way an image does. One directive without the other fixes half of it.
  *
  * Derived from the environment rather than hardcoded, and empty when unset, so
  * an HTTPS deployment adds nothing to the policy. Same shape as the
@@ -38,7 +46,7 @@ const csp = [
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://cdn.moyasar.com https://challenges.cloudflare.com`,
   `style-src 'self' 'unsafe-inline' https://cdn.moyasar.com`,
   `img-src 'self' data: blob: https:${mediaOrigin}`,
-  `media-src 'self' blob: https:`,
+  `media-src 'self' blob: https:${mediaOrigin}`,
   `font-src 'self' data:`,
   `connect-src 'self' https://api.moyasar.com ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}`,
   `frame-src https://api.moyasar.com https://cdn.moyasar.com https://challenges.cloudflare.com`,

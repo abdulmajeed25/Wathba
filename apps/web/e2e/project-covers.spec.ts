@@ -8,14 +8,18 @@ import { expect, test } from '@playwright/test';
  *
  *   1. the project has media                → otherwise the empty-state art
  *   2. the object is publicly readable      → otherwise 403, visible in the log
- *   3. the CSP allows the media origin      → otherwise NOTHING is logged
+ *   3. the CSP allows the media origin      → otherwise no request is made
  *
  * (3) is the one worth a test. `img-src` lists `https:`, so a media host on
- * plain HTTP is blocked, and when the CSP blocks an image the browser issues no
- * request at all: the network tab is empty, `img.complete` is true, and only
- * `naturalWidth === 0` gives it away. It looks exactly like a missing file.
+ * plain HTTP is blocked, and a CSP-blocked image produces no network request at
+ * all: the network tab is empty, `img.complete` is true, and `naturalWidth` is
+ * 0 — indistinguishable from a missing file if you are watching the network.
+ * Chromium does log the violation to the console and fires
+ * `securitypolicyviolation`, so it is findable; it is just not where you look.
  *
- * So this asserts on the DECODED image, not on the markup or the response.
+ * So C1 asserts on the DECODED image, not on the markup or the response. C2
+ * covers the directive C1 cannot reach: media-src, which governs story video
+ * that only a creator's upload can produce.
  */
 test('C1: every project cover on the discovery grid decodes', async ({ page }) => {
   await page.goto('/projects/discover-all');
@@ -47,4 +51,36 @@ test('C1: every project cover on the discovery grid decodes', async ({ page }) =
       `empty, the CSP img-src is missing the media origin (NEXT_PUBLIC_MEDIA_URL):\n  ` +
       broken.map((b) => b.src).join('\n  '),
   ).toEqual([]);
+});
+
+test('C2: the media origin is allowed by media-src as well as img-src', async ({ page }) => {
+  // C1 can only ever cover images, because images are the only project media the
+  // seed produces. Story VIDEO is uploaded by a creator, so there is nothing to
+  // point a test at — but wathba-start.tsx sets <video src> to `res.publicUrl`,
+  // the MinIO origin rather than a blob:, so it is governed by media-src and
+  // fails the same invisible way. This asserts the policy instead of the pixels.
+  //
+  // The expected origin is read from media the app ACTUALLY serves, not from
+  // NEXT_PUBLIC_MEDIA_URL — the value is baked in at build time and the test
+  // runner need not have it, and a test that reads the same env var the config
+  // reads would agree with a misconfiguration rather than catch it.
+  const res = await page.goto('/projects/discover-all');
+  await page.waitForLoadState('networkidle');
+  const csp = (await res?.headerValue('content-security-policy')) ?? '';
+  expect(csp, 'the page must send a CSP at all').toContain('img-src');
+
+  const sample = await page.evaluate(
+    () => [...document.querySelectorAll('img')].map((i) => i.src).find((s) => /demo-covers/.test(s)) ?? null,
+  );
+  expect(sample, 'need at least one served media URL to derive the origin from').toBeTruthy();
+  const origin = new URL(sample as string).origin;
+
+  // An HTTPS origin is already covered by the `https:` source in both
+  // directives and needs no explicit entry, so there is nothing to assert.
+  test.skip(origin.startsWith('https:'), 'https origins are covered by the https: source');
+
+  for (const directive of ['img-src', 'media-src']) {
+    const line = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith(directive)) ?? '';
+    expect(line, `${directive} must allow the media origin ${origin} — without it the browser makes no request at all`).toContain(origin);
+  }
 });
