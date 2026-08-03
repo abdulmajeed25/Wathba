@@ -114,12 +114,21 @@ export function WathbaHome({
             />
             منصة الدعم الجماعي الأولى عربياً
           </div>
+          {/* Arabic display type, so two Latin-typography habits had to go.
+              -1.5px tracking pulls cursive joins apart — Arabic letter-spacing
+              is 0 or nothing, never negative. And 1.05 leading is sized for
+              Latin caps: the shadda on «حوّل» sat against the top of the line
+              box and the «س» tail of «ملموس» was clipped at the bottom. 1.3 is
+              the floor for Arabic display and clears both.
+
+              Height goes 130px → 161px here, which the layout absorbs: on
+              desktop the hero card (492px) is already taller than this column
+              (471px), so the section does not grow. */}
           <h1
             style={{
               fontSize: 62,
-              lineHeight: 1.05,
+              lineHeight: 1.3,
               fontWeight: 700,
-              letterSpacing: '-1.5px',
               marginBottom: 22,
             }}
           >
