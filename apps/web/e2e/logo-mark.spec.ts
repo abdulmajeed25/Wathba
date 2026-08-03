@@ -77,6 +77,34 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
+test('L3: the /how heading mark is filled, not outline line-art', async ({ page }) => {
+  // Third instance of the rocket-on-green tile, and the only one that is not a
+  // brand lockup — so it carries no testid and is deliberately outside L1's
+  // count. It still has to LOOK like the same mark.
+  //
+  // `fill` was missing on this call site from the start. Nothing showed while
+  // the glyph was near-black and solid; turning it white exposed it, because a
+  // 2px white stroke on the green tile reads far thinner than a filled body at
+  // the identical ratio. Colour alone is not the assertion here — WEIGHT is.
+  await page.goto('/projects/how');
+  const tile = page
+    .locator('div')
+    .filter({ has: page.locator('h2:text-is("للمبدعين")') })
+    .last();
+  await expect(tile).toBeVisible({ timeout: 20000 });
+
+  for (const theme of ['light', 'dark'] as const) {
+    await setTheme(page, theme);
+    const paint = await tile.evaluate((el) => {
+      const svg = el.querySelector('svg')!;
+      const cs = getComputedStyle(svg);
+      return { fill: cs.fill, stroke: cs.stroke };
+    });
+    expect(paint.fill, `the /how mark must be FILLED in ${theme}, not outline`).toBe(WHITE);
+    expect(paint.stroke, `the /how mark stroke in ${theme}`).toBe(WHITE);
+  }
+});
+
 test('L2: --on-accent is UNCHANGED — the CTA contrast pass still holds', async ({ page }) => {
   await page.goto(HOME);
   await expect(page.locator('[data-testid="wathba-logo-mark"]').first()).toBeVisible({

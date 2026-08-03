@@ -102,7 +102,13 @@ export function WathbaHow() {
               placeItems: 'center',
             }}
           >
-            <Icon name="rocket_launch" size={22} color="var(--logo-mark)" />
+            {/* `fill` is not optional here. Without it lucide paints the glyph
+                as 2px outline line-art, and on the green tile a white stroke
+                reads far thinner than the filled silhouette in the header and
+                footer lockups — same tile, same colour, visibly different mark.
+                It went unnoticed while the glyph was near-black, which was
+                solid enough to read either way. */}
+            <Icon name="rocket_launch" size={22} fill color="var(--logo-mark)" />
           </div>
           <h2 style={{ fontSize: 26, fontWeight: 700 }}>للمبدعين</h2>
         </div>
