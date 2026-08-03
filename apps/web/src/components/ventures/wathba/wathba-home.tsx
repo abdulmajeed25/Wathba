@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import {
   compactNum,
@@ -15,7 +15,6 @@ import {
   wathbaTickerMessages,
 } from './wathba-data';
 import { formatSarCompact } from '@/lib/i18n/format';
-import { WathbaHeroRotator, type HeroSlideData } from './wathba-hero-rotator';
 import { Icon, Num } from './wathba-icons';
 
 type TrendTabId = 'hot' | 'new' | 'near' | 'big';
@@ -32,8 +31,8 @@ function fmtNum(n: number): string {
 
 export function WathbaHome({
   projects,
-  heroSlides,
-}: { projects?: WathbaProject[]; heroSlides?: HeroSlideData[] } = {}) {
+  hero,
+}: { projects?: WathbaProject[]; hero?: ReactNode } = {}) {
   const list = (projects ?? wathbaProjects).map(deriveProject);
   const [stats, setStats] = useState({ projects: 0, raised: 0, backers: 0 });
   const [trendTab, setTrendTab] = useState<TrendTabId>('hot');
@@ -227,8 +226,8 @@ export function WathbaHome({
         {/* Batch HERO — the rotating showcase. The static card below is the
             fallback and stays reachable: an API that returns nothing must
             leave a hero on the page, not a hole where the hero was. */}
-        {heroSlides && heroSlides.length > 0 ? (
-          <WathbaHeroRotator slides={heroSlides} />
+        {hero ? (
+          hero
         ) : (
           <div style={{ position: 'relative' }}>
             <div
