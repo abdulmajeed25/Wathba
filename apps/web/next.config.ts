@@ -9,6 +9,21 @@ validateEnv();
 const isDev = process.env.NODE_ENV !== 'production';
 
 /**
+ * Project media (covers, story images) is served by MinIO, which this demo
+ * exposes over PLAIN HTTP on :9000. The `https:` source in img-src below covers
+ * a TLS deployment and does nothing for that origin, so every cover was blocked
+ * — and the failure is silent in a way worth naming: the browser issues NO
+ * request at all, so the network tab is empty, the <img> reports
+ * complete === true, and the only tell is naturalWidth === 0. It reads exactly
+ * like a missing file.
+ *
+ * Derived from the environment rather than hardcoded, and empty when unset, so
+ * an HTTPS deployment adds nothing to the policy. Same shape as the
+ * connect-src exception for the API origin below.
+ */
+const mediaOrigin = process.env.NEXT_PUBLIC_MEDIA_URL ? ` ${process.env.NEXT_PUBLIC_MEDIA_URL}` : '';
+
+/**
  * Content-Security-Policy.
  *
  * - `unsafe-inline` for script/style is required by Next's inline runtime
@@ -22,7 +37,7 @@ const csp = [
   `default-src 'self'`,
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''} https://cdn.moyasar.com https://challenges.cloudflare.com`,
   `style-src 'self' 'unsafe-inline' https://cdn.moyasar.com`,
-  `img-src 'self' data: blob: https:`,
+  `img-src 'self' data: blob: https:${mediaOrigin}`,
   `media-src 'self' blob: https:`,
   `font-src 'self' data:`,
   `connect-src 'self' https://api.moyasar.com ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}`,
