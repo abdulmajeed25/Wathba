@@ -121,7 +121,13 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           >
             <Icon name="rocket_launch" size={26} fill color="var(--logo-mark)" />
           </div>
-          <div style={{ lineHeight: 1.05 }}>
+          {/* 1.3 is the floor for Arabic — 1.05 is a Latin value, sized for caps
+              that have nothing above the cap height to protect. It survived the
+              first sweep on the argument that the ث dots were not visibly
+              clipped here, which was true but is not the standard: the wrapper
+              sets the line box for «وثبة», and Arabic gets 1.3 whether or not a
+              given string happens to fit. */}
+          <div style={{ lineHeight: 1.3 }}>
             <div style={{ fontWeight: 700, fontSize: 19 }}>وثبة</div>
             <Num
               className="wathba-wordmark-tag"
