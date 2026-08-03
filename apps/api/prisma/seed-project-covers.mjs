@@ -17,20 +17,21 @@
 //
 // Idempotent: projects that already have media are skipped unless --force.
 //
+// The bucket's public-read policy is owned by prisma/media-policy.mjs, which
+// this calls — covers upload fine into a private bucket and then 403, so the
+// two have to happen together.
+//
 // Rendering uses Chromium's canvas (via @playwright/test, a devDependency) and
 // emits WebP. SVG would need no rasteriser, but media.service.ts deliberately
 // excludes image/svg+xml from every image kind, and seed data should not walk
 // around a security decision the upload path enforces.
 // ============================================================================
 import { PrismaClient } from '@prisma/client';
-import {
-  GetBucketPolicyCommand,
-  PutBucketPolicyCommand,
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { chromium } from '@playwright/test';
 import { writeFileSync } from 'node:fs';
+
+import { ensureMediaPolicy } from './media-policy.mjs';
 
 const prisma = new PrismaClient();
 
@@ -263,56 +264,6 @@ function paint({ glyph, hue, seed, label }) {
   return cv.toDataURL('image/webp', 0.9);
 }
 
-/**
- * The bucket has no policy at all, so every object in it is private and the
- * `publicUrl` the media service hands back 403s. Uploading covers without
- * fixing that just moves the broken image from "no URL" to "URL that 403s".
- *
- * This grants anonymous read to the `demo-covers/` prefix and NOTHING else. The
- * same bucket is the destination for the `evidence` upload kind — payout and
- * KYC documents — so a bucket-wide public policy would be a data leak, not a
- * fix. `avatar/` is left alone too: it is equally unreadable today (36 objects),
- * but opening it is a separate decision and not one this seed should take.
- *
- * If a policy already exists it is NOT overwritten — a merge would need to
- * reason about statements this script did not write. It prints what to add.
- */
-async function ensurePublicPrefix(s3) {
-  const statement = {
-    Sid: 'PublicReadDemoCovers',
-    Effect: 'Allow',
-    Principal: { AWS: ['*'] },
-    Action: ['s3:GetObject'],
-    Resource: [`arn:aws:s3:::${BUCKET}/demo-covers/*`],
-  };
-  let existing = null;
-  try {
-    const got = await s3.send(new GetBucketPolicyCommand({ Bucket: BUCKET }));
-    existing = JSON.parse(got.Policy);
-  } catch {
-    /* no policy — the expected state */
-  }
-  if (existing) {
-    if (existing.Statement?.some((s) => s.Sid === statement.Sid)) {
-      console.log('bucket policy: demo-covers already public');
-      return;
-    }
-    console.warn(
-      'bucket policy: one already exists and was NOT modified. Covers will 403 ' +
-        'until this statement is added by hand:\n' +
-        JSON.stringify(statement, null, 2),
-    );
-    return;
-  }
-  await s3.send(
-    new PutBucketPolicyCommand({
-      Bucket: BUCKET,
-      Policy: JSON.stringify({ Version: '2012-10-17', Statement: [statement] }),
-    }),
-  );
-  console.log(`bucket policy: granted anonymous read on ${BUCKET}/demo-covers/* (only)`);
-}
-
 async function main() {
   if (!PUBLIC) throw new Error('MINIO_PUBLIC_ENDPOINT / MINIO_ENDPOINT is not set');
 
@@ -348,7 +299,7 @@ async function main() {
         },
       });
 
-  if (s3) await ensurePublicPrefix(s3);
+  if (s3) await ensureMediaPolicy(s3, BUCKET);
   else console.log(`--out=${OUT_DIR} — rendering to files; bucket and database untouched`);
 
   const browser = await chromium.launch();
