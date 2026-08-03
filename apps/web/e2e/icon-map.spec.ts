@@ -3,6 +3,8 @@ import { join, relative } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 
+import { seededIds, signUpAndVerify, uniqueEmail } from './helpers';
+
 /**
  * Every Icon ligature must resolve to a real glyph.
  *
@@ -13,7 +15,8 @@ import { expect, test } from '@playwright/test';
  * «الداعمون» stat card shipped showing a warning circle where their icon
  * belonged.
  *
- * Two tests, because they cover holes the other one cannot see.
+ * Three tests, because each covers holes the others cannot see: I1 reads the
+ * source, I2 the public pages, I3 the checkout step behind auth.
  */
 
 const SRC = join(__dirname, '..', 'src');
@@ -41,8 +44,15 @@ test('I1: every icon name written in the source has an ICON_MAP entry', () => {
   // Three shapes reach `Icon`: the JSX prop, a `icon:` field in a data array
   // (the notification kind map, the wizard steps), and an `icon=` prop passed
   // through a wrapper component.
+  //
+  // The first pattern spans line breaks, and must. Prettier splits any Icon
+  // with enough props onto separate lines, and the earlier version of this
+  // test matched per line — so `<Icon` and `name=` had to share one. That hole
+  // hid `account_balance_wallet` on the checkout payment chooser through a
+  // sweep whose whole purpose was to find exactly that. [^>]* stops the match
+  // at the tag boundary so it cannot run past into the next element.
   const PATTERNS = [
-    /<Icon\s+name="([a-z_0-9]+)"/g,
+    /<Icon\b[^>]*?\bname="([a-z_0-9]+)"/gs,
     /\bicon:\s*'([a-z_0-9]+)'/g,
     /\bicon="([a-z_0-9]+)"/g,
   ];
@@ -50,13 +60,13 @@ test('I1: every icon name written in the source has an ICON_MAP entry', () => {
   const missing: string[] = [];
   for (const file of walk(SRC)) {
     const src = readFileSync(file, 'utf8');
-    src.split('\n').forEach((line, i) => {
-      for (const re of PATTERNS) {
-        for (const m of line.matchAll(re)) {
-          if (!keys.has(m[1])) missing.push(`${relative(SRC, file)}:${i + 1}  ${m[1]}`);
-        }
+    for (const re of PATTERNS) {
+      for (const m of src.matchAll(re)) {
+        if (keys.has(m[1])) continue;
+        const line = src.slice(0, m.index).split('\n').length;
+        missing.push(`${relative(SRC, file)}:${line}  ${m[1]}`);
       }
-    });
+    }
   }
 
   expect(
@@ -87,4 +97,29 @@ test('I2: no fallback glyph is painted on any public page', async ({ page }) => 
       [],
     );
   }
+});
+
+test('I3: no fallback glyph on the checkout payment step', async ({ page }) => {
+  // The one page where a wrong glyph costs money. It is behind auth AND three
+  // wizard steps, so I2 never reached it — and that is where the wallet tile
+  // sat showing a warning circle beside the card field. Navigation copied from
+  // backer-journey.spec.ts, stopping short of «تأكيد الدعم» so this pledges
+  // nothing.
+  await signUpAndVerify(page, 'أيقونات إي٢إي', uniqueEmail('icons'), '1234567890');
+
+  const { projectId } = seededIds();
+  await page.goto(`/projects/${projectId}/back`);
+  await expect(page.getByText('ادعم:')).toBeVisible();
+  await page.getByRole('button', { name: 'متابعة' }).click();
+  await page.getByRole('button', { name: 'متابعة' }).click();
+  await expect(page.getByText('طريقة الدفع')).toBeVisible();
+
+  const bad = await page.evaluate(() =>
+    [...document.querySelectorAll('svg')]
+      .filter((s) => /circle-alert|alert-circle/.test(s.getAttribute('class') ?? ''))
+      .map((s) => (s.parentElement?.textContent ?? '').trim().slice(0, 40)),
+  );
+  expect(bad, `checkout paints ${bad.length} fallback glyph(s), beside: ${bad.join(' · ')}`).toEqual(
+    [],
+  );
 });

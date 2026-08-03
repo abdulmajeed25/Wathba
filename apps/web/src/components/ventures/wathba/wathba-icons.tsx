@@ -191,6 +191,13 @@ const ICON_MAP: Record<string, LucideIconCmp> = {
      refund, rank-up or contest event existed — the seeded account has none, so
      every screen looked fine while seven kinds were one webhook away from
      showing a warning triangle to a user being told they had been paid. */
+  /* Missed by the first sweep, and by the guard that sweep shipped: this call
+     site spans several lines, and the scan matched `<Icon` and `name=` only
+     when they shared one. It was the checkout payment-method chooser — a
+     warning circle on «محفظة رقمية», beside a correct card glyph, while the
+     user typed their card number. The guard now scans across line breaks. */
+  account_balance_wallet: Wallet,
+
   dashboard: LayoutDashboard,
   groups: Users,
   settings: Settings,
