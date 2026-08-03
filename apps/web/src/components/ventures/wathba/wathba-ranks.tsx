@@ -46,7 +46,6 @@ export function WathbaRanks() {
           style={{
             fontSize: 46,
             fontWeight: 700,
-            letterSpacing: '-1.2px',
             marginBottom: 14,
           }}
         >

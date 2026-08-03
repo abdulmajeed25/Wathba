@@ -59,7 +59,6 @@ export function WathbaHow() {
           style={{
             fontSize: 48,
             fontWeight: 700,
-            letterSpacing: '-1.3px',
             marginBottom: 16,
           }}
         >

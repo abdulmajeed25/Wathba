@@ -75,7 +75,7 @@ export function WathbaCampaignHeader({
         </div>
 
         <h1 style={{
-          fontSize: 42, fontWeight: 700, letterSpacing: '-1.1px',
+          fontSize: 42, fontWeight: 700,
           maxWidth: 880, marginBottom: 12,
         }}>
           {active.titleAr}

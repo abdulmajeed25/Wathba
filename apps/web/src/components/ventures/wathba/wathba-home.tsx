@@ -308,7 +308,7 @@ export function WathbaHome({
                   <span style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>{featured.cat}</span>·
                   <span>{featured.loc}</span>
                 </div>
-                <h3 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6, letterSpacing: '-.4px' }}>
+                <h3 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6 }}>
                   {featured.titleAr}
                 </h3>
                 <p
@@ -531,7 +531,6 @@ export function WathbaHome({
               style={{
                 fontSize: 28,
                 fontWeight: 700,
-                letterSpacing: '-.5px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
@@ -666,7 +665,6 @@ export function WathbaHome({
                     fontSize: 16.5,
                     fontWeight: 700,
                     marginBottom: 4,
-                    letterSpacing: '-.3px',
                   }}
                 >
                   {p.titleAr}
@@ -768,7 +766,6 @@ export function WathbaHome({
               style={{
                 fontSize: 32,
                 fontWeight: 700,
-                letterSpacing: '-.6px',
                 lineHeight: 1.2,
                 marginBottom: 14,
               }}
@@ -869,7 +866,7 @@ export function WathbaHome({
           <Icon name="workspace_premium" size={16} fill />
           نظام رتب الداعمين
         </div>
-        <h2 style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-.6px', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 32, fontWeight: 700, marginBottom: 12 }}>
           كل دعمٍ يرفع مكانتك
         </h2>
         <p
@@ -953,7 +950,6 @@ export function WathbaHome({
           style={{
             fontSize: 28,
             fontWeight: 700,
-            letterSpacing: '-.5px',
             textAlign: 'center',
             marginBottom: 8,
           }}
@@ -1035,7 +1031,6 @@ export function WathbaHome({
               style={{
                 fontSize: 38,
                 fontWeight: 700,
-                letterSpacing: '-.8px',
                 color: 'var(--on-accent)',
                 marginBottom: 14,
               }}

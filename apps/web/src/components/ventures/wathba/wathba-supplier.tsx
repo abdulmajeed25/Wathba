@@ -93,7 +93,7 @@ export function WathbaSupplier({
         <Num style={{ fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', display: 'block', marginBottom: 8 }}>
           SUPPLIER PORTAL · بوابة الموردين
         </Num>
-        <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 8 }}>
           المزاد العكسي للموردين
         </h1>
         {isLive && (

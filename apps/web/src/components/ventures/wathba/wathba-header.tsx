@@ -122,7 +122,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
             <Icon name="rocket_launch" size={26} fill color="var(--logo-mark)" />
           </div>
           <div style={{ lineHeight: 1.05 }}>
-            <div style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-.3px' }}>وثبة</div>
+            <div style={{ fontWeight: 700, fontSize: 19 }}>وثبة</div>
             <Num
               className="wathba-wordmark-tag"
               style={{ fontSize: 9.5, letterSpacing: '3px', color: 'var(--muted2)' }}

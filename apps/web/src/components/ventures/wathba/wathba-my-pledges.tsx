@@ -35,7 +35,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
         <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
           MY PLEDGES · مكفوفاتي
         </Num>
-        <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 8 }}>
           مشاريع دعمتُها
         </h1>
         <p style={{ fontSize: 15, color: 'var(--text-soft)', maxWidth: 640, lineHeight: 1.6, marginBottom: 28 }}>

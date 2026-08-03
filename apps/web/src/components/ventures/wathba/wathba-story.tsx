@@ -35,7 +35,7 @@ function StoryBlockNode({ block: b }: { block: StoryBlock }) {
         <h2
           id={`story-${b.id}`}
           style={{
-            fontSize: 28, fontWeight: 700, letterSpacing: '-.5px',
+            fontSize: 28, fontWeight: 700,
             marginTop: 14, scrollMarginTop: 100,
           }}
         >

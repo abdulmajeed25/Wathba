@@ -78,7 +78,7 @@ export function WathbaCategory({
               <Icon name={cur.icon} size={38} color="var(--accent)" />
             </div>
             <div>
-              <h1 style={{ fontSize: 44, fontWeight: 700, letterSpacing: '-1px' }}>{cur.ar}</h1>
+              <h1 style={{ fontSize: 44, fontWeight: 700 }}>{cur.ar}</h1>
               <Num style={{ fontSize: 14, color: 'var(--muted)', marginTop: 4, display: 'block' }}>
                 {cur.count} · <span style={{ color: 'var(--accent-ink)' }}>{cur.en}</span>
               </Num>

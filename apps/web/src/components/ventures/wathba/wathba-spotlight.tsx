@@ -179,7 +179,6 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
               fontSize: 'clamp(30px, 4.6vw, 54px)',
               lineHeight: 1.12,
               fontWeight: 700,
-              letterSpacing: '-.5px',
               margin: '0 0 16px',
             }}
           >
@@ -312,7 +311,7 @@ function Section({
           </div>
           <h2
             id={`${id}-title`}
-            style={{ fontSize: 'clamp(23px, 2.6vw, 33px)', fontWeight: 700, letterSpacing: '-.3px', margin: '0 0 10px' }}
+            style={{ fontSize: 'clamp(23px, 2.6vw, 33px)', fontWeight: 700, margin: '0 0 10px' }}
           >
             {title}
           </h2>
@@ -467,7 +466,7 @@ function Stories({ items }: { items: ApiEditorialCard[] }) {
           </div>
           <h2
             id="stories-title"
-            style={{ fontSize: 'clamp(23px, 2.6vw, 33px)', fontWeight: 700, letterSpacing: '-.3px', margin: '0 0 10px' }}
+            style={{ fontSize: 'clamp(23px, 2.6vw, 33px)', fontWeight: 700, margin: '0 0 10px' }}
           >
             قصص ملهمة
           </h2>
