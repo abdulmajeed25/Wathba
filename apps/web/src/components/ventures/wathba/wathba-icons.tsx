@@ -4,6 +4,7 @@ import type { CSSProperties, ComponentType, ReactNode, SVGProps } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowLeftRight,
   AtSign,
   Camera,
   Globe,
@@ -24,25 +25,31 @@ import {
   CreditCard,
   Crown,
   Cpu,
+  ExternalLink,
   Eye,
   Film,
   Flag,
+  Frown,
   Gamepad2,
   Gift,
   Heart,
   HelpCircle,
   Inbox,
   Info,
+  Landmark,
+  LayoutDashboard,
   LayoutGrid,
   Lightbulb,
   LogOut,
   Lock,
+  Medal,
   SlidersHorizontal,
   MapPin,
   Megaphone,
   Moon,
   Music,
   Palette,
+  PartyPopper,
   Pencil,
   PieChart,
   Play,
@@ -51,20 +58,25 @@ import {
   Rocket,
   Search,
   Send,
+  Settings,
   Share2,
   Shield,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
+  SquarePen,
   Sun,
   Trash2,
   ThumbsUp,
   TrendingUp,
+  Trophy,
   UploadCloud,
   User,
   Users,
+  Wallet,
   History,
   Utensils,
+  XCircle,
   Zap,
 } from 'lucide-react';
 
@@ -168,6 +180,31 @@ const ICON_MAP: Record<string, LucideIconCmp> = {
   design_services: Palette,
   schedule: Clock,
   crown: Crown,
+
+  /* ── names that had no entry and were therefore rendering AlertCircle ──
+     The fallback below is deliberately loud, and it worked: three creator-
+     dashboard tabs and the «الداعمون» stat card shipped showing a warning
+     circle. Loud is only useful if somebody looks, and nobody did.
+
+     The notification block is the one that mattered most. Those ligatures are
+     reached by NOTIFICATION KIND, so nothing rendered them until a real payout,
+     refund, rank-up or contest event existed — the seeded account has none, so
+     every screen looked fine while seven kinds were one webhook away from
+     showing a warning triangle to a user being told they had been paid. */
+  dashboard: LayoutDashboard,
+  groups: Users,
+  settings: Settings,
+  celebration: PartyPopper,
+  account_balance: Landmark,
+  edit_note: SquarePen,
+  open_in_new: ExternalLink,
+  cancel: XCircle,
+  payments: Wallet,
+  currency_exchange: ArrowLeftRight,
+  military_tech: Medal,
+  emoji_events: Trophy,
+  help_outline: HelpCircle,
+  sentiment_dissatisfied: Frown,
 };
 
 interface IconProps {
