@@ -15,7 +15,7 @@ export default function NotFound() {
       }}
     >
       <div>
-        <div style={{ fontSize: 72, fontWeight: 800, letterSpacing: '-2px', marginBottom: 8 }}>
+        <div style={{ fontSize: 72, fontWeight: 800, marginBottom: 8 }}>
           ٤٠٤
         </div>
         <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>

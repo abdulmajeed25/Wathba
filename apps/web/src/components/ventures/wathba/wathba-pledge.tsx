@@ -241,7 +241,6 @@ export function WathbaPledge({
           style={{
             fontSize: 32,
             fontWeight: 700,
-            letterSpacing: '-.6px',
             marginBottom: 6,
           }}
         >

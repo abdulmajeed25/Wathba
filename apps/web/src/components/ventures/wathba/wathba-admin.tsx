@@ -63,7 +63,7 @@ export function WathbaAdmin({
         >
           ADMIN CONSOLE · لوحة الإدارة
         </Num>
-        <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 8 }}>
           الإدارة
         </h1>
         <p style={{ fontSize: 15, color: 'var(--text-soft)', maxWidth: 720, lineHeight: 1.6 }}>

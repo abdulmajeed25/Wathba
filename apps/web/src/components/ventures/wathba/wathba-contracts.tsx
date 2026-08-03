@@ -52,7 +52,7 @@ export function WathbaContracts() {
   return (
     <div className="wathba-fade">
       <section style={{ maxWidth: 820, margin: '0 auto', padding: '48px 26px 80px' }}>
-        <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 10 }}>
+        <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 10 }}>
           شروط عقود الدعم
         </h1>
         <p style={{ fontSize: 16, color: 'var(--text-soft)', lineHeight: 1.65, marginBottom: 30 }}>

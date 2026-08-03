@@ -185,7 +185,6 @@ export function WathbaStart() {
           style={{
             fontSize: 34,
             fontWeight: 700,
-            letterSpacing: '-.7px',
             marginBottom: 8,
           }}
         >

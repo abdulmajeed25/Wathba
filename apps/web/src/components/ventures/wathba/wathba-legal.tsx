@@ -33,7 +33,7 @@ export function WathbaLegalPage({
             {eyebrow}
           </div>
         )}
-        <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 10 }}>
+        <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 10 }}>
           {title}
         </h1>
         {intro && (

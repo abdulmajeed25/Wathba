@@ -48,7 +48,7 @@ export function WathbaPublicProfile({
             <ProfileAvatar url={profile.avatarUrl} name={profile.name} />
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0, letterSpacing: '-.4px' }}>
+                <h1 style={{ fontSize: 26, fontWeight: 700, margin: 0 }}>
                   {profile.name}
                 </h1>
                 {profile.nafathVerified && (

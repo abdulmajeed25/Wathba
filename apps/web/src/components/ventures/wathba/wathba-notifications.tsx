@@ -200,7 +200,7 @@ export function WathbaNotifications({
           NOTIFICATIONS · صندوق الإشعارات
         </Num>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 12, flexWrap: 'wrap' }}>
-          <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px' }}>الإشعارات</h1>
+          <h1 style={{ fontSize: 38, fontWeight: 700 }}>الإشعارات</h1>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
             {unreadCount > 0 && (
               <span

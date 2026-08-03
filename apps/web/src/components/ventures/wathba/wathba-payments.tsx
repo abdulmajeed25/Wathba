@@ -55,7 +55,7 @@ export function WathbaPayments({
         <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
           PAYMENTS · المدفوعات
         </Num>
-        <h1 style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-.8px', marginBottom: 8 }}>
+        <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 8 }}>
           المدفوعات والمحفظة
         </h1>
         <p style={{ fontSize: 15, color: 'var(--text-soft)', maxWidth: 720, lineHeight: 1.6 }}>
