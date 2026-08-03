@@ -58,6 +58,16 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     // and only what sits on top of it moves. 5.98:1 against the worst of the
     // six accent grounds (#05a661, and the five gradient stops).
     '--on-accent': '#08130d',
+    // The LOGO MARK — the rocket glyph inside the green square, in the header
+    // and footer lockups. Same story as --chip-fill below: it borrowed
+    // --on-accent, and when that token became dark ink for contrast reasons the
+    // brand mark went black with it, in both themes. A logo is not copy. The
+    // 3:1 of WCAG 1.4.11 covers "graphics required to understand the content" —
+    // the rocket is not, because the wordmark «وثبة» sits beside it as real
+    // text and carries the name. So this one is chosen to LOOK right: white on
+    // the green square, 2.39:1 in light and 1.97:1 in dark. Both are below 3:1
+    // and that is deliberate, not an oversight.
+    '--logo-mark': '#ffffff',
     // ── ON A DARK SCRIM ────────────────────────────────────────────────────
     // A handful of overlays (the category pill and bookmark button on a card
     // image, the «مميّز» badge) paint a fixed near-black scrim in BOTH themes.
@@ -169,6 +179,10 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--accent2-rgb': '16,185,129',
     '--accent-ink': '#4ade96',
     '--on-accent': '#08130d',
+    // The square behind the mark is GREEN in this theme too — it is not the
+    // dark header ground — so the mark stays white here for exactly the reason
+    // it is white in light. See the light theme's note.
+    '--logo-mark': '#ffffff',
     // ── ON A DARK SCRIM ────────────────────────────────────────────────────
     // A handful of overlays (the category pill and bookmark button on a card
     // image, the «مميّز» badge) paint a fixed near-black scrim in BOTH themes.

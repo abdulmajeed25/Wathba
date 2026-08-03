@@ -102,7 +102,7 @@ export function WathbaHow() {
               placeItems: 'center',
             }}
           >
-            <Icon name="rocket_launch" size={22} color="var(--on-accent)" />
+            <Icon name="rocket_launch" size={22} color="var(--logo-mark)" />
           </div>
           <h2 style={{ fontSize: 26, fontWeight: 700 }}>للمبدعين</h2>
         </div>
