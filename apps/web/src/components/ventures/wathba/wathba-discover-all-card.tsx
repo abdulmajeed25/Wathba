@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -55,6 +56,21 @@ export function WathbaDiscoverAllCard({ p }: { p: ApiDiscoverCard }) {
       }}
     >
       <div className="wathba-ph" style={{ height: 150, position: 'relative' }}>
+        {/* The card's docstring has always said "cover", and the API has always
+            sent mediaUrls — but nothing ever rendered it, so the discovery grid
+            showed the bare hatch even for projects that had an image. The hatch
+            stays as the ground beneath, which is what a project with no media
+            still gets. Painted BEFORE the badges so they keep sitting on top. */}
+        {p.mediaUrls[0] && (
+          <Image
+            src={p.mediaUrls[0]}
+            alt=""
+            fill
+            loading="lazy"
+            sizes="(max-width: 760px) 92vw, 320px"
+            style={{ objectFit: 'cover' }}
+          />
+        )}
         {p.isStaffPick && (
           <div
             style={{
