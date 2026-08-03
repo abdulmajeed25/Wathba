@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
 import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
+import { WathbaHeroRotator } from '@/components/ventures/wathba/wathba-hero-rotator';
+import { WathbaHeroSlideBody } from '@/components/ventures/wathba/wathba-hero-slide-body';
 import { WathbaHome } from '@/components/ventures/wathba/wathba-home';
 import { WathbaHomeMagazine } from '@/components/ventures/wathba/wathba-home-magazine';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
@@ -60,7 +62,19 @@ export default async function ProjectsPage() {
       )}
       <WathbaHome
         projects={projects && projects.length > 0 ? projects : undefined}
-        heroSlides={heroSlides}
+        hero={
+          heroSlides.length > 0 ? (
+            // Composed HERE, in a server component, so the card bodies never
+            // become client code. WathbaHome is 'use client', so anything it
+            // renders itself would be — the hero has to be built above it and
+            // passed down as an element.
+            <WathbaHeroRotator slides={heroSlides}>
+              {heroSlides.map((s) => (
+                <WathbaHeroSlideBody key={s.id} slide={s} />
+              ))}
+            </WathbaHeroRotator>
+          ) : null
+        }
       />
       {home && <WathbaHomeMagazine payload={home} />}
     </WathbaShell>
