@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, HttpCode, Ip, NotFoundException, Param, 
 import { ApiBearerAuth, ApiOperation, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from 'class-validator';
 
+import { HeroService } from './hero.service';
 import { HomeService } from './home.service';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { Roles, RolesGuard } from '../identity/roles.guard';
@@ -35,12 +36,21 @@ class PatchSectionDto {
 @ApiTags('home')
 @Controller()
 export class HomeController {
-  constructor(private readonly home: HomeService) {}
+  constructor(
+    private readonly home: HomeService,
+    private readonly hero: HeroService,
+  ) {}
 
   @Get('home')
   @ApiOperation({ summary: 'Batch HOME — the composed magazine-homepage payload (public, cacheable)' })
   compose() {
     return this.home.compose();
+  }
+
+  @Get('hero-projects')
+  @ApiOperation({ summary: 'Batch HERO — curated four-bucket pool for the rotating featured card' })
+  heroProjects() {
+    return this.hero.pool();
   }
 
   @Get('spotlight')

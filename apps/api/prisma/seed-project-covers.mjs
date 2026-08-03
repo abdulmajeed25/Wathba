@@ -51,6 +51,16 @@ const LIMIT = Number(process.argv.find((a) => a.startsWith('--limit='))?.split('
 // the seed to that package's private dist layout; these shapes are stable and
 // the file is a copy, not a fork.
 const GLYPHS = {
+  'wheat': [["path",{"d":"M2 22 16 8"}],["path",{"d":"M3.47 12.53 5 11l1.53 1.53a3.5 3.5 0 0 1 0 4.94L5 19l-1.53-1.53a3.5 3.5 0 0 1 0-4.94Z"}],["path",{"d":"M7.47 8.53 9 7l1.53 1.53a3.5 3.5 0 0 1 0 4.94L9 15l-1.53-1.53a3.5 3.5 0 0 1 0-4.94Z"}],["path",{"d":"M11.47 4.53 13 3l1.53 1.53a3.5 3.5 0 0 1 0 4.94L13 11l-1.53-1.53a3.5 3.5 0 0 1 0-4.94Z"}],["path",{"d":"M20 2h2v2a4 4 0 0 1-4 4h-2V6a4 4 0 0 1 4-4Z"}],["path",{"d":"M11.47 17.47 13 19l-1.53 1.53a3.5 3.5 0 0 1-4.94 0L5 19l1.53-1.53a3.5 3.5 0 0 1 4.94 0Z"}],["path",{"d":"M15.47 13.47 17 15l-1.53 1.53a3.5 3.5 0 0 1-4.94 0L9 15l1.53-1.53a3.5 3.5 0 0 1 4.94 0Z"}],["path",{"d":"M19.47 9.47 21 11l-1.53 1.53a3.5 3.5 0 0 1-4.94 0L13 11l1.53-1.53a3.5 3.5 0 0 1 4.94 0Z"}]],
+  'landmark': [["path",{"d":"M10 18v-7"}],["path",{"d":"M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z"}],["path",{"d":"M14 18v-7"}],["path",{"d":"M18 18v-7"}],["path",{"d":"M3 22h18"}],["path",{"d":"M6 18v-7"}]],
+  'leaf': [["path",{"d":"M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"}],["path",{"d":"M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"}]],
+  'volleyball': [["path",{"d":"M11 7a16 16 20 0 1 10.98 4.362"}],["path",{"d":"M12 12a13 13 0 0 1-8.66 5"}],["path",{"d":"M16.83 13.634a16 16 0 0 1-9.267 7.328"}],["path",{"d":"M20.66 17A13 13 0 0 0 12 12a13 13 0 0 1 0-10"}],["path",{"d":"M8.17 15.366a16 16 0 0 1-1.713-11.69"}],["circle",{"cx":"12","cy":"12","r":"10"}]],
+  'drama': [["path",{"d":"M10 11h.01"}],["path",{"d":"M14 6h.01"}],["path",{"d":"M18 6h.01"}],["path",{"d":"M6.5 13.1h.01"}],["path",{"d":"M22 5c0 9-4 12-6 12s-6-3-6-12c0-2 2-3 6-3s6 1 6 3"}],["path",{"d":"M17.4 9.9c-.8.8-2 .8-2.8 0"}],["path",{"d":"M10.1 7.1C9 7.2 7.7 7.7 6 8.6c-3.5 2-4.7 3.9-3.7 5.6 4.5 7.8 9.5 8.4 11.2 7.4.9-.5 1.9-2.1 1.9-4.7"}],["path",{"d":"M9.1 16.5c.3-1.1 1.4-1.7 2.4-1.4"}]],
+  'tent': [["path",{"d":"M3.5 21 14 3"}],["path",{"d":"M20.5 21 10 3"}],["path",{"d":"M15.5 21 12 15l-3.5 6"}],["path",{"d":"M2 21h20"}]],
+  'notebook-pen': [["path",{"d":"M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4"}],["path",{"d":"M2 6h4"}],["path",{"d":"M2 10h4"}],["path",{"d":"M2 14h4"}],["path",{"d":"M2 18h4"}],["path",{"d":"M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z"}]],
+  'newspaper': [["path",{"d":"M15 18h-5"}],["path",{"d":"M18 14h-8"}],["path",{"d":"M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-4 0v-9a2 2 0 0 1 2-2h2"}],["rect",{"width":"8","height":"4","x":"10","y":"6","rx":"1"}]],
+  'music': [["path",{"d":"M9 18V5l12-2v13"}],["circle",{"cx":"6","cy":"18","r":"3"}],["circle",{"cx":"18","cy":"16","r":"3"}]],
+  'store': [["path",{"d":"M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"}],["path",{"d":"M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"}],["path",{"d":"M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"}]],
   'cpu': [["path",{"d":"M12 20v2"}],["path",{"d":"M12 2v2"}],["path",{"d":"M17 20v2"}],["path",{"d":"M17 2v2"}],["path",{"d":"M2 12h2"}],["path",{"d":"M2 17h2"}],["path",{"d":"M2 7h2"}],["path",{"d":"M20 12h2"}],["path",{"d":"M20 17h2"}],["path",{"d":"M20 7h2"}],["path",{"d":"M7 20v2"}],["path",{"d":"M7 2v2"}],["rect",{"x":"4","y":"4","width":"16","height":"16","rx":"2"}],["rect",{"x":"8","y":"8","width":"8","height":"8","rx":"1"}]],
   'palette': [["path",{"d":"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"}],["circle",{"cx":"13.5","cy":"6.5","r":".5","fill":"currentColor"}],["circle",{"cx":"17.5","cy":"10.5","r":".5","fill":"currentColor"}],["circle",{"cx":"6.5","cy":"12.5","r":".5","fill":"currentColor"}],["circle",{"cx":"8.5","cy":"7.5","r":".5","fill":"currentColor"}]],
   'gamepad-2': [["line",{"x1":"6","x2":"10","y1":"11","y2":"11"}],["line",{"x1":"8","x2":"8","y1":"9","y2":"13"}],["line",{"x1":"15","x2":"15.01","y1":"12","y2":"12"}],["line",{"x1":"18","x2":"18.01","y1":"10","y2":"10"}],["path",{"d":"M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"}]],
@@ -81,6 +91,21 @@ const LOOK = {
   fashion:         { glyph: 'shirt',       hue: 320 },
   crafts:          { glyph: 'scissors',    hue: 96 },
   'social-impact': { glyph: 'hand-heart',  hue: 150 },
+
+  /* Added after the hero seed: these ten categories existed in the taxonomy but
+     had no look, so every project in them rendered the fallback rocket. Ten
+     identical covers is precisely what the «متنوعة» bucket exists to disprove.
+     The generator's own unmapped-slug warning is what surfaced it. */
+  'agriculture-food-security':   { glyph: 'wheat',        hue: 78 },
+  'heritage-culture':            { glyph: 'landmark',     hue: 32 },
+  'environment-sustainability':  { glyph: 'leaf',         hue: 132 },
+  sports:                        { glyph: 'volleyball',   hue: 14 },
+  theater:                       { glyph: 'drama',        hue: 292 },
+  'tourism-entertainment':       { glyph: 'tent',         hue: 200 },
+  comics:                        { glyph: 'notebook-pen', hue: 348 },
+  journalism:                    { glyph: 'newspaper',    hue: 216 },
+  dance:                         { glyph: 'music',        hue: 310 },
+  'digital-economy':             { glyph: 'store',        hue: 258 },
 };
 const FALLBACK = { glyph: 'rocket', hue: 154 };
 
@@ -99,7 +124,7 @@ function seedOf(id) {
  * URL. Runs inside the page: canvas gives us gradients, a real blur filter,
  * Path2D for the glyph and correct Arabic shaping from one API.
  */
-function paint({ glyph, hue, seed, label }) {
+function paint({ glyph, hue, seed }) {
   const W = 1600;
   const H = 900;
   const cv = document.createElement('canvas');
@@ -233,26 +258,12 @@ function paint({ glyph, hue, seed, label }) {
   }
   x.restore();
 
-  // Category pill, bottom-RIGHT because the page is RTL and that is where the
-  // reader starts.
-  x.save();
-  x.direction = 'rtl';
-  x.font = '600 40px system-ui, "Noto Sans Arabic", "Segoe UI", sans-serif';
-  x.textBaseline = 'middle';
-  const tw = x.measureText(label).width;
-  const padX = 34;
-  const pw = tw + padX * 2;
-  const ph = 78;
-  const px = W - 72 - pw;
-  const py = H - 72 - ph;
-  x.fillStyle = 'rgba(4,22,15,.34)';
-  x.beginPath();
-  x.roundRect(px, py, pw, ph, 26);
-  x.fill();
-  x.fillStyle = 'rgba(255,255,255,.94)';
-  x.textAlign = 'right';
-  x.fillText(label, px + pw - padX, py + ph / 2 + 1);
-  x.restore();
+  // NO category pill is drawn. It used to sit bottom-right, and it looked
+  // right on a discover card — but the hero lays a 90px scrim over that band
+  // and crops the art to its own aspect, so the pill came out half-eaten on
+  // desktop and clipped at the card edge on mobile. It was redundant in both
+  // places anyway: every surface that shows a cover prints the category as real
+  // text beside it. The art is art; the label is the page's job.
 
   // Vignette — pulls the eye off the corners so the pill and glyph carry.
   const vg = x.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, H * 0.92);
@@ -318,12 +329,11 @@ async function main() {
     // like technology, not like a category of its own.
     const top = p.categoryRef?.parent ?? p.categoryRef ?? null;
     const look = LOOK[top?.slug] ?? FALLBACK;
-    const label = top?.nameAr ?? 'وثبة';
     if (!LOOK[top?.slug]) unmapped.add(top?.slug ?? '∅');
 
     const dataUrl = await page.evaluate(
       ({ fn, cfg }) => new Function('GLYPHS', `return (${fn})`)(window.__GLYPHS)(cfg),
-      { fn: paint.toString(), cfg: { ...look, seed: seedOf(p.id), label } },
+      { fn: paint.toString(), cfg: { ...look, seed: seedOf(p.id) } },
     );
     const body = Buffer.from(dataUrl.split(',')[1], 'base64');
     const key = `demo-covers/${p.id}.webp`;
