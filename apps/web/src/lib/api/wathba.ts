@@ -413,6 +413,8 @@ export interface ApiRfqPublic {
   dueDate: string;
   bidsCount: number;
   status: 'OPEN' | 'AWARDED' | 'CLOSED';
+  /** Server-computed: OPEN *and* not past its dueDate. See toPublicRfq. */
+  biddable?: boolean;
 }
 
 export interface ApiBidPublic {

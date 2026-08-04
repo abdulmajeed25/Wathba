@@ -184,6 +184,21 @@ export class ProcurementService {
       specsAr: r.specsAr,
       dueDate: r.dueDate.toISOString(),
       status: r.status,
+      /**
+       * Whether a bid would actually be ACCEPTED right now.
+       *
+       * `status` and `dueDate` are two independent axes and nothing reconciles
+       * them: an RFQ stays OPEN as its due date sails past, so `status: 'OPEN'`
+       * alone is not an invitation to bid. createBid enforces both (see the
+       * dueDate check there) — this exposes the same rule so a client does not
+       * have to rediscover it, which is exactly what the supplier portal failed
+       * to do: it offered the top OPEN request, and the bid was rejected with
+       * "rfq dueDate has passed".
+       *
+       * Sorting compounds it. The list is ordered by dueDate ascending, so the
+       * MOST expired request is the FIRST thing a supplier sees.
+       */
+      biddable: r.status === 'OPEN' && r.dueDate.getTime() > Date.now(),
       awardedBidId: r.awardedBidId,
       createdAt: r.createdAt.toISOString(),
       bids: r.bids?.map((b) => this.toPublicBid(b)),
