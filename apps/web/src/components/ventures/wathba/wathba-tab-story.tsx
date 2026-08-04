@@ -7,7 +7,10 @@ import { useEffect } from 'react';
 import type { WathbaProject as WathbaProjectShape } from './wathba-data';
 import { LEGACY_TAB_TO_ROUTE, resolveCampaign } from './wathba-campaign-shared';
 import { WathbaRewards } from './wathba-rewards';
+import { parseStory } from '@/lib/story/parse-story';
+
 import { WathbaStory, WathbaStoryTOC } from './wathba-story';
+import { WathbaStoryMarkdown, storyHeadingId } from './wathba-story-markdown';
 import { Icon, Num } from './wathba-icons';
 
 /**
@@ -17,11 +20,26 @@ import { Icon, Num } from './wathba-icons';
 export function WathbaTabStory({
   id,
   project,
+  storyAr,
 }: {
   id: string;
   project?: WathbaProjectShape;
+  /** The creator's own story. When present it REPLACES the fixture. */
+  storyAr?: string | null;
 }) {
   const { active, rich } = resolveCampaign(id, project);
+
+  // A real story wins over the designed fixture; a project without one keeps
+  // the fixture so demo campaigns still read as finished pages. The 50-char
+  // floor is the same minimum the dashboard editor enforces on save.
+  const nodes = storyAr && storyAr.trim().length >= 50 ? parseStory(storyAr) : null;
+  const tocBlocks = nodes
+    ? nodes.flatMap((n, i) =>
+        n.kind === 'h2' || n.kind === 'h3'
+          ? [{ kind: n.kind, id: storyHeadingId(i).replace(/^story-/, ''), text: n.text } as const]
+          : [],
+      )
+    : rich.story;
   return (
     <div
       style={{
@@ -30,10 +48,10 @@ export function WathbaTabStory({
         gap: 36, alignItems: 'start',
       }}
     >
-      <WathbaStoryTOC blocks={rich.story} />
+      <WathbaStoryTOC blocks={tocBlocks} />
 
       <article style={{ maxWidth: 720 }}>
-        <WathbaStory blocks={rich.story} />
+        {nodes ? <WathbaStoryMarkdown nodes={nodes} /> : <WathbaStory blocks={rich.story} />}
 
         {/* Risks section pinned to the bottom of the story column */}
         <div

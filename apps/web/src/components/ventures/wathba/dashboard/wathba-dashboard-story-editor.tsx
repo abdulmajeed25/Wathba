@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useUpload } from '@/lib/hooks/use-upload';
+import { parseStory, type StoryNode } from '@/lib/story/parse-story';
 import { useConfirm } from '../wathba-feedback';
 
 /**
@@ -102,7 +103,7 @@ export function DashboardStoryEditor({
     // Reset so picking the same file again still fires onChange.
     input.value = '';
     if (!result) {
-      setError('فشل رفع الصورة، حاول مرة ثانية.');
+      setError('فشل رفع الملف، حاول مرة ثانية.');
       return;
     }
     const alt = file.name.replace(/\.[^.]+$/, '').slice(0, 60);
@@ -273,7 +274,7 @@ export function DashboardStoryEditor({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/mp4,video/webm"
         onChange={onPickImage}
         style={{ display: 'none' }}
       />
@@ -433,7 +434,7 @@ function EditorPane({
 }
 
 function PreviewPane({ source }: { source: string }): React.ReactElement {
-  const blocks = useMemo(() => parseBlocks(source), [source]);
+  const blocks = useMemo(() => parseStory(source), [source]);
   return (
     <div style={paneStyle}>
       <div style={paneHeader}>المعاينة</div>
@@ -511,15 +512,6 @@ interface HeadingItem {
   text: string;
 }
 
-type Block =
-  | { kind: 'h2' | 'h3'; text: string }
-  | { kind: 'p'; text: string }
-  | { kind: 'ul' | 'ol'; items: string[] }
-  | { kind: 'img'; alt: string; url: string }
-  | { kind: 'youtube'; id: string };
-
-const YT_TOKEN_RE = /^\[youtube:([A-Za-z0-9_-]{6,20})\]$/;
-const IMG_LINE_RE = /^!\[([^\]]*)\]\(([^)]+)\)$/;
 const YT_URL_RE =
   /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([A-Za-z0-9_-]{6,20})/;
 
@@ -541,101 +533,8 @@ export function extractYoutubeId(input: string): string | null {
   return m && m[1] ? m[1] : null;
 }
 
-function parseBlocks(source: string): Block[] {
-  const lines = source.split('\n');
-  const blocks: Block[] = [];
-  let para: string[] = [];
-  let list: { kind: 'ul' | 'ol'; items: string[] } | null = null;
 
-  const flushPara = (): void => {
-    if (para.length > 0) {
-      blocks.push({ kind: 'p', text: para.join(' ') });
-      para = [];
-    }
-  };
-  const flushList = (): void => {
-    if (list) {
-      blocks.push(list);
-      list = null;
-    }
-  };
-
-  for (const raw of lines) {
-    const line = raw.trimEnd();
-    const trimmed = line.trimStart();
-
-    if (trimmed.length === 0) {
-      flushPara();
-      flushList();
-      continue;
-    }
-
-    // Headings.
-    if (trimmed.startsWith('## ')) {
-      flushPara();
-      flushList();
-      blocks.push({ kind: 'h3', text: trimmed.slice(3).trim() });
-      continue;
-    }
-    if (trimmed.startsWith('# ')) {
-      flushPara();
-      flushList();
-      blocks.push({ kind: 'h2', text: trimmed.slice(2).trim() });
-      continue;
-    }
-
-    // Image (must be its own line).
-    const img = IMG_LINE_RE.exec(trimmed);
-    if (img) {
-      flushPara();
-      flushList();
-      blocks.push({ kind: 'img', alt: img[1] ?? '', url: img[2] ?? '' });
-      continue;
-    }
-
-    // YouTube token (must be its own line).
-    const yt = YT_TOKEN_RE.exec(trimmed);
-    if (yt && yt[1]) {
-      flushPara();
-      flushList();
-      blocks.push({ kind: 'youtube', id: yt[1] });
-      continue;
-    }
-
-    // Bullet list.
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      flushPara();
-      if (!list || list.kind !== 'ul') {
-        flushList();
-        list = { kind: 'ul', items: [] };
-      }
-      list.items.push(trimmed.slice(2).trim());
-      continue;
-    }
-
-    // Ordered list (e.g. "1. ", "12. ").
-    const ol = /^(\d+)\.\s+(.*)$/.exec(trimmed);
-    if (ol) {
-      flushPara();
-      if (!list || list.kind !== 'ol') {
-        flushList();
-        list = { kind: 'ol', items: [] };
-      }
-      list.items.push((ol[2] ?? '').trim());
-      continue;
-    }
-
-    // Default: paragraph line.
-    flushList();
-    para.push(trimmed);
-  }
-
-  flushPara();
-  flushList();
-  return blocks;
-}
-
-function renderBlock(b: Block, key: number): React.ReactElement {
+function renderBlock(b: StoryNode, key: number): React.ReactElement | null {
   switch (b.kind) {
     case 'h2':
       return (
@@ -657,7 +556,9 @@ function renderBlock(b: Block, key: number): React.ReactElement {
       );
     case 'ul':
       return (
-        <ul key={key} style={{ margin: '8px 0', paddingInlineStart: 22 }}>
+        // Tailwind Preflight clears list-style, so the preview showed a
+        // bulletless run of lines while the page draws markers.
+        <ul key={key} style={{ margin: '8px 0', paddingInlineStart: 22, listStyleType: 'disc' }}>
           {b.items.map((it, i) => (
             <li key={i}>{it}</li>
           ))}
@@ -665,7 +566,9 @@ function renderBlock(b: Block, key: number): React.ReactElement {
       );
     case 'ol':
       return (
-        <ol key={key} style={{ margin: '8px 0', paddingInlineStart: 22 }}>
+        // Tailwind Preflight clears list-style, so the preview showed a
+        // bulletless run of lines while the page draws markers.
+        <ol key={key} style={{ margin: '8px 0', paddingInlineStart: 22, listStyleType: 'decimal' }}>
           {b.items.map((it, i) => (
             <li key={i}>{it}</li>
           ))}
@@ -685,6 +588,20 @@ function renderBlock(b: Block, key: number): React.ReactElement {
             borderRadius: 8,
             margin: '12px 0',
           }}
+        />
+      );
+    case 'video':
+      // The preview shows what the page will show. Without this a creator who
+      // drops in a clip sees nothing here and has no way to tell whether it
+      // uploaded.
+      return (
+        <video
+          key={key}
+          src={b.url}
+          controls
+          preload="metadata"
+          playsInline
+          style={{ width: '100%', aspectRatio: '16 / 9', borderRadius: 10, background: '#000', display: 'block' }}
         />
       );
     case 'youtube':

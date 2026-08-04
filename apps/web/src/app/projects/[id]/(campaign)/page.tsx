@@ -111,7 +111,7 @@ export default async function ProjectStoryPage({
         />
       )}
       <WathbaLegacyTabRedirect id={id} />
-      <WathbaTabStory id={id} project={liveProject ?? undefined} />
+      <WathbaTabStory id={id} project={liveProject ?? undefined} storyAr={detail?.storyAr} />
       <div style={{ marginTop: 48 }}>
         <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
       </div>
