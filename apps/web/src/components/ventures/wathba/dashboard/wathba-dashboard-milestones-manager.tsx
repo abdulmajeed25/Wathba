@@ -221,6 +221,9 @@ export function DashboardMilestonesManager({
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
+          // Required for `evidence`: the API only mints this URL for the
+          // project's OWNER, and cannot check that without knowing the project.
+          projectId,
           kind: 'evidence',
           mimeType: file.type || 'application/octet-stream',
           sizeBytes: file.size,
