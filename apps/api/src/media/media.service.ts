@@ -61,6 +61,8 @@ export interface PresignedUpload {
 export class MediaService {
   private readonly log = new Logger(MediaService.name);
   private readonly s3: S3Client;
+  /** Signs browser-facing URLs against the PUBLIC endpoint — see the note below. */
+  private readonly signer: S3Client;
   private readonly endpoint: string;
   private readonly publicEndpoint: string;
   private readonly bucket: string;
@@ -69,6 +71,27 @@ export class MediaService {
     this.endpoint = cfg.get<string>('MINIO_ENDPOINT', 'http://localhost:9000');
     this.publicEndpoint = cfg.get<string>('MINIO_PUBLIC_ENDPOINT', this.endpoint);
     this.bucket = cfg.get<string>('MEDIA_BUCKET', 'venture-evidence');
+    // The PRESIGNER must sign against the endpoint the BROWSER will use.
+    //
+    // An S3 signature covers the host, so a URL signed against MINIO_ENDPOINT is
+    // only valid for that host — and MINIO_ENDPOINT is http://localhost:9000,
+    // the address of the server itself. Handing that to a browser tells it to
+    // PUT to the visitor's own machine. Every upload in the app failed on this;
+    // it went unnoticed because an API-level test run ON the box resolves
+    // localhost fine, and only a real browser exposes it.
+    //
+    // Server-side work (head, get, delete, the cover seed) keeps using the
+    // internal endpoint below: it is correct there and avoids a round trip out
+    // and back.
+    this.signer = new S3Client({
+      region: 'us-east-1',
+      endpoint: this.publicEndpoint,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: cfg.get<string>('MINIO_ACCESS_KEY', 'minioadmin'),
+        secretAccessKey: cfg.get<string>('MINIO_SECRET_KEY', 'minioadmin'),
+      },
+    });
     this.s3 = new S3Client({
       region: 'us-east-1', // any value works for MinIO; required by the SDK
       endpoint: this.endpoint,
@@ -163,7 +186,7 @@ export class MediaService {
       Metadata: { uploader: opts.userId, kind: opts.kind },
     });
 
-    const url = await getSignedUrl(this.s3, command, { expiresIn: 300 });
+    const url = await getSignedUrl(this.signer, command, { expiresIn: 300 });
     const publicUrl = `${this.publicEndpoint}/${this.bucket}/${key}`;
     const expiresAt = new Date(now.getTime() + 300 * 1000).toISOString();
 
