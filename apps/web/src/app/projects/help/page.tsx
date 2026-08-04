@@ -64,7 +64,20 @@ export default function HelpPage() {
         <LegalSection
           n="Q3"
           title="ما هي رسوم المنصة؟"
-          body="٥٪ من إجمالي التمويل عند النجاح، تُحتسب فقط على الحملات الناجحة. تُضاف عليها رسوم بوّابة الدفع (~٢.٥٪)."
+          body={
+            <>
+              عمولة وثبة <strong>٥٪</strong> من إجمالي التمويل، ولا تُحتسب إلا على الحملات
+              الناجحة — الحملة التي لا تبلغ عتبتها لا تُكلّف شيئاً. تُضاف ضريبة القيمة
+              المضافة <strong>١٥٪</strong> على العمولة نفسها (لا على كامل المبلغ).
+              <br />
+              رسوم مزوّد الدفع منفصلة وتختلف باختلاف وسيلة الدفع: البطاقة أقلّها، والتقسيط
+              أعلى لأن تكلفته على المزوّد أعلى.{' '}
+              <Link href="/projects/pricing" style={{ color: 'var(--accent)' }}>
+                صفحة الرسوم
+              </Link>{' '}
+              تعرض الرقم الدقيق لكل وسيلة وتحسب صافي ما يصل المبدع.
+            </>
+          }
         />
         <LegalSection
           n="Q4"
@@ -93,7 +106,80 @@ export default function HelpPage() {
           body="اختر «قسّطها» عند التعهد فيُسجَّل تعهدك ويُحتسب في عدّاد الحملة فوراً — لكن لا يُنشأ أي عقد تقسيط ولا يُخصم شيء إلا إذا نجحت الحملة عند موعد إغلاقها. عندها تُكمل خطوات التقسيط عبر المزوّد خلال ٧٢ ساعة. إن لم تنجح الحملة يُلغى الطلب تلقائياً دون أي أثر."
         />
         <LegalSection
-          n="Q5"
+          n="Q6"
+          title="كيف أشارك كمورّد في المزاد العكسي؟"
+          body={
+            <>
+              يحتاج حسابك دور <strong>مورّد</strong> يمنحه فريق وثبة بعد التحقق. بعدها تفتح{' '}
+              <Link href="/projects/supplier" style={{ color: 'var(--accent)' }}>
+                بوابة الموردين
+              </Link>{' '}
+              وترى الطلبات المفتوحة: مواصفات كل طلب وموعد استحقاقه وعدد العروض عليه.
+              <br />
+              تقدّم عرضك بثلاثة أرقام — السعر، مهلة التسليم بالأيام، ونسبة الالتزام
+              بالمواصفات — وتُرتَّب العروض آلياً، لكن قرار الإرساء يبقى للمبدع صاحب الطلب،
+              لا للمنصة. الطلب الذي انقضى موعد استحقاقه لا يقبل عروضاً جديدة ويظهر
+              «انتهى الموعد». تتابع نتيجة عروضك من تبويب «عروضي».
+            </>
+          }
+        />
+        <LegalSection
+          n="Q7"
+          title="ما حقوقي على بياناتي (PDPL)؟ وكيف أمارسها؟"
+          body={
+            <>
+              لك <strong>حق الوصول</strong>: تستطيع تنزيل نسخة كاملة بصيغة JSON من كل بيان
+              شخصي مخزّن عنك، من{' '}
+              <Link href="/projects/settings" style={{ color: 'var(--accent)' }}>
+                إعداداتك
+              </Link>
+              . الطلب فوري ولا يمرّ على موافقة.
+              <br />
+              ولك <strong>حق المحو</strong> من الصفحة نفسها. المهم أن تعرف ما يعنيه بدقّة:
+              يُعطَّل الدخول وتُزال بياناتك الشخصية، لكن{' '}
+              <strong>السجلات المالية تبقى</strong> لأن أنظمة مكافحة غسل الأموال تُلزمنا
+              بحفظها — لا يمكننا محو فاتورة أو حركة مالية. كما يُرفض طلب المحو ما دام لديك
+              تعهّد قائم في الحجز أو حملة نشطة؛ أنهِ ذلك أولاً ثم أعد الطلب.
+            </>
+          }
+        />
+        <LegalSection
+          n="Q8"
+          title="أين أجد فواتير الضريبة (ZATCA)؟"
+          body={
+            <>
+              في صفحة{' '}
+              <Link href="/projects/payments" style={{ color: 'var(--accent)' }}>
+                المدفوعات
+              </Link>{' '}
+              يظهر رقم فاتورة ZATCA بجانب كل عملية لها فاتورة.
+              <br />
+              انتبه لما تغطّيه الفاتورة: تُصدَر على <strong>عمولة المنصة فقط</strong> — أي
+              على الـ٥٪ وضريبتها — وليست فاتورة بقيمة دعمك كاملاً، لأن المبلغ الأساسي يذهب
+              إلى المبدع ولا تبيعه وثبة لك.
+            </>
+          }
+        />
+        <LegalSection
+          n="Q9"
+          title="كيف أحمي حسابي؟"
+          body={
+            <>
+              من{' '}
+              <Link href="/projects/settings" style={{ color: 'var(--accent)' }}>
+                إعداداتك
+              </Link>{' '}
+              ترى <strong>الجلسات النشطة</strong> على حسابك وتستطيع إنهاء أي جلسة بمفردها،
+              أو الخروج من كل الأجهزة دفعة واحدة. تغيير كلمة المرور يُنهي بقية الجلسات
+              تلقائياً.
+              <br />
+              لا نخزّن عنوان IP ولا بصمة المتصفح مع الجلسة — بشكل مقصود — لذلك تُعرَّف
+              الجلسات بوقت إنشائها لا بمكانها.
+            </>
+          }
+        />
+        <LegalSection
+          n="Q10"
           title="كيف أتواصل مع الدعم؟"
           body={
             <>
@@ -105,7 +191,34 @@ export default function HelpPage() {
         />
         {/* STAKES/S-15 (H4) — a contact form that actually delivers
             (stored + emailed), not just printed addresses. */}
-        <div style={{ marginTop: 34 }}>
+        {/* «هل أجاب هذا سؤالك؟» — the rules hub answers the "may I" questions
+            this page deliberately does not repeat. One canonical home each. */}
+        <div
+          style={{
+            marginTop: 34,
+            padding: '18px 20px',
+            background: 'rgba(var(--accent-rgb),.06)',
+            border: '1px solid rgba(var(--accent-rgb),.2)',
+            borderRadius: 14,
+            fontSize: 15,
+            lineHeight: 1.9,
+          }}
+        >
+          هل أجاب هذا سؤالك؟ إن كان سؤالك عن <strong>ما يُسمح بنشره</strong> — شروط قبول
+          المشروع، المواد المحظورة، سياسة الذكاء الاصطناعي، أو كيف تُطبَّق القواعد
+          ويُعترَض عليها — فمكانه{' '}
+          <Link href="/rules" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+            صفحات القواعد
+          </Link>
+          . وإن لم تجد الإجابة في أيٍّ منهما، راسلنا أدناه.
+        </div>
+
+        {/* STAKES/S-15 (H4) — a contact form that actually delivers
+            (stored + emailed), not just printed addresses.
+            The id gives «تواصل معنا» a real destination: footers, enforcement
+            screens and emails can link /projects/help#contact instead of
+            dropping the reader at the top of a long FAQ. */}
+        <div id="contact" style={{ marginTop: 34, scrollMarginTop: 90 }}>
           <h2 style={{ fontSize: 19, fontWeight: 700, marginBottom: 14 }}>راسلنا مباشرة</h2>
           <WathbaContactForm />
         </div>

@@ -288,7 +288,7 @@ function AddressesTab() {
       </p>
       <p style={{ fontSize: 13, color: 'var(--muted2)' }}>
         لمراجعة عنوان دعمٍ سابق، افتح صفحة الدعم من{' '}
-        <Link href="/projects/me/pledges" style={{ color: 'var(--accent-ink)' }}>«مكفوفاتي»</Link>.
+        <Link href="/projects/me/pledges" style={{ color: 'var(--accent-ink)' }}>«تعهّداتي»</Link>.
       </p>
     </div>
   );
