@@ -48,7 +48,9 @@ const csp = [
   `img-src 'self' data: blob: https:${mediaOrigin}`,
   `media-src 'self' blob: https:${mediaOrigin}`,
   `font-src 'self' data:`,
-  `connect-src 'self' https://api.moyasar.com ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}`,
+  // The media origin belongs here too: a browser upload PUTs directly to it,
+  // which is a fetch and therefore connect-src, not img-src.
+  `connect-src 'self' https://api.moyasar.com ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}${mediaOrigin}`,
   `frame-src https://api.moyasar.com https://cdn.moyasar.com https://challenges.cloudflare.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,
