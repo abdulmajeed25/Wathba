@@ -1,6 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 
+import { ALLOWED_KINDS } from './media.service';
+
 /**
  * The media bucket's public-read policy is a security boundary with no other
  * guard on it.
@@ -64,6 +66,33 @@ describe('media bucket public-read policy', () => {
     //   avatar      <- wathba-settings.tsx, wathba-dashboard-creator-profile-editor.tsx
     const { prefixes } = loadPolicy();
     expect([...prefixes].sort()).toEqual(['avatar', 'demo-covers', 'story']);
+  });
+
+  /**
+   * The invariant the other tests cannot see, and the one that actually failed.
+   *
+   * Two lists describe the same system from opposite ends — what the API will
+   * ACCEPT an upload for, and what anonymous visitors can READ — and they drift
+   * silently in both directions:
+   *
+   *   a kind with no public prefix  -> the upload succeeds, then 403s on read
+   *   a public prefix with no kind  -> a standing anonymous grant on a path
+   *                                    nothing writes to (this is what happened)
+   *
+   * `demo-covers` is the one legitimate asymmetry: it is written by
+   * prisma/seed-project-covers.mjs, not through an upload kind. `evidence` is
+   * the other, in the opposite direction, and is the whole reason this matters.
+   */
+  it('the accepted kinds and the public prefixes agree', () => {
+    const { prefixes } = loadPolicy();
+
+    const PRIVATE_KINDS = ['evidence']; // payout proof + KYC. Never public.
+    const NON_UPLOAD_PREFIXES = ['demo-covers']; // seed-written, no upload kind.
+
+    const shouldBePublic = ALLOWED_KINDS.filter((k) => !PRIVATE_KINDS.includes(k));
+    const expected = [...NON_UPLOAD_PREFIXES, ...shouldBePublic].sort();
+
+    expect([...prefixes].sort()).toEqual(expected);
   });
 
   it('grants read only, scoped to one bucket, and never lists it', () => {

@@ -6,11 +6,18 @@ import { IsIn, IsInt, IsString, Matches, Max, Min } from 'class-validator';
 import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
-import { MediaService, type PresignedUpload } from './media.service';
+import { ALLOWED_KINDS, MediaService, type Kind, type PresignedUpload } from './media.service';
 
+/**
+ * Built from ALLOWED_KINDS, not repeated. This DTO and VerifyUploadDto below
+ * each carried their own copy of the list, so narrowing the accepted kinds
+ * meant remembering three places — and forgetting one leaves the API still
+ * accepting an upload the service will reject, or still verifying a key the
+ * service can no longer produce.
+ */
 class UploadUrlDto {
-  @IsIn(['hero', 'story', 'reward', 'evidence', 'avatar'])
-  kind!: 'hero' | 'story' | 'reward' | 'evidence' | 'avatar';
+  @IsIn([...ALLOWED_KINDS])
+  kind!: Kind;
 
   @IsString()
   @Matches(/^(image|video|application)\/[\w.+-]+$/)
@@ -20,10 +27,13 @@ class UploadUrlDto {
   sizeBytes!: number;
 }
 
+/** Same source as the DTO above — see the note there. */
+const KEY_RE = new RegExp(`^(${ALLOWED_KINDS.join('|')})\\/[\\w/.-]+$`);
+
 /** STAKES/S-14 (P5) — verify an uploaded object by key. */
 class VerifyUploadDto {
   @IsString()
-  @Matches(/^(hero|story|reward|evidence|avatar)\/[\w/.-]+$/)
+  @Matches(KEY_RE)
   key!: string;
 }
 

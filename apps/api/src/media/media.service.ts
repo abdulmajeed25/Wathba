@@ -25,21 +25,36 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
  * bucket for project media; can be split later by `kind`.
  */
 
-const ALLOWED_KINDS = ['hero', 'story', 'reward', 'evidence', 'avatar'] as const;
-type Kind = (typeof ALLOWED_KINDS)[number];
+/**
+ * The upload kinds this API accepts — and THE list. The controller's DTO and
+ * its key regex are built from this rather than repeating it, because they used
+ * to repeat it in two more places and a list stated four times is a list that
+ * eventually disagrees with itself.
+ *
+ * `hero` and `reward` were removed once it was established that nothing writes
+ * to them: `reward` never had a producer at all, and `hero`'s only one was a
+ * component with no importer that could never render (deleted in #111). Both
+ * prefixes were empty. Accepting a kind that nothing produces is not free — the
+ * bucket's public-read policy was widened to cover them purely because this
+ * list mentioned them, which is how a grant on a path nobody writes to ends up
+ * looking deliberate (#114).
+ *
+ * Adding one back means adding it HERE, adding its producer, and adding the
+ * prefix to prisma/media-policy.mjs — an upload will otherwise succeed and then
+ * 403 on read. Keep `evidence` out of that policy file regardless: it is payout
+ * proof and KYC documents in the same bucket.
+ */
+export const ALLOWED_KINDS = ['story', 'evidence', 'avatar'] as const;
+export type Kind = (typeof ALLOWED_KINDS)[number];
 
 const MIME_BY_KIND: Record<Kind, RegExp> = {
-  hero:     /^image\/(jpeg|png|webp|avif)$/,
   story:    /^(image\/(jpeg|png|webp|avif|gif)|video\/(mp4|webm))$/,
-  reward:   /^image\/(jpeg|png|webp|avif)$/,
   evidence: /^(image\/.*|application\/pdf|video\/.*)$/,
   avatar:   /^image\/(jpeg|png|webp|avif)$/,
 };
 
 const MAX_BYTES_BY_KIND: Record<Kind, number> = {
-  hero:     8 * 1024 * 1024,   // 8 MB
   story:   25 * 1024 * 1024,   // 25 MB
-  reward:   6 * 1024 * 1024,   // 6 MB
   evidence:50 * 1024 * 1024,   // 50 MB
   avatar:   2 * 1024 * 1024,   // 2 MB
 };
