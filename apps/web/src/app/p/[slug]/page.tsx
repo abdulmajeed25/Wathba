@@ -125,7 +125,7 @@ export default async function ProjectBySlugPage({
       />
       <div style={{ maxWidth: 1320, margin: '0 auto', padding: '36px 26px 80px' }}>
         <WathbaLegacyTabRedirect id={detail.id} />
-        <WathbaTabStory id={detail.id} project={liveProject ?? undefined} />
+        <WathbaTabStory id={detail.id} project={liveProject ?? undefined} storyAr={detail.storyAr} />
         {/* STAKES/J3 — same-subcategory rail. */}
         <div style={{ marginTop: 48 }}>
           <WathbaProjectsRail title="مشاريع مشابهة" projects={similar} />
