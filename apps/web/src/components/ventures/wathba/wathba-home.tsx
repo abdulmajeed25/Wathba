@@ -1,10 +1,7 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 import {
-  compactNum,
   deriveProject,
   type WathbaProject,
   wathbaBudgetRows,
@@ -14,56 +11,17 @@ import {
   wathbaRanks,
   wathbaTickerMessages,
 } from './wathba-data';
-import { formatSarCompact } from '@/lib/i18n/format';
+import { WathbaHomeStats } from './wathba-home-stats';
+import { WathbaHomeTrending } from './wathba-home-trending';
 import { Icon, Num } from './wathba-icons';
-
-type TrendTabId = 'hot' | 'new' | 'near' | 'big';
-const TREND_TABS: { id: TrendTabId; label: string }[] = [
-  { id: 'hot', label: 'الأكثر رواجاً' },
-  { id: 'new', label: 'وصلت حديثاً' },
-  { id: 'near', label: 'قاربت الاكتمال' },
-  { id: 'big', label: 'الأكثر تمويلاً' },
-];
-
-function fmtNum(n: number): string {
-  return Math.round(n).toLocaleString('en-US');
-}
 
 export function WathbaHome({
   projects,
   hero,
 }: { projects?: WathbaProject[]; hero?: ReactNode } = {}) {
   const list = (projects ?? wathbaProjects).map(deriveProject);
-  const [stats, setStats] = useState({ projects: 0, raised: 0, backers: 0 });
-  const [trendTab, setTrendTab] = useState<TrendTabId>('hot');
-
-  // Design lines 1496–1505: animateStats() up to 4820 / 312M / 1.94M.
-  useEffect(() => {
-    const targets = { projects: 4820, raised: 312_000_000, backers: 1_940_000 };
-    const dur = 1500;
-    const t0 = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const p = Math.min(1, (now - t0) / dur);
-      const e = 1 - Math.pow(1 - p, 3);
-      setStats({
-        projects: Math.round(targets.projects * e),
-        raised: Math.round(targets.raised * e),
-        backers: Math.round(targets.backers * e),
-      });
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
 
   // Design lines 1533–1538.
-  const trending = [...list];
-  if (trendTab === 'hot') trending.sort((a, b) => b.backers - a.backers);
-  else if (trendTab === 'new') trending.sort((a, b) => b.daysLeft - a.daysLeft);
-  else if (trendTab === 'near')
-    trending.sort((a, b) => (a.goal - a.raised) / a.goal - (b.goal - b.raised) / b.goal);
-  else trending.sort((a, b) => b.raised - a.raised);
 
   // The fallback fixture always has >=1 entry, so list[0]! is safe.
   const featured = list.find((p) => p.id === 'p1' || p.id === 'sirb') ?? list[0]!;
@@ -199,28 +157,7 @@ export function WathbaHome({
               اكتشف المشاريع
             </Link>
           </div>
-          <div style={{ display: 'flex', gap: 36 }}>
-            <div>
-              <Num style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)' }}>
-                {formatSarCompact('ar', stats.raised)}
-              </Num>
-              <div style={{ fontSize: 13, color: 'var(--muted2)', marginTop: 2 }}>أموال جُمعت</div>
-            </div>
-            <div style={{ width: 1, background: 'rgba(var(--ink-rgb),.1)' }} />
-            <div>
-              <Num style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)' }}>
-                {compactNum(stats.backers)}
-              </Num>
-              <div style={{ fontSize: 13, color: 'var(--muted2)', marginTop: 2 }}>داعم نشط</div>
-            </div>
-            <div style={{ width: 1, background: 'rgba(var(--ink-rgb),.1)' }} />
-            <div>
-              <Num style={{ fontSize: 30, fontWeight: 700, color: 'var(--text)' }}>
-                {fmtNum(stats.projects)}
-              </Num>
-              <div style={{ fontSize: 13, color: 'var(--muted2)', marginTop: 2 }}>مشروع مموَّل</div>
-            </div>
-          </div>
+          <WathbaHomeStats />
         </div>
 
         {/* Batch HERO — the rotating showcase. The static card below is the
@@ -514,206 +451,7 @@ export function WathbaHome({
       </section>
 
       {/* ============================ TRENDING ============================ */}
-      <section style={{ maxWidth: 1320, margin: '64px auto 0', padding: '0 26px' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 22,
-            flexWrap: 'wrap',
-            gap: 14,
-          }}
-        >
-          <div>
-            <h2
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-              }}
-            >
-              <Icon name="trending_up" size={28} fill color="var(--accent)" />
-              المشاريع الرائجة
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--muted2)', marginTop: 6 }}>
-              أكثر المشاريع جذباً للداعمين هذا الأسبوع
-            </p>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              gap: 9,
-              background: 'rgba(var(--ink-rgb),.04)',
-              border: '1px solid rgba(var(--ink-rgb),.08)',
-              borderRadius: 13,
-              padding: 5,
-            }}
-          >
-            {TREND_TABS.map((t) => (
-              <span
-                key={t.id}
-                onClick={() => setTrendTab(t.id)}
-                style={{
-                  cursor: 'pointer',
-                  fontSize: 13.5,
-                  fontWeight: 600,
-                  padding: '8px 15px',
-                  borderRadius: 9,
-                  color: t.id === trendTab ? 'var(--on-accent)' : 'var(--muted)',
-                  background: t.id === trendTab ? 'var(--grad)' : 'transparent',
-                }}
-              >
-                {t.label}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18 }}>
-          {trending.slice(0, 8).map((p) => (
-            <Link
-              key={p.id}
-              href={`/projects/${p.id}`}
-              style={{
-                cursor: 'pointer',
-                background: 'var(--card)',
-                border: '1px solid rgba(var(--ink-rgb),.08)',
-                borderRadius: 18,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                boxShadow: 'var(--card-shadow)',
-                textDecoration: 'none',
-                color: 'inherit',
-              }}
-            >
-              <div className="wathba-ph" style={{ height: 158, position: 'relative' }}>
-                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-                  <Num style={{ fontSize: 11, color: 'var(--ph-label)' }}>[ {p.cat} ]</Num>
-                </div>
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 11,
-                    right: 11,
-                    background: 'rgba(6,18,31,.8)',
-                    backdropFilter: 'blur(5px)',
-                    border: '1px solid rgba(var(--ink-rgb),.12)',
-                    color: 'var(--on-scrim)',
-                    padding: '5px 10px',
-                    borderRadius: 20,
-                    fontSize: 11,
-                    fontWeight: 600,
-                  }}
-                >
-                  {p.cat}
-                </div>
-                {/* bookmark — design line 313 (NOT a trust badge) */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 11,
-                    left: 11,
-                    width: 30,
-                    height: 30,
-                    borderRadius: 9,
-                    background: 'rgba(6,18,31,.8)',
-                    backdropFilter: 'blur(5px)',
-                    border: '1px solid rgba(var(--ink-rgb),.12)',
-                    display: 'grid',
-                    placeItems: 'center',
-                  }}
-                >
-                  <Icon name="bookmark" size={16} color="var(--on-scrim)" />
-                </div>
-                {/* §7 platform-partner — mandatory badge on the card */}
-                {p.platformPartner && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 11,
-                      bottom: 11,
-                      background: 'rgba(var(--purple-rgb),.92)',
-                      color: 'var(--on-accent)',
-                      padding: '4px 10px',
-                      borderRadius: 20,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                    }}
-                  >
-                    <Icon name="verified" size={12} color="var(--on-accent)" />
-                    بشراكة وثبة
-                  </div>
-                )}
-              </div>
-              <div
-                style={{
-                  padding: '15px 16px 17px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  flex: 1,
-                }}
-              >
-                <h3
-                  style={{
-                    fontSize: 16.5,
-                    fontWeight: 700,
-                    marginBottom: 4,
-                  }}
-                >
-                  {p.titleAr}
-                </h3>
-                <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 13 }}>
-                  بواسطة {p.creator}
-                </div>
-                <div style={{ marginTop: 'auto' }}>
-                  <div
-                    style={{
-                      height: 6,
-                      borderRadius: 30,
-                      background: 'rgba(var(--ink-rgb),.08)',
-                      overflow: 'hidden',
-                      marginBottom: 10,
-                    }}
-                  >
-                    <div
-                      style={{ height: '100%', width: p.pctW, background: p.barGrad, borderRadius: 30 }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Num style={{ fontSize: 15, fontWeight: 700, color: p.pctColor }}>{p.pct}%</Num>
-                    <Num style={{ fontSize: 12.5, color: 'var(--muted2)' }}>{p.raisedFmt}</Num>
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginTop: 8,
-                      fontSize: 11.5,
-                      color: 'var(--muted2)',
-                    }}
-                  >
-                    <Num>{p.backersFmt} داعم</Num>
-                    <Num>{p.daysLeft} يوم</Num>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
+      <WathbaHomeTrending list={list} />
 
       {/* ========================= TRANSPARENCY BAND ========================= */}
       <section style={{ maxWidth: 1320, margin: '74px auto 0', padding: '0 26px' }}>
