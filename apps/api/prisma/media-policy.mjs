@@ -6,9 +6,27 @@
 //
 // The bucket ships with NO policy, so every object in it is private and the
 // `publicUrl` MediaService hands back 403s. These are the prefixes that are
-// public BY DESIGN — a project cover, a story image or video, a reward image
-// and a profile avatar are all rendered to anonymous visitors on pages that
-// need no login. Without this they load nowhere.
+// public BY DESIGN — a project cover, a story image or video, and a profile
+// avatar are all rendered to anonymous visitors on pages that need no login.
+// Without this they load nowhere.
+//
+// The list is the prefixes something ACTUALLY WRITES TO, not the API's set of
+// accepted kinds. It was first written as "every ALLOWED_KIND except evidence",
+// by symmetry with MediaService rather than by checking producers, and that put
+// `hero/` and `reward/` in the policy:
+//
+//   reward — no producer has ever existed; it has only ever been a member of
+//            the UploadKind union.
+//   hero   — one producer, wathba-start.tsx, which had no importer and could
+//            never render. Deleted in #111; it was already unreachable.
+//
+// Both prefixes were empty, so nothing was exposed — but a standing anonymous
+// grant on a path nothing writes to is a claim about the system that is not
+// true, and this file is where someone checks what the public surface is.
+//
+// NOTE FOR WHOEVER ADDS ONE OF THEM BACK: MediaService still ACCEPTS the `hero`
+// and `reward` kinds, so an upload will succeed and then 403 on read until you
+// add the prefix here. Add it in the same change as the producer.
 //
 // `evidence/` is deliberately absent and must stay that way. It is where the
 // `evidence` upload kind puts payout proof and KYC documents, and it lives in
@@ -29,8 +47,11 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 
-/** Prefixes served to anonymous visitors. `evidence` is NOT one, on purpose. */
-export const PUBLIC_PREFIXES = ['demo-covers', 'hero', 'story', 'reward', 'avatar'];
+/**
+ * Prefixes served to anonymous visitors — each one has a live producer.
+ * `evidence` is NOT one, on purpose. See the header before adding to this list.
+ */
+export const PUBLIC_PREFIXES = ['demo-covers', 'story', 'avatar'];
 
 /** Sids this file owns. Anything else in the policy is left untouched. */
 const MANAGED_SIDS = ['PublicReadMedia', 'PublicReadDemoCovers'];
