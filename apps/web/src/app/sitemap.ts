@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-import { listCategories, listSitemapProjects } from '@/lib/api/wathba';
+import { listCategories, listRules, listSitemapProjects } from '@/lib/api/wathba';
 import { SITE_URL } from '@/lib/site';
 
 /**
@@ -27,12 +27,21 @@ const STATIC_PATHS = [
   '/projects/legal/terms',
   '/projects/legal/privacy',
   '/projects/legal/refund-policy',
+  // Batch CONTENT 1C — the legal quartet was a trio here; contracts was
+  // footer-linked and reachable but invisible to crawlers.
+  '/projects/legal/contracts',
+  '/spotlight',
+  // The rules hub. Its five sub-pages are appended below from the API rather
+  // than hardcoded, so adding a rule in the ops console puts it in the sitemap
+  // without a deploy — the same reason the pages are EditorialCards at all.
+  '/rules',
 ];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [projects, categories] = await Promise.all([
+  const [projects, categories, rules] = await Promise.all([
     listSitemapProjects().catch(() => null),
     listCategories().catch(() => null),
+    listRules().catch(() => []),
   ]);
 
   const now = new Date();
@@ -42,6 +51,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: path === '/projects' ? 'daily' : 'weekly',
     priority: path === '/projects' ? 1 : 0.6,
   }));
+
+  // Rules sub-pages, sourced from the API so a rule added in the ops console is
+  // crawlable without a deploy.
+  for (const r of rules) {
+    entries.push({
+      url: `${SITE_URL}/rules/${r.slug.replace(/^rules-/, '')}`,
+      lastModified: now,
+      changeFrequency: 'monthly',
+      priority: 0.5,
+    });
+  }
 
   for (const p of projects ?? []) {
     entries.push({

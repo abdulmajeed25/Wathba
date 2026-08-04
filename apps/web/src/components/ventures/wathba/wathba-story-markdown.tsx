@@ -1,4 +1,6 @@
+import * as React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 import type { StoryNode } from '@/lib/story/parse-story';
 
@@ -32,19 +34,50 @@ export function WathbaStoryMarkdown({ nodes }: { nodes: StoryNode[] }) {
 
 
 /**
- * Inline `**bold**`, the one inline mark this grammar supports.
+ * The two inline marks this grammar supports: `**bold**` and `[text](url)`.
  *
  * Block structure alone was enough while the only author was a campaign story,
- * but a rules page leans on emphasis to make a prohibition scannable — and a
- * creator typing `**مهم**` today gets literal asterisks, so this fixes the same
- * papercut on both surfaces. Split on the delimiter rather than parsing: odd
- * segments are the emphasised ones, and an unmatched `**` therefore stays
- * literal instead of swallowing the rest of the paragraph.
+ * but a rules page leans on emphasis to make a prohibition scannable, and a
+ * policy that cannot link to the flow it describes is only half a policy — the
+ * enforcement page has to reach the real appeal surface. Both marks were also
+ * silently broken for creators: `**مهم**` rendered literal asterisks.
+ *
+ * Links are restricted to SAME-ORIGIN paths on purpose. These pages are edited
+ * through the ops console, and an inline mark that can emit an arbitrary
+ * external href turns a content field into an open-redirect and phishing
+ * surface. A non-matching target is left as literal text rather than silently
+ * dropped, so a mistake is visible to whoever wrote it.
  */
+const LINK_RE = /\[([^\]]+)\]\((\/[^)\s]*)\)/g;
+
 function inline(text: string): React.ReactNode {
-  const parts = text.split(/\*\*/);
-  if (parts.length < 3) return text;
-  return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part));
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+
+  const pushBold = (chunk: string, k: number): React.ReactNode => {
+    const parts = chunk.split(/\*\*/);
+    if (parts.length < 3) return chunk;
+    return (
+      <React.Fragment key={`b${k}`}>
+        {parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part))}
+      </React.Fragment>
+    );
+  };
+
+  for (const m of text.matchAll(LINK_RE)) {
+    const at = m.index ?? 0;
+    if (at > last) out.push(pushBold(text.slice(last, at), key++));
+    out.push(
+      <Link key={`l${key++}`} href={m[2]!} style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+        {m[1]}
+      </Link>,
+    );
+    last = at + m[0].length;
+  }
+  if (last === 0) return pushBold(text, key);
+  if (last < text.length) out.push(pushBold(text.slice(last), key));
+  return out;
 }
 
 function StoryNodeView({ node: n, index }: { node: StoryNode; index: number }) {
