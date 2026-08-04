@@ -515,14 +515,17 @@ interface HeadingItem {
 const YT_URL_RE =
   /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([A-Za-z0-9_-]{6,20})/;
 
+/**
+ * Derived from parseStory rather than re-reading the markdown — this was a THIRD
+ * copy of the heading rule (after the parser and the renderer), and it disagreed
+ * with them: parseStory lifts a story whose headings are all «عنوان فرعي» so the
+ * shallowest becomes h2, and this contents list went on indenting them as
+ * sub-headings for a page that renders them as peers.
+ */
 function extractHeadings(source: string): HeadingItem[] {
-  const out: HeadingItem[] = [];
-  for (const line of source.split('\n')) {
-    const trimmed = line.trimStart();
-    if (trimmed.startsWith('## ')) out.push({ level: 3, text: trimmed.slice(3).trim() });
-    else if (trimmed.startsWith('# ')) out.push({ level: 2, text: trimmed.slice(2).trim() });
-  }
-  return out;
+  return parseStory(source)
+    .filter((n): n is Extract<StoryNode, { kind: 'h2' | 'h3' }> => n.kind === 'h2' || n.kind === 'h3')
+    .map((n) => ({ level: n.kind === 'h2' ? 2 : 3, text: n.text }));
 }
 
 export function extractYoutubeId(input: string): string | null {
