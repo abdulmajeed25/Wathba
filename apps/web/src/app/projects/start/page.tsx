@@ -9,6 +9,11 @@ export const dynamic = 'force-dynamic';
  * The canonical, working create+submit flow is /projects/submit (server action
  * → POST /v1/projects → POST /v1/projects/:id/submit). Redirect here so there
  * is a single, functional create path.
+ *
+ * The component itself has since been deleted — it had no importer and this
+ * redirect meant it could never render. THIS ROUTE STAYS: fourteen places link
+ * to /projects/start (header CTA, home, how, handbook, profile, account menu),
+ * middleware gates it, and lib/auth/guard.ts redirects non-creators here.
  */
 export default function StartPage(): never {
   redirect('/projects/submit');

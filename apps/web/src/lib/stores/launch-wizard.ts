@@ -8,9 +8,14 @@ import { persist } from 'zustand/middleware';
  * creator can navigate away (read a how-it-works section, glance at
  * existing projects) and come back without losing their draft.
  *
- * Mirror of the local-useState fields previously declared in
- * wathba-start.tsx. The component still owns step-rail rendering and the
- * publish-mutation glue; this store only persists the form data.
+ * Mirror of the local-useState fields previously declared in the legacy launch
+ * wizard, which was deleted: it had no importer, /projects/start 307s to
+ * /projects/submit, and its publish path posted to /v1/ventures — an endpoint
+ * this API does not have.
+ *
+ * The store outlives it because e2e/policy-guards.spec.ts reads this file
+ * directly (BUG-1: the seed money must render in ر.س, never $). Kept for that
+ * fixture data, not for a component.
  */
 
 export interface DraftTier {
