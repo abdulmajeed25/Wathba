@@ -2,7 +2,12 @@
 
 import { useCallback, useState } from 'react';
 
-export type UploadKind = 'hero' | 'story' | 'reward' | 'evidence' | 'avatar';
+/**
+ * Mirrors ALLOWED_KINDS in the API's MediaService. `hero` and `reward` were
+ * removed there once it was established that nothing writes to them — keeping
+ * them here would only let a call site typecheck its way to a 400.
+ */
+export type UploadKind = 'story' | 'evidence' | 'avatar';
 
 export interface UploadResult {
   key: string;
