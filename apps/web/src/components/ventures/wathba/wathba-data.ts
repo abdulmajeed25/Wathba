@@ -255,6 +255,7 @@ export const wathbaFooterCols: Array<{
       { label: 'اكتشف المشاريع', href: '/projects/discover-all' },
       { label: 'ابدأ مشروعاً', href: '/projects/start' },
       { label: 'كيف تعمل', href: '/projects/how' },
+      { label: 'قواعدنا', href: '/rules' },
       { label: 'عن وثبة', href: '/projects/about' },
       { label: 'الأسعار والعمولة', href: '/projects/pricing' },
       { label: 'دليل الناشر', href: '/projects/handbook' },
@@ -265,7 +266,7 @@ export const wathbaFooterCols: Array<{
   {
     title: 'حسابك',
     items: [
-      { label: 'مكفوفاتي', href: '/projects/me/pledges' },
+      { label: 'تعهّداتي', href: '/projects/me/pledges' },
       { label: 'المدفوعات', href: '/projects/payments' },
       { label: 'الإشعارات', href: '/projects/notifications' },
       { label: 'الإعدادات', href: '/projects/settings' },
@@ -281,7 +282,9 @@ export const wathbaFooterCols: Array<{
       { label: 'عقود الدعم', href: '/projects/legal/contracts' },
       // Batch HOME (S12) — the scam-protection guide, footer-linked per spec.
       { label: 'احمِ حملتك من الاحتيال', href: '/stories/protect-your-campaign' },
-      { label: 'تواصل معنا', href: '/projects/help' },
+      // D5 — «تواصل معنا» used to drop the reader at the top of a long FAQ.
+      // The contact form has an anchor now, so the link lands on the form.
+      { label: 'تواصل معنا', href: '/projects/help#contact' },
     ],
   },
 ];

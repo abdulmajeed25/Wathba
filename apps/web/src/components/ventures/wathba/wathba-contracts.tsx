@@ -58,6 +58,7 @@ export function WathbaContracts() {
         <p style={{ fontSize: 16, color: 'var(--text-soft)', lineHeight: 1.65, marginBottom: 30 }}>
           كل مشروع يُحدّد نوع العقد المناسب لطبيعته. هذه نظرة كاملة على الأنواع المتاحة في
           وثبة. النسخة الملزمة هي ما يظهر في صفحة الدعم لكل مشروع بحسب نوع العقد المحدد.
+          آخر تحديث: ٢٠٢٦/٠٨/٠٤.
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

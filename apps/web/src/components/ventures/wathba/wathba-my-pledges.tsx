@@ -33,7 +33,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
     <div className="wathba-fade">
       <section style={{ maxWidth: 920, margin: '0 auto', padding: '48px 26px 80px' }}>
         <Num style={{ display: 'block', fontSize: 12, letterSpacing: 2, color: 'var(--accent-ink)', marginBottom: 8 }}>
-          MY PLEDGES · مكفوفاتي
+          MY PLEDGES · تعهّداتي
         </Num>
         <h1 style={{ fontSize: 38, fontWeight: 700, marginBottom: 8 }}>
           مشاريع دعمتُها

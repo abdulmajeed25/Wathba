@@ -4,7 +4,7 @@ import { WathbaMyPledges } from '@/components/ventures/wathba/wathba-my-pledges'
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { listMyBackings } from '@/lib/api/wathba';
 
-export const metadata: Metadata = { title: 'مكفوفاتي · وثبة' };
+export const metadata: Metadata = { title: 'تعهّداتي · وثبة' };
 
 // Per-user, middleware-gated page — must never be statically prerendered.
 export const dynamic = 'force-dynamic';

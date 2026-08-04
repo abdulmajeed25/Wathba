@@ -89,7 +89,7 @@ export default async function BackSuccessPage({
             textDecoration: 'none',
           }}
         >
-          مكفوفاتي
+          تعهّداتي
         </Link>
         <Link
           href={`/projects/${id}`}
