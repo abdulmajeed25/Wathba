@@ -32,6 +32,28 @@ const isDev = process.env.NODE_ENV !== 'production';
 const mediaOrigin = process.env.NEXT_PUBLIC_MEDIA_URL ? ` ${process.env.NEXT_PUBLIC_MEDIA_URL}` : '';
 
 /**
+ * The realtime funding socket.
+ *
+ * use-live-funding.ts opens a socket.io connection to the API origin, which the
+ * browser dials as ws:// (or wss:// behind TLS). CSP treats that as its own
+ * scheme, and Chromium does NOT accept the http: source below as covering it —
+ * verified against the running deployment, where every campaign page logged
+ * "connect-src blocked ws://...:4000/socket.io/". So the live funding rail was
+ * silently frozen on every project page.
+ *
+ * Silently, in the fullest sense: socket.io lists polling as a fallback
+ * transport, so the natural assumption is that it degrades to HTTP and keeps
+ * working. It does not — no polling request is ever made, because the failure
+ * arrives as a connection error that socket.io retries on the websocket
+ * transport. Checked before writing this, rather than assumed.
+ *
+ * Derived from the API origin rather than listed separately, so the two cannot
+ * drift, and http -> ws / https -> wss keeps a TLS deployment correct.
+ */
+const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+const apiWsOrigin = apiOrigin.replace(/^http/, 'ws');
+
+/**
  * Content-Security-Policy.
  *
  * - `unsafe-inline` for script/style is required by Next's inline runtime
@@ -50,7 +72,7 @@ const csp = [
   `font-src 'self' data:`,
   // The media origin belongs here too: a browser upload PUTs directly to it,
   // which is a fetch and therefore connect-src, not img-src.
-  `connect-src 'self' https://api.moyasar.com ${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'}${mediaOrigin}`,
+  `connect-src 'self' https://api.moyasar.com ${apiOrigin} ${apiWsOrigin}${mediaOrigin}`,
   `frame-src https://api.moyasar.com https://cdn.moyasar.com https://challenges.cloudflare.com`,
   `frame-ancestors 'none'`,
   `base-uri 'self'`,
