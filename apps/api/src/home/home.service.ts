@@ -282,6 +282,22 @@ export class HomeService {
     return this.prisma.homepageSection.findMany({ orderBy: { sortOrder: 'asc' } });
   }
 
+  /**
+   * Batch CONTENT — the «قواعدنا» hub index.
+   *
+   * The rules pages are EditorialCards of kind RULE, so they are edited through
+   * the same audited ops CONTENT surface as every other article and need no
+   * deploy to change. Only the summary is returned; the body is fetched per page
+   * by `article()` below, which the existing /v1/stories/:slug already serves.
+   */
+  async rules() {
+    return this.prisma.editorialCard.findMany({
+      where: { kind: 'RULE', isActive: true, bodyLongAr: { not: null } },
+      select: { slug: true, titleAr: true, bodyAr: true, sortOrder: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+  }
+
   /** Article page data for /stories/[slug]. */
   async article(slug: string) {
     return this.prisma.editorialCard.findFirst({

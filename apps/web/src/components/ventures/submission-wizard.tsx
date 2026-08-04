@@ -87,6 +87,12 @@ export function SubmissionWizard({
   initialError?: string;
 }): React.ReactElement {
   const [stepIdx, setStepIdx] = useState(0);
+  /**
+   * Batch CONTENT — the creator must acknowledge the rules before submitting.
+   * Deliberately NOT persisted in the Draft: this is an act, not a field, and it
+   * is re-affirmed on every submission rather than remembered from a past one.
+   */
+  const [rulesAck, setRulesAck] = useState(false);
   const [d, setD] = useState<Draft>(EMPTY);
   const step = STEPS[stepIdx]!;
   const canAdvance = stepValid(step.id, d);
@@ -240,6 +246,46 @@ export function SubmissionWizard({
 
         <div hidden={step.id !== 'review'}>
           <ReviewCard d={d} />
+
+          {/* «لم أكن أعلم» is not a workable answer once backers' money is
+              involved, so the rules are put in front of the creator at the last
+              moment before submission — with the two pages that actually decide
+              whether a project is accepted, one click away. */}
+          <label
+            data-testid="rules-ack"
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              marginTop: 18,
+              padding: '14px 16px',
+              background: 'rgba(var(--accent-rgb),.06)',
+              border: '1px solid rgba(var(--accent-rgb),.22)',
+              borderRadius: 12,
+              fontSize: 14.5,
+              lineHeight: 1.85,
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              name="rulesAck"
+              checked={rulesAck}
+              onChange={(e) => setRulesAck(e.target.checked)}
+              style={{ marginTop: 5, width: 17, height: 17, accentColor: 'var(--accent)', flexShrink: 0 }}
+            />
+            <span>
+              أقرّ بأنني قرأت{' '}
+              <a href="/rules/projects" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                قواعد المشاريع
+              </a>{' '}
+              و
+              <a href="/rules/prohibited" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                قائمة المواد والمشاريع المحظورة
+              </a>
+              ، وأن مشروعي لا يخالفها.
+            </span>
+          </label>
         </div>
 
         <nav
@@ -269,7 +315,7 @@ export function SubmissionWizard({
               التالي →
             </button>
           ) : (
-            <button type="submit" style={btnPrimary(false)}>
+            <button type="submit" disabled={!rulesAck} style={btnPrimary(!rulesAck)}>
               إرسال للمراجعة
             </button>
           )}

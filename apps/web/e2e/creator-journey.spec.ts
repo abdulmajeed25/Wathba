@@ -20,6 +20,16 @@ test('creator: signup → wizard → review card → submit → dashboard', asyn
   await page.getByRole('button', { name: 'التالي →' }).click();
   await page.getByRole('button', { name: 'التالي →' }).click();
   await expect(page.getByRole('heading', { name: title })).toBeVisible();
+
+  // Batch CONTENT — submission now requires acknowledging the rules, and the
+  // submit button stays disabled until it is ticked. Asserting the disabled
+  // state first means this journey also proves the gate is real: if the gate
+  // silently stopped working, this line would fail rather than pass by luck.
+  const submit = page.getByRole('button', { name: 'إرسال للمراجعة' });
+  await expect(submit).toBeDisabled();
+  await page.getByTestId('rules-ack').locator('input[type="checkbox"]').check();
+  await expect(submit).toBeEnabled();
+
   // Server-action submit → redirect to the creator dashboard. Kick the click
   // off without awaiting (it detaches on nav) and wait on the URL instead.
   const landed = page.waitForURL('**/projects/dashboard/**', { timeout: 40_000 });
