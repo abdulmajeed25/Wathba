@@ -95,10 +95,15 @@ test('C1: every project cover on the discovery grid decodes', async ({ page }) =
 test('C2: the media origin is allowed by media-src as well as img-src', async ({ page }) => {
   test.skip(!(await environmentHasMedia()), 'no project media in this environment');
 
-  // wathba-start.tsx sets <video src> to `res.publicUrl` — the MinIO origin
-  // rather than a blob: — so story video is governed by media-src and fails the
-  // same invisible way an image does. Story video is creator-uploaded and the
-  // seed has none, so this asserts the policy instead of the pixels.
+  // Story media is uploaded through the dashboard story editor, which PUTs to
+  // the MinIO origin and then renders what came back — so it is governed by
+  // media-src (for video) and fails the same invisible way an image does.
+  // Creator-uploaded, and the seed has none, so this asserts the policy rather
+  // than the pixels.
+  //
+  // An earlier version of this comment cited wathba-start.tsx. That component
+  // was dead code and has been deleted; the live uploaders are the story editor,
+  // the settings/profile avatar pickers and the milestones manager.
   //
   // The expected origin comes from media the app ACTUALLY serves, not from
   // NEXT_PUBLIC_MEDIA_URL: the value is baked in at build time and the runner
