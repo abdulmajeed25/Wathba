@@ -129,3 +129,45 @@ describe('ProcurementService.submitBid', () => {
     ).rejects.toThrow(/already submitted/);
   });
 });
+
+/**
+ * `biddable` is what the supplier portal offers a bid form for, and it must
+ * agree with what `submitBid` will actually accept.
+ *
+ * `status` and `dueDate` are independent: an RFQ stays OPEN as its due date
+ * sails past, so `status: 'OPEN'` is not an invitation to bid. The list is also
+ * ordered by dueDate ascending, which puts the MOST overdue request first — so
+ * the portal offered the deadest one by default, and the bid came back "rfq
+ * dueDate has passed". A seeded demo RFQ crossing its dueDate mid-session is
+ * what surfaced it.
+ *
+ * Time-relative on purpose: hard-coded dates rot into exactly this bug.
+ */
+describe('ProcurementService.toPublicRFQ — biddable', () => {
+  const HOUR = 3_600_000;
+  const svc = () => new ProcurementService(asPrisma(buildPrisma()), notifStub, emailStub);
+  const rfq = (status: RFQStatus, dueOffsetMs: number) =>
+    ({
+      id: 'r1',
+      projectId: 'p1',
+      specsAr: 'مواصفات',
+      dueDate: new Date(Date.now() + dueOffsetMs),
+      status,
+      awardedBidId: null,
+      createdAt: new Date(),
+    }) as unknown as Parameters<ProcurementService['toPublicRFQ']>[0];
+
+  it('is true only for an OPEN rfq still inside its dueDate', () => {
+    expect(svc().toPublicRFQ(rfq(RFQStatus.OPEN, +HOUR)).biddable).toBe(true);
+  });
+
+  it('is false for an OPEN rfq whose dueDate has passed', () => {
+    // The case that shipped: OPEN, listed, offered — and rejected on submit.
+    expect(svc().toPublicRFQ(rfq(RFQStatus.OPEN, -HOUR)).biddable).toBe(false);
+  });
+
+  it('is false once awarded or closed, even with time left', () => {
+    expect(svc().toPublicRFQ(rfq(RFQStatus.AWARDED, +HOUR)).biddable).toBe(false);
+    expect(svc().toPublicRFQ(rfq(RFQStatus.CLOSED, +HOUR)).biddable).toBe(false);
+  });
+});

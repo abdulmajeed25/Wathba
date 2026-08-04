@@ -720,6 +720,13 @@ export interface WathbaRfq {
   dueDate: string;
   bidsCount: number;
   status: 'OPEN' | 'AWARDED' | 'CLOSED';
+  /**
+   * OPEN *and* not past its dueDate — the server computes it, because status
+   * and dueDate are independent and an OPEN request can be un-biddable.
+   * Optional so the bundled fixtures (which predate it) still satisfy the type;
+   * `?? true` at the use sites keeps the fixture surface behaving as before.
+   */
+  biddable?: boolean;
   category: string;
 }
 
