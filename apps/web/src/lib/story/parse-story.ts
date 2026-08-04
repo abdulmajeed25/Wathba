@@ -127,5 +127,25 @@ export function parseStory(source: string): StoryNode[] {
 
   flushPara();
   flushList();
-  return blocks;
+  return normalizeHeadings(blocks);
+}
+
+/**
+ * Lift the story's headings so its shallowest one is h2.
+ *
+ * The campaign page's own title is the h1 and the story sits under it, so `#`
+ * maps to h2 and `##` to h3. A creator who uses only «عنوان فرعي» — a perfectly
+ * reasonable thing to do when every section is a peer — therefore produced h3
+ * directly beneath the h1, skipping a level. That is invisible on screen and
+ * only shows up in the accessibility tree, where it tells a screen-reader user
+ * there is a missing section above each heading.
+ *
+ * Relative structure is what matters, not which character was typed, so this
+ * only shifts when there is nothing at the shallower level. A story using both
+ * is untouched.
+ */
+function normalizeHeadings(blocks: StoryNode[]): StoryNode[] {
+  const hasH2 = blocks.some((b) => b.kind === 'h2');
+  if (hasH2) return blocks;
+  return blocks.map((b) => (b.kind === 'h3' ? { kind: 'h2' as const, text: b.text } : b));
 }
