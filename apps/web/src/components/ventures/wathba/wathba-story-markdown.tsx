@@ -30,23 +30,40 @@ export function WathbaStoryMarkdown({ nodes }: { nodes: StoryNode[] }) {
   );
 }
 
+
+/**
+ * Inline `**bold**`, the one inline mark this grammar supports.
+ *
+ * Block structure alone was enough while the only author was a campaign story,
+ * but a rules page leans on emphasis to make a prohibition scannable — and a
+ * creator typing `**مهم**` today gets literal asterisks, so this fixes the same
+ * papercut on both surfaces. Split on the delimiter rather than parsing: odd
+ * segments are the emphasised ones, and an unmatched `**` therefore stays
+ * literal instead of swallowing the rest of the paragraph.
+ */
+function inline(text: string): React.ReactNode {
+  const parts = text.split(/\*\*/);
+  if (parts.length < 3) return text;
+  return parts.map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part));
+}
+
 function StoryNodeView({ node: n, index }: { node: StoryNode; index: number }) {
   switch (n.kind) {
     case 'h2':
       return (
         <h2 id={storyHeadingId(index)} style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.4, scrollMarginTop: 100 }}>
-          {n.text}
+          {inline(n.text)}
         </h2>
       );
     case 'h3':
       return (
         <h3 id={storyHeadingId(index)} style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.4, scrollMarginTop: 100 }}>
-          {n.text}
+          {inline(n.text)}
         </h3>
       );
     case 'p':
       return (
-        <p style={{ fontSize: 16, lineHeight: 1.85, color: 'var(--text-soft)' }}>{n.text}</p>
+        <p style={{ fontSize: 16, lineHeight: 1.85, color: 'var(--text-soft)' }}>{inline(n.text)}</p>
       );
     case 'ul':
     case 'ol': {
@@ -86,7 +103,7 @@ function StoryNodeView({ node: n, index }: { node: StoryNode; index: number }) {
                   {i + 1}
                 </Num>
               )}
-              {it}
+              {inline(it)}
             </li>
           ))}
         </List>

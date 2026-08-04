@@ -1304,6 +1304,25 @@ export async function getSpotlightPayload(): Promise<ApiSpotlightPayload | null>
 }
 
 /** Editorial article by slug (same tag — admin edits bust it too). */
+export interface ApiRuleSummary {
+  slug: string;
+  titleAr: string;
+  bodyAr: string;
+  sortOrder: number;
+}
+
+/** Batch CONTENT — the «قواعدنا» hub index. Empty array on failure so the hub
+ *  degrades to its own empty state rather than throwing a 500 at a visitor. */
+export async function listRules(): Promise<ApiRuleSummary[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/rules`, { next: { revalidate: 300 } });
+    if (!res.ok) return [];
+    return (await res.json()) as ApiRuleSummary[];
+  } catch {
+    return [];
+  }
+}
+
 export async function getStory(slug: string): Promise<ApiEditorialCard | null> {
   try {
     const res = await fetch(`${API_BASE}/v1/stories/${encodeURIComponent(slug)}`, {

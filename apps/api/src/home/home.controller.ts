@@ -59,6 +59,12 @@ export class HomeController {
     return this.home.spotlight();
   }
 
+  @Get('rules')
+  @ApiOperation({ summary: 'Batch CONTENT — the «قواعدنا» hub index (public, cacheable)' })
+  rules() {
+    return this.home.rules();
+  }
+
   @Get('stories/:slug')
   @ApiOperation({ summary: 'Batch HOME — editorial article (bodyLongAr) by slug' })
   async article(@Param('slug') slug: string) {
