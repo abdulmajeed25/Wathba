@@ -36,12 +36,32 @@ const TABS: Array<{ id: TabId; label: string; icon: string }> = [
 
 const STATUS_TONE: Record<string, { label: string; color: string; bg: string }> = {
   OPEN:     { label: 'مفتوح',  color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
+  // An OPEN request whose dueDate has passed. Not a stored status — the two are
+  // independent, and showing it as «مفتوح» is what invited the dead bid.
+  EXPIRED:  { label: 'انتهى الموعد', color: 'var(--muted)', bg: 'rgba(var(--ink-rgb),.06)' },
   AWARDED:  { label: 'مُرسى',   color: 'var(--accent-ink)', bg: 'rgba(var(--accent-rgb),.10)' },
   CLOSED:   { label: 'مغلق',   color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
   PENDING:  { label: 'قيد التقييم', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
   SUBMITTED:{ label: 'قيد التقييم', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
   REJECTED: { label: 'مرفوض',    color: 'var(--muted)',  bg: 'rgba(var(--ink-rgb),.06)' },
 };
+
+/**
+ * An RFQ is biddable only when it is OPEN *and* still inside its dueDate — two
+ * independent axes that nothing reconciles, so an OPEN request can be dead. The
+ * server computes `biddable`; `?? true` keeps the bundled fixtures (which have
+ * no such field, and no live dueDate to check) behaving exactly as before.
+ */
+function biddableRfqs(rfqs: WathbaRfq[]): WathbaRfq[] {
+  return rfqs.filter((r) => r.biddable ?? true);
+}
+
+/** The caller's choice if it is still biddable, else the first one that is. */
+function pickBiddable(rfqs: WathbaRfq[], preferred?: string): string {
+  const open = biddableRfqs(rfqs);
+  if (preferred && open.some((r) => r.id === preferred)) return preferred;
+  return open[0]?.id ?? '';
+}
 
 export function WathbaSupplier({
   liveRfqs,
@@ -61,6 +81,7 @@ export function WathbaSupplier({
           dueDate: r.dueDate.slice(0, 10),
           bidsCount: r.bidsCount,
           status: r.status,
+          biddable: r.biddable,
           category: r.category,
         }))
       : wathbaRfqs;
@@ -83,7 +104,7 @@ export function WathbaSupplier({
   );
 
   const [tab, setTab] = useState<TabId>('rfqs');
-  const [selRfq, setSelRfq] = useState<string>(rfqs[0]?.id ?? '');
+  const [selRfq, setSelRfq] = useState<string>(pickBiddable(rfqs));
   const [submitted, setSubmitted] = useState(false);
 
   return (
@@ -138,7 +159,8 @@ function RfqList({ rfqs, onApply }: { rfqs: WathbaRfq[]; onApply: (id: string) =
   return (
     <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill,minmax(360px,1fr))' }}>
       {rfqs.map((r) => {
-        const tone = STATUS_TONE[r.status]!;
+        const expired = !(r.biddable ?? true) && r.status === 'OPEN';
+        const tone = STATUS_TONE[expired ? 'EXPIRED' : r.status]!;
         return (
           <div
             key={r.id}
@@ -186,7 +208,10 @@ function RfqList({ rfqs, onApply }: { rfqs: WathbaRfq[]; onApply: (id: string) =
               <Num>الاستحقاق: {r.dueDate}</Num>
               <Num>{r.bidsCount} عروض</Num>
             </div>
-            {r.status === 'OPEN' && (
+            {/* The route INTO the dead form: this button jumped straight to a
+                bid the API would reject. Expired requests stay listed (a
+                supplier should see what they missed) but stop inviting one. */}
+            {r.status === 'OPEN' && !expired && (
               <button
                 type="button"
                 onClick={() => onApply(r.id)}
@@ -359,7 +384,10 @@ function SubmitForm({
   } = useForm<SupplierBidInput>({
     resolver: zodResolver(supplierBidSchema),
     defaultValues: {
-      rfqId: initialRfqId || rfqs[0]?.id || '',
+      // Only a BIDDABLE request, never simply the first one. The list is sorted
+      // by dueDate ascending, so the first entry is the most overdue — picking
+      // it produced a form that always failed with "rfq dueDate has passed".
+      rfqId: pickBiddable(rfqs, initialRfqId),
       amount: 0,
       leadTimeDays: 0,
       compliancePct: 0,
@@ -473,7 +501,7 @@ function SubmitForm({
       <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>الطلب</span>
         <select {...register('rfqId')} style={inputStyle}>
-          {rfqs.map((r) => (
+          {biddableRfqs(rfqs).map((r) => (
             <option key={r.id} value={r.id}>{r.ventureTitleAr} — {r.category}</option>
           ))}
         </select>
