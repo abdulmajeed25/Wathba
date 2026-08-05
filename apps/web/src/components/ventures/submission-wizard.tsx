@@ -72,7 +72,9 @@ function stepValid(s: StepId, d: Draft): boolean {
       const goal = Number(d.fundingGoalSar);
       const pct = Number(d.releaseThresholdPct);
       const days = Number(d.durationDays);
-      return goal >= 100 && pct >= 50 && pct <= 100 && days >= 7 && days <= 90;
+      // 120 is the API's hard bound (project.dto.ts @Max(120)); the wizard used
+      // to stop at 90 and block a duration the platform accepts.
+      return goal >= 100 && pct >= 50 && pct <= 100 && days >= 7 && days <= 120;
     }
     case 'delivery':
       return true; // optional fields
@@ -208,7 +210,7 @@ export function SubmissionWizard({
               ١٠٠ يفعّل تنبيه "الهدف الممتدّ" في صفحة المشروع.
             </Hint>
           </Field>
-          <Field label="مدة الحملة (٧–٩٠ يوم)">
+          <Field label="مدة الحملة (٧–١٢٠ يوم)">
             <input
               name="durationDays"
               type="number"
@@ -216,9 +218,30 @@ export function SubmissionWizard({
               value={d.durationDays}
               onChange={(e) => set('durationDays', e.target.value)}
               min={7}
-              max={90}
+              max={120}
               style={inputStyle}
             />
+            {/*
+              The cap was 90 — a number that matches nothing in the system. The
+              API accepts 7–120 (project.dto.ts, and projects.service checks the
+              live projects.durationHardMaxDays setting), and «قواعد المشاريع»
+              §6 publishes exactly that. A creator entitled to 120 days was told
+              by the published rules that they could ask for it and then found
+              the form would not let them type it.
+
+              The 60-day tier is stated here rather than only enforced: past it,
+              approval REQUIRES an explicit approvedDurationDays grant
+              (projects.ops duration-grant-required), so a creator who submits
+              75 days with no idea a grant is needed stalls in review with
+              nothing on screen explaining why.
+            */}
+            <Hint>
+              حتى ٦٠ يوماً تُعتمد مباشرة. من ٦١ إلى ١٢٠ يوماً تحتاج موافقة مسبقة من فريق
+              وثبة مع سبب مكتوب — اذكر السبب في قصة المشروع.{' '}
+              <a href="/rules/projects" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                قواعد المدة
+              </a>
+            </Hint>
           </Field>
         </div>
 
