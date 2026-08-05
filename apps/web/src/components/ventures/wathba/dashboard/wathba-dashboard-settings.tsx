@@ -381,17 +381,22 @@ export function DashboardSettings({
 
         {editable ? (
           <Field label="مدّة الحملة (أيام)">
+            {/* Was capped at 90 here too — the same bound the submission wizard
+                had, and the same mismatch: the API accepts 7–120 and «قواعد
+                المشاريع» §6 publishes that range. Editing a draft must not be
+                able to refuse a duration the platform grants. */}
             <input
               type="number"
               min={7}
-              max={90}
+              max={120}
               value={durationDays}
               onChange={(e) => setDurationDays(Number(e.target.value))}
               disabled={!editable}
               style={inputStyle(editable)}
             />
             <Hint>
-              بين ٧ و٩٠ يوماً. يُحتسب الموعد النهائي تلقائياً من المدّة عند نشر الحملة.
+              بين ٧ و١٢٠ يوماً — حتى ٦٠ تُعتمد مباشرة، وما فوقها يحتاج موافقة مسبقة من
+              فريق وثبة. يُحتسب الموعد النهائي تلقائياً من المدّة عند نشر الحملة.
               بعد النشر يُقفل الموعد ولا يمكن تمديده (سياسة §١).
             </Hint>
           </Field>
