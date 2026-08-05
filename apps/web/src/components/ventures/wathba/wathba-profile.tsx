@@ -98,6 +98,9 @@ function backingToProject(row: ApiBackingRow): DerivedProject | null {
     slug: row.venture.slug,
     title: row.venture.title,
     tagline: null,
+    // /v1/pledges/me returns no media on the nested venture, so there is no
+    // cover to pass — the card falls back to the placeholder, correctly.
+    coverUrl: null,
     state: row.venture.state,
     fundingGoal: '1',
     fundingRaised: '0',

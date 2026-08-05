@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -110,10 +111,34 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
               color: 'inherit',
             }}
           >
+            {/*
+              HOME-REVIEW D1 — the card's cover.
+
+              The height stays a FIXED 158px and the image is absolutely
+              positioned inside it, so the box occupies its space before the
+              image decodes. This page measures CLS 0.0012 across a full scroll
+              and that number was worked for (preconnect + preload + fixed
+              boxes); adding eight covers must not be what spends it.
+
+              `.wathba-ph` is kept underneath as the fallback: the eight demo
+              fixtures carry no imagery, so the hatched block still renders for
+              them — it is now the exception it was always meant to be, not the
+              default state of the platform's primary discovery grid.
+            */}
             <div className="wathba-ph" style={{ height: 158, position: 'relative' }}>
-              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
-                <Num style={{ fontSize: 11, color: 'var(--ph-label)' }}>[ {p.cat} ]</Num>
-              </div>
+              {p.coverUrl ? (
+                <Image
+                  src={p.coverUrl}
+                  alt=""
+                  fill
+                  sizes="(max-width: 760px) 92vw, (max-width: 1100px) 45vw, 310px"
+                  style={{ objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
+                  <Num style={{ fontSize: 11, color: 'var(--ph-label)' }}>[ {p.cat} ]</Num>
+                </div>
+              )}
               <div
                 style={{
                   position: 'absolute',
@@ -180,18 +205,46 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                 flex: 1,
               }}
             >
+              {/*
+                Two lines, always. Real project titles are longer and less
+                uniform than the demo fixtures this grid used to draw
+                («سُمّار — أرشيف الحكاية الشعبية المسموعة» wraps; «سِرب — درون
+                التصوير الذكي» does not), so a free-height title pushed each
+                card's progress bar and meta row to a different baseline across
+                the row. Reserving two lines re-aligns them without truncating
+                the common case. lineHeight 1.45 is the RTL floor — Arabic
+                ascenders and diacritics clip below it.
+              */}
               <h3
                 style={{
                   fontSize: 16.5,
                   fontWeight: 700,
                   marginBottom: 4,
+                  lineHeight: 1.45,
+                  minHeight: '2.9em',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
                 }}
               >
                 {p.titleAr}
               </h3>
-              <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 13 }}>
-                بواسطة {p.creator}
-              </div>
+              {/*
+                HOME-REVIEW D1 — the byline renders only when a creator name is
+                actually known. The public project payload does not carry one,
+                and this grid now draws REAL projects; printing «بواسطة » with
+                nothing after it, or a fixture's name against a real project,
+                would both be worse than omitting the line. The space is
+                reclaimed rather than reserved, so cards stay flush.
+              */}
+              {p.creator ? (
+                <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 13 }}>
+                  بواسطة {p.creator}
+                </div>
+              ) : (
+                <div style={{ marginBottom: 13 }} />
+              )}
               <div style={{ marginTop: 'auto' }}>
                 <div
                   style={{

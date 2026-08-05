@@ -29,6 +29,16 @@ export interface ApiVenture {
   slug: string;
   title: string;
   tagline: string | null;
+  /**
+   * First entry of the project's mediaUrls — its cover.
+   *
+   * HOME-REVIEW D1: the API has always returned mediaUrls on the public
+   * project row, and projectToVenture dropped it here. Four links down the
+   * chain the trending card had nothing to draw, so it drew a hatched
+   * placeholder printing the category name — on a platform whose product IS
+   * the photograph. Nothing ever failed: the placeholder renders perfectly.
+   */
+  coverUrl: string | null;
   state: string;
   fundingGoal: string;
   fundingCurrency: string;
@@ -186,6 +196,7 @@ function projectToVenture(p: ApiProjectPublic): ApiVenture {
     slug: p.id, // apps/api has no slug column today; route uses id.
     title: p.titleAr,
     tagline: p.shortDescAr ?? null,
+    coverUrl: p.mediaUrls?.[0] ?? null,
     state: p.status.toLowerCase(),
     fundingGoal: halalasToSar(p.fundingGoalHalalas),
     fundingCurrency: 'SAR',

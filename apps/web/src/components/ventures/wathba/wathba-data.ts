@@ -28,6 +28,15 @@ export interface WathbaProject {
   platformPartner?: { stakeType: string; disclosureAr: string } | null;
   /** UUID of the creator User; present only for real-API projects, not fixtures. */
   createdById?: string;
+  /**
+   * HOME-REVIEW D1 — the project's cover, when it comes from the live API.
+   *
+   * Optional on purpose: the eight demo fixtures below carry no imagery, and
+   * they must keep rendering. Cards fall back to the hatched placeholder when
+   * this is absent, so the placeholder becomes the EXCEPTION (a project with
+   * no cover) instead of the rule it had quietly become.
+   */
+  coverUrl?: string | null;
 }
 
 export const wathbaProjects: WathbaProject[] = [
@@ -386,6 +395,69 @@ export function deriveProject(p: WathbaProject): DerivedProject {
   };
 }
 
+/**
+ * HOME-REVIEW D1 — build a homepage card from a REAL project row.
+ *
+ * THE BUG THIS FIXES: the homepage's primary discovery grid had never shown a
+ * real project. The chain was
+ *
+ *   listVentures()     → maps `slug: p.id` (a UUID)
+ *   adaptApiVenture()  → looks that up against wathbaProjects[].titleEn
+ *                        ('Sirb', 'Hekaya', …) — a UUID never matches, and the
+ *                        seed slugs are now 'sirb-drone' style, so it would not
+ *                        match even with the real slug
+ *                      → returns null for EVERY live row
+ *   page.tsx           → `projects.length > 0 ? projects : undefined`
+ *   WathbaHome         → `projects ?? wathbaProjects` — the bundled demo eight
+ *
+ * so the grid rendered eight hardcoded fixtures with fixture funding numbers,
+ * fixture backer counts, and links to /projects/p1. It was invisible because a
+ * fixture always renders: the grid looked complete and correct.
+ *
+ * This adapter takes the row as it is and never needs a fixture. `catNameById`
+ * resolves the canonical taxonomy id to its Arabic name (GET /v1/categories),
+ * because the project row carries only the id.
+ */
+export function adaptDiscoverProject(
+  p: {
+    id: string;
+    titleAr: string;
+    shortDescAr: string;
+    categoryId: string | null;
+    region: string | null;
+    isStaffPick: boolean;
+    fundingGoalHalalas: number;
+    raisedHalalas: number;
+    backersCount: number;
+    deadline: string;
+    mediaUrls: string[];
+    slug: string | null;
+  },
+  catNameById: Map<string, string>,
+): WathbaProject {
+  const goal = p.fundingGoalHalalas / 100;
+  return {
+    // Both the slug and the UUID resolve on /projects/[id]; the slug is the
+    // human-readable one, so it is preferred for the href.
+    id: p.slug ?? p.id,
+    titleAr: p.titleAr,
+    titleEn: p.slug ?? '',
+    // The public payload carries no creator name — the card omits the byline
+    // rather than inventing one. See wathba-home-trending.
+    creator: '',
+    cat: (p.categoryId && catNameById.get(p.categoryId)) || '',
+    catId: p.categoryId ?? '',
+    raised: p.raisedHalalas / 100,
+    goal: goal > 0 ? goal : 1,
+    backers: p.backersCount,
+    daysLeft: Math.max(0, Math.ceil((new Date(p.deadline).getTime() - Date.now()) / 86_400_000)),
+    loc: p.region ?? '',
+    badge: p.isStaffPick ? 'مختارات وثبة' : '',
+    desc: p.shortDescAr,
+    coverUrl: p.mediaUrls?.[0] ?? null,
+  };
+}
+
 export function compactNum(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M';
   if (n >= 1e3) return Math.round(n / 1e3) + 'K';
@@ -403,6 +475,8 @@ export interface ApiVentureLike {
   slug: string;
   title: string;
   tagline: string | null;
+  /** HOME-REVIEW D1 — the project's cover; null for rows that have no media. */
+  coverUrl: string | null;
   state: string;
   fundingGoal: string;
   fundingRaised: string;
@@ -442,6 +516,8 @@ export function adaptApiVenture(v: ApiVentureLike): (WathbaProject & { apiId: st
     goal: Number(v.fundingGoal),
     daysLeft: daysUntil(v.fundingDeadline),
     desc: v.tagline?.trim() ? v.tagline.trim() : fixture.desc,
+    // HOME-REVIEW D1 — the live cover overlays the fixture, which has none.
+    coverUrl: v.coverUrl,
   };
 }
 
