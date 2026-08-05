@@ -160,7 +160,8 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
                 padding: '20px 12px',
                 textAlign: 'center',
                 boxShadow: 'var(--card-shadow)',
-                transition: 'transform .35s cubic-bezier(.2,.7,.2,1),box-shadow .35s,border-color .35s',
+                transition:
+                  'transform var(--dur-hover) var(--ease-out),box-shadow var(--dur-hover) var(--ease-out),border-color var(--dur-hover) var(--ease-out)',
                 textDecoration: 'none',
                 color: 'inherit',
                 display: 'block',
@@ -872,13 +873,20 @@ export function WathbaHome({
                     marginBottom: 14,
                   }}
                 >
+                  {/* scaleX, not width: a transform does not touch layout, and
+                      the origin is the reading start so the bar grows the way
+                      the language runs. Same treatment as .wathba-hero-bar,
+                      which is why they now share the rule — this one animated
+                      `width` over 1.4s, which is both layout-bound and roughly
+                      six times the reveal step. */}
                   <div
+                    className="wathba-bar"
                     style={{
                       height: '100%',
-                      width: featured.pctW,
+                      width: '100%',
                       background: 'var(--grad-bar)',
                       borderRadius: 30,
-                      transition: 'width 1.4s cubic-bezier(.2,.7,.2,1)',
+                      transform: `scaleX(${Math.min(featured.pct, 100) / 100})`,
                     }}
                   />
                 </div>

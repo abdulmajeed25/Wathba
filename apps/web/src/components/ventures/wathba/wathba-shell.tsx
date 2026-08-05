@@ -28,6 +28,33 @@ export function WathbaShell({
 
   const styleVars: CSSProperties = {
     ...(wathbaCssVars[theme] as unknown as CSSProperties),
+    /**
+     * HOME-REVIEW — the motion scale.
+     *
+     * The surface carried twelve ad-hoc durations (.16 .18 .2 .22 .25 .35 .4
+     * .5 .62 .8 1.1 1.4s) and reached for the browser's default `ease` wherever
+     * a curve was omitted. Twelve durations is not a decision, it is twelve
+     * separate ones — and `ease` is the absence of a choice rather than a
+     * choice, weak at both ends where the reader is actually looking.
+     *
+     * Four steps, named for the EVENT rather than the number, because the
+     * event is what decides:
+     *   press   — a button answering a finger; must feel like contact
+     *   hover   — a colour or border acknowledging a cursor
+     *   reveal  — something entering or leaving the page
+     *   drift   — the hero's calm auto-advance, the one thing nobody asked for
+     *
+     * The curve is a strong ease-out for anything entering or leaving: it
+     * starts fast, so the reader sees movement in the frame they are watching
+     * most. ease-in is deliberately absent — it delays the opening frames and
+     * reads as lag no matter how short the duration.
+     */
+    ['--dur-press' as string]: '120ms',
+    ['--dur-hover' as string]: '180ms',
+    ['--dur-reveal' as string]: '240ms',
+    ['--dur-drift' as string]: '520ms',
+    ['--ease-out' as string]: 'cubic-bezier(.23,1,.32,1)',
+    ['--ease-in-out' as string]: 'cubic-bezier(.77,0,.175,1)',
     background:
       'radial-gradient(1200px 700px at 85% -5%,rgba(var(--accent-rgb),.10),transparent 60%),radial-gradient(900px 600px at 0% 0%,rgba(var(--accent2-rgb),.10),transparent 55%),var(--bg)',
     color: 'var(--text)',
@@ -214,16 +241,40 @@ export function WathbaShell({
                  before anything has moved. */
               [data-pillar="ventures"] .wathba-hero-slide[data-state="current"],
               [data-pillar="ventures"] .wathba-hero-slide[data-state="prev"]{will-change:transform,opacity}
-              [data-pillar="ventures"] .wathba-hero-bar{transition:transform 1.1s cubic-bezier(.2,.7,.2,1)}
+              [data-pillar="ventures"] .wathba-hero-bar,
+              [data-pillar="ventures"] .wathba-bar{transition:transform var(--dur-reveal) var(--ease-out)}
             }
-            /* Grows from the reading start: right in Arabic, left in English. */
-            [data-pillar="ventures"] .wathba-hero-bar{transform-origin:right center}
-            [dir="ltr"] [data-pillar="ventures"] .wathba-hero-bar{transform-origin:left center}
+            /* Grows from the reading start: right in Arabic, left in English.
+               .wathba-bar is the same treatment for any funding bar outside the
+               hero — see the note on the motion scale above. */
+            [data-pillar="ventures"] .wathba-hero-bar,
+            [data-pillar="ventures"] .wathba-bar{transform-origin:right center}
+            [dir="ltr"] [data-pillar="ventures"] .wathba-hero-bar,
+            [dir="ltr"] [data-pillar="ventures"] .wathba-bar{transform-origin:left center}
             [data-pillar="ventures"] .wathba-hero-ctl{width:36px;height:36px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;cursor:pointer;background:var(--card);color:var(--text);border:1px solid rgba(var(--ink-rgb),.14);transition:transform .16s ease,border-color .16s ease}
             @media (hover:hover) and (pointer:fine){
               [data-pillar="ventures"] .wathba-hero-ctl:hover{border-color:rgba(var(--accent-rgb),.55)}
             }
             [data-pillar="ventures"] .wathba-hero-ctl:active{transform:scale(.94)}
+
+            /* ── HOME-REVIEW — press feedback on pressable cards ──────────
+               The hero controls already answered a press; the project cards —
+               the single most-clicked thing on the page — did not. A card that
+               does not move under a finger reads as a picture of a card, and
+               the reader waits for the navigation to tell them it worked.
+
+               scale(.985) and no more: these are large surfaces, and a big
+               card shrinking noticeably looks like it broke rather than like
+               it responded. Transform only, so nothing reflows.
+
+               Gated on no-preference like every other transition here, and the
+               :active rule sits INSIDE the gate too — a reduced-motion reader
+               gets an instant, untransitioned state change rather than none at
+               all, which is the point of the preference, not its removal. */
+            @media (prefers-reduced-motion: no-preference){
+              [data-pillar="ventures"] .wathba-pressable{transition:transform var(--dur-press) var(--ease-out)}
+              [data-pillar="ventures"] .wathba-pressable:active{transform:scale(.985)}
+            }
             [data-pillar="ventures"] .wathba-hero-ctl:focus-visible,
             [data-pillar="ventures"] .wathba-hero-dot:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
             /* The BUTTON is 24x24 and never changes size; the visible pill is an

@@ -56,7 +56,7 @@ export function WathbaHeroBanners({ banners }: { banners: HeroBanner[] }) {
           // as tall as the TALLEST slide and rotation never shifts layout
           // (a minHeight box + swapped content caused real CLS when a longer
           // slide rotated in mid-audit).
-          display: 'grid', transition: 'background .5s',
+          display: 'grid', transition: 'background var(--dur-drift) var(--ease-out)',
         }}
       >
         {banners.map((b, i) => (
@@ -66,7 +66,7 @@ export function WathbaHeroBanners({ banners }: { banners: HeroBanner[] }) {
             style={{
               gridArea: '1 / 1', padding: '28px 34px 40px',
               display: 'flex', flexDirection: 'column', justifyContent: 'center',
-              opacity: i === idx ? 1 : 0, transition: 'opacity .4s',
+              opacity: i === idx ? 1 : 0, transition: 'opacity var(--dur-drift) var(--ease-out)',
               pointerEvents: i === idx ? 'auto' : 'none',
               visibility: i === idx ? 'visible' : 'hidden',
             }}
