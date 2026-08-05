@@ -4,7 +4,7 @@ import { adaptDiscoverProject } from '@/components/ventures/wathba/wathba-data';
 import { WathbaHeroRotator } from '@/components/ventures/wathba/wathba-hero-rotator';
 import { WathbaHeroSlideBody } from '@/components/ventures/wathba/wathba-hero-slide-body';
 import { WathbaHome } from '@/components/ventures/wathba/wathba-home';
-import { WathbaHomeMagazine } from '@/components/ventures/wathba/wathba-home-magazine';
+import { wathbaMagazineRenderers } from '@/components/ventures/wathba/wathba-home-magazine';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { getHeroProjects, getHomePayload, getRecommendedProjects, listCategories, listDiscover } from '@/lib/api/wathba';
@@ -75,8 +75,15 @@ export default async function ProjectsPage() {
           projects={recommended.items}
         />
       )}
+      {/* HOME-REVIEW — ONE ordered list. `order` is HomepageSection.sortOrder
+          as the API returns it, and the magazine's renderers are merged into
+          the same map, so the two halves interleave instead of the magazine
+          being welded below everything. Reordering the homepage is now a data
+          change through content.homepage-section.update, not a deploy. */}
       <WathbaHome
         projects={projects && projects.length > 0 ? projects : undefined}
+        order={home?.sections.map((s) => s.key)}
+        extraRenderers={home ? wathbaMagazineRenderers(home) : undefined}
         hero={
           heroSlides.length > 0 ? (
             // Composed HERE, in a server component, so the card bodies never
@@ -91,7 +98,6 @@ export default async function ProjectsPage() {
           ) : null
         }
       />
-      {home && <WathbaHomeMagazine payload={home} />}
     </WathbaShell>
   );
 }

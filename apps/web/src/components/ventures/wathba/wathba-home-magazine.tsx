@@ -14,8 +14,20 @@ import { Num } from './wathba-icons';
  * hydrate. One h1 lives in WathbaHome above — everything here is h2/h3.
  */
 
-export function WathbaHomeMagazine({ payload }: { payload: ApiHomePayload }) {
-  const RENDER: Record<string, () => React.ReactNode> = {
+/**
+ * HOME-REVIEW — the magazine's sections as a key → renderer map.
+ *
+ * These used to render as one contiguous block BELOW everything in
+ * wathba-home. They are now merged into that file's ordered list, so a
+ * magazine section can sit between two code-defined ones — which is the whole
+ * point: the proof (a featured project, campaigns closing, success stories)
+ * belongs above the creator call-to-action, not after it.
+ *
+ * Order and activation still come from HomepageSection via GET /v1/home; this
+ * only stops the block from being positionally welded to the bottom.
+ */
+export function wathbaMagazineRenderers(payload: ApiHomePayload): Record<string, () => React.ReactNode> {
+  return {
     hero_banners: () =>
       payload.heroBanners.length > 0 ? <WathbaHeroBanners banners={payload.heroBanners} /> : null,
     featured_recommended: () =>
@@ -154,14 +166,6 @@ export function WathbaHomeMagazine({ payload }: { payload: ApiHomePayload }) {
         </Section>
       ) : null,
   };
-
-  return (
-    <div data-testid="home-magazine">
-      {payload.sections.map((s) => (
-        <div key={s.key}>{RENDER[s.key]?.() ?? null}</div>
-      ))}
-    </div>
-  );
 }
 
 /* ── building blocks ─────────────────────────────────────────────── */
