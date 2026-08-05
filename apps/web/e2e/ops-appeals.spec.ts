@@ -85,10 +85,20 @@ test('/appeal renders the locked appeal surface for a signed-in session', async 
   test.skip(!apiUp, 'API unreachable — skipping live ops-appeals spec');
   await signIn(page);
 
+  // This assertion used to expect the ban-appeal form here, which is what the
+  // surface really did — and it was the defect: this session is NOT banned, so
+  // submitting that form could only ever return «حسابك ليس محظوراً» from
+  // assertOwnership. An unrestricted reader is now told there is nothing to
+  // appeal. The ban-appeal form for an actually-banned user is covered
+  // end-to-end by ops-appeals-lifecycle.spec.ts.
   await page.goto('/appeal');
-  await expect(page.getByRole('heading', { name: 'تقديم تظلّم', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'لا يوجد قرار للتظلّم عنه', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'تقديم تظلّم' })).toHaveCount(0);
 
-  // Either the submit form (no existing appeal) or an existing-appeal status card.
+  // The surface's OTHER job is unchanged: a rejected project is appealable by
+  // a creator who is not restricted at all.
+  await page.goto('/appeal?project=00000000-0000-4000-8000-000000000123');
+  await expect(page.getByRole('heading', { name: 'تقديم تظلّم', exact: true })).toBeVisible();
   const submit = page.getByRole('button', { name: 'تقديم تظلّم' });
   const status = page.getByText(/الحالة:/).first();
   await expect(submit.or(status)).toBeVisible();

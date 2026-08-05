@@ -19,21 +19,49 @@ import { AppealForm, type MyAppeal } from './appeal-form';
  * grants only appeal access, so we must not depend on /v1/users/me here.
  */
 
-export const metadata: Metadata = { title: 'تقديم تظلّم · وثبة' };
+/**
+ * The tab title is part of the promise. A reader who cannot file an appeal
+ * should not be looking at a tab that says «تقديم تظلّم» — the page already
+ * reads the session cookie, so this costs nothing extra.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ project?: string }>;
+}): Promise<Metadata> {
+  const sp = await searchParams;
+  if (sp.project?.trim()) return { title: 'تقديم تظلّم · وثبة' };
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const restriction = token ? jwtClaims(token).restriction : null;
+  if (restriction === 'BANNED') return { title: 'تقديم تظلّم · وثبة' };
+  return { title: restriction === 'SUSPENDED' ? 'حساب موقوف مؤقتاً · وثبة' : 'حالة الحساب · وثبة' };
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 const SESSION_COOKIE = 'wathba_session';
 
-/** Decode a JWT's `sub` (userId) without verifying — display/subjectId only. */
-function jwtSub(token: string): string | null {
+interface SessionClaims {
+  sub: string | null;
+  /** Absent on an unrestricted session. See JwtPayload.restriction (api). */
+  restriction: 'SUSPENDED' | 'BANNED' | null;
+}
+
+/** Decode a JWT without verifying — display/subjectId only. */
+function jwtClaims(token: string): SessionClaims {
   try {
     const payload = token.split('.')[1];
-    if (!payload) return null;
+    if (!payload) return { sub: null, restriction: null };
     const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-    const claims = JSON.parse(json) as { sub?: string; userId?: string; id?: string };
-    return claims.sub ?? claims.userId ?? claims.id ?? null;
+    const claims = JSON.parse(json) as {
+      sub?: string; userId?: string; id?: string;
+      restriction?: 'SUSPENDED' | 'BANNED';
+    };
+    return {
+      sub: claims.sub ?? claims.userId ?? claims.id ?? null,
+      restriction: claims.restriction ?? null,
+    };
   } catch {
-    return null;
+    return { sub: null, restriction: null };
   }
 }
 
@@ -64,8 +92,18 @@ export default async function AppealPage({
   const kind: 'ACCOUNT_BAN' | 'PROJECT_REJECTION' = projectId ? 'PROJECT_REJECTION' : 'ACCOUNT_BAN';
   const kindLabelAr = projectId ? 'رفض المشروع' : 'حظر الحساب';
 
-  const ownUserId = jwtSub(token!);
+  const { sub: ownUserId, restriction } = jwtClaims(token!);
   const subjectId = projectId ?? ownUserId ?? '';
+
+  // A temporary suspension is NOT a ban, and only a ban can be appealed:
+  // assertOwnership refuses an ACCOUNT_BAN appeal from any account whose
+  // suspendedKind is not BANNED. Sign-in routes every restricted session here,
+  // so without this branch a suspended reader was shown a form whose only
+  // possible outcome was «حسابك ليس محظوراً» — the one door offered to them
+  // was the one they are forbidden to walk through.
+  if (kind === 'ACCOUNT_BAN' && restriction !== 'BANNED') {
+    return <NoAppealNotice restriction={restriction} />;
+  }
 
   const appeals = await loadMyAppeals(token!);
   const existing =
@@ -126,6 +164,70 @@ export default async function AppealPage({
           العودة لتسجيل الدخول
         </Link>
       </p>
+    </main>
+  );
+}
+
+/**
+ * The locked surface for a session that has no appealable decision.
+ *
+ * Two readers land here and they are owed different answers:
+ *
+ *  · SUSPENDED — a temporary administrative hold. There is no appeal to file
+ *    (appeals.service.ts refuses anything that is not BANNED), so promising
+ *    one would be a dead end. Support is the real route back.
+ *  · no restriction — a signed-in reader who navigated to /appeal directly.
+ *    Nothing has been decided against them; previously they were shown a
+ *    ban-appeal form that would have 403'd on submit.
+ */
+function NoAppealNotice({ restriction }: { restriction: 'SUSPENDED' | 'BANNED' | null }) {
+  const suspended = restriction === 'SUSPENDED';
+  return (
+    <main className="mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col justify-center gap-6 px-5 py-16">
+      <header className="space-y-2 text-center">
+        {suspended ? (
+          <span className="inline-block rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+            إيقاف مؤقت
+          </span>
+        ) : null}
+        <h1 className="text-2xl font-bold">
+          {suspended ? 'حسابك موقوف مؤقتاً' : 'لا يوجد قرار للتظلّم عنه'}
+        </h1>
+        <p className="text-sm text-neutral-600">
+          {suspended
+            ? 'هذا إيقاف إداري مؤقت وليس حظراً دائماً، ولذلك لا يوجد قرار حظر يُتظلَّم عنه. يراجع فريق العمليات الإيقاف ويُعاد تفعيل الحساب عند انتهاء سببه — وإن كنت ترى أنه حدث خطأً، راسل الدعم وسنرد عليك.'
+            : 'حسابك يعمل بشكل طبيعي ولم يصدر بحقّه أي قرار إشرافي. صفحة التظلّمات مخصّصة لمن صدر بحقّه قرار حظر أو رفض مشروع.'}
+        </p>
+      </header>
+
+      <section className="rounded-2xl border border-neutral-200 bg-white p-5 text-center shadow-sm">
+        {suspended ? (
+          <p className="text-sm text-neutral-700">
+            للتواصل:{' '}
+            <a href="mailto:support@wathba.sa" className="font-semibold text-emerald-700 hover:underline">
+              support@wathba.sa
+            </a>
+          </p>
+        ) : (
+          <Link href="/projects" className="font-semibold text-emerald-700 hover:underline">
+            العودة إلى وثبة
+          </Link>
+        )}
+      </section>
+
+      <p className="text-center text-sm text-neutral-500">
+        <Link href="/rules/enforcement" className="text-emerald-700 hover:underline">
+          كيف تُتَّخذ قرارات الإنفاذ وكيف يُراجَع التظلّم
+        </Link>
+      </p>
+
+      {suspended ? (
+        <p className="text-center text-sm text-neutral-500">
+          <Link href="/sign-in" className="text-emerald-700 hover:underline">
+            العودة لتسجيل الدخول
+          </Link>
+        </p>
+      ) : null}
     </main>
   );
 }

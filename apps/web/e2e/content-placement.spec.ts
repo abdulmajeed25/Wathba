@@ -173,8 +173,12 @@ test('P9: the appeal page links the policy the decision was made under', async (
   const email = uniqueEmail('appeal-link');
   await signUpAndVerify(page, 'مُتظلّم', email, String(1000000000 + Math.floor(Math.random() * 8e8)));
 
+  // An unrestricted account now correctly gets the "nothing to appeal" state
+  // rather than a ban-appeal form for a ban that does not exist — see
+  // appeal-suspended-vs-banned.spec.ts. The enforcement link is the constant
+  // across every state of this surface, and that is what is asserted here.
   await page.goto('/appeal');
-  await expect(page.getByRole('heading', { name: 'تقديم تظلّم' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'لا يوجد قرار للتظلّم عنه' })).toBeVisible();
   // The appellant is asked to argue against a decision without being shown the
   // rules it was made under, or how the review that follows works.
   await expect(page.locator('a[href="/rules/enforcement"]')).toHaveCount(1);

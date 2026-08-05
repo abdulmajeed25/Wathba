@@ -235,3 +235,64 @@ describe('AuthService.refresh — rotation FSM (Sprint 2 / P1-502)', () => {
     expect((await svc.signOut('raw-token-value-that-is-long-enough')).revoked).toBe(false);
   });
 });
+
+/**
+ * Batch CONTENT — sign-in must say WHICH restriction, not merely that there is
+ * one.
+ *
+ * appeals.service.ts refuses an ACCOUNT_BAN appeal from any account whose
+ * suspendedKind is not BANNED. While the locked token carried a bare
+ * `suspended: true`, the web could not tell the two apart and routed a
+ * temporarily suspended reader to a ban-appeal form that would reject them by
+ * name. These two cases are one enum value apart.
+ */
+describe('AuthService.signIn — restricted accounts', () => {
+  const hashed = bcrypt.hashSync(PASS, 4);
+
+  function svcFor(suspendedKind: 'SUSPENDED' | 'BANNED'): { svc: AuthService; jwt: any } {
+    const jwt = makeJwt();
+    const svc = new AuthService(
+      makePrisma(),
+      makeUsers({
+        id: 'u1', email: EMAIL, roles: ['BACKER'], passwordHash: hashed,
+        suspendedAt: new Date('2026-08-01T00:00:00Z'), suspendedKind,
+      }),
+      jwt,
+      { passwordReset: jest.fn().mockResolvedValue({}) } as never,
+      { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
+      { get: jest.fn().mockResolvedValue('2026-06-28') } as never,
+    );
+    return { svc, jwt };
+  }
+
+  it('a BANNED account is flagged banned and its token carries restriction BANNED', async () => {
+    const { svc, jwt } = svcFor('BANNED');
+    const res = await svc.signIn(EMAIL, PASS);
+    expect(res.suspended).toBe(true);
+    expect(res.banned).toBe(true);
+    expect(jwt.signAsync.mock.calls[0][0]).toMatchObject({ restriction: 'BANNED' });
+  });
+
+  it('a SUSPENDED account is NOT banned — it has no ban decision to appeal', async () => {
+    const { svc, jwt } = svcFor('SUSPENDED');
+    const res = await svc.signIn(EMAIL, PASS);
+    expect(res.suspended).toBe(true);
+    expect(res.banned).toBe(false);
+    expect(jwt.signAsync.mock.calls[0][0]).toMatchObject({ restriction: 'SUSPENDED' });
+  });
+
+  it('an unrestricted account carries no restriction claim at all', async () => {
+    const jwt = makeJwt();
+    const svc = new AuthService(
+      makePrisma(),
+      makeUsers({ id: 'u1', email: EMAIL, roles: ['BACKER'], passwordHash: hashed }),
+      jwt,
+      { passwordReset: jest.fn().mockResolvedValue({}) } as never,
+      { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
+      { get: jest.fn().mockResolvedValue('2026-06-28') } as never,
+    );
+    const res = await svc.signIn(EMAIL, PASS);
+    expect(res.suspended).toBeUndefined();
+    expect(jwt.signAsync.mock.calls[0][0]).not.toHaveProperty('restriction');
+  });
+});
