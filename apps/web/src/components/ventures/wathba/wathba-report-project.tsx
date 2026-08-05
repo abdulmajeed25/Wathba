@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 
 /**
@@ -106,6 +107,19 @@ export function ReportProjectButton({ projectId }: { projectId: string }) {
           >
             إرسال البلاغ
           </button>
+          {/* Batch CONTENT Part 2 — a reporter is asked to judge a project
+              against rules the dialog never showed them, then told nothing
+              about what their report sets in motion. Both answers live on the
+              enforcement page; this is the only place that asks the question. */}
+          <Link
+            href="/rules/enforcement"
+            style={{
+              display: 'block', marginTop: 9, fontSize: 11.5, lineHeight: 1.7,
+              color: 'var(--muted2)', textAlign: 'center',
+            }}
+          >
+            ما الذي يُعدّ مخالفة؟ وماذا يحدث بعد البلاغ؟
+          </Link>
         </div>
       )}
     </div>

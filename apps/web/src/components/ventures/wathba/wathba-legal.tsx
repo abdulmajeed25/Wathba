@@ -47,6 +47,15 @@ export function WathbaLegalPage({
   );
 }
 
+/**
+ * Batch CONTENT Part 2 — every numbered section is now deep-linkable.
+ *
+ * Without an id the only anchor on the whole help centre was #contact, so any
+ * contextual link to an answer — "when is my card actually charged?" from the
+ * pledge sheet — could do no better than drop the reader at the top of a
+ * sixteen-question FAQ and leave them to scan. `n` is unique within every page
+ * that renders these (checked across all seven), so it makes a stable id.
+ */
 export function LegalSection({
   n,
   title,
@@ -57,7 +66,7 @@ export function LegalSection({
   body: ReactNode;
 }) {
   return (
-    <article style={{ marginBottom: 22 }}>
+    <article id={n.toLowerCase()} style={{ marginBottom: 22, scrollMarginTop: 90 }}>
       <h2
         style={{
           fontSize: 19,

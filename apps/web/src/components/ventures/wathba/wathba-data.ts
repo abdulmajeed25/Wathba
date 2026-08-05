@@ -245,46 +245,69 @@ export const wathbaTickerMessages = [
 ];
 
 // Sprint 3 / P1-210 — every footer item is a real destination (no orphans).
+//
+// Batch CONTENT Part 2 — grouped by WHO IS ASKING, not by who owns the page.
+// «المنصة» had grown into a nine-item catch-all holding discovery, creator
+// tooling and policy side by side, so a creator hunting the publisher handbook
+// and a backer hunting the rules scanned the same undifferentiated list. The
+// destinations are unchanged; only the grouping is. Trust gets a column of its
+// own because that is the batch's whole point: a reader who wants to know how
+// this platform behaves should not have to infer it from a legal column.
 export const wathbaFooterCols: Array<{
   title: string;
   items: Array<{ label: string; href: string }>;
 }> = [
   {
-    title: 'المنصة',
+    title: 'اكتشف',
     items: [
       { label: 'اكتشف المشاريع', href: '/projects/discover-all' },
+      { label: 'تحت الأضواء', href: '/spotlight' },
+      { label: 'رتب الداعمين', href: '/projects/ranks' },
+    ],
+  },
+  {
+    title: 'للمبدعين',
+    items: [
       { label: 'ابدأ مشروعاً', href: '/projects/start' },
       { label: 'كيف تعمل', href: '/projects/how' },
-      { label: 'قواعدنا', href: '/rules' },
-      { label: 'عن وثبة', href: '/projects/about' },
-      { label: 'الأسعار والعمولة', href: '/projects/pricing' },
       { label: 'دليل الناشر', href: '/projects/handbook' },
-      { label: 'رتب الداعمين', href: '/projects/ranks' },
+      { label: 'الأسعار والعمولة', href: '/projects/pricing' },
       { label: 'بوابة الموردين', href: '/projects/supplier' },
     ],
   },
   {
-    title: 'حسابك',
+    title: 'الثقة والقواعد',
     items: [
+      { label: 'قواعدنا', href: '/rules' },
+      // Part 2 — the enforcement policy had no footer entry at all: it was
+      // reachable only from the rules hub, so a reader who wanted to know what
+      // happens after a report had to already be inside the rules to find out.
+      { label: 'الإبلاغ والإنفاذ', href: '/rules/enforcement' },
+      { label: 'عقود الدعم', href: '/projects/legal/contracts' },
+      // Batch HOME (S12) — the scam-protection guide, footer-linked per spec.
+      { label: 'احمِ حملتك من الاحتيال', href: '/stories/protect-your-campaign' },
+    ],
+  },
+  {
+    title: 'المساعدة وحسابك',
+    items: [
+      { label: 'مركز المساعدة', href: '/projects/help' },
+      // D5 — «تواصل معنا» used to drop the reader at the top of a long FAQ.
+      // The contact form has an anchor now, so the link lands on the form.
+      { label: 'تواصل معنا', href: '/projects/help#contact' },
       { label: 'تعهّداتي', href: '/projects/me/pledges' },
       { label: 'المدفوعات', href: '/projects/payments' },
       { label: 'الإشعارات', href: '/projects/notifications' },
       { label: 'الإعدادات', href: '/projects/settings' },
-      { label: 'مركز المساعدة', href: '/projects/help' },
     ],
   },
   {
     title: 'الشركة والقانون',
     items: [
+      { label: 'عن وثبة', href: '/projects/about' },
       { label: 'الشروط والأحكام', href: '/projects/legal/terms' },
       { label: 'سياسة الخصوصية (PDPL)', href: '/projects/legal/privacy' },
       { label: 'سياسة الاسترداد', href: '/projects/legal/refund-policy' },
-      { label: 'عقود الدعم', href: '/projects/legal/contracts' },
-      // Batch HOME (S12) — the scam-protection guide, footer-linked per spec.
-      { label: 'احمِ حملتك من الاحتيال', href: '/stories/protect-your-campaign' },
-      // D5 — «تواصل معنا» used to drop the reader at the top of a long FAQ.
-      // The contact form has an anchor now, so the link lands on the form.
-      { label: 'تواصل معنا', href: '/projects/help#contact' },
     ],
   },
 ];

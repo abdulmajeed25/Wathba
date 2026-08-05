@@ -99,12 +99,23 @@ export const emailTemplates = {
    *  moderation.user.ban). Transactional-critical: no prefs link. */
   accountSuspended(d: { banned: boolean; reasonAr?: string | null }): EmailContent {
     const what = d.banned ? 'حُظر' : 'عُلّق';
+    // Batch CONTENT Part 2 — the formal appeal is offered ONLY on a permanent
+    // ban, and that asymmetry is not editorial: assertOwnership in
+    // appeals.service.ts refuses an ACCOUNT_BAN appeal from any account whose
+    // suspendedKind is not BANNED («حسابك ليس محظوراً»). Offering the appeal to
+    // a temporarily suspended reader would send them to a form that rejects
+    // them — a promise the platform does not keep. They get support instead.
+    const route = d.banned
+      ? `<p>يمكنك تقديم تظلّم واحد ليراجعه فريق العمليات، أو مراسلتنا على support@wathba.sa.</p>
+        ${cta('{{APP_URL}}/appeal', 'تقديم تظلّم')}
+        <p style="font-size:13px;color:#5d6b62;margin-top:14px">تشرح <a href="{{APP_URL}}/rules/enforcement" style="color:#05a661">صفحة الإبلاغ والإنفاذ</a> أنواع القرارات ومسار التظلّم.</p>`
+      : `<p style="font-size:13px;color:#5d6b62;margin-top:14px">إن كنت ترى أن ذلك حدث خطأً، تواصل مع support@wathba.sa. تشرح <a href="{{APP_URL}}/rules/enforcement" style="color:#05a661">صفحة الإبلاغ والإنفاذ</a> أنواع القرارات وأسبابها.</p>`;
     return {
       subject: `${BRAND} — ${d.banned ? 'حُظر حسابك' : 'عُلّق حسابك مؤقتاً'}`,
       html: layout(`<h1 style="font-size:19px;margin:0 0 10px">${what} حسابك</h1>
         <p>${what} حسابك على ${BRAND}، وسُجّل خروجك من جميع الأجهزة ولن تتمكن من تسجيل الدخول.</p>
         ${d.reasonAr ? `<p><strong>السبب:</strong> ${d.reasonAr}</p>` : ''}
-        <p style="font-size:13px;color:#5d6b62;margin-top:14px">إن كنت ترى أن ذلك حدث خطأً، تواصل مع support@wathba.sa.</p>`),
+        ${route}`),
     };
   },
   /** Batch OPS — account reactivated (users.reactivate / moderation.user.unban). */
@@ -113,7 +124,7 @@ export const emailTemplates = {
       subject: `${BRAND} — أُعيد تفعيل حسابك`,
       html: layout(`<h1 style="font-size:19px;margin:0 0 10px">أهلاً بعودتك يا ${name}</h1>
         <p>أُعيد تفعيل حسابك على ${BRAND} ويمكنك تسجيل الدخول الآن كالمعتاد.</p>
-        ${cta('{{APP_URL}}/signin', 'تسجيل الدخول')}`),
+        ${cta('{{APP_URL}}/sign-in', 'تسجيل الدخول')}`),
     };
   },
   /** Batch OPS — a reply from the support team on a ticket
@@ -361,14 +372,14 @@ export const TEMPLATE_CATALOG: readonly TemplateCatalogEntry[] = [
     labelAr: 'تفعيل الحساب',
     critical: isCritical('verification'),
     variablesAr: ['link'],
-    sample: emailTemplates.verification('{{APP_URL}}/verify?token=SAMPLE'),
+    sample: emailTemplates.verification('{{APP_URL}}/verify-email?token=SAMPLE'),
   },
   {
     key: 'passwordReset',
     labelAr: 'إعادة تعيين كلمة المرور',
     critical: isCritical('passwordReset'),
     variablesAr: ['link'],
-    sample: emailTemplates.passwordReset('{{APP_URL}}/reset?token=SAMPLE'),
+    sample: emailTemplates.passwordReset('{{APP_URL}}/reset-password?token=SAMPLE'),
   },
   {
     key: 'welcome',
@@ -421,7 +432,7 @@ export const TEMPLATE_CATALOG: readonly TemplateCatalogEntry[] = [
     labelAr: 'تأكيد البريد الجديد',
     critical: isCritical('emailChangeVerify'),
     variablesAr: ['link'],
-    sample: emailTemplates.emailChangeVerify('{{APP_URL}}/email/verify?token=SAMPLE'),
+    sample: emailTemplates.emailChangeVerify('{{APP_URL}}/verify-email?token=SAMPLE'),
   },
   {
     key: 'captureGrace',
@@ -432,7 +443,7 @@ export const TEMPLATE_CATALOG: readonly TemplateCatalogEntry[] = [
       projectTitle: 'مشروع تجريبي',
       amountHalalas: 50000,
       bnpl: false,
-      link: '{{APP_URL}}/pledge/fix',
+      link: '{{APP_URL}}/projects/me/pledges',
     }),
   },
   {

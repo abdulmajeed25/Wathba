@@ -112,6 +112,15 @@ export default async function AppealPage({
         </p>
       ) : null}
 
+      {/* Batch CONTENT Part 2 — the appellant is asked to argue against a
+          decision without being shown the rules it was made under, or how the
+          review that follows works. Both are on the enforcement page. */}
+      <p className="text-center text-sm text-neutral-500">
+        <Link href="/rules/enforcement" className="text-emerald-700 hover:underline">
+          كيف تُتَّخذ قرارات الإنفاذ وكيف يُراجَع التظلّم
+        </Link>
+      </p>
+
       <p className="text-center text-sm text-neutral-500">
         <Link href="/sign-in" className="text-emerald-700 hover:underline">
           العودة لتسجيل الدخول
