@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
 
-import { adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
+import { adaptDiscoverProject } from '@/components/ventures/wathba/wathba-data';
 import { WathbaHeroRotator } from '@/components/ventures/wathba/wathba-hero-rotator';
 import { WathbaHeroSlideBody } from '@/components/ventures/wathba/wathba-hero-slide-body';
 import { WathbaHome } from '@/components/ventures/wathba/wathba-home';
 import { WathbaHomeMagazine } from '@/components/ventures/wathba/wathba-home-magazine';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { getHeroProjects, getHomePayload, getRecommendedProjects, listVentures } from '@/lib/api/wathba';
+import { getHeroProjects, getHomePayload, getRecommendedProjects, listCategories, listDiscover } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'وثبة — منصة دعم المشاريع' };
 
@@ -22,8 +22,15 @@ export const metadata: Metadata = { title: 'وثبة — منصة دعم الم�
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectsPage() {
-  const [live, recommended, home, heroSlides] = await Promise.all([
-    listVentures(),
+  const [live, cats, recommended, home, heroSlides] = await Promise.all([
+    // HOME-REVIEW D1 — the trending grid draws REAL projects now. It used to go
+    // through listVentures() → adaptApiVenture(), which matched a UUID against
+    // the demo fixtures' titleEn, never matched, and silently fell back to the
+    // bundled eight. /v1/discover returns the same card shape the rest of the
+    // discovery surface already uses.
+    listDiscover({ take: 12 }),
+    // The project row carries categoryId only; the names live here.
+    listCategories(),
     // STAKES/J4 — signed-in backers get "لأنك دعمت…" (null when anonymous).
     getRecommendedProjects().catch(() => null),
     // Batch HOME — the admin-composed magazine sections below the fold.
@@ -32,8 +39,16 @@ export default async function ProjectsPage() {
     // first slide's cover is in the initial HTML and stays the LCP element.
     getHeroProjects().catch(() => []),
   ]);
-  const projects = live
-    ? live.map(adaptApiVenture).filter((p): p is NonNullable<typeof p> => p !== null)
+  const catNameById = new Map<string, string>();
+  for (const top of cats ?? []) {
+    catNameById.set(top.id, top.nameAr);
+    for (const child of top.children ?? []) catNameById.set(child.id, child.nameAr);
+  }
+  // Undefined (not []) when the API is unreachable, so WathbaHome falls back to
+  // the bundled fixtures and the page still renders — the fallback stays a real
+  // fallback instead of the silent default it had become.
+  const projects = live?.items?.length
+    ? live.items.map((p) => adaptDiscoverProject(p, catNameById))
     : undefined;
   // The hero cover is the LCP element, and it lives on the media origin — a
   // different host to this one. Two things were costing it ~390ms against the
