@@ -748,6 +748,26 @@ export function WathbaPledge({
                 <Icon name="shield" size={18} />
                 الدفع مشفّر بالكامل. لن يُخصم المبلغ إلا عند نجاح المشروع.
               </div>
+              {/* Batch CONTENT Part 2 — the reassurance directly above makes a
+                  promise about the reader's money; this is where they can go
+                  read the actual rule behind it. The pledge sheet had no route
+                  to the help centre at all, so the one moment a backer most
+                  wants the charging and refund rules was the one screen that
+                  never offered them. Deep links, not «/projects/help» — an
+                  answer buried at Q1 of sixteen is not an answer. */}
+              <p style={{ marginTop: 12, fontSize: 12.5, lineHeight: 1.9, color: 'var(--muted2)' }}>
+                <Link href="/projects/help#q1" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                  متى يُخصم المبلغ من بطاقتي؟
+                </Link>
+                {' · '}
+                <Link href="/projects/legal/refund-policy" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                  سياسة الاسترداد
+                </Link>
+                {' · '}
+                <Link href="/projects/legal/contracts" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+                  عقود الدعم
+                </Link>
+              </p>
               <div style={{ marginTop: 10 }}>
                 <TurnstileSlot />
               </div>

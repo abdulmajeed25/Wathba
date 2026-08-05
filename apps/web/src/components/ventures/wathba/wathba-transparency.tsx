@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Group } from '@visx/group';
 import { scaleLinear } from '@visx/scale';
@@ -271,6 +272,32 @@ export function WathbaTransparency({
           </div>
         </section>
       )}
+
+      {/* Batch CONTENT Part 2 — this dashboard shows a creator KEEPING their
+          obligations without ever saying what those obligations are. The
+          numbers only mean something against the standard they are measured
+          by, and that standard is a page the reader had no way to reach from
+          here. Rendered outside the loading guard: the promise holds whether
+          or not this particular campaign has milestones yet. */}
+      <p
+        style={{
+          fontSize: 12.5,
+          lineHeight: 1.9,
+          color: 'var(--muted2)',
+          borderTop: '1px solid rgba(var(--ink-rgb),.07)',
+          paddingTop: 14,
+        }}
+      >
+        كل مبدع على وثبة ملتزم بقواعد الصدق والإفصاح — الالتزام بالمواصفات المنشورة، وإعلان
+        المخاطر، وتحديث الداعمين عند التأخّر.{' '}
+        <Link href="/rules/creators" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+          مسؤوليات المبدع
+        </Link>
+        {' · '}
+        <Link href="/rules/projects" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
+          شروط قبول المشاريع
+        </Link>
+      </p>
     </div>
   );
 }

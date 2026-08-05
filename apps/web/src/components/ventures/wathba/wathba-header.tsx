@@ -29,10 +29,17 @@ const NAV_LINKS: Array<{ href: string; label: string }> = [
 
 // The mobile sheet IS the menu, so both discovery entries are plain rows in it —
 // no nested dropdown on a surface that is already a list.
+//
+// Batch CONTENT Part 2 — «المساعدة» is a sheet row and NOT a desktop nav link.
+// The desktop nav is not a matter of taste here: the wide tier is capped at
+// maxWidth:1320 and already measures 1314, so a sixth item comes straight out
+// of the search field beside it. The sheet is a vertical list with room, and
+// mobile is where a stuck reader is least able to hunt for the footer.
 const SHEET_LINKS: Array<{ href: string; label: string }> = [
   ...NAV_LINKS,
   { href: '/spotlight', label: 'تحت الأضواء' },
   { href: '/projects/discover-all', label: 'اكتشف' },
+  { href: '/projects/help', label: 'المساعدة' },
 ];
 
 export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
