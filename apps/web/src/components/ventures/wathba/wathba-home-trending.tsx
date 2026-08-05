@@ -98,6 +98,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
           <Link
             key={p.id}
             href={`/projects/${p.id}`}
+            className="wathba-pressable"
             style={{
               cursor: 'pointer',
               background: 'var(--card)',
