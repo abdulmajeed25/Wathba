@@ -12,12 +12,25 @@ import { UsersService } from './users.service';
 import { EmailService } from '../email/email.service';
 import { CaptchaService } from '../common/captcha.service';
 import { SettingsService } from '../settings/settings.service';
-import type { UserRole } from '@prisma/client';
+import { SuspensionKind, type UserRole } from '@prisma/client';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   roles: UserRole[];
+  /**
+   * Present ONLY on the locked token a restricted account gets at sign-in, and
+   * it says WHICH restriction — because the two are not interchangeable: an
+   * ACCOUNT_BAN appeal is refused for anything that is not BANNED
+   * (appeals.service.ts assertOwnership). Without this claim the locked
+   * surface cannot tell a banned reader from a suspended one and offers both
+   * the same form, which one of them is forbidden to submit.
+   *
+   * DISPLAY ONLY. Nothing authorises on it: jwt.strategy re-reads suspendedAt
+   * from the database on every request, and the appeals service re-checks
+   * suspendedKind before accepting a filing. A forged claim buys nothing.
+   */
+  restriction?: 'SUSPENDED' | 'BANNED';
 }
 
 export interface AuthResponse {
@@ -28,8 +41,12 @@ export interface AuthResponse {
   /** OPS-GAPS R1 — set when the account is suspended/banned: the token grants
    *  NO product access (jwt.strategy rejects it everywhere), only the appeal
    *  surface (AppealAccessGuard). The web routes such a session to the locked
-   *  «تقديم تظلّم» page. */
+   *  account page. */
   suspended?: boolean;
+  /** Batch CONTENT — true only for a PERMANENT ban. A temporary suspension is
+   *  `suspended: true, banned: false`, and only the banned case has an appeal
+   *  to offer. */
+  banned?: boolean;
 }
 
 const REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -245,8 +262,14 @@ export class AuthService {
     // password, so only the real owner ever gets even this locked token.)
     if (user.suspendedAt) {
       this.failedAttempts.delete(key);
-      const issued = await this.issue(user.id, user.email, user.roles);
-      return { ...issued, suspended: true };
+      // Batch CONTENT — carry WHICH restriction, not merely that there is one.
+      // A temporary suspension has no appeal to file; sending that reader to a
+      // ban-appeal form means the only door the platform offers them is one
+      // that refuses them by name.
+      const restriction: 'SUSPENDED' | 'BANNED' =
+        user.suspendedKind === SuspensionKind.BANNED ? 'BANNED' : 'SUSPENDED';
+      const issued = await this.issue(user.id, user.email, user.roles, restriction);
+      return { ...issued, suspended: true, banned: restriction === 'BANNED' };
     }
     // Success — clear the per-email counter.
     this.failedAttempts.delete(key);
@@ -312,8 +335,13 @@ export class AuthService {
     slot.count += 1;
   }
 
-  private async issue(sub: string, email: string, roles: UserRole[]): Promise<AuthResponse> {
-    const payload: JwtPayload = { sub, email, roles };
+  private async issue(
+    sub: string,
+    email: string,
+    roles: UserRole[],
+    restriction?: 'SUSPENDED' | 'BANNED',
+  ): Promise<AuthResponse> {
+    const payload: JwtPayload = { sub, email, roles, ...(restriction ? { restriction } : {}) };
     const accessToken = await this.jwt.signAsync(payload);
     const refreshToken = await this.mintRefreshToken(sub);
     const user = await this.users.findById(sub);
