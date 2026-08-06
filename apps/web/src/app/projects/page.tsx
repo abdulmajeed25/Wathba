@@ -82,6 +82,11 @@ export default async function ProjectsPage() {
           change through content.homepage-section.update, not a deploy. */}
       <WathbaHome
         projects={projects && projects.length > 0 ? projects : undefined}
+        // HOME-REVIEW O4 — the chip row draws the LIVE taxonomy. It used to
+        // draw the bundled `wathbaCategories` fixture, whose `film` and `tech`
+        // are `film-video` and `technology` here, so two of the eight chips
+        // pointed at categories that do not exist.
+        categories={cats ?? undefined}
         order={home?.sections.map((s) => s.key)}
         extraRenderers={
           home ? wathbaMagazineRenderers(home, home.sections.map((s) => s.key)) : undefined
