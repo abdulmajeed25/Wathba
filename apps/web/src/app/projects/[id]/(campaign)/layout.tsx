@@ -1,4 +1,6 @@
-import { adaptApiProjectDetail, adaptApiVenture } from '@/components/ventures/wathba/wathba-data';
+import { notFound } from 'next/navigation';
+
+import { adaptApiProjectDetail, adaptApiVenture, wathbaProjects } from '@/components/ventures/wathba/wathba-data';
 import { WathbaCampaignHeader } from '@/components/ventures/wathba/wathba-campaign-header';
 import { WathbaCampaignTabBar } from '@/components/ventures/wathba/wathba-campaign-tabbar';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
@@ -35,6 +37,27 @@ export default async function CampaignLayout({
   // wathbaProjects[0]. The detail payload is already fetched above; use it.
   const liveProject =
     (apiRow ? adaptApiVenture(apiRow) : null) ?? (detail ? adaptApiProjectDetail(detail) : null);
+
+  /**
+   * HOME-REVIEW O3 — a campaign id that resolves to NOTHING is a 404, not a
+   * page.
+   *
+   * This route answered 200 for any string at all, rendering an empty campaign
+   * shell titled «مشروع {id} · وثبة» — a soft-404. It surfaced while deleting
+   * the orphan routes: with /projects/explore and /projects/compare removed,
+   * [id] caught them and served «مشروع explore» at 200, so the files were gone
+   * and the URLs were not. Deleting a route that a dynamic segment silently
+   * re-serves is not deleting it.
+   *
+   * The fixture table is part of the test, deliberately: the demo ids (p1…p8)
+   * still resolve exactly as before, so this narrows the route to "no API row,
+   * no API detail, AND no fixture" — the case where there is genuinely nothing
+   * to show — instead of quietly retiring the demo data along with it.
+   */
+  const known =
+    Boolean(apiRow) || Boolean(detail) || wathbaProjects.some((p) => p.id === id);
+  if (!known) notFound();
+
   const paused = detail?.status === 'PAUSED';
 
   return (

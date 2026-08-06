@@ -139,6 +139,21 @@ const config: NextConfig = {
         destination: '/spotlight',
         permanent: true,
       },
+      // HOME-REVIEW O3 — /projects/v2030 was an ORPHAN that search engines were
+      // told to index: declared in sitemap.ts, linked from no page on the site,
+      // and rendering FIXTURE_SECTORS — six English sector names (Tourism,
+      // Health, Energy, Logistics, Education, AgriTech) on an Arabic-first RTL
+      // platform, in the pre-Wathba design system. A visitor arriving from
+      // Google landed on fabricated content with no way in or back.
+      //
+      // Redirected rather than deleted, because it is the one of the three that
+      // Google may already have indexed: a 301 carries that traffic to the real
+      // discovery surface instead of serving it a 404 until the next crawl. The
+      // sitemap entry is gone, so nothing re-declares it. Vision 2030 alignment
+      // can be rebuilt on live data later; this only stops the site from
+      // publishing demo data under its own name.
+      { source: '/projects/v2030', destination: '/projects/discover-all', permanent: true },
+      { source: '/projects/v2030/:sector', destination: '/projects/discover-all', permanent: true },
     ];
   },
 };
