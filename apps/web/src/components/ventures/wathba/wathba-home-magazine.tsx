@@ -15,6 +15,57 @@ import { Num } from './wathba-icons';
  */
 
 /**
+ * HOME-REVIEW — the three visual merges.
+ *
+ * The audit found four consecutive editorial sections with the same container
+ * and the same card and not one image between them (~1350px of identical
+ * shapes), plus two pairs that a reader cannot tell apart: «قصص نجاح» followed
+ * by «حوارات مع المبدعين», and «ركن المبدعين» followed by «نصائح التمويل
+ * الجماعي». Two adjacent sections with one layout read as ONE section with a
+ * stray heading in the middle, so the second title does no work at all.
+ *
+ * A merged block still has to honour the operator's toggles, and each half is
+ * its own HomepageSection row. So a merge does not hard-code its parts: it
+ * takes the ACTIVE key order (GET /v1/home returns only `isActive` rows) and
+ * renders whichever halves are live, under whichever of its keys comes first.
+ * Deactivating «حوارات» removes the interviews and leaves «قصص نجاح» titled and
+ * alone; deactivating BOTH removes the block. That is the behaviour the ops
+ * screen already promises, and merging must not quietly take it away.
+ */
+type MergePart = { key: string; subtitle: string; render: () => React.ReactNode };
+
+function mergedBlock(
+  self: string,
+  title: string,
+  order: string[],
+  parts: MergePart[],
+): React.ReactNode {
+  const live = parts
+    .filter((p) => order.includes(p.key))
+    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  if (live.length === 0) return null;
+  // One owner, so the block renders once and at the earlier of its positions.
+  if (live[0]!.key !== self) return null;
+
+  return (
+    <Section k={self} title={title}>
+      {live.map((p, i) => (
+        <div key={p.key} data-section-part={p.key} style={{ marginTop: i === 0 ? 0 : 30 }}>
+          {/* h3, not h2: the block owns the h2, and these are its parts. The
+              heading outline was one of the a11y findings — a merged block that
+              kept two h2s would read as two sections to a screen reader while
+              looking like one on screen, which is the worst of both. */}
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--muted)', marginBottom: 12 }}>
+            {p.subtitle}
+          </h3>
+          {p.render()}
+        </div>
+      ))}
+    </Section>
+  );
+}
+
+/**
  * HOME-REVIEW — the magazine's sections as a key → renderer map.
  *
  * These used to render as one contiguous block BELOW everything in
@@ -26,32 +77,100 @@ import { Num } from './wathba-icons';
  * Order and activation still come from HomepageSection via GET /v1/home; this
  * only stops the block from being positionally welded to the bottom.
  */
-export function wathbaMagazineRenderers(payload: ApiHomePayload): Record<string, () => React.ReactNode> {
+export function wathbaMagazineRenderers(
+  payload: ApiHomePayload,
+  /** Active section keys in their admin-defined order. See mergedBlock. */
+  order: string[] = [],
+): Record<string, () => React.ReactNode> {
+  const stories: MergePart[] = [
+    {
+      key: 'success_stories',
+      subtitle: 'قصص نجاح',
+      render: () => <CardRow cards={payload.successStories} readMore />,
+    },
+    {
+      key: 'creator_interviews',
+      subtitle: 'حوارات مع المبدعين',
+      render: () => <CardRow cards={payload.creatorInterviews} readMore />,
+    },
+  ].filter((p) =>
+    p.key === 'success_stories'
+      ? payload.successStories.length > 0
+      : payload.creatorInterviews.length > 0,
+  );
+
+  const creatorResources: MergePart[] = [
+    {
+      key: 'creators_corner',
+      subtitle: 'ركن المبدعين',
+      render: () => (
+        <div className="wathba-mag-duo" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {payload.resources.map((c) => (
+            <EditorialBanner key={c.id} c={c} compact />
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: 'funding_tips',
+      subtitle: 'نصائح التمويل الجماعي',
+      render: () => <CardRow cards={payload.tips} />,
+    },
+  ].filter((p) => (p.key === 'creators_corner' ? payload.resources.length > 0 : payload.tips.length > 0));
+
   return {
     hero_banners: () =>
       payload.heroBanners.length > 0 ? <WathbaHeroBanners banners={payload.heroBanners} /> : null,
+    // MERGE 3 — «مشروع مميز» becomes the page's one STAGE.
+    //
+    // This was the best material on the page and it was drawn exactly like the
+    // twelve sections around it: same 1320 container, same white card, same
+    // ground. The audit's fourth weakness was that monotony — no full-bleed
+    // moment, no change of ground, no editorial opening anywhere.
+    //
+    // So this section, and only this one, goes edge to edge on a dark ground in
+    // BOTH themes (see --stage in wathba-tokens.ts). Two full-bleed moments are
+    // planned for the whole page — this and the creator call — because scarcity
+    // is the entire mechanism: a third would make all three ordinary.
+    //
+    // The content is unchanged. «موصى بها لك» keeps its place beside the
+    // feature rather than being dropped, because it is the same section key and
+    // the same operator toggle — restructuring a section is not licence to
+    // delete half of it.
     featured_recommended: () =>
       payload.featured || payload.trending.length > 0 ? (
-        <Section key="s2" k="featured_recommended" title="">
-          <div className="wathba-mag-duo" style={{ display: 'grid', gridTemplateColumns: '1.1fr .9fr', gap: 24 }}>
-            {payload.featured && (
-              <div>
-                <SectionTitle>مشروع مميز</SectionTitle>
-                <BigProjectCard p={payload.featured} />
-              </div>
-            )}
-            {payload.trending.length > 0 && (
-              <div>
-                <SectionTitle>موصى بها لك</SectionTitle>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  {payload.trending.slice(0, 4).map((p) => (
-                    <MiniProjectCard key={p.id} p={p} />
-                  ))}
+        <section
+          key="s2"
+          data-section="featured_recommended"
+          data-stage="1"
+          style={{ background: 'var(--stage)', color: 'var(--stage-text)', padding: '56px 0' }}
+        >
+          <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
+            <div className="wathba-mag-duo" style={{ display: 'grid', gridTemplateColumns: '1.1fr .9fr', gap: 24 }}>
+              {payload.featured && (
+                <div>
+                  <SectionTitle>مشروع مميز</SectionTitle>
+                  <StageFeature p={payload.featured} />
                 </div>
-              </div>
-            )}
+              )}
+              {payload.trending.length > 0 && (
+                <div>
+                  <SectionTitle>موصى بها لك</SectionTitle>
+                  {/* minmax(0,1fr): the mini card's title is `white-space:
+                      nowrap`, and nowrap text contributes its FULL width as
+                      min-content — `overflow:hidden` does not reduce it. So a
+                      plain 1fr track is sized by the longest project title,
+                      not by the column. */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: 12 }}>
+                    {payload.trending.slice(0, 4).map((p) => (
+                      <StageMiniCard key={p.id} p={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </Section>
+        </section>
       ) : null,
     announcements: () =>
       payload.announcements.length > 0 ? (
@@ -117,18 +236,11 @@ export function wathbaMagazineRenderers(payload: ApiHomePayload): Record<string,
           </WathbaCarousel>
         </Section>
       ) : null,
-    success_stories: () =>
-      payload.successStories.length > 0 ? (
-        <Section key="s7" k="success_stories" title="قصص نجاح">
-          <CardRow cards={payload.successStories} readMore />
-        </Section>
-      ) : null,
+    // MERGE 1 — «من الفكرة إلى التسليم». Proof reads as one chapter: the
+    // finished thing, then the person who finished it.
+    success_stories: () => mergedBlock('success_stories', 'من الفكرة إلى التسليم', order, stories),
     creator_interviews: () =>
-      payload.creatorInterviews.length > 0 ? (
-        <Section key="s8" k="creator_interviews" title="حوارات مع المبدعين">
-          <CardRow cards={payload.creatorInterviews} readMore />
-        </Section>
-      ) : null,
+      mergedBlock('creator_interviews', 'من الفكرة إلى التسليم', order, stories),
     fresh_favorites: () =>
       payload.freshFavorites.length > 0 ? (
         <Section key="s9" k="fresh_favorites" title="مفضلات جديدة" more="/projects/discover-all?sort=newest">
@@ -139,22 +251,12 @@ export function wathbaMagazineRenderers(payload: ApiHomePayload): Record<string,
           </WathbaCarousel>
         </Section>
       ) : null,
+    // MERGE 2 — «مصادر المبدعين». Same audience, same shape, one block: the
+    // reader who just said yes to «ابدأ مشروعك» needs the next step, not two
+    // separately-titled shelves of it.
     creators_corner: () =>
-      payload.resources.length > 0 ? (
-        <Section key="s10" k="creators_corner" title="ركن المبدعين">
-          <div className="wathba-mag-duo" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {payload.resources.map((c) => (
-              <EditorialBanner key={c.id} c={c} compact />
-            ))}
-          </div>
-        </Section>
-      ) : null,
-    funding_tips: () =>
-      payload.tips.length > 0 ? (
-        <Section key="s11" k="funding_tips" title="نصائح التمويل الجماعي">
-          <CardRow cards={payload.tips} />
-        </Section>
-      ) : null,
+      mergedBlock('creators_corner', 'مصادر المبدعين', order, creatorResources),
+    funding_tips: () => mergedBlock('funding_tips', 'مصادر المبدعين', order, creatorResources),
     trust_duo: () =>
       payload.trustGuides.length > 0 ? (
         <Section key="s12" k="trust_duo" title="">
@@ -247,6 +349,100 @@ function BigProjectCard({ p }: { p: ApiHomeProjectCard }) {
       <h3 style={{ fontSize: 17, fontWeight: 700, margin: '12px 0 6px' }}>{p.titleAr}</h3>
       <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>{p.shortDescAr}</p>
       <Funded p={p} />
+    </Link>
+  );
+}
+
+/* ── the stage ───────────────────────────────────────────────────────
+ *
+ * Separate components rather than a `dark` prop on the existing cards, because
+ * almost nothing carries over: cardBase paints `var(--card)` (white in light
+ * mode) and Funded draws its track in `rgba(var(--ink-rgb),.08)` — ink is DARK
+ * in the light theme, so that track would be near-invisible against the stage.
+ * A prop threading through both would have been a bigger, more fragile change
+ * than two small components that state their own colours.
+ */
+const stageCard: React.CSSProperties = {
+  background: 'var(--stage-1)',
+  border: '1px solid rgba(244,247,245,.10)',
+  borderRadius: 16,
+  padding: 16,
+  textDecoration: 'none',
+  color: 'var(--stage-text)',
+};
+
+function StageFunded({ p }: { p: ApiHomeProjectCard }) {
+  return (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ height: 6, borderRadius: 30, background: 'rgba(244,247,245,.14)', overflow: 'hidden' }}>
+        <div
+          style={{
+            height: '100%',
+            width: `${Math.min(p.fundedPct, 100)}%`,
+            background: 'var(--grad-bar)',
+            borderRadius: 30,
+          }}
+        />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12.5 }}>
+        <Num style={{ fontWeight: 700, color: 'var(--on-scrim-accent)' }}>{p.fundedPct}%</Num>
+        <Num style={{ color: 'var(--stage-muted)' }}>{p.backersCount} داعم</Num>
+      </div>
+    </div>
+  );
+}
+
+function StageFeature({ p }: { p: ApiHomeProjectCard }) {
+  return (
+    <Link href={href(p)} className="lift" style={{ ...stageCard, display: 'block', padding: 18 }}>
+      {/* Taller than the 230px this used to get. The stage exists to give one
+          story room; a feature image the same size as everything else would
+          make the change of ground decorative rather than structural. */}
+      <ProjectArt p={p} height={300} />
+      <h3 style={{ fontSize: 21, fontWeight: 700, margin: '16px 0 8px', lineHeight: 1.4 }}>{p.titleAr}</h3>
+      <p style={{ fontSize: 14, color: 'var(--stage-muted)', lineHeight: 1.7 }}>{p.shortDescAr}</p>
+      <StageFunded p={p} />
+      {/* The review's CTA plan: one primary call per chapter, and this is the
+          conversion point at peak conviction. It is a <span> because the whole
+          card is already the link — nesting an <a> inside an <a> is invalid and
+          screen readers announce the nested one unpredictably. */}
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          minHeight: 40,
+          marginTop: 16,
+          padding: '0 20px',
+          borderRadius: 12,
+          background: 'var(--grad)',
+          color: 'var(--on-accent)',
+          fontSize: 14,
+          fontWeight: 700,
+        }}
+      >
+        ادعم هذا المشروع
+      </span>
+    </Link>
+  );
+}
+
+function StageMiniCard({ p }: { p: ApiHomeProjectCard }) {
+  return (
+    <Link href={href(p)} className="lift" style={{ ...stageCard, display: 'block', padding: 12 }}>
+      <ProjectArt p={p} height={90} />
+      <h3
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          marginTop: 8,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {p.titleAr}
+      </h3>
+      <StageFunded p={p} />
     </Link>
   );
 }
