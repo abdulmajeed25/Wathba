@@ -22,9 +22,20 @@ test('H1: homepage sections render in admin order', async ({ page }) => {
   expect(expected.length).toBeGreaterThanOrEqual(10);
 
   await page.goto('/projects');
+  // HOME-REVIEW — [data-section] alone no longer names every active section.
+  // Three visual merges fold six sections into three blocks: the owner keeps
+  // [data-section] and each half is marked [data-section-part]. Counting only
+  // the former would quietly drop the absorbed halves from this test's
+  // coverage, which is the opposite of what it is for. The union is taken in
+  // DOM order, and the owner's own key repeats as its first part, so
+  // consecutive duplicates collapse.
   const rendered = await page
-    .locator('[data-section]')
-    .evaluateAll((els) => els.map((el) => el.getAttribute('data-section')));
+    .locator('[data-section], [data-section-part]')
+    .evaluateAll((els) =>
+      els
+        .map((el) => el.getAttribute('data-section') ?? el.getAttribute('data-section-part'))
+        .filter((k, i, a) => k !== a[i - 1]),
+    );
   // Every rendered section must appear, in exactly the admin order (data-empty
   // sections may be skipped, but nothing may render out of order or unlisted).
   expect(rendered.length).toBeGreaterThanOrEqual(10);
@@ -88,7 +99,14 @@ test('H4: admin toggle hides a section from the public homepage', async ({ page 
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
 
     await page.goto('/projects');
-    await expect(page.locator('[data-section="funding_tips"]')).toHaveCount(0);
+    // HOME-REVIEW — funding_tips is now the absorbed half of «مصادر المبدعين»,
+    // so it never carries [data-section] of its own; asserting on that selector
+    // would report success whether the toggle worked or not. [data-section-part]
+    // is where its content actually lives, which makes this a real check that
+    // the merge still honours the operator's switch.
+    await expect(page.locator('[data-section-part="funding_tips"]')).toHaveCount(0);
+    // ...and its own block survives with the other half still in it.
+    await expect(page.locator('[data-section-part="creators_corner"]')).toHaveCount(1);
     // Neighbours are untouched.
     await expect(page.locator('[data-section="trust_duo"]')).toHaveCount(1);
   } finally {
@@ -103,5 +121,5 @@ test('H4: admin toggle hides a section from the public homepage', async ({ page 
   }
 
   await page.goto('/projects');
-  await expect(page.locator('[data-section="funding_tips"]')).toHaveCount(1);
+  await expect(page.locator('[data-section-part="funding_tips"]')).toHaveCount(1);
 });

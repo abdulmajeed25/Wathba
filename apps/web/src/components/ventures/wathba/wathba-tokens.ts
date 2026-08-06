@@ -84,6 +84,23 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--on-scrim': '#f4f7f5',
     '--on-scrim-accent': '#4ade96',
     '--on-scrim-gold': '#f5c24c',
+    /**
+     * HOME-REVIEW — the STAGE. Identical in both themes, on purpose, exactly
+     * like the --on-scrim set directly above: «مشروع مميز» keeps a dark ground
+     * in light mode too, because changing the ground is the cheapest and
+     * strongest "new chapter" signal a page has, and the review found the
+     * homepage had none — 13 of 15 sections shared one container and one card.
+     *
+     * The values are the DARK theme's own canvas, surface, text and muted. That
+     * is not a coincidence and not a copy-paste: reusing a pair the dark theme
+     * already ships means the contrast is already proven (the dark sweep
+     * measures 0 failures across 1,259 samples), instead of inventing a new
+     * foreground/background pair that nothing has ever measured.
+     */
+    '--stage': '#131210',
+    '--stage-1': '#1c1a17',
+    '--stage-text': '#f6f4ef',
+    '--stage-muted': '#c0bab0',
     '--header-bg': 'rgba(255,255,255,.82)',
     '--grad': 'linear-gradient(135deg,#05c074,#03a98e)',
     '--grad-bar': 'linear-gradient(90deg,#05c074,#03a98e)',
@@ -195,6 +212,23 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     '--on-scrim': '#f4f7f5',
     '--on-scrim-accent': '#4ade96',
     '--on-scrim-gold': '#f5c24c',
+    /**
+     * HOME-REVIEW — the STAGE. Identical in both themes, on purpose, exactly
+     * like the --on-scrim set directly above: «مشروع مميز» keeps a dark ground
+     * in light mode too, because changing the ground is the cheapest and
+     * strongest "new chapter" signal a page has, and the review found the
+     * homepage had none — 13 of 15 sections shared one container and one card.
+     *
+     * The values are the DARK theme's own canvas, surface, text and muted. That
+     * is not a coincidence and not a copy-paste: reusing a pair the dark theme
+     * already ships means the contrast is already proven (the dark sweep
+     * measures 0 failures across 1,259 samples), instead of inventing a new
+     * foreground/background pair that nothing has ever measured.
+     */
+    '--stage': '#131210',
+    '--stage-1': '#1c1a17',
+    '--stage-text': '#f6f4ef',
+    '--stage-muted': '#c0bab0',
     '--header-bg': 'rgba(19,18,16,.74)',
     '--grad': 'linear-gradient(135deg,#1fd37e,#10b981)',
     '--grad-bar': 'linear-gradient(90deg,#1fd37e,#10b981)',

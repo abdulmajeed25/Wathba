@@ -373,7 +373,16 @@ export function WathbaShell({
             }
             [data-pillar="ventures"] .wathba-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
             @media (max-width:880px){
-              [data-pillar="ventures"] .wathba-mag-duo{grid-template-columns:1fr!important}
+              /* minmax(0,1fr), for the same reason as .wathba-home-hero above:
+                 a grid item's min-width defaults to auto, so a 1fr track cannot
+                 shrink below its content's min-content. Measured at 390px: the
+                 duo's column resolved to 509px inside a 338px container and its
+                 children sat at x = -145. Nothing ever reported it because
+                 [data-pillar] sets overflow-x:clip, which makes scrollWidth
+                 equal clientWidth — a page-level overflow check reads 0px while
+                 the cards are being cut off. Pre-dates the stage; found while
+                 screenshotting it. */
+              [data-pillar="ventures"] .wathba-mag-duo{grid-template-columns:minmax(0,1fr)!important}
               [data-pillar="ventures"] .wathba-mag-row{grid-template-columns:1fr 1fr!important}
             }
             @media (max-width:540px){

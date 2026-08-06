@@ -80,20 +80,51 @@ test('A3: text meets contrast — with decoration correctly exempt', async ({ pa
       const A = lum(x), B = lum(y);
       return (Math.max(A, B) + 0.05) / (Math.min(A, B) + 0.05);
     };
+    // A gradient is a background-IMAGE, not a background-colour, so an ancestor
+    // walk that reads only backgroundColor steps straight past it and lands on
+    // whatever is behind. That produced a reported 1.09:1 for the stage's green
+    // «ادعم هذا المشروع» button — near-black text measured against the dark card
+    // BEHIND the button instead of against the green it actually sits on. The
+    // true ratios are 7.93:1 and 6.37:1 against the two stops.
+    //
+    // It stayed hidden because every other gradient CTA on this page sits on a
+    // light ground: skipping the gradient there landed on white, and near-black
+    // on white passes — for entirely the wrong reason. The stage is the first
+    // gradient on a dark ground, so it is the first one where being wrong shows.
+    //
+    // WCAG requires the text to pass against the WHOLE gradient, so each stop
+    // becomes a candidate ground and the WORST one is judged.
+    const stopsOf = (bgImage: string): C[] | null => {
+      if (!bgImage || bgImage === 'none' || /url\(/.test(bgImage)) return null;
+      const toks = bgImage.match(/rgba?\([^)]*\)/gi) ?? [];
+      const cols = toks.map(parse).filter((c) => c.a >= 0.999);
+      return cols.length ? cols : null;
+    };
     // Composite every ancestor background over white. Reading a translucent
     // background as if it were opaque is how a passing 7:1 gets reported as a
     // failing 2.2:1 — this audit made exactly that mistake once.
-    const effBg = (el: Element): C => {
+    const effBgs = (el: Element): C[] => {
       const stack: C[] = [];
       let n: Element | null = el;
+      let grad: C[] | null = null;
       while (n && n !== document.documentElement) {
-        const c = parse(getComputedStyle(n).backgroundColor);
-        if (c.a > 0) stack.push(c);
+        const cs = getComputedStyle(n);
+        const c = parse(cs.backgroundColor);
+        if (c.a > 0) {
+          stack.push(c);
+          if (c.a >= 0.999) break;
+        }
+        grad = stopsOf(cs.backgroundImage);
+        if (grad) break;
         n = n.parentElement;
       }
-      let base: C = { r: 255, g: 255, b: 255, a: 1 };
-      for (let i = stack.length - 1; i >= 0; i--) base = over(stack[i]!, base);
-      return base;
+      const flatten = (base: C): C => {
+        let out = base;
+        for (let i = stack.length - 1; i >= 0; i--) out = over(stack[i]!, out);
+        return out;
+      };
+      const white: C = { r: 255, g: 255, b: 255, a: 1 };
+      return grad ? grad.map(flatten) : [flatten(white)];
     };
 
     const failures: string[] = [];
@@ -107,10 +138,10 @@ test('A3: text meets contrast — with decoration correctly exempt', async ({ pa
       if (cs.visibility === 'hidden') return;
       const fs = parseFloat(cs.fontSize);
       const weight = Number(cs.fontWeight) || 400;
-      const bg = effBg(el);
-      const fg = over(parse(cs.color), bg);
-      const r = ratio(fg, bg);
       const need = fs >= 24 || (fs >= 18.66 && weight >= 700) ? 3 : 4.5;
+      // Worst ground wins: a gradient has to pass at every stop, not on average.
+      let r = Infinity;
+      for (const bg of effBgs(el)) r = Math.min(r, ratio(over(parse(cs.color), bg), bg));
       if (r < need) failures.push(`"${text.slice(0, 20)}" ${fs}px ${r.toFixed(2)}:1 (needs ${need})`);
     });
     return { failures, exempt };

@@ -83,7 +83,9 @@ export default async function ProjectsPage() {
       <WathbaHome
         projects={projects && projects.length > 0 ? projects : undefined}
         order={home?.sections.map((s) => s.key)}
-        extraRenderers={home ? wathbaMagazineRenderers(home) : undefined}
+        extraRenderers={
+          home ? wathbaMagazineRenderers(home, home.sections.map((s) => s.key)) : undefined
+        }
         hero={
           heroSlides.length > 0 ? (
             // Composed HERE, in a server component, so the card bodies never
