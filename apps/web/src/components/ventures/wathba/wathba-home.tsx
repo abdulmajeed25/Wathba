@@ -39,13 +39,67 @@ export interface HomeSectionRenderers {
   [key: string]: () => ReactNode;
 }
 
+/**
+ * HOME-REVIEW — vertical rhythm, owned in ONE place.
+ *
+ * Spacing used to be a property of each section, set inline and independently:
+ * the code blocks carried `margin: 74px auto 0` (and a 56 and a 14), the
+ * magazine's Section carried `padding: 30px 26px 6px`, and the trending grid
+ * had a 64. Measured on the page that produced gaps of 0, 64, 74 and 116 — and
+ * critically, SEVEN consecutive magazine sections touching at 0px, because
+ * their padding is internal and their boxes simply abut.
+ *
+ * A reader cannot tell a new chapter from the next item in the same one when
+ * every boundary looks the same, and the reorder made that worse rather than
+ * better: the new sequence has real act boundaries that nothing marked.
+ *
+ * So the LIST owns the rhythm now. Two values, and the difference between them
+ * is the whole point:
+ *   ACT_GAP    96px — a new chapter begins
+ *   WITHIN_GAP 56px — the next thing in this chapter
+ *
+ * The acts are the ones the running order was built around (see
+ * prisma/seed-home-order.mjs, which documents the same grouping): arrival ·
+ * the work · the case · commitment · resources · editorial · exit.
+ */
+const ACT_GAP = 'var(--gap-act)';
+const WITHIN_GAP = 'var(--gap-within)';
+
+const ACT_OF: Record<string, string> = {
+  live_ticker: 'arrival',
+  categories: 'arrival',
+  trending: 'arrival',
+
+  home_stretch: 'work',
+  featured_recommended: 'work',
+
+  transparency: 'case',
+  success_stories: 'case',
+  creator_interviews: 'case',
+  trust_duo: 'case',
+
+  backer_ranks: 'commitment',
+  how_it_works: 'commitment',
+  creator_cta: 'commitment',
+
+  creators_corner: 'resources',
+  funding_tips: 'resources',
+
+  hero_banners: 'editorial',
+  announcements: 'editorial',
+  brand_program: 'editorial',
+  collection_showcase: 'editorial',
+
+  fresh_favorites: 'exit',
+};
+
 /** The sections this file owns, as a key → renderer map. */
 export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedProject): HomeSectionRenderers {
   return {
     live_ticker: () => (
       <Fragment>
       {/* ============================ LIVE TICKER ============================ */}
-      <section style={{ maxWidth: 1320, margin: '14px auto 0', padding: '0 26px' }}>
+      <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
         <div
           style={{
             border: '1px solid rgba(var(--ink-rgb),.07)',
@@ -113,7 +167,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
     categories: () => (
       <Fragment>
       {/* ============================ CATEGORIES ============================ */}
-      <section style={{ maxWidth: 1320, margin: '56px auto 0', padding: '0 26px' }}>
+      <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
         <div
           style={{
             display: 'flex',
@@ -201,7 +255,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
     transparency: () => (
       <Fragment>
       {/* ========================= TRANSPARENCY BAND ========================= */}
-      <section style={{ maxWidth: 1320, margin: '74px auto 0', padding: '0 26px' }}>
+      <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
         <div
           style={{
             background: 'var(--band)',
@@ -335,7 +389,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
     backer_ranks: () => (
       <Fragment>
       {/* ============================ RANKS TEASER ============================ */}
-      <section style={{ maxWidth: 1320, margin: '74px auto 0', padding: '0 26px', textAlign: 'center' }}>
+      <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px', textAlign: 'center' }}>
         <div
           style={{
             display: 'inline-flex',
@@ -437,7 +491,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
     how_it_works: () => (
       <Fragment>
       {/* ============================ HOW IT WORKS ============================ */}
-      <section style={{ maxWidth: 1320, margin: '74px auto 0', padding: '0 26px' }}>
+      <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
         <h2
           style={{
             fontSize: 28,
@@ -509,7 +563,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
     creator_cta: () => (
       <Fragment>
       {/* ============================ CTA BAND ============================ */}
-      <section style={{ maxWidth: 1320, margin: '74px auto 0', padding: '0 26px' }}>
+      <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
         <div
           style={{
             borderRadius: 28,
@@ -924,9 +978,27 @@ export function WathbaHome({
         )}
       </section>
 
-      {keys.map((k) => (
-        <Fragment key={k}>{renderers[k]?.() ?? null}</Fragment>
-      ))}
+      {(() => {
+        // Spacing is decided against the PREVIOUS SECTION THAT ACTUALLY
+        // RENDERED, not the previous key. A section returns null when it has no
+        // data (half the magazine can be switched off in ops), and measuring
+        // from a key that drew nothing would leave a 96px hole where a chapter
+        // boundary used to be.
+        let lastAct: string | null = null;
+        return keys.map((k) => {
+          const node = renderers[k]?.() ?? null;
+          if (!node) return null;
+          const act = ACT_OF[k] ?? k;
+          const first = lastAct === null;
+          const gap = first ? WITHIN_GAP : act === lastAct ? WITHIN_GAP : ACT_GAP;
+          lastAct = act;
+          return (
+            <div key={k} style={{ marginTop: gap }}>
+              {node}
+            </div>
+          );
+        });
+      })()}
     </div>
   );
 }

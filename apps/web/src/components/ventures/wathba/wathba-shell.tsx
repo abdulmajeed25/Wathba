@@ -55,6 +55,34 @@ export function WathbaShell({
     ['--dur-drift' as string]: '520ms',
     ['--ease-out' as string]: 'cubic-bezier(.23,1,.32,1)',
     ['--ease-in-out' as string]: 'cubic-bezier(.77,0,.175,1)',
+    /**
+     * HOME-REVIEW — the vertical rhythm. Two values: a new chapter, and the
+     * next thing in this one.
+     *
+     * clamp() rather than a breakpoint, and INLINE rather than in the <style>
+     * block below, for one reason each and both were measured:
+     *
+     *  · Inline, because that block is inside this wrapper. A section styled
+     *    `margin-top: var(--gap-act)` computes to 0 while the property is still
+     *    undefined and then jumps once it resolves, dragging everything beneath
+     *    it. That cost 0.07 CLS on a phone — worse than the rhythm was worth.
+     *  · clamp(), because an inline custom property cannot be overridden by a
+     *    media query at all, so the mobile step would silently never apply.
+     *
+     * The ratio stays ~1.7:1 at both ends: the ratio is what a reader perceives
+     * as structure, while the absolute height is what makes a rich page feel
+     * endless on a 360px screen.
+     */
+    ['--gap-act' as string]: 'clamp(64px, 8vw, 96px)',
+    ['--gap-within' as string]: 'clamp(40px, 5vw, 56px)',
+    /**
+     * HOME-REVIEW — the vertical rhythm, as tokens so it can breathe less on a
+     * phone. Two values only: a new chapter, and the next thing in this one.
+     * The mobile pair keeps roughly the same RATIO (1.6–1.7:1) because the
+     * ratio is what a reader perceives as structure — while cutting the
+     * absolute height, which on a 360px screen is what makes a rich page feel
+     * endless rather than organised. Overridden below 760px in the CSS block.
+     */
     background:
       'radial-gradient(1200px 700px at 85% -5%,rgba(var(--accent-rgb),.10),transparent 60%),radial-gradient(900px 600px at 0% 0%,rgba(var(--accent2-rgb),.10),transparent 55%),var(--bg)',
     color: 'var(--text)',
