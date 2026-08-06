@@ -23,7 +23,6 @@ const STATIC_PATHS = [
   '/projects/handbook',
   '/projects/help',
   '/projects/ranks',
-  '/projects/v2030',
   '/projects/legal/terms',
   '/projects/legal/privacy',
   '/projects/legal/refund-policy',
