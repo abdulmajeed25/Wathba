@@ -364,7 +364,14 @@ export function WathbaShell({
             @media (max-width:760px){
               [data-pillar="ventures"] .wathba-spotlight-hero{grid-template-columns:1fr!important;gap:26px!important;padding-top:44px!important}
               [data-pillar="ventures"] .wathba-hero-band{grid-template-columns:1fr!important}
-              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:1fr!important;gap:26px!important;padding-top:34px!important}
+              /* minmax(0,1fr), NOT 1fr. A grid item's min-width defaults to
+                 auto, so a 1fr track cannot shrink below the item's min-content
+                 — and the hero's four-stat row min-contents at ~377px. The
+                 column blew 39px past the section's 338px content box, and it
+                 re-resolved whenever text metrics settled: the stat row wrapped
+                 a line, then unwrapped, ~30ms apart at ~1s. Two 0.14 shifts,
+                 mobile CLS median 0.171 against 0.0001 on desktop. */
+              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:minmax(0,1fr)!important;gap:26px!important;padding-top:34px!important}
               [data-pillar="ventures"] .wathba-discover-row{flex-direction:column!important;align-items:stretch!important}
               [data-pillar="ventures"] .wathba-discover-aside{width:100%!important}
             }
