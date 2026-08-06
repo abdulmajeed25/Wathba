@@ -144,7 +144,8 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                 style={{
                   position: 'absolute',
                   top: 11,
-                  right: 11,
+                  // Reading start: right in Arabic, left in English.
+                  insetInlineStart: 11,
                   background: 'rgba(6,18,31,.8)',
                   backdropFilter: 'blur(5px)',
                   border: '1px solid rgba(var(--ink-rgb),.12)',
@@ -162,7 +163,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                 style={{
                   position: 'absolute',
                   top: 11,
-                  left: 11,
+                  insetInlineEnd: 11,
                   width: 30,
                   height: 30,
                   borderRadius: 9,
@@ -180,7 +181,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                 <div
                   style={{
                     position: 'absolute',
-                    right: 11,
+                    insetInlineStart: 11,
                     bottom: 11,
                     background: 'rgba(var(--purple-rgb),.92)',
                     color: 'var(--on-accent)',

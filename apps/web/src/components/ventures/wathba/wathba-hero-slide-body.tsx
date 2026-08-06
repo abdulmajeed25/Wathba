@@ -51,10 +51,17 @@ export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
         {p.region && <span>· {REGION_AR[p.region] ?? p.region}</span>}
         <span style={{ marginInlineStart: 'auto' }}>{p.creatorName}</span>
       </div>
-      {/* No negative tracking: it breaks Arabic cursive joins. */}
-      <h3 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6, lineHeight: 1.35 }}>
+      {/* No negative tracking: it breaks Arabic cursive joins.
+
+          h2, not h3. This is the first heading under the page's h1 — the hero
+          sits above «تصفّح حسب الفئة», so an h3 here produced an h1 → h3 jump
+          and a screen-reader heading list that skipped a level on the very
+          first item. Only the current slide is in the a11y tree (the others are
+          visibility:hidden), so this contributes exactly one h2, in the right
+          place. Size is unchanged — the level is semantic, not visual. */}
+      <h2 style={{ fontSize: 23, fontWeight: 700, marginBottom: 6, lineHeight: 1.35 }}>
         {p.titleAr}
-      </h3>
+      </h2>
       <p
         style={{
           fontSize: 14,

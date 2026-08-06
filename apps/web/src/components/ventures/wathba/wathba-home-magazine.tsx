@@ -335,6 +335,13 @@ const cardBase: React.CSSProperties = {
 const bannerCard: React.CSSProperties = {
   ...cardBase, padding: '22px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
 };
+/**
+ * The banner links sat in a 20px line box — below the 24px minimum in WCAG 2.5.8
+ * (AA). inline-flex + minHeight grows the target without moving the text: the
+ * extra height is centred, so the banner's layout is unchanged and only the
+ * hittable area grows. Measured before at 20px, after at 24px.
+ */
 const bannerLink: React.CSSProperties = {
   fontSize: 13.5, fontWeight: 700, color: 'var(--accent-ink)', textDecoration: 'none',
+  display: 'inline-flex', alignItems: 'center', minHeight: 24,
 };

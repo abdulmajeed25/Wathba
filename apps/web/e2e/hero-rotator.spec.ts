@@ -3,6 +3,12 @@ import { expect, test } from '@playwright/test';
 import { API } from './helpers';
 
 /**
+ * NOTE: the slide title is an h2, not an h3. It is the first heading under the
+ * page's h1, and an h3 here made the very first entry in a screen reader's
+ * heading list skip a level (h1 → h3). These selectors were updated with that
+ * fix; the level is semantic and the rendered size is unchanged.
+ */
+/**
  * Batch HERO — the rotating featured card.
  *
  * The card sits above the fold and changes on a timer, so the things worth
@@ -62,18 +68,18 @@ test('H2: it auto-advances, and the slide shown is a real project you can open',
   test.skip((await heroPool()).length < 2, 'no hero pool in this environment');
   await page.goto('/projects');
 
-  const first = await page.locator(`${CURRENT} h3`).innerText();
+  const first = await page.locator(`${CURRENT} h2`).innerText();
   expect(first.trim().length, 'the slide must render a title').toBeGreaterThan(0);
   // The bucket badge is what tells a visitor WHY this project is being shown.
   await expect(page.locator(`${CURRENT}`)).toHaveAttribute('data-bucket', /strong|diverse|almost|fresh/);
 
   await expect
-    .poll(async () => page.locator(`${CURRENT} h3`).innerText(), { timeout: DWELL + 6000, intervals: [500] })
+    .poll(async () => page.locator(`${CURRENT} h2`).innerText(), { timeout: DWELL + 6000, intervals: [500] })
     .not.toBe(first);
 
   // Whatever is showing links to that project, not to a stale id.
   const href = await page.locator(`${CURRENT} [data-testid="wathba-hero-link"]`).getAttribute('href');
-  const shown = await page.locator(`${CURRENT} h3`).innerText();
+  const shown = await page.locator(`${CURRENT} h2`).innerText();
   await page.goto(href!);
   await expect(page.getByRole('heading', { name: shown.trim(), level: 1 }).first()).toBeVisible();
 });
@@ -82,16 +88,16 @@ test('H3: hovering the card stops the rotation', async ({ page }) => {
   test.skip((await heroPool()).length < 2, 'no hero pool in this environment');
   await page.goto('/projects');
 
-  const before = await page.locator(`${CURRENT} h3`).innerText();
+  const before = await page.locator(`${CURRENT} h2`).innerText();
   await page.locator('[data-testid="wathba-hero-rotator"]').hover();
   // Well past a dwell: without the pause this is one to two advances.
   await page.waitForTimeout(DWELL + 4000);
-  expect(await page.locator(`${CURRENT} h3`).innerText(), 'hover must hold the slide').toBe(before);
+  expect(await page.locator(`${CURRENT} h2`).innerText(), 'hover must hold the slide').toBe(before);
 
   // And it resumes once the pointer leaves, rather than pausing forever.
   await page.mouse.move(0, 0);
   await expect
-    .poll(async () => page.locator(`${CURRENT} h3`).innerText(), { timeout: DWELL + 6000, intervals: [500] })
+    .poll(async () => page.locator(`${CURRENT} h2`).innerText(), { timeout: DWELL + 6000, intervals: [500] })
     .not.toBe(before);
 });
 
@@ -109,10 +115,10 @@ test('H4: a swap does not move the page (CLS across a rotation)', async ({ page 
   await page.waitForLoadState('networkidle');
 
   const settled = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
-  const before = await page.locator(`${CURRENT} h3`).innerText();
+  const before = await page.locator(`${CURRENT} h2`).innerText();
   // Sit through at least two swaps without touching anything.
   await expect
-    .poll(async () => page.locator(`${CURRENT} h3`).innerText(), { timeout: DWELL + 6000, intervals: [500] })
+    .poll(async () => page.locator(`${CURRENT} h2`).innerText(), { timeout: DWELL + 6000, intervals: [500] })
     .not.toBe(before);
   await page.waitForTimeout(DWELL + 1500);
 
@@ -130,16 +136,16 @@ test('H5: reduced motion gets no auto-rotation, and the controls still work', as
   const page = await ctx.newPage();
   await page.goto('/projects');
 
-  const before = await page.locator(`${CURRENT} h3`).innerText();
+  const before = await page.locator(`${CURRENT} h2`).innerText();
   await page.waitForTimeout(DWELL + 4000);
   expect(
-    await page.locator(`${CURRENT} h3`).innerText(),
+    await page.locator(`${CURRENT} h2`).innerText(),
     'reduced motion must not put the reader on a carousel',
   ).toBe(before);
 
   // Manual advance is the escape hatch, so it has to work.
   await page.getByRole('button', { name: 'المشروع التالي' }).click();
-  await expect.poll(async () => page.locator(`${CURRENT} h3`).innerText()).not.toBe(before);
+  await expect.poll(async () => page.locator(`${CURRENT} h2`).innerText()).not.toBe(before);
   await ctx.close();
 });
 
@@ -158,7 +164,7 @@ test('H6: keyboard reaches the controls and hidden slides stay out of the tab or
   const next = page.getByRole('button', { name: 'المشروع التالي' });
   await next.focus();
   await expect(next).toBeFocused();
-  const before = await page.locator(`${CURRENT} h3`).innerText();
+  const before = await page.locator(`${CURRENT} h2`).innerText();
   await page.keyboard.press('Enter');
-  await expect.poll(async () => page.locator(`${CURRENT} h3`).innerText()).not.toBe(before);
+  await expect.poll(async () => page.locator(`${CURRENT} h2`).innerText()).not.toBe(before);
 });
