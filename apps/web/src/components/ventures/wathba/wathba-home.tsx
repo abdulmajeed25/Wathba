@@ -220,7 +220,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
             style={{
               position: 'absolute',
               top: -60,
-              left: -60,
+              insetInlineEnd: -60,
               width: 240,
               height: 240,
               borderRadius: '50%',
@@ -470,7 +470,7 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
                 style={{
                   position: 'absolute',
                   top: -14,
-                  left: 18,
+                  insetInlineEnd: 18,
                   fontSize: 88,
                   fontWeight: 700,
                   color: 'rgba(var(--accent-rgb),.06)',
@@ -804,7 +804,7 @@ export function WathbaHome({
                   style={{
                     position: 'absolute',
                     top: 16,
-                    right: 16,
+                    insetInlineStart: 16,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 7,
@@ -830,8 +830,8 @@ export function WathbaHome({
                   style={{
                     position: 'absolute',
                     bottom: 0,
-                    left: 0,
-                    right: 0,
+                    // Both edges — a stretch, not a side.
+                    insetInline: 0,
                     height: 90,
                     background: 'linear-gradient(0deg,var(--surface2),transparent)',
                   }}
