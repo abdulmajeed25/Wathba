@@ -175,7 +175,7 @@ function Section({ k, title, more, children }: { k: string; title: string; more?
     <section
       data-section={k}
       style={{
-        maxWidth: 1320, margin: '0 auto', padding: '30px 26px 6px',
+        maxWidth: 1320, margin: '0 auto', padding: '0 26px',
         // POLISH — `content-visibility: auto` used to live here with
         // `contain-intrinsic-size: auto 420px`, to skip layout/paint for the
         // magazine sections until they neared the viewport.

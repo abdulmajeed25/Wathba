@@ -45,7 +45,7 @@ export function WathbaHeroBanners({ banners }: { banners: HeroBanner[] }) {
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
-      style={{ maxWidth: 1320, margin: '0 auto', padding: '10px 26px 6px' }}
+      style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}
     >
       <div
         style={{

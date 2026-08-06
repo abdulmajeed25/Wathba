@@ -36,7 +36,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
   else trending.sort((a, b) => b.raised - a.raised);
 
   return (
-    <section style={{ maxWidth: 1320, margin: '64px auto 0', padding: '0 26px' }}>
+    <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px' }}>
       <div
         style={{
           display: 'flex',
