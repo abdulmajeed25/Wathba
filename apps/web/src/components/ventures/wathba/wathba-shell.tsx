@@ -1,12 +1,13 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { PageViewTracker } from '@/components/analytics/page-view-tracker';
 import { WathbaFeedbackProvider } from './wathba-feedback';
 import { WathbaFooter } from './wathba-footer';
 import { WathbaHeader } from './wathba-header';
+import { persistTheme, resolveTheme, SSR_THEME, THEME_INIT_SCRIPT } from './wathba-theme';
 import { wathbaCssVars, wathbaKeyframes, type WathbaTheme } from './wathba-tokens';
 
 /**
@@ -19,12 +20,32 @@ import { wathbaCssVars, wathbaKeyframes, type WathbaTheme } from './wathba-token
  */
 export function WathbaShell({
   children,
-  defaultTheme = 'light',
+  defaultTheme = SSR_THEME,
 }: {
   children: ReactNode;
   defaultTheme?: WathbaTheme;
 }) {
   const [theme, setTheme] = useState<WathbaTheme>(defaultTheme);
+
+  /**
+   * HOME-REVIEW D7 — adopt the reader's real theme.
+   *
+   * This runs AFTER first paint, and that is fine: on a hard load
+   * THEME_INIT_SCRIPT has already put the right palette on the wrapper, so
+   * this only brings React's state into line with what is on screen (which is
+   * what makes the header's toggle show the right icon, and toggle the right
+   * way). On a client-side navigation the script does not re-run — React never
+   * executes an inserted inline script — and then this IS the mechanism. Both
+   * paths resolve by the same rule, so they cannot disagree.
+   */
+  useEffect(() => {
+    setTheme(resolveTheme());
+  }, []);
+
+  const setAndPersistTheme = (next: WathbaTheme) => {
+    setTheme(next);
+    persistTheme(next);
+  };
 
   const styleVars: CSSProperties = {
     ...(wathbaCssVars[theme] as unknown as CSSProperties),
@@ -95,6 +116,12 @@ export function WathbaShell({
 
   return (
     <div data-theme={theme} data-pillar="ventures" style={styleVars}>
+      {/* HOME-REVIEW D7 — FIRST child, deliberately. It reads
+       *  `document.currentScript.parentElement`, so it must sit inside the
+       *  element it themes, and it must run before anything below it paints.
+       *  See wathba-theme.ts for why it carries a palette instead of just
+       *  stamping data-theme the way the ops shell does. */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       {/* keyframes + a couple shared utility styles scoped via :where to leak no specificity */}
       <style
         dangerouslySetInnerHTML={{
@@ -387,7 +414,10 @@ export function WathbaShell({
        *  overlays stay position:fixed against the viewport. */}
       <WathbaFeedbackProvider>
         <PageViewTracker />
-        <WathbaHeader theme={theme} onToggleTheme={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} />
+        <WathbaHeader
+          theme={theme}
+          onToggleTheme={() => setAndPersistTheme(theme === 'dark' ? 'light' : 'dark')}
+        />
         {/* NO framer-motion wrap on main — first paint must show content
          *  without waiting for hydration (SEO + no-JS users). Inner cards
          *  still use motion.div for soft entrances where the loss of
