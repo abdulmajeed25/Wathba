@@ -12,6 +12,7 @@ import {
   wathbaRanks,
   wathbaTickerMessages,
 } from './wathba-data';
+import { categoryCount, categoryHref, categoryIcon, type HomeCategory } from './wathba-categories';
 import { WathbaHomeStats } from './wathba-home-stats';
 import { WathbaHomeTrending } from './wathba-home-trending';
 import { Icon, Num } from './wathba-icons';
@@ -94,7 +95,34 @@ const ACT_OF: Record<string, string> = {
 };
 
 /** The sections this file owns, as a key → renderer map. */
-export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedProject): HomeSectionRenderers {
+/**
+ * HOME-REVIEW O4 — the chip row. Live taxonomy, canonical URLs.
+ *
+ * Eight, not all twenty-one: the review's layout plan gives this slot a quiet
+ * chip strip between the hero and the trending grid, and three rows of chips is
+ * not that. The COMPLETE list is server-rendered on /projects/discover-all, the
+ * page commit 607f810 made "THE discovery entry", so a crawler still reaches
+ * every category without JS — see wathba-categories.ts.
+ *
+ * Ordered by live project count, so the row leads with where the platform
+ * actually has projects rather than with a hardcoded order.
+ */
+const HOME_CHIPS = 8;
+
+export function wathbaHomeRenderers(
+  list: DerivedProject[],
+  featured: DerivedProject,
+  categories?: HomeCategory[],
+): HomeSectionRenderers {
+  // The fixture stays as the API-unreachable fallback ONLY, mapped onto the
+  // real URL space so it can never resurrect /projects/category/<slug>. Its
+  // invented counts («٨٤٢ مشروع») are dropped rather than shown as facts.
+  const chips: HomeCategory[] = (
+    categories?.length
+      ? [...categories].sort((a, b) => b.liveCount - a.liveCount)
+      : wathbaCategories.map((c) => ({ slug: c.id, nameAr: c.ar, liveCount: 0 }))
+  ).slice(0, HOME_CHIPS);
+
   return {
     live_ticker: () => (
       <Fragment>
@@ -202,10 +230,10 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
             gap: 14,
           }}
         >
-          {wathbaCategories.map((c) => (
+          {chips.map((c) => (
             <Link
-              key={c.id}
-              href={`/projects/category/${c.id}`}
+              key={c.slug}
+              href={categoryHref(c.slug)}
               style={{
                 cursor: 'pointer',
                 background: 'var(--card)',
@@ -232,11 +260,11 @@ export function wathbaHomeRenderers(list: DerivedProject[], featured: DerivedPro
                   placeItems: 'center',
                 }}
               >
-                <Icon name={c.icon} size={25} color="var(--accent)" />
+                <Icon name={categoryIcon(c.slug)} size={25} color="var(--accent)" />
               </div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{c.ar}</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{c.nameAr}</div>
               <Num style={{ fontSize: 11.5, color: 'var(--muted2)', marginTop: 3 }}>
-                {c.count}
+                {categoryCount(c.liveCount)}
               </Num>
             </Link>
           ))}
@@ -646,9 +674,12 @@ export function WathbaHome({
   hero,
   order,
   extraRenderers,
+  categories,
 }: {
   projects?: WathbaProject[];
   hero?: ReactNode;
+  /** The live taxonomy for the chip row. Undefined when the API is down. */
+  categories?: HomeCategory[];
   /** Section keys in render order (HomepageSection.sortOrder). */
   order?: string[];
   /** The magazine's renderers, merged into the same ordered list. */
@@ -661,7 +692,7 @@ export function WathbaHome({
   // The fallback fixture always has >=1 entry, so list[0]! is safe.
   const featured = list.find((p) => p.id === 'p1' || p.id === 'sirb') ?? list[0]!;
 
-  const own = wathbaHomeRenderers(list, featured);
+  const own = wathbaHomeRenderers(list, featured, categories);
   const renderers: HomeSectionRenderers = { ...own, ...extraRenderers };
 
   // OWN_ORDER is this file's historical sequence and doubles as the safety net.
