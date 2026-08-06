@@ -119,7 +119,22 @@ export function WathbaShell({
                the header is tight, so the reservation is dropped there. */
             [data-pillar="ventures"] .wathba-account-slot{min-width:206px;height:42px;display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-shrink:0;white-space:nowrap}
             @media (max-width:999px){
-              [data-pillar="ventures"] .wathba-account-slot{min-width:0}
+              /* HOME-REVIEW — 59px, NOT 0.
+                 Dropping the reservation entirely here left the loading state
+                 0px wide, so when /api/me answered (~1.3s, measured) the
+                 compact «ابدأ» button appeared, the header reflowed, and every
+                 section below it moved. That was the homepage's mobile CLS:
+                 a single 0.119 shift landing at the exact millisecond of the
+                 /me response.
+                 The desktop reservation exists for the same reason and the
+                 component's own comment states the intent — the slot "reserves
+                 the same box in all three states" — so mobile was the case that
+                 quietly opted out of it.
+                 59px is the widest mobile state (signed out: «ابدأ» at 59px;
+                 signed in: the avatar at 42px; loading: empty). It costs the
+                 header nothing, because the signed-out header already carries
+                 that button and fits. */
+              [data-pillar="ventures"] .wathba-account-slot{min-width:59px}
             }
 
             /* ── POLISH Unit 2 — reveal-on-scroll ─────────────────────────
