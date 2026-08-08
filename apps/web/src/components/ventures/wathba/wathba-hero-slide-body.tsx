@@ -36,7 +36,29 @@ const sar = (halalas: string): string => money.format(Math.round(Number(halalas)
 
 export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
   return (
-    <div style={{ padding: '22px 24px 26px' }}>
+    /**
+     * HERO-METRICS — a flex column inside the card's `1fr` row.
+     *
+     * The card's height is declared by the rotator now, and this half is
+     * whatever the cover leaves. The internal split moved from 50.4% cover /
+     * 49.6% content to 48/52: the covers are generated gradient art with a 90px
+     * scrim over their bottom third, so the top half was reading as expensive
+     * empty space next to a cramped block of real information. The content half
+     * gets the extra, and `margin-top:auto` on the stat row spends it as
+     * breathing room above the numbers rather than as a gap at the bottom.
+     *
+     * minHeight 0 — a flex item will not shrink below its content's min-content
+     * without it, which would let a long title push the card past its declared
+     * height and undo the whole uniformity guarantee.
+     */
+    <div
+      style={{
+        padding: '20px 22px 22px',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+      }}
+    >
       <div
         style={{
           display: 'flex',
@@ -67,10 +89,18 @@ export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
           fontSize: 14,
           color: 'var(--muted)',
           lineHeight: 1.7,
-          marginBottom: 20,
+          marginBottom: 16,
           // Two lines reserved whatever the copy, so a short pitch
           // and a long one occupy the same height.
-          minHeight: '2.8em',
+          //
+          // It reserved 2.8em, and two lines are not 2.8em — they are
+          // 2 x 1.7 = 3.4em. The reserve was 8.4px short of the thing it claimed
+          // to reserve, so a slide whose pitch wrapped was 8.4px taller than one
+          // whose pitch did not, and the card's bottom edge moved between them.
+          // Measured as the [39, 48] split in the pitch heights at every
+          // viewport from 1180px down. Stated as a multiple of the line-height
+          // so the two can never drift apart again.
+          minHeight: 'calc(2 * 1.7em)',
           display: '-webkit-box',
           WebkitLineClamp: 2,
           WebkitBoxOrient: 'vertical',
@@ -102,23 +132,52 @@ export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
           }}
         />
       </div>
-      {/* Four stats where the static card had three, so this row
-          has to be able to wrap: on a narrow phone the money
-          block alone is most of the width. */}
+      {/* Four stats where the static card had three, so on a narrow card the
+          money block alone is most of the width.
+
+          It used to be a wrapping flex row, and that is the second half of why
+          the card's height moved between slides: the row wrapped by CONTENT, so
+          «297,000 من 180,000» wrapped where «12,400 من 90,000» did not, and the
+          row measured either 47px or 105px among the ten slides at one viewport.
+          Combined with the pitch reserve above it produced six distinct card
+          heights spanning 98px at a 900px viewport.
+
+          A grid wraps by BREAKPOINT instead: four tracks above 760px, two below
+          (see .wathba-hero-stat-grid in wathba-shell.tsx). Every slide at a
+          given width now measures the same, whatever its numbers say. The money
+          block gets 1.6 tracks because it carries two figures and the others
+          carry one; minmax(0,…) everywhere so no track can be sized by its
+          content.
+
+          margin-top:auto parks the row on the card's bottom padding, which is
+          what makes the extra height from the 48/52 split appear as space above
+          the numbers rather than below them. */}
       <div
+        className="wathba-hero-stat-grid"
         style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-end',
-          flexWrap: 'wrap',
-          gap: '12px 14px',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1.6fr) repeat(3, minmax(0,1fr))',
+          alignItems: 'end',
+          gap: '10px 10px',
+          marginTop: 'auto',
         }}
       >
         <div>
           <Num style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>
             {sar(p.raisedHalalas)}
           </Num>
-          <span style={{ fontSize: 13, color: 'var(--muted2)', marginInlineStart: 6 }}>
+          {/* nowrap so the phrase breaks as a unit. Without it the line wrapped
+              between «من» and the figure at 1280, orphaning the preposition on
+              the end of the raised amount — «297,000 من» / «180,000». It now
+              either sits inline or drops whole onto the next line. */}
+          <span
+            style={{
+              fontSize: 13,
+              color: 'var(--muted2)',
+              marginInlineStart: 6,
+              whiteSpace: 'nowrap',
+            }}
+          >
             من {sar(p.goalHalalas)}
           </span>
         </div>

@@ -723,20 +723,63 @@ export function WathbaHome({
       {/* ============================== HERO ============================== */}
       {/* STAKES/S-14 (F-09) — .wathba-home-hero stacks below 760px: the
           fixed 2-col grid squeezed at 360px and re-laid out on hydration,
-          which was the home page's CLS (~0.5 mobile). */}
+          which was the home page's CLS (~0.5 mobile).
+
+          HERO-METRICS — the two columns now share ONE declared height rather
+          than each landing wherever its content lands. Measured before this:
+          the text column was 502px and the card column 544px, and with
+          `align-items:center` the 42px difference was split 22 above / 20
+          below, which is what read as "the card is taller than the text". None
+          of those 42px were the card — the card was 492px; the arrow row hung
+          16 + 36px underneath it. It is inside the cover now (see the rotator),
+          so the column IS the card.
+
+          --hero-col-h is declared INLINE, not in the shell's <style> block, for
+          the reason recorded in wathba-theme.ts: a custom property declared in a
+          body stylesheet is briefly undefined, and this one sizes the LCP
+          element. The per-breakpoint overrides in wathba-shell.tsx therefore
+          carry !important — an inline declaration outranks a plain stylesheet
+          rule, and an override that silently loses is how the dots-hide rule
+          spent its whole life doing nothing.
+
+          align-items START, not center. With the columns equal it changes
+          nothing today; it means that if they ever diverge the card grows
+          DOWNWARD instead of pushing the text column — and the text column's
+          bottom edge is where the stat row lives, which is the thing that has
+          to stay inside the first viewport. */}
       <section
         className="wathba-home-hero"
         style={{
           maxWidth: 1320,
           margin: '0 auto',
-          padding: '64px 26px 30px',
+          // 64 → 40. The single cheapest 24px of first-viewport budget: at
+          // 1280x680 the stat row's bottom edge was 31px past the fold.
+          padding: '40px 26px 30px',
           display: 'grid',
-          gridTemplateColumns: '1.05fr .95fr',
-          gap: 54,
-          alignItems: 'center',
+          // minmax(0,…) on BOTH tracks. A grid item's min-width defaults to
+          // auto, so a bare `fr` track cannot shrink below its content's
+          // min-content — the failure mode already documented twice in this
+          // file's media queries.
+          gridTemplateColumns: 'minmax(0,1.08fr) minmax(0,0.92fr)',
+          gap: 48,
+          alignItems: 'start',
+          ['--hero-col-h' as string]: '500px',
+          ['--hero-cover-h' as string]: '240px',
         }}
       >
-        <div style={{ position: 'relative' }}>
+        {/* A flex column of exactly --hero-col-h, so the stat row's distance
+            from the top of the hero is a number this file chose rather than the
+            sum of five margins. `margin-top:auto` on the stats parks them on
+            that bottom edge; the CTA row keeps a minimum gap so the two never
+            collide when the copy runs long. */}
+        <div
+          style={{
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 'var(--hero-col-h)',
+          }}
+        >
           <div
             style={{
               display: 'inline-flex',
@@ -749,7 +792,10 @@ export function WathbaHome({
               borderRadius: 30,
               fontSize: 13,
               fontWeight: 600,
-              marginBottom: 24,
+              marginBottom: 20,
+              // A flex item shrinks by default; this pill is 31px of content
+              // and must stay 31px.
+              flex: '0 0 auto',
             }}
           >
             <span
@@ -778,7 +824,7 @@ export function WathbaHome({
               fontSize: 62,
               lineHeight: 1.3,
               fontWeight: 700,
-              marginBottom: 22,
+              marginBottom: 20,
             }}
           >
             حوّل فكرتك
@@ -801,13 +847,13 @@ export function WathbaHome({
               lineHeight: 1.7,
               color: 'var(--text-soft)',
               maxWidth: 480,
-              marginBottom: 32,
+              marginBottom: 26,
             }}
           >
             وثبة تجمع المبدعين بمجتمعٍ يؤمن بهم. اعرض مشروعك، اجمع التمويل بشفافية كاملة،
             وكافئ داعميك برتبٍ ومزايا فريدة.
           </p>
-          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 42 }}>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 28 }}>
             <Link
               href="/projects/start"
               style={{
@@ -849,7 +895,11 @@ export function WathbaHome({
               اكتشف المشاريع
             </Link>
           </div>
-          <WathbaHomeStats />
+          {/* The credibility row sits on the column's bottom edge, so its
+              distance from the fold is --hero-col-h and nothing else. */}
+          <div style={{ marginTop: 'auto' }}>
+            <WathbaHomeStats />
+          </div>
         </div>
 
         {/* Batch HERO — the rotating showcase. The static card below is the
