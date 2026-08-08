@@ -109,6 +109,18 @@ test.describe('desktop', () => {
     expect((await cardHeights(page))[0]!, 'the card resized across the swap').toBe(hBefore);
   });
 
+  test('G7: the desktop headline is untouched by the mobile type scale', async ({ page }) => {
+    await page.goto(HOME);
+    const fs = await page
+      .locator('.wathba-home-hero h1')
+      .evaluate((el) => getComputedStyle(el).fontSize);
+    // The clamp tops out at 590px, so every two-column layout must still
+    // resolve to the exact 62px this hero has always used. --hero-col-h is
+    // tuned against this column's measured height; a headline that quietly
+    // shrank on desktop would break G4 somewhere nobody was looking.
+    expect(fs, 'the desktop headline changed size').toBe('62px');
+  });
+
   test('G4: the two hero columns are the same height', async ({ page }) => {
     await page.goto(HOME);
     await expect(page.locator(CURRENT)).toBeVisible();
@@ -206,6 +218,48 @@ test.describe('tablet', () => {
 
 test.describe('phone', () => {
   test.use({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true });
+
+  test('G8: the headline is two lines, and the whole ask fits one screen', async ({ page }) => {
+    await page.goto(HOME);
+    const h1 = page.locator('.wathba-home-hero h1');
+    await expect(h1).toBeVisible();
+
+    const m = await page.evaluate(() => {
+      const el = document.querySelector('.wathba-home-hero h1') as HTMLElement;
+      const cs = getComputedStyle(el);
+      const sec = document.querySelector('.wathba-home-hero') as HTMLElement;
+      const stats = document.querySelector('[data-testid="wathba-hero-stats"]') as HTMLElement;
+      return {
+        fs: parseFloat(cs.fontSize),
+        h: Math.round(el.getBoundingClientRect().height),
+        lines: Math.round(el.getBoundingClientRect().height / (parseFloat(cs.fontSize) * 1.3)),
+        tracking: cs.letterSpacing,
+        lh: cs.lineHeight,
+        secH: sec.offsetHeight,
+        statsBottom: Math.round(stats.getBoundingClientRect().bottom),
+        vh: document.documentElement.clientHeight,
+      };
+    });
+
+    // It was 62px and three lines — 242px of headline on a 360px phone, and the
+    // single biggest reason this hero ran 1.81 viewports with the card starting
+    // below the fold. The wrap to a third line is a 67px cliff, so line COUNT is
+    // the assertion, not height.
+    expect(m.lines, `headline is ${m.lines} lines at ${m.fs}px (${m.h}px tall)`).toBeLessThanOrEqual(2);
+    // The Arabic floor holds at every size on the scale: 1.3 leading clears the
+    // shadda on «حوّل» and the «س» tail of «ملموس», and tracking is never
+    // negative on a cursive script.
+    expect(
+      parseFloat(m.lh) / m.fs,
+      `line-height ratio ${(parseFloat(m.lh) / m.fs).toFixed(2)} is below the Arabic floor`,
+    ).toBeGreaterThanOrEqual(1.3);
+    expect(m.tracking, 'negative tracking breaks Arabic cursive joins').toBe('normal');
+    // The pitch, both CTAs and the credibility row on one screen.
+    expect(m.statsBottom, `stats bottom ${m.statsBottom} against a ${m.vh} fold`).toBeLessThanOrEqual(m.vh - 16);
+    // 1.81 viewports before. Not a tight bound — a bound that catches a return
+    // to the old scale.
+    expect(m.secH / m.vh, `hero is ${(m.secH / m.vh).toFixed(2)} viewports tall`).toBeLessThan(1.6);
+  });
 
   test('G6: the stats are not sliced by the viewport edge at 360', async ({ page }) => {
     await page.goto(HOME);
