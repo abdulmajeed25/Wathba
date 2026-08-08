@@ -1,0 +1,17 @@
+-- Stage 1 item 12 — the campaign video becomes real data.
+--
+-- Before this column there was no per-project video ANYWHERE: not in the
+-- schema, not in any API payload, not in the data. The campaign page looked
+-- like it had one, but it rendered a YouTube iframe whose id was a hardcoded
+-- constant in a web fixture (wathba-rich.ts) — the identical clip for every
+-- project, real ones included.
+--
+-- Nullable with no backfill, deliberately. Every existing row stays NULL, and
+-- every surface that plays the video degrades to the cover image, so this
+-- migration changes no rendering on its own. A creator uploading a video is
+-- what lights a card up.
+--
+-- Not added to mediaUrls: that array is the image gallery and its FIRST element
+-- is the card cover (search.service.ts selects mediaUrls[1]). Appending a video
+-- there would make the cover depend on upload order.
+ALTER TABLE "Project" ADD COLUMN "videoUrl" TEXT;

@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import type { ApiHomePayload, ApiHomeProjectCard, ApiEditorialCard } from '@/lib/api/wathba';
+import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { WathbaCarousel } from './wathba-carousel';
 import { WathbaHeroBanners } from './wathba-hero-banners';
 import { Num } from './wathba-icons';
@@ -231,7 +232,7 @@ export function wathbaMagazineRenderers(
         <Section key="s6" k="home_stretch" title="على وشك الاكتمال" more="/projects/discover-all?pct=p75_100">
           <WathbaCarousel label="مشاريع على وشك الاكتمال">
             {payload.homeStretch.map((p) => (
-              <CarouselProjectCard key={p.id} p={p} />
+              <CarouselProjectCard key={p.id} p={p} large />
             ))}
           </WathbaCarousel>
         </Section>
@@ -319,13 +320,44 @@ function href(p: ApiHomeProjectCard): string {
   return p.slug ? `/p/${p.slug}` : `/projects/${p.id}`;
 }
 
-function ProjectArt({ p, height }: { p: ApiHomeProjectCard; height: number }) {
-  return p.imageUrl ? (
-    <div style={{ position: 'relative', height, borderRadius: 12, overflow: 'hidden' }}>
-      <Image src={p.imageUrl} alt="" fill style={{ objectFit: 'cover' }} sizes="(max-width: 760px) 90vw, 400px" />
+/**
+ * Stage 1 item 11 — the cover box.
+ *
+ * `ratio` replaces the old fixed pixel `height` on the project cards. Both are
+ * deterministic before the image loads, so the CLS guarantee is unchanged; a
+ * ratio is used because these cards are now sized per section and a fixed
+ * height would letterbox in the large one and crop in the small one.
+ *
+ * `height` is kept for the callers that are genuinely a fixed strip.
+ */
+function ProjectArt({
+  p,
+  height,
+  ratio,
+  video,
+}: {
+  p: ApiHomeProjectCard;
+  height?: number;
+  ratio?: string;
+  video?: boolean;
+}) {
+  const box: React.CSSProperties = ratio
+    ? { aspectRatio: ratio, position: 'relative', borderRadius: 12, overflow: 'hidden' }
+    : { position: 'relative', height, borderRadius: 12, overflow: 'hidden' };
+  const cover = p.imageUrl ? (
+    <Image src={p.imageUrl} alt="" fill style={{ objectFit: 'cover' }} sizes="(max-width: 760px) 90vw, 400px" />
+  ) : null;
+  return (
+    <div className={p.imageUrl ? undefined : 'wathba-ph'} style={box}>
+      {video ? (
+        <WathbaCardVideo videoUrl={p.videoUrl} poster={p.imageUrl}>
+          {cover}
+        </WathbaCardVideo>
+      ) : (
+        cover
+      )}
+      {video && p.videoUrl ? <WathbaCardVideoGlyph /> : null}
     </div>
-  ) : (
-    <div className="wathba-ph" style={{ height, borderRadius: 12 }} />
   );
 }
 
@@ -459,15 +491,50 @@ function MiniProjectCard({ p }: { p: ApiHomeProjectCard }) {
   );
 }
 
-function CarouselProjectCard({ p }: { p: ApiHomeProjectCard }) {
+/**
+ * Stage 1 item 11 — layout variance, which is also the rhythm fix the report
+ * asked for. Two sizes, and the size states what the shelf is for:
+ *
+ *  - `large`  «على وشك الاكتمال» — a discovery shelf you are meant to stop at.
+ *             A 340px card with a 3/2 cover, matching «الرائجة».
+ *  - default  «مفضلات جديدة» — a browse strip you are meant to scan. Kept
+ *             narrow, and its cover kept at 16/9 rather than 3/2, so the two
+ *             carousels do not read as the same shelf twice.
+ *
+ * Titles were `nowrap` + ellipsis at 14px, which truncated most real Arabic
+ * project titles mid-word. The large card gives them two lines at 16.5px; the
+ * browse strip keeps one line because that is the point of a strip.
+ */
+function CarouselProjectCard({ p, large }: { p: ApiHomeProjectCard; large?: boolean }) {
   return (
     <Link
       href={href(p)}
       className="lift"
-      style={{ ...cardBase, display: 'block', flex: '0 0 260px', scrollSnapAlign: 'start' }}
+      style={{
+        ...cardBase,
+        display: 'block',
+        flex: large ? '0 0 340px' : '0 0 244px',
+        scrollSnapAlign: 'start',
+      }}
     >
-      <ProjectArt p={p} height={130} />
-      <h3 style={{ fontSize: 14, fontWeight: 700, marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <ProjectArt p={p} ratio={large ? '3 / 2' : '16 / 9'} video />
+      <h3
+        style={
+          large
+            ? {
+                fontSize: 16.5,
+                fontWeight: 700,
+                marginTop: 12,
+                lineHeight: 1.45,
+                minHeight: '2.9em',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }
+            : { fontSize: 14, fontWeight: 700, marginTop: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+        }
+      >
         {p.titleAr}
       </h3>
       <Funded p={p} />

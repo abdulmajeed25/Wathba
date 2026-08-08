@@ -75,6 +75,21 @@ export class CreateProjectDto {
   @IsOptional() @IsArray() @IsString({ each: true })
   mediaUrls?: string[];
 
+  /**
+   * Stage 1 item 12 — the campaign video, as an uploaded mp4/webm on the media
+   * origin. Optional; a project without one simply has no hover-video.
+   *
+   * The extension is validated because the failure mode is silent: a <video>
+   * pointed at a YouTube watch page, or at an image, renders an empty black box
+   * with no error. Restricting to the two container types media.service already
+   * accepts (see MIME_ALLOW.story) keeps "has a video" and "can play it" the
+   * same statement.
+   */
+  @ApiProperty({ required: false, example: 'https://media.example.com/p/abc.mp4' })
+  @IsOptional() @IsString() @MaxLength(600)
+  @Matches(/\.(mp4|webm)(\?|$)/i, { message: 'videoUrl must be an .mp4 or .webm file' })
+  videoUrl?: string;
+
   @ApiProperty({ example: 40_000_000, description: 'Funding goal in halalas (1 SAR = 100)' })
   @IsInt() @Min(10_000)
   fundingGoalHalalas!: number;
@@ -113,6 +128,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() categoryId?: string;
   @IsOptional() @IsString() @MinLength(50) storyAr?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) mediaUrls?: string[];
+  @IsOptional() @IsString() @MaxLength(600) @Matches(/\.(mp4|webm)(\?|$)/i, { message: 'videoUrl must be an .mp4 or .webm file' }) videoUrl?: string;
   @IsOptional() @IsInt() @Min(10_000) fundingGoalHalalas?: number;
   @IsOptional() @IsInt() @Min(50) @Max(100) releaseThresholdPct?: number;
   @IsOptional() @IsInt() @Min(7) @Max(120) durationDays?: number;

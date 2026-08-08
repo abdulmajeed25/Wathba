@@ -306,6 +306,8 @@ export interface ApiProjectDetail {
   category: string;
   storyAr: string;
   mediaUrls: string[];
+  /** Stage 1 item 12 — the campaign video (mp4/webm), or null. */
+  videoUrl: string | null;
   fundingGoalHalalas: number;
   releaseThresholdPct: number;
   durationDays: number;
@@ -1073,6 +1075,8 @@ export interface ApiDiscoverProject {
   deadline: string;
   publishedAt: string | null;
   mediaUrls: string[];
+  /** Stage 1 item 12 — the campaign video, or null (the common case). */
+  videoUrl: string | null;
   slug: string | null;
 }
 
@@ -1114,6 +1118,8 @@ export interface ApiDiscoverCard {
   deadline: string;
   publishedAt: string | null;
   mediaUrls: string[];
+  /** Stage 1 item 12 — the campaign video, or null (the common case). */
+  videoUrl: string | null;
   slug: string | null;
   saved: boolean;
 }
@@ -1212,6 +1218,12 @@ export interface ApiHomeProjectCard {
   backersCount: number;
   deadline: string;
   imageUrl: string | null;
+  /**
+   * Stage 1 item 12 — the campaign video (mp4/webm on the media origin), or
+   * null. Null for every project until a creator uploads one, so every card
+   * that can play it must degrade to `imageUrl` rather than assume it exists.
+   */
+  videoUrl: string | null;
   isStaffPick: boolean;
 }
 

@@ -37,6 +37,14 @@ export interface WathbaProject {
    * no cover) instead of the rule it had quietly become.
    */
   coverUrl?: string | null;
+  /**
+   * Stage 1 item 12 — the campaign video (mp4/webm), or null.
+   *
+   * Optional and absent on every bundled fixture, deliberately: the demo
+   * projects have no video and must not pretend to. A card renders its hover
+   * video only when this is a real URL.
+   */
+  videoUrl?: string | null;
 }
 
 export const wathbaProjects: WathbaProject[] = [
@@ -431,6 +439,8 @@ export function adaptDiscoverProject(
     backersCount: number;
     deadline: string;
     mediaUrls: string[];
+    /** Stage 1 item 12 — null until a creator uploads one (migration 0059). */
+    videoUrl?: string | null;
     slug: string | null;
   },
   catNameById: Map<string, string>,
@@ -455,6 +465,7 @@ export function adaptDiscoverProject(
     badge: p.isStaffPick ? 'مختارات وثبة' : '',
     desc: p.shortDescAr,
     coverUrl: p.mediaUrls?.[0] ?? null,
+    videoUrl: p.videoUrl ?? null,
   };
 }
 
@@ -477,6 +488,8 @@ export interface ApiVentureLike {
   tagline: string | null;
   /** HOME-REVIEW D1 — the project's cover; null for rows that have no media. */
   coverUrl: string | null;
+  /** Stage 1 item 12 — the campaign video; null until a creator uploads one. */
+  videoUrl?: string | null;
   state: string;
   fundingGoal: string;
   fundingRaised: string;
@@ -518,6 +531,7 @@ export function adaptApiVenture(v: ApiVentureLike): (WathbaProject & { apiId: st
     desc: v.tagline?.trim() ? v.tagline.trim() : fixture.desc,
     // HOME-REVIEW D1 — the live cover overlays the fixture, which has none.
     coverUrl: v.coverUrl,
+    videoUrl: v.videoUrl ?? null,
   };
 }
 

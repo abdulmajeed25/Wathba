@@ -63,6 +63,8 @@ export interface DiscoverCard {
   deadline: string;
   publishedAt: string | null;
   mediaUrls: string[];
+  /// Stage 1 item 12 — null until a creator uploads one (migration 0059).
+  videoUrl: string | null;
   slug: string | null;
   saved: boolean;
   creatorName: string;
@@ -294,7 +296,7 @@ export class DiscoverService {
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.id, p."titleAr", p."shortDescAr", p."categoryId", p.region::text AS region,
              p."isStaffPick", p.status::text AS status, p."fundingGoalHalalas", p."raisedHalalas",
-             p."backersCount", p.deadline, p."publishedAt", p."mediaUrls", p.slug,
+             p."backersCount", p.deadline, p."publishedAt", p."mediaUrls", p."videoUrl", p.slug,
              ${savedSel} AS saved, u.name AS "creatorName"
       FROM "Project" p
       JOIN "User" u ON u.id = p."createdById"
@@ -330,6 +332,7 @@ export class DiscoverService {
       deadline: d ? new Date(d).toISOString() : '',
       publishedAt: pub ? new Date(pub).toISOString() : null,
       mediaUrls: (r.mediaUrls as string[]) ?? [],
+      videoUrl: (r.videoUrl as string) ?? null,
       slug: (r.slug as string) ?? null,
       saved: Boolean(r.saved),
       creatorName: (r.creatorName as string) ?? '',

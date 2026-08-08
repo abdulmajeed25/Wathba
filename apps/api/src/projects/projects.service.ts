@@ -109,6 +109,7 @@ export class ProjectsService {
         categoryId: cat.categoryId,
         storyAr: dto.storyAr,
         mediaUrls: dto.mediaUrls ?? [],
+        videoUrl: dto.videoUrl ?? null,
         fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
         releaseThresholdPct: dto.releaseThresholdPct ?? 80,
         durationDays: dto.durationDays,
@@ -143,6 +144,7 @@ export class ProjectsService {
         ...(cat && { category: cat.category, categoryId: cat.categoryId }),
         ...(dto.storyAr !== undefined && { storyAr: dto.storyAr }),
         ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
+        ...(dto.videoUrl !== undefined && { videoUrl: dto.videoUrl }),
         ...(dto.fundingGoalHalalas !== undefined && {
           fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
         }),
@@ -719,6 +721,7 @@ export class ProjectsService {
       isStaffPick: p.isStaffPick,
       storyAr: p.storyAr,
       mediaUrls: p.mediaUrls,
+      videoUrl: p.videoUrl,
       fundingGoalHalalas: Number(p.fundingGoalHalalas),
       releaseThresholdPct: p.releaseThresholdPct,
       durationDays: p.durationDays,
