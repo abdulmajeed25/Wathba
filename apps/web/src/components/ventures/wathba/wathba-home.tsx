@@ -818,10 +818,43 @@ export function WathbaHome({
 
               Height goes 130px → 161px here, which the layout absorbs: on
               desktop the hero card (492px) is already taller than this column
-              (471px), so the section does not grow. */}
+              (471px), so the section does not grow.
+
+              HERO-METRICS — and 62px was 62px at EVERY width, including 360.
+              There was no type scale in this hero at all. On a 360px phone the
+              headline alone measured 242px tall — three lines, because «إلى
+              واقعٍ ملموس» cannot fit one at that size — and it was the single
+              biggest reason the mobile hero ran 1.81 viewports tall with the
+              rotating card starting 108px BELOW the fold.
+
+              The upper bound is reached at ~590px, which is inside the stacked
+              band: from 760px up — every two-column layout — this evaluates to
+              exactly the 62px it always was. Desktop and tablet are unchanged
+              to the pixel, which matters because --hero-col-h is tuned against
+              this column's measured height and the desktop LCP element is the
+              card cover, not the headline.
+
+              THE SLOPE IS SET BY A CLIFF, not by taste. «إلى واقعٍ ملموس» wraps
+              at some size, and when it does the headline jumps from two lines to
+              three — 120px to 187px at 360, in one pixel of font size. Measured
+              ceilings: 46px at 360, 52px at 390, 56px at 414, which is a
+              remarkably flat ~12.8vw. 10.5vw sits 21-29% under that everywhere,
+              so a different font load or a copy edit cannot tip it over. Going
+              closer to the cliff would buy a few points of size and reintroduce
+              exactly the content-driven height this batch removed.
+
+              The size is free at the fold: the column's min-height is
+              --hero-col-h and its natural content is under that on a phone, so
+              a taller headline eats the auto gap above the stat row rather than
+              pushing it down. Measured at 360: stat row bottom 694 either way.
+
+              line-height stays 1.3 and tracking stays normal at every size —
+              those are the Arabic rules recorded above, and a responsive size
+              does not relax them. The 34px floor only binds below a 324px
+              viewport; it is a guard, not a design value. */}
           <h1
             style={{
-              fontSize: 62,
+              fontSize: 'clamp(34px, 10.5vw, 62px)',
               lineHeight: 1.3,
               fontWeight: 700,
               marginBottom: 20,
