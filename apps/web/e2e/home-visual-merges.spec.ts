@@ -77,13 +77,17 @@ test('M3: the stage is the only full-bleed section, and it is dark in both theme
   // still 1320-capped, which is what keeps the copy readable.
   expect(geom.width, 'the stage must span the viewport').toBe(geom.viewport);
 
-  const ground = (theme: 'light' | 'dark') =>
+  // Reads the CURRENT computed ground; the theme is whatever the page is in at
+  // the time of the call. It took a `theme` argument that nothing inside used,
+  // which was only ever a label — and the assertion messages below already say
+  // which mode is being checked.
+  const ground = () =>
     page.evaluate(() => {
       const s = document.querySelector('[data-stage="1"]') as HTMLElement;
       return getComputedStyle(s).backgroundColor;
     });
 
-  const light = await ground('light');
+  const light = await ground();
   // #131210
   expect(light, 'the stage stays dark in LIGHT mode — that is the point').toBe('rgb(19, 18, 16)');
 
@@ -93,7 +97,7 @@ test('M3: the stage is the only full-bleed section, and it is dark in both theme
       page.evaluate(() => document.querySelector('[data-pillar="ventures"]')?.getAttribute('data-theme')),
     )
     .toBe('dark');
-  expect(await ground('dark'), 'and the same dark in dark mode').toBe('rgb(19, 18, 16)');
+  expect(await ground(), 'and the same dark in dark mode').toBe('rgb(19, 18, 16)');
 });
 
 test('M5: the stage fits the phone', async ({ browser }) => {
