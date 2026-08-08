@@ -385,6 +385,25 @@ export function WathbaShell({
               [data-pillar="ventures"] .wathba-mag-duo{grid-template-columns:minmax(0,1fr)!important}
               [data-pillar="ventures"] .wathba-mag-row{grid-template-columns:1fr 1fr!important}
             }
+            /* Stage 1 item 11 — «الرائجة» had NO responsive rule at all: a bare
+               repeat(4,1fr) at every width, which measured 71px cards on a 390px
+               phone. Three up on desktop (hero of discovery), two on tablet, one
+               on a phone.
+
+               The two queries are DISJOINT on purpose. Written as
+               max-width:880 + min-width:761 they overlap between 761 and 880,
+               and since both carry !important the later rule would win — the
+               phone rule would have been silently dead across a 120px band.
+
+               minmax(0,1fr) rather than 1fr for the same reason the duo above
+               needed it: a 1fr track is sized by its content's min-content and
+               will not shrink below it. */
+            @media (max-width:620px){
+              [data-pillar="ventures"] .wathba-trend-grid{grid-template-columns:minmax(0,1fr)!important;gap:18px!important}
+            }
+            @media (min-width:621px) and (max-width:1100px){
+              [data-pillar="ventures"] .wathba-trend-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+            }
             @media (max-width:540px){
               [data-pillar="ventures"] .wathba-mag-row{grid-template-columns:1fr!important}
             }

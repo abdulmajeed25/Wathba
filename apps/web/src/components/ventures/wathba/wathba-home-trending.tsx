@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import type { deriveProject } from './wathba-data';
+import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { Icon, Num } from './wathba-icons';
 
 /**
@@ -93,8 +94,22 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
           ))}
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18 }}>
-        {trending.slice(0, 8).map((p) => (
+      {/*
+        Stage 1 item 11 — «الرائجة» is the hero of discovery, so it runs THREE
+        up rather than four: at the 1320px container that is a 294px card
+        becoming 414px, and the cover grows with it.
+
+        It also carries a class for the first time. The grid was a bare
+        `repeat(4,1fr)` with no media query at any width, which is not a
+        judgement call that went stale — it was never responsive at all.
+        Measured on the previous build: 294px cards at 1280, 199px at 900, and
+        **71px at 390px**, with the cover still 158px tall. Four columns of a
+        390px phone is a 71px card. Nothing reported it because the section has
+        no test and the page-level overflow check is blinded by
+        [data-pillar]{overflow-x:clip}.
+      */}
+      <div className="wathba-trend-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 22 }}>
+        {trending.slice(0, 6).map((p) => (
           <Link
             key={p.id}
             href={`/projects/${p.id}`}
@@ -126,7 +141,20 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
               them — it is now the exception it was always meant to be, not the
               default state of the platform's primary discovery grid.
             */}
-            <div className="wathba-ph" style={{ height: 158, position: 'relative' }}>
+            {/*
+              Stage 1 item 11 — the cover is the product, so it dominates: a
+              3/2 box instead of a fixed 158px strip. At the new 414px card
+              that is 276px of cover, up from 158px.
+
+              STILL a fixed-ratio box, which is the whole CLS argument. `height`
+              and `aspect-ratio` are equally deterministic here — the width is
+              resolved by the grid before any image request — so the box holds
+              its space before the cover decodes exactly as it did. Ratio rather
+              than a pixel height only because the card is now responsive; a
+              fixed height would letterbox at one width and crop at another.
+            */}
+            <div className="wathba-ph" style={{ aspectRatio: '3 / 2', position: 'relative' }}>
+              <WathbaCardVideo videoUrl={p.videoUrl} poster={p.coverUrl}>
               {p.coverUrl ? (
                 <Image
                   src={p.coverUrl}
@@ -198,10 +226,12 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                   بشراكة وثبة
                 </div>
               )}
+              </WathbaCardVideo>
+              {p.videoUrl ? <WathbaCardVideoGlyph /> : null}
             </div>
             <div
               style={{
-                padding: '15px 16px 17px',
+                padding: '20px 20px 22px',
                 display: 'flex',
                 flexDirection: 'column',
                 flex: 1,
@@ -219,9 +249,9 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
               */}
               <h3
                 style={{
-                  fontSize: 16.5,
+                  fontSize: 19,
                   fontWeight: 700,
-                  marginBottom: 4,
+                  marginBottom: 6,
                   lineHeight: 1.45,
                   minHeight: '2.9em',
                   display: '-webkit-box',
@@ -241,7 +271,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                 reclaimed rather than reserved, so cards stay flush.
               */}
               {p.creator ? (
-                <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginBottom: 13 }}>
+                <div style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 15 }}>
                   بواسطة {p.creator}
                 </div>
               ) : (

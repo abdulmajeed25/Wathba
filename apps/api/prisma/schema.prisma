@@ -351,6 +351,20 @@ model Project {
   isStaffPick          Boolean          @default(false)
   storyAr              String           @db.Text
   mediaUrls            String[]         @default([])
+  /// The campaign video, as an uploaded file on the media origin (mp4/webm).
+  ///
+  /// Added because there was no such thing. The campaign page appeared to show
+  /// a per-project video, but it rendered a YouTube iframe whose id was a
+  /// hardcoded constant in a web FIXTURE (`wathba-rich.ts`) — the same clip for
+  /// every project — so no video URL existed anywhere in the schema, the API,
+  /// or the data.
+  ///
+  /// Deliberately NOT folded into `mediaUrls`: that array is the image gallery,
+  /// its first element is the card cover (see search.service `mediaUrls[1]`),
+  /// and giving it a second meaning would make the cover depend on upload order.
+  /// Nullable and unset for every existing project — surfaces that hover-play
+  /// the video degrade to the cover image until a creator uploads one.
+  videoUrl             String?
   fundingGoalHalalas   BigInt
   releaseThresholdPct  Int              @default(80)
   durationDays         Int

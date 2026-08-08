@@ -114,6 +114,85 @@ export function DashboardSettings({
     }
   };
 
+  /**
+   * Stage 1 item 12 — the campaign video.
+   *
+   * This control is why the field is worth having. Before it, `videoUrl` could
+   * only ever be set by someone with database or API access, and a card feature
+   * that no creator can feed is a feature that never runs.
+   *
+   * kind: 'story' rather than a new upload kind. media.service already accepts
+   * video/mp4 and video/webm under `story` at 25MB, and its `story/` prefix is
+   * already in the bucket's public-read policy. Adding a `video` kind would
+   * have meant widening that policy for a path with one producer — the module's
+   * own comment records that exact mistake being made before.
+   */
+  const [videoUrl, setVideoUrl] = useState(project.videoUrl ?? '');
+  const [vidBusy, setVidBusy] = useState(false);
+  const [vidMsg, setVidMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  const saveVideoUrl = async (next: string | null): Promise<void> => {
+    const res = await fetch(`/api/projects/${project.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ videoUrl: next }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { message?: string | string[] };
+    if (!res.ok) {
+      throw new Error(Array.isArray(j.message) ? j.message.join('، ') : (j.message ?? 'تعذّر الحفظ'));
+    }
+  };
+
+  const uploadVideo = async (file: File): Promise<void> => {
+    setVidBusy(true);
+    setVidMsg(null);
+    try {
+      const presign = await fetch('/api/media/upload-url', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          kind: 'story',
+          mimeType: file.type || 'video/mp4',
+          sizeBytes: file.size,
+        }),
+      });
+      if (!presign.ok) {
+        throw new Error(`فشل توقيع الرفع (${presign.status})`);
+      }
+      const { url, publicUrl } = (await presign.json()) as { url: string; publicUrl: string };
+      const put = await fetch(url, {
+        method: 'PUT',
+        headers: { 'content-type': file.type || 'video/mp4' },
+        body: file,
+      });
+      if (!put.ok) throw new Error(`فشل الرفع (${put.status})`);
+      await saveVideoUrl(publicUrl);
+      setVideoUrl(publicUrl);
+      setVidMsg({ kind: 'ok', text: 'تم رفع الفيديو' });
+      router.refresh();
+    } catch (e) {
+      setVidMsg({ kind: 'err', text: e instanceof Error ? e.message : 'تعذّر الرفع' });
+    } finally {
+      setVidBusy(false);
+    }
+  };
+
+  const removeVideo = async (): Promise<void> => {
+    setVidBusy(true);
+    setVidMsg(null);
+    try {
+      await saveVideoUrl(null);
+      setVideoUrl('');
+      setVidMsg({ kind: 'ok', text: 'تم حذف الفيديو' });
+      router.refresh();
+    } catch (e) {
+      setVidMsg({ kind: 'err', text: e instanceof Error ? e.message : 'تعذّر الحذف' });
+    } finally {
+      setVidBusy(false);
+    }
+  };
+
   // ── CC-21 duplicate ──────────────────────────────────────────────────────
   const [dupBusy, setDupBusy] = useState(false);
   const duplicate = async (): Promise<void> => {
@@ -623,6 +702,60 @@ export function DashboardSettings({
               }
             />
           </>
+        )}
+      </Card>
+
+      {/* ── Stage 1 item 12 — campaign video ─────────────────────────────── */}
+      <Card title="فيديو الحملة">
+        <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
+          مقطع قصير يظهر على بطاقة مشروعك في الصفحة الرئيسية عند مرور المؤشر فوقها، وبدونه تبقى
+          البطاقة بالصورة فقط. الصيغ المقبولة: MP4 أو WebM، بحد أقصى ٢٥ ميجابايت.
+        </p>
+        {videoUrl ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {/* The creator sees exactly what the card will play. Without a
+                preview there is no way to tell a successful upload from a
+                broken one. muted + loop mirrors the card. */}
+            <video
+              src={videoUrl}
+              controls
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              style={{ width: '100%', maxWidth: 420, aspectRatio: '3 / 2', borderRadius: 12, background: '#000' }}
+            />
+            <div>
+              <button
+                type="button"
+                disabled={vidBusy}
+                onClick={() => void removeVideo()}
+                style={primaryBtnStyle(!vidBusy)}
+              >
+                {vidBusy ? 'جارٍ…' : 'حذف الفيديو'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: vidBusy ? 'default' : 'pointer', minHeight: 32 }}>
+            <input
+              type="file"
+              accept="video/mp4,video/webm"
+              disabled={vidBusy}
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void uploadVideo(f);
+                e.target.value = '';
+              }}
+            />
+            <span style={primaryBtnStyle(!vidBusy)}>{vidBusy ? 'جارٍ الرفع…' : 'رفع فيديو'}</span>
+          </label>
+        )}
+        {vidMsg && (
+          <p style={{ marginTop: 10, fontSize: 13, fontWeight: 600, color: vidMsg.kind === 'ok' ? 'var(--accent-ink)' : '#c0392b' }}>
+            {vidMsg.text}
+          </p>
         )}
       </Card>
 
