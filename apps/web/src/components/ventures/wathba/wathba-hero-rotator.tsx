@@ -186,10 +186,37 @@ export function WathbaHeroRotator({
                   boxShadow: '0 30px 70px -30px rgba(0,0,0,.8)',
                   textDecoration: 'none',
                   color: 'inherit',
-                  display: 'block',
+                  // HERO-METRICS — a DECLARED height, and the whole point of it.
+                  //
+                  // The card used to be as tall as whatever the slide happened
+                  // to contain. Measured across the ten slides at one viewport:
+                  // six different heights spanning 98px at 900px wide, 9px at
+                  // 1024. All ten share `grid-area: 1/1`, so the cell took the
+                  // tallest and the shorter cards simply stopped early — their
+                  // bottom border and their 70px shadow landing up to 98px
+                  // higher than the card that preceded them. The page never
+                  // shifted (the cell is the tallest slide from first paint),
+                  // which is exactly why CLS stayed clean and nothing caught it,
+                  // and why it read as "the transition is janky" rather than as
+                  // a measurable layout defect.
+                  //
+                  // With the height fixed, uniformity stops depending on the
+                  // copy: a one-day slide and a two-day slide are the same box
+                  // because the box was never asked. The two content fixes
+                  // below it (the pitch reserve and the stat grid) now only
+                  // have to keep content from overflowing that box, not from
+                  // resizing it.
+                  height: 'var(--hero-col-h)',
+                  // The cover is a declared row, not a hardcoded 248px. Both
+                  // are equally deterministic before the image loads — which is
+                  // what keeps the CLS guarantee — but a row that changes per
+                  // breakpoint lets the cover stop being 2.32:1 on a desktop and
+                  // 1.23:1 on a phone by accident.
+                  display: 'grid',
+                  gridTemplateRows: 'var(--hero-cover-h) minmax(0,1fr)',
                 }}
               >
-                <div className="wathba-ph" style={{ height: 248, position: 'relative' }}>
+                <div className="wathba-ph" style={{ position: 'relative', overflow: 'hidden' }}>
                   {/* Only the window carries an image, and that is the whole
                       LCP story on this page.
 
@@ -203,8 +230,22 @@ export function WathbaHeroRotator({
                       tallest of them; only the images are windowed.
 
                       `next` is in the window a full dwell before it is shown, so
-                      it is loaded and decoded by the time it appears. */}
-                  {p.imageUrl && (i === idx || i === (idx + 1) % slides.length || i === prev) && (
+                      it is loaded and decoded by the time it appears.
+
+                      PREVIOUS is in the window too, and was not. The window used
+                      to be {idx, idx+1, prev}, which never contains idx−1 — so
+                      «المشروع السابق», a first-class control sitting right
+                      beside «التالي», always navigated to a slide whose cover
+                      had never mounted. On a warm localhost the fresh <Image>
+                      reported complete within 30ms and nothing was visible; on a
+                      real connection it is the hatched placeholder, mid
+                      cross-fade. One more image in flight, none of it before
+                      LCP — `priority` is still only on i === 0. */}
+                  {p.imageUrl &&
+                    (i === idx ||
+                      i === (idx + 1) % slides.length ||
+                      i === (idx - 1 + slides.length) % slides.length ||
+                      i === prev) && (
                     <Image
                       src={p.imageUrl}
                       alt=""
@@ -260,24 +301,43 @@ export function WathbaHeroRotator({
         })}
       </div>
 
-      {/* Controls sit OUTSIDE the card so they are not inside its link. */}
+      {/* Controls sit OUTSIDE the card so they are not inside its link — still
+          true, and still the reason this is a sibling of the grid rather than a
+          child of it. A <button> inside an <a> is invalid and screen readers
+          announce it unpredictably.
+
+          HERO-METRICS — they are now positioned OVER the cover instead of
+          stacked under the card. That row was the entire 42px height mismatch
+          between the two hero columns: 16px of margin plus a 36px button,
+          measured on the card column and on nothing else, then split unevenly
+          above and below the text by `align-items:center`. Over the cover, the
+          card IS the column, the two sides align by construction, and 52px of
+          first-viewport budget comes back — which is what puts the stat row
+          inside the fold at 1280x680.
+
+          Sat on the scrim band at the bottom of the cover, at the inline START.
+          The bucket badge owns `inset-inline-end`, so the two can never meet at
+          any width, in either direction.
+
+          pointerEvents none on the row and auto on the buttons: the row spans
+          the card, and a transparent flex container over a link would swallow
+          clicks on everything it covered. */}
       {slides.length > 1 && (
         <div
           style={{
-            position: 'relative',
+            position: 'absolute',
+            top: 'calc(var(--hero-cover-h) - 50px)',
+            insetInlineStart: 14,
+            insetInlineEnd: 14,
             zIndex: 2,
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: 14,
-            marginTop: 16,
-            // This row, not the card, was setting the hero's minimum width:
-            // ten 24px dots + nine 8px gaps + two 36px buttons + gaps = 412px,
-            // against 338px of usable width on a 390px phone. A grid item will
-            // not shrink below that, and in RTL the overflow runs LEFT — the
-            // card hung 48px off the side of the screen. The DOTS wrap inside
-            // the row now, rather than the row itself wrapping — letting the
-            // outer row wrap dropped the two arrows onto separate lines.
+            gap: 12,
+            pointerEvents: 'none',
+            // The row cannot wrap and cannot set a minimum width on anything:
+            // it is out of flow. What it CAN do is overflow the card, which is
+            // what the dots did between 430px and 900px — see the hide rule in
+            // wathba-shell.tsx.
             flexWrap: 'nowrap',
           }}
         >
@@ -291,9 +351,17 @@ export function WathbaHeroRotator({
             <Icon name="arrow_forward" size={18} />
           </button>
 
+          {/* No inline `display`. It was `display:flex` here, and the
+              `display:none` hide rule in the stylesheet lost to it on every
+              viewport it was written for — an inline declaration outranks a
+              plain stylesheet rule, so the dots rendered at 360px and wrapped
+              to two rows across the whole 430-900px band, orphaning the second
+              row under the arrows. That is the exact failure the rule exists to
+              prevent, and it never once ran. Display now lives entirely in CSS,
+              where the media query can reach it. */}
           <div
             className="wathba-hero-dots"
-            style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', minWidth: 0 }}
+            style={{ gap: 8, flexWrap: 'nowrap', justifyContent: 'center', minWidth: 0 }}
             role="tablist"
             aria-label="اختيار المشروع"
           >

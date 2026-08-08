@@ -321,7 +321,11 @@ export function WathbaShell({
             [data-pillar="ventures"] .wathba-bar{transform-origin:right center}
             [dir="ltr"] [data-pillar="ventures"] .wathba-hero-bar,
             [dir="ltr"] [data-pillar="ventures"] .wathba-bar{transform-origin:left center}
-            [data-pillar="ventures"] .wathba-hero-ctl{width:36px;height:36px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;cursor:pointer;background:var(--card);color:var(--text);border:1px solid rgba(var(--ink-rgb),.14);transition:transform .16s ease,border-color .16s ease}
+            /* pointer-events:auto — the control ROW is pointer-events:none so
+               that the transparent strip it spans does not swallow clicks on
+               the card link underneath it. The controls themselves have to opt
+               back in. */
+            [data-pillar="ventures"] .wathba-hero-ctl{width:36px;height:36px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;cursor:pointer;background:var(--card);color:var(--text);border:1px solid rgba(var(--ink-rgb),.14);transition:transform .16s ease,border-color .16s ease;pointer-events:auto;box-shadow:0 2px 10px -4px rgba(0,0,0,.5)}
             @media (hover:hover) and (pointer:fine){
               [data-pillar="ventures"] .wathba-hero-ctl:hover{border-color:rgba(var(--accent-rgb),.55)}
             }
@@ -360,16 +364,34 @@ export function WathbaShell({
                layout: every
                tick reflowed the whole dot row. It is a transform now, so the row
                is static and nothing below it can move. */
-            [data-pillar="ventures"] .wathba-hero-dot{width:24px;height:24px;padding:0;border:0;background:none;cursor:pointer;display:grid;place-items:center;border-radius:50%}
-            [data-pillar="ventures"] .wathba-hero-dot-mark{width:8px;height:8px;border-radius:30px;background:rgba(var(--ink-rgb),.22);transition:transform .22s cubic-bezier(.22,.68,.24,1),background-color .22s ease;transform-origin:center}
+            [data-pillar="ventures"] .wathba-hero-dot{width:24px;height:24px;padding:0;border:0;background:none;cursor:pointer;display:grid;place-items:center;border-radius:50%;pointer-events:auto}
+            [data-pillar="ventures"] .wathba-hero-dot-mark{width:8px;height:8px;border-radius:30px;background:rgba(var(--ink-rgb),.35);box-shadow:0 1px 4px rgba(0,0,0,.45);transition:transform .22s cubic-bezier(.22,.68,.24,1),background-color .22s ease;transform-origin:center}
             [data-pillar="ventures"] .wathba-hero-dot[data-active="1"] .wathba-hero-dot-mark{transform:scaleX(2.4);background:var(--accent)}
             /* Ten 24px targets do not fit between the arrows on a phone, and the
                tenth dot orphaned onto its own line. Below this width the arrows
                carry navigation on their own — they are 36px, the live region
                still announces each slide, and an orphaned dot is worse than no
-               dot. The dots return as soon as there is room for all of them. */
-            @media (max-width:520px){
+               dot.
+
+               HERO-METRICS — this rule never ran. The display property was
+               declared inline on the element (see the rotator), and an inline
+               declaration outranks a plain stylesheet rule, so the dots were
+               measured at display:flex on a 360px phone. Display now lives
+               here, where the query can reach it. (No backticks in this block:
+               the whole stylesheet is a template literal.)
+
+               And the threshold was wrong as well as dead. The row needs about
+               412px of card width — ten 24px targets, nine 8px gaps, two 36px
+               arrows — and the card column is NARROWER than that from 1100px
+               down, not from 520px down: it measured 320px at an 820px viewport
+               and 429px at 1024. Measured wrapping bands were 430-900px, all of
+               it above the old 520px cutoff. One threshold, set where the row
+               actually stops fitting. */
+            @media (max-width:1100px){
               [data-pillar="ventures"] .wathba-hero-dots{display:none}
+            }
+            @media (min-width:1101px){
+              [data-pillar="ventures"] .wathba-hero-dots{display:flex}
             }
             [data-pillar="ventures"] .wathba-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
             @media (max-width:880px){
@@ -407,6 +429,36 @@ export function WathbaShell({
             @media (max-width:540px){
               [data-pillar="ventures"] .wathba-mag-row{grid-template-columns:1fr!important}
             }
+            /* HERO-METRICS — the shared column height, per band.
+               !important because the defaults are declared INLINE on the
+               section (they size the LCP element and a body-stylesheet custom
+               property is briefly undefined), and an inline declaration beats a
+               plain rule. Without it these would lose silently, which is the
+               same trap the dots-hide rule fell into above.
+
+               DISJOINT bands, for the reason recorded on .wathba-trend-grid:
+               two overlapping !important queries and the later one wins across
+               the overlap, killing the earlier rule over a band nobody checks.
+               The <=760 stacked case is set in its own query above.
+
+               Why the height goes UP as the viewport narrows: the card column
+               narrows faster than the text column's content shrinks, so the
+               cover needs proportionally more room and the card body's four-stat
+               row needs two rows instead of one. 500 / 520 / 540 is what the
+               three layouts measured out to. */
+            @media (min-width:761px) and (max-width:1100px){
+              [data-pillar="ventures"] .wathba-home-hero{--hero-col-h:560px!important;--hero-cover-h:250px!important;gap:40px!important}
+            }
+            /* The card's four-stat row, two-up. Same disjoint-band discipline.
+               The card column measures 320-460px across these two ranges — four
+               tracks there give each figure ~80px, which is narrower than
+               «297,000 من 180,000» sets at any legible size. */
+            @media (min-width:761px) and (max-width:1100px){
+              [data-pillar="ventures"] .wathba-hero-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+            }
+            @media (max-width:520px){
+              [data-pillar="ventures"] .wathba-hero-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+            }
             @media (max-width:980px){
               /* POLISH Unit 2 — spotlight stacks before the lead/rail split gets
                  cramped; the story trio drops to two up. */
@@ -426,7 +478,7 @@ export function WathbaShell({
                  re-resolved whenever text metrics settled: the stat row wrapped
                  a line, then unwrapped, ~30ms apart at ~1s. Two 0.14 shifts,
                  mobile CLS median 0.171 against 0.0001 on desktop. */
-              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:minmax(0,1fr)!important;gap:26px!important;padding-top:34px!important}
+              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:minmax(0,1fr)!important;gap:26px!important;padding-top:34px!important;--hero-col-h:540px!important;--hero-cover-h:210px!important}
               [data-pillar="ventures"] .wathba-discover-row{flex-direction:column!important;align-items:stretch!important}
               [data-pillar="ventures"] .wathba-discover-aside{width:100%!important}
             }
