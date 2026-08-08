@@ -1250,6 +1250,7 @@ export interface ApiHeroSlide {
   titleAr: string;
   shortDescAr: string;
   imageUrl: string | null;
+  videoUrl: string | null;
   creatorName: string;
   categoryAr: string | null;
   categorySlug: string | null;

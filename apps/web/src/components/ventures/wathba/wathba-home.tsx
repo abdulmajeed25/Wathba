@@ -773,6 +773,7 @@ export function WathbaHome({
             that bottom edge; the CTA row keeps a minimum gap so the two never
             collide when the copy runs long. */}
         <div
+          className="wathba-hero-copy"
           style={{
             position: 'relative',
             display: 'flex',

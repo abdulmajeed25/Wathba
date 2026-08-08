@@ -444,16 +444,41 @@ export function WathbaShell({
                Why the height goes UP as the viewport narrows: the card column
                narrows faster than the text column's content shrinks, so the
                cover needs proportionally more room and the card body's four-stat
-               row needs two rows instead of one. 500 / 520 / 540 is what the
-               three layouts measured out to. */
-            @media (min-width:761px) and (max-width:1100px){
+               row needs two rows instead of one. */
+            @media (min-width:901px) and (max-width:1100px){
               [data-pillar="ventures"] .wathba-home-hero{--hero-col-h:560px!important;--hero-cover-h:250px!important;gap:40px!important}
+            }
+            /* THE 820px BAND — two columns at a width that cannot carry two.
+               Measured at 820: the card column resolved to 335px and the text
+               column to 393px, and with the headline still at 62px (the clamp
+               tops out at 590) it ran three lines, leaving the text column 92px
+               taller than the card. It was the last remaining column mismatch,
+               and it was not a type problem: 335px is simply too narrow for a
+               card carrying a cover, a title, a pitch, a progress bar and four
+               figures.
+
+               So the fix is the breakpoint, not the type. .wathba-home-hero now
+               stacks at 900 rather than 760, which hands the card the full
+               content width — 848px at a 900px viewport, against 335 — and the
+               columns match again because a stacked layout has no columns to
+               match. Only .wathba-home-hero moves; the spotlight hero, the
+               discover row and the hero band keep their own 760px threshold,
+               which is where their content actually stops fitting.
+
+               Two stacked sub-bands rather than one, because a single
+               --hero-cover-h across a 268-848px range of card widths cannot hold
+               a sensible cover proportion: at the old 210px it would have been
+               4:1 at the top of the band. 210/290 keeps the cover between 1.28:1
+               and 2.92:1 end to end, against 2.33:1 on the desktop card. */
+            @media (min-width:621px) and (max-width:900px){
+              [data-pillar="ventures"] .wathba-home-hero{--hero-col-h:620px!important;--hero-cover-h:290px!important}
             }
             /* The card's four-stat row, two-up. Same disjoint-band discipline.
                The card column measures 320-460px across these two ranges — four
                tracks there give each figure ~80px, which is narrower than
-               «297,000 من 180,000» sets at any legible size. */
-            @media (min-width:761px) and (max-width:1100px){
+               «297,000 من 180,000» sets at any legible size. Below 901 the card
+               is stacked and full width, so four tracks fit again. */
+            @media (min-width:901px) and (max-width:1100px){
               [data-pillar="ventures"] .wathba-hero-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
             }
             @media (max-width:520px){
@@ -478,9 +503,29 @@ export function WathbaShell({
                  re-resolved whenever text metrics settled: the stat row wrapped
                  a line, then unwrapped, ~30ms apart at ~1s. Two 0.14 shifts,
                  mobile CLS median 0.171 against 0.0001 on desktop. */
-              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:minmax(0,1fr)!important;gap:26px!important;padding-top:34px!important;--hero-col-h:540px!important;--hero-cover-h:210px!important}
               [data-pillar="ventures"] .wathba-discover-row{flex-direction:column!important;align-items:stretch!important}
               [data-pillar="ventures"] .wathba-discover-aside{width:100%!important}
+            }
+            /* The stack itself, at 900 rather than 760 — see the 820px note
+               above. Its own query, setting only the columns, so the two
+               height sub-bands stay disjoint from it and from each other.
+               --hero-col-h is NOT set here: this query overlaps both of them,
+               and with everything carrying !important the later rule would win
+               across the overlap. That is how a phone-only rule ends up dead
+               over a 140px band. */
+            @media (max-width:900px){
+              [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:minmax(0,1fr)!important;gap:26px!important;padding-top:34px!important}
+              /* The copy column is pinned to --hero-col-h so it MATCHES the card
+                 beside it. Stacked, there is nothing beside it to match, and the
+                 pin turns into a hole: measured 180px of empty space between the
+                 CTA row and the stat row at 820, where the card wants 620px and
+                 the copy naturally sets at ~440. The card keeps its declared
+                 height — that is the slide-uniformity guarantee and it is not
+                 negotiable — but the copy goes back to its own size. */
+              [data-pillar="ventures"] .wathba-hero-copy{min-height:0!important}
+            }
+            @media (max-width:620px){
+              [data-pillar="ventures"] .wathba-home-hero{--hero-col-h:540px!important;--hero-cover-h:210px!important}
             }
           `,
         }}
