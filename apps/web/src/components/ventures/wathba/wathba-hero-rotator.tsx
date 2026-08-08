@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Children, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
+import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { Icon } from './wathba-icons';
 
 /**
@@ -39,6 +40,7 @@ export interface HeroSlideData {
   titleAr: string;
   shortDescAr: string;
   imageUrl: string | null;
+  videoUrl: string | null;
   creatorName: string;
   categoryAr: string | null;
   categorySlug: string | null;
@@ -262,6 +264,47 @@ export function WathbaHeroRotator({
                       style={{ objectFit: 'cover', objectPosition: 'top' }}
                     />
                   )}
+                  {/* HERO-VIDEO — the hover layer, mounted ONLY for the slide
+                      that is currently showing, and sitting directly on the
+                      cover so the badge, the scrim and the controls all stay
+                      above it. The scrim in particular has to: it is what blends
+                      the cover into the card body, and a video painted over it
+                      would cut the card in half while playing.
+
+                      `i === idx` IS the answer to "what happens to the video
+                      when the slide changes". React unmounts the layer the
+                      instant the index moves, and WathbaCardVideo's cleanup
+                      pauses the element, rewinds it and drops the module-level
+                      playback handle. No teardown path to get wrong, and no way
+                      for a hidden slide to keep a video running behind the one
+                      on screen — a real risk here, where all ten slides stay in
+                      the DOM in one grid cell and only `visibility` separates
+                      them.
+
+                      It gives the lazy rule for free too: nine of the ten slides
+                      have no <video> in the tree at all, so "never load ten
+                      videos" is structural rather than a policy something has to
+                      remember to honour.
+
+                      Everything else comes from the component the trending cards
+                      already use — 150ms hover intent, preload="none", the
+                      `(hover:hover) and (pointer:fine)` gate that stops a tap
+                      counting as hover, prefers-reduced-motion, the 2s LCP
+                      window, and the single module-level handle that lets only
+                      one video play anywhere on the page. Hero and trending
+                      share that handle, so they cannot both play.
+
+                      AUTO-ROTATION needs no new code: the rotator already sets
+                      `paused` on mouseenter/focus of its root, so the ten-second
+                      advance is stopped for exactly as long as someone is
+                      hovering the card, and resumes on leave. The video and the
+                      pause are triggered by the same gesture. */}
+                  {i === idx && p.videoUrl ? (
+                    <WathbaCardVideo videoUrl={p.videoUrl} poster={p.imageUrl}>
+                      {null}
+                    </WathbaCardVideo>
+                  ) : null}
+
                   <div
                     style={{
                       position: 'absolute',
@@ -283,6 +326,7 @@ export function WathbaHeroRotator({
                     <Icon name={BADGE[p.bucket].icon} size={15} fill />
                     {BADGE[p.bucket].label}
                   </div>
+
                   <div
                     style={{
                       position: 'absolute',
@@ -292,6 +336,12 @@ export function WathbaHeroRotator({
                       background: 'linear-gradient(0deg,var(--surface2),transparent)',
                     }}
                   />
+
+                  {/* The affordance. Bottom-inline-END: the bucket badge owns
+                      the top-inline-end corner and the arrows own the
+                      bottom-inline-start one, so this is the only corner left,
+                      in either direction. */}
+                  {p.videoUrl ? <WathbaCardVideoGlyph /> : null}
                 </div>
 
                 {bodies[i] ?? null}

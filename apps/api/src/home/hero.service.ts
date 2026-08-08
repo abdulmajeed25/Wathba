@@ -32,6 +32,9 @@ export interface HeroSlide {
   titleAr: string;
   shortDescAr: string;
   imageUrl: string | null;
+  /** The campaign video, when the creator uploaded one. Null for most
+   *  projects — see the hover-video note in wathba-card-video.tsx. */
+  videoUrl: string | null;
   creatorName: string;
   categoryAr: string | null;
   categorySlug: string | null;
@@ -51,6 +54,7 @@ const SELECT = {
   titleAr: true,
   shortDescAr: true,
   mediaUrls: true,
+  videoUrl: true,
   region: true,
   isStaffPick: true,
   fundingGoalHalalas: true,
@@ -121,6 +125,7 @@ export class HeroService {
             titleAr: p.titleAr,
             shortDescAr: p.shortDescAr,
             imageUrl: p.mediaUrls[0] ?? null,
+            videoUrl: p.videoUrl,
             creatorName: p.createdBy.name,
             categoryAr: top?.nameAr ?? null,
             categorySlug: top?.slug ?? null,
