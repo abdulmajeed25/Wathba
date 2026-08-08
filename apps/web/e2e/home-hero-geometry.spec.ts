@@ -216,6 +216,54 @@ test.describe('tablet', () => {
   });
 });
 
+test.describe('tablet portrait', () => {
+  // 820x1180 is an iPad Air upright. It was the last band still laid out in two
+  // columns at a width that cannot carry two: the card column resolved to 335px
+  // against a 393px text column, and with the headline still at 62px (the clamp
+  // tops out at 590) it ran three lines and left the text column 92px taller
+  // than the card. The fix is the breakpoint — .wathba-home-hero stacks at 900
+  // now — so the assertion is that there is one column, and that the card it
+  // hands the full width to is a card rather than a letterbox.
+  test.use({ viewport: { width: 820, height: 1180 } });
+
+  test('G9: the hero is one column at 820, and the card gets the width', async ({ page }) => {
+    await page.goto(HOME);
+    await expect(page.locator(CURRENT)).toBeVisible();
+
+    const m = await page.evaluate(() => {
+      const sec = document.querySelector('.wathba-home-hero') as HTMLElement;
+      const cols = getComputedStyle(sec).gridTemplateColumns.trim().split(/\s+/).length;
+      const [text, card] = [...sec.children] as HTMLElement[];
+      const link = document.querySelector(
+        '[data-testid="wathba-hero-slide-current"] [data-testid="wathba-hero-link"]',
+      ) as HTMLElement;
+      const cover = link.firstElementChild as HTMLElement;
+      return {
+        cols,
+        textW: text!.offsetWidth,
+        cardW: card!.offsetWidth,
+        coverAR: cover.offsetWidth / cover.offsetHeight,
+      };
+    });
+
+    expect(m.cols, 'the hero is still two columns at 820').toBe(1);
+    // 335px before. The stacked card takes the whole content box.
+    expect(m.cardW, `card column is ${m.cardW}px`).toBeGreaterThan(700);
+    expect(m.cardW, 'the two stacked columns must be the same width').toBe(m.textW);
+    // A single --hero-cover-h across the whole stacked range would have made
+    // this 4:1 at the top of the band. The desktop card sits at 2.33:1.
+    expect(m.coverAR, `cover is ${m.coverAR.toFixed(2)}:1`).toBeLessThan(3.2);
+  });
+
+  test('G10: nothing in the hero escapes the viewport at 820', async ({ page }) => {
+    await page.goto(HOME);
+    await expect(page.locator(CURRENT)).toBeVisible();
+    await page.waitForTimeout(1200);
+    const worst = await worstEscape(page);
+    expect(worst.px, `${worst.what} escapes by ${worst.px}px`).toBeLessThanOrEqual(1);
+  });
+});
+
 test.describe('phone', () => {
   test.use({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true });
 
