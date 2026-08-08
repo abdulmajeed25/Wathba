@@ -16,8 +16,9 @@
  * So the tree was not merely hard to crawl; the site linked one space while the
  * sitemap advertised the other, and each declared itself canonical. The project
  * had already decided which one wins — commit 607f810, "nav consolidation —
- * «اكتشف» is THE discovery entry" — and /projects/category/[id] survives only
- * from the original import commit.
+ * «اكتشف» is THE discovery entry" — and /projects/category/[id] survived only
+ * from the original import commit. It has since been deleted and 301'd; see the
+ * redirect block in next.config.ts for why the map is explicit per slug.
  *
  * Worse, the homepage chips were not the taxonomy at all: they came from the
  * bundled `wathbaCategories` fixture, including its invented counts («٨٤٢

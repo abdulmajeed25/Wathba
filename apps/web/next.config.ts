@@ -154,6 +154,44 @@ const config: NextConfig = {
       // publishing demo data under its own name.
       { source: '/projects/v2030', destination: '/projects/discover-all', permanent: true },
       { source: '/projects/v2030/:sector', destination: '/projects/discover-all', permanent: true },
+      // HOME-REVIEW O4 (follow-up) — /projects/category/<slug> was the SECOND
+      // category URL space. O4 pointed the homepage chips at the canonical
+      // /projects/discover/<slug>, which left this one with no inbound link at
+      // all; it was never in the sitemap and it declared itself canonical.
+      //
+      // It is deleted rather than kept, because it did not merely duplicate the
+      // canonical space — it fabricated. The page looked up the slug in the
+      // BUNDLED wathbaCategories fixture with `?? wathbaCategories[0]`, so every
+      // unrecognised slug rendered the first fixture category: measured,
+      // /projects/category/crafts answered 200 with an <h1> of «تقنية», i.e. a
+      // real live category name serving another category's fabricated page. Its
+      // project grid came from the eight demo fixtures for the same reason.
+      //
+      // NOT a blanket /projects/category/:id -> /projects/discover/:id. Two of
+      // the seven slugs the homepage used to link were renamed in the live
+      // taxonomy (`tech` is `technology`, `film` is `film-video`), and the
+      // canonical space soft-404s an unknown slug as a 200 with no <h1>. A
+      // wildcard would therefore 301 straight onto an empty page — trading one
+      // fabricated surface for a blank one. Measured on a build of exactly that
+      // wildcard: /projects/discover/tech and /film both answered 200 with no
+      // <h1>. Each of the seven is mapped explicitly and verified to render a
+      // real heading.
+      //
+      // Everything else goes to the discovery index rather than to
+      // /projects/discover/:id, even though some unlisted slugs would resolve
+      // there (`crafts` is live and renders «الحِرف»). The legacy space never
+      // showed those categories anyway — /projects/category/crafts rendered
+      // «تقنية» — so nothing is lost, and while /projects/* still answers 200
+      // for a missing page (see O2 in orphan-routes.spec.ts), a wildcard would
+      // manufacture NEW soft-404s out of typos. The index is always a real page.
+      { source: '/projects/category/tech', destination: '/projects/discover/technology', permanent: true },
+      { source: '/projects/category/film', destination: '/projects/discover/film-video', permanent: true },
+      { source: '/projects/category/art', destination: '/projects/discover/art', permanent: true },
+      { source: '/projects/category/games', destination: '/projects/discover/games', permanent: true },
+      { source: '/projects/category/design', destination: '/projects/discover/design', permanent: true },
+      { source: '/projects/category/publishing', destination: '/projects/discover/publishing', permanent: true },
+      { source: '/projects/category/food', destination: '/projects/discover/food', permanent: true },
+      { source: '/projects/category/:id', destination: '/projects/discover-all', permanent: true },
     ];
   },
 };
