@@ -102,18 +102,56 @@ describe('content.categories.create', () => {
     });
   });
 
-  it('refuses a parent that is itself a subcategory (two-level depth policy)', async () => {
+  it('ALLOWS a third level — the tree is three deep since Batch DISCOVERY-ENGINE', async () => {
     const { prisma, reg } = build();
-    // The named parent exists but has a parent of its own → depth would be 3.
-    prisma.category.findUnique.mockResolvedValue({ id: CAT_ID, parentId: PARENT_ID });
+    // Keyed by id rather than by call order: the depth walk and the
+    // parent-exists precondition both read findUnique, and pinning a call
+    // SEQUENCE would make this test fail for reasons that have nothing to do
+    // with the depth policy it is about.
+    //   CAT_ID is a subcategory, PARENT_ID is top-level
+    //   → the new node lands at depth 3, which used to be refused outright.
+    prisma.category.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve(
+        where.id === CAT_ID
+          ? { id: CAT_ID, parentId: PARENT_ID }
+          : where.id === PARENT_ID
+            ? { id: PARENT_ID, parentId: null }
+            : null,
+      ),
+    );
+    prisma.category.findFirst.mockResolvedValue(null); // slug free in scope
     await expect(
       reg.execute(
         'content.categories.create',
-        { slug: 'new-sub', nameAr: 'فئة فرعية', parentId: CAT_ID },
+        { slug: 'new-leaf', nameAr: 'فئة عميقة', parentId: CAT_ID },
+        ctx(),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it('refuses a FOURTH level — the guard moved, it did not go away', async () => {
+    const { prisma, reg } = build();
+    // CAT_ID → 'mid' → PARENT_ID → top, so the proposed node is at depth 4.
+    prisma.category.findUnique.mockImplementation(({ where }: { where: { id: string } }) =>
+      Promise.resolve(
+        where.id === CAT_ID
+          ? { id: CAT_ID, parentId: 'mid' }
+          : where.id === 'mid'
+            ? { id: 'mid', parentId: PARENT_ID }
+            : where.id === PARENT_ID
+              ? { id: PARENT_ID, parentId: null }
+              : null,
+      ),
+    );
+    prisma.category.findFirst.mockResolvedValue(null);
+    await expect(
+      reg.execute(
+        'content.categories.create',
+        { slug: 'too-deep', nameAr: 'أعمق من اللازم', parentId: CAT_ID },
         ctx(),
       ),
     ).rejects.toMatchObject({
-      response: expect.objectContaining({ code: 'parent-not-toplevel' }),
+      response: expect.objectContaining({ code: 'parent-too-deep' }),
     });
   });
 

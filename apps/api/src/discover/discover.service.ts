@@ -33,6 +33,8 @@ interface NormalizedFilters {
   statuses: string[];
   includeEnded: boolean;
   categoryIds: string[];
+  /** Whether ?cat= was supplied at all — see the empty-resolution note. */
+  catRequested: boolean;
   region?: string;
   goalMinH?: number;
   goalMaxH?: number;
@@ -74,31 +76,164 @@ export interface DiscoverCard {
   creatorName: string;
 }
 
+/** Shape of the single facet statement's json_build_object result. */
+interface FacetPayload {
+  scalars: Record<string, number> & { st_live: number; st_funded: number; st_ended: number; staff: number };
+  regions: Record<string, number>;
+  collections: Array<{ slug: string; nameAr: string; count: number }>;
+  categories: CategoryFacetNode[];
+}
+
+/**
+ * One node of the category facet.
+ *
+ * FLAT, in pre-order, with `depth` — not nested. Two contracts make that
+ * isomorphic to a tree and keep every existing consumer working:
+ *
+ *  1. the array is pre-order DFS, so a node is immediately followed by its
+ *     whole subtree and `depth` alone renders any shape;
+ *  2. a node is omitted iff `depth > 0 AND count === 0`, where `count` is the
+ *     ROLLED count — pruning on own-count would orphan a non-empty grandchild
+ *     and break contract 1.
+ *
+ * `slug`/`nameAr`/`parentSlug`/`count` keep their old meaning, so the fields
+ * the sidebar already reads are untouched; `path`, `catParam`, `depth`,
+ * `ownCount` and `hasChildren` are additive.
+ */
+export interface CategoryFacetNode {
+  slug: string;
+  nameAr: string;
+  /** The IMMEDIATE parent's bare slug; null iff depth === 0. */
+  parentSlug: string | null;
+  /** Own projects plus every descendant's, at any depth. */
+  count: number;
+  ownCount: number;
+  /** '/'-joined ancestor chain — mirrors the /projects/discover/… route. */
+  path: string;
+  /** '.'-joined — drop straight into ?cat=. See splitCatRefs for why '.'. */
+  catParam: string;
+  depth: number;
+  hasChildren: boolean;
+}
+
 @Injectable()
 export class DiscoverService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ---- category slug → id expansion (parent includes its children) ----------
-  private async expandCategorySlugs(slugs: string[]): Promise<string[]> {
-    if (slugs.length === 0) return [];
-    const nodes = await this.prisma.category.findMany({
-      where: { slug: { in: slugs } },
-      select: { id: true, parentId: true },
-    });
-    const ids = new Set<string>();
-    const topLevelIds: string[] = [];
-    for (const n of nodes) {
-      ids.add(n.id);
-      if (n.parentId === null) topLevelIds.push(n.id);
+  /**
+   * The category tree, walked once, with each node's materialised path.
+   *
+   * A recursive CTE rather than the two hand-written hops this replaced. The
+   * old expansion descended EXACTLY ONE level — it collected the nodes matching
+   * the requested slugs, then their direct children, and stopped — so a
+   * grandchild was invisible to every filter and every count. That was
+   * invisible in production only because the tree happened to be two levels
+   * deep; the schema has always been an unbounded self-relation.
+   *
+   * What the CTE carries and why:
+   *  - `path`   '/'-joined ancestor chain. Descendant tests become a prefix
+   *             match (`LIKE path || '/%'`), which is exact as long as no slug
+   *             contains a '/' — enforced by the Category_slug_shape CHECK.
+   *  - `id_path` ancestors including self, as an array. This is what makes the
+   *             count roll-up linear: unnest it and group, rather than a
+   *             correlated prefix-sum per node.
+   *  - `sort_key` a single text column that sorts the whole tree into pre-order.
+   *             Two parallel columns (ordinal, path) is the obvious alternative
+   *             and is NOT correct pre-order when sortOrder ties at an
+   *             intermediate level.
+   *
+   * `depth < 16` is load-bearing, not decoration: Category.parentId is a
+   * self-FK, which does not prevent a cycle. Without the guard a cycle is an
+   * infinite recursion rather than a truncated subtree.
+   */
+  private static readonly CAT_TREE = Prisma.sql`
+    cat_tree AS (
+      SELECT c.id, c."parentId", c.slug, c."nameAr", c."isActive", c."sortOrder",
+             NULL::text AS parent_slug,
+             c.slug::text AS path,
+             0 AS depth,
+             ARRAY[c.id] AS id_path,
+             lpad((c."sortOrder" + 1000000)::text, 9, '0') || ':' || c.slug || '/' AS sort_key
+      FROM "Category" c
+      WHERE c."parentId" IS NULL
+      UNION ALL
+      SELECT c.id, c."parentId", c.slug, c."nameAr", c."isActive", c."sortOrder",
+             t.slug,
+             t.path || '/' || c.slug,
+             t.depth + 1,
+             t.id_path || c.id,
+             t.sort_key || lpad((c."sortOrder" + 1000000)::text, 9, '0') || ':' || c.slug || '/'
+      FROM "Category" c
+      JOIN cat_tree t ON c."parentId" = t.id
+      WHERE t.depth < 16
+    )`;
+
+  /**
+   * Split `?cat=` values into legacy bare slugs and path-qualified refs.
+   *
+   * A bare slug is ambiguous below the top level — 8 subcategory slugs repeat
+   * across different parents (`events`, `web`, `comedy`, …) and `@@unique` is
+   * only `[parentId, slug]`, so `?cat=events` used to silently union every
+   * homonym at once and light up all of them in the sidebar. A qualified ref
+   * («technology.drones») names exactly one node.
+   *
+   * '.' is the wire separator and '/' is accepted as an alias. The reason is
+   * URLSearchParams, which the web's discoverQS() uses: it percent-encodes '/'
+   * to %2F and leaves '.' alone, so '.' is the only separator that survives
+   * into a shareable, readable URL through the code path this repo already has.
+   */
+  static splitCatRefs(refs: string[]): { bare: string[]; paths: string[] } {
+    const bare: string[] = [];
+    const paths: string[] = [];
+    for (const raw of refs) {
+      const v = raw.trim();
+      if (!v) continue;
+      if (v.includes('.') || v.includes('/')) paths.push(v.replace(/\./g, '/'));
+      else bare.push(v);
     }
-    if (topLevelIds.length) {
-      const kids = await this.prisma.category.findMany({
-        where: { parentId: { in: topLevelIds } },
-        select: { id: true },
-      });
-      for (const k of kids) ids.add(k.id);
-    }
-    return [...ids];
+    return { bare, paths };
+  }
+
+  /**
+   * Resolve `?cat=` refs to the ids of the matching nodes AND all their
+   * descendants, at any depth.
+   *
+   * Resolution rules, in order:
+   *  - qualified ref  → exact path match. NO fallback to bare matching: a typo
+   *                     must resolve to nothing, not to every node that happens
+   *                     to share a leaf slug.
+   *  - bare + matches a top-level slug → that node. Unambiguous, because
+   *                     top-level slugs are globally unique.
+   *  - bare, no top-level match → every node with that slug at any depth. This
+   *                     is the OLD behaviour, kept verbatim so existing links
+   *                     and bookmarks keep working.
+   */
+  private async expandCategoryRefs(refs: string[]): Promise<string[]> {
+    if (refs.length === 0) return [];
+    const { bare, paths } = DiscoverService.splitCatRefs(refs);
+    if (!bare.length && !paths.length) return [];
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      WITH RECURSIVE ${DiscoverService.CAT_TREE},
+      cat_roots AS (
+        SELECT id, path FROM cat_tree
+        WHERE path = ANY(${paths}::text[])
+           OR (
+             slug = ANY(${bare}::text[])
+             AND (
+               depth = 0
+               -- A bare slug that names a top-level node means THAT node; the
+               -- any-depth arm is only for slugs with no top-level match.
+               OR NOT EXISTS (
+                 SELECT 1 FROM cat_tree top
+                 WHERE top.depth = 0 AND top.slug = cat_tree.slug
+               )
+             )
+           )
+      )
+      SELECT DISTINCT t.id
+      FROM cat_tree t
+      JOIN cat_roots r ON t.path = r.path OR t.path LIKE r.path || '/%'`);
+    return rows.map((r) => r.id);
   }
 
   private async recommendedCategoryIds(viewerId: string): Promise<string[]> {
@@ -125,7 +260,8 @@ export class DiscoverService {
       q: (q.q ?? '').trim() || undefined,
       statuses: csv(q.status).filter((s) => s === 'live' || s === 'funded'),
       includeEnded: q.includeEnded === '1' || q.includeEnded === 'true',
-      categoryIds: await this.expandCategorySlugs(csv(q.cat)),
+      categoryIds: await this.expandCategoryRefs(csv(q.cat)),
+      catRequested: csv(q.cat).length > 0,
       region: q.region,
       goalMinH: q.goalMin != null ? q.goalMin * 100 : undefined,
       goalMaxH: q.goalMax != null ? q.goalMax * 100 : undefined,
@@ -182,7 +318,19 @@ export class DiscoverService {
     if (!f.includeEnded) statusParts.push(Prisma.sql`(p.status <> 'LIVE' OR p.deadline >= now())`);
     c.status = Prisma.sql`(${Prisma.join(statusParts, ' AND ')})`;
 
-    if (f.categoryIds.length) c.category = Prisma.sql`p."categoryId"::text = ANY(${f.categoryIds})`;
+    if (f.categoryIds.length) {
+      c.category = Prisma.sql`p."categoryId" = ANY(${f.categoryIds}::uuid[])`;
+    } else if (f.catRequested) {
+      // A ?cat= that resolves to NOTHING must return nothing.
+      //
+      // Leaving the dimension unset instead — which is what "if (ids.length)"
+      // alone does — drops the filter entirely, so a typo in a category ref
+      // silently WIDENS the result to the whole platform. The reader sees a
+      // full page of projects and no indication that their filter was ignored,
+      // which is the worst of both: wrong, and wrong in a way that looks
+      // deliberate. Same treatment `recommended` already gives an empty set.
+      c.category = Prisma.sql`false`;
+    }
     if (f.region) c.region = Prisma.sql`p.region::text = ${f.region}`;
 
     const goal: Prisma.Sql[] = [];
@@ -222,8 +370,18 @@ export class DiscoverService {
     return c;
   }
 
-  private pctCondition(bucket: string): Prisma.Sql {
-    const r = Prisma.sql`(p."raisedHalalas"::numeric * 100 / NULLIF(p."fundingGoalHalalas", 0)::numeric)`;
+  /**
+   * Percent-funded, as an expression over whichever alias the caller is in.
+   *
+   * `list()` reads columns off `p`; the single-statement facet query reads a
+   * precomputed `pct_val` off its CTE. Parameterising the expression is what
+   * stops those two drifting into different bucket boundaries — the kind of
+   * divergence that shows as "the facet says 12 and the list shows 11".
+   */
+  private static readonly PCT_EXPR_P = Prisma.sql`(p."raisedHalalas"::numeric * 100 / NULLIF(p."fundingGoalHalalas", 0)::numeric)`;
+
+  private pctCondition(bucket: string, expr: Prisma.Sql = DiscoverService.PCT_EXPR_P): Prisma.Sql {
+    const r = expr;
     switch (bucket) {
       case 'lt25': return Prisma.sql`${r} < 25`;
       case 'p25_50': return Prisma.sql`${r} >= 25 AND ${r} < 50`;
@@ -347,7 +505,66 @@ export class DiscoverService {
   }
 
   // ---- facets (live counts respecting the OTHER active filters) -------------
-  async facets(q: DiscoverQueryDto, viewerId?: string): Promise<Record<string, unknown>> {
+
+  /**
+   * The dimension partition that makes ONE query provably equal to nineteen.
+   *
+   * `whereClause(c, except)` drops exactly one key, so for an excepted
+   * dimension d the predicate is ⋀ over every OTHER key. Partition the keys
+   * conditions() can emit into two disjoint sets:
+   *
+   *   HOISTED   — never passed as `except` by any caller, because no facet
+   *               exists for them. They apply to every facet, so they can live
+   *               in the base scan's WHERE.
+   *   EXCEPTED  — each owns exactly one facet. They must NOT be in the base
+   *               WHERE, because that facet needs the universe without them;
+   *               they are carried as per-row boolean flags instead.
+   *
+   * Because the sets are disjoint, this identity is exact rather than an
+   * approximation:
+   *
+   *   whereClause(c, d) ≡ (⋀ HOISTED) ∧ (⋀ over EXCEPTED \ {d})
+   *
+   * so one scan producing the flags answers every dimension. A free
+   * consequence: nineteen statements each evaluated their own now(), and the
+   * status facet could disagree with the list across a deadline crossing
+   * mid-request. One statement means one now().
+   */
+  private static readonly HOISTED_DIMS = ['visible', 'recommended', 'saved', 'q'] as const;
+  private static readonly EXCEPTED_DIMS = [
+    'status', 'category', 'region', 'goal', 'raised', 'pct', 'staff', 'collection',
+  ] as const;
+
+  /** The flag expression for one dimension — TRUE when that filter is inactive. */
+  private dimFlag(c: Record<string, Prisma.Sql>, d: string): Prisma.Sql {
+    return c[d] ? Prisma.sql`(${c[d]})` : Prisma.sql`true`;
+  }
+
+  /** "every excepted dimension but d", as a conjunction of the flag columns. */
+  private exceptFlags(d: string, alias = ''): Prisma.Sql {
+    const pfx = alias ? `${alias}.` : '';
+    const others = DiscoverService.EXCEPTED_DIMS.filter((x) => x !== d).map((x) =>
+      Prisma.raw(`${pfx}m_${x}`),
+    );
+    return Prisma.join(others, ' AND ');
+  }
+
+  /** The hoisted conditions, as the base scan's WHERE. */
+  private hoistedWhere(c: Record<string, Prisma.Sql>): Prisma.Sql {
+    const parts = DiscoverService.HOISTED_DIMS.filter((k) => c[k]).map((k) => c[k]!);
+    return parts.length ? Prisma.sql`WHERE ${Prisma.join(parts, ' AND ')}` : Prisma.empty;
+  }
+
+  /**
+   * The nineteen-round-trip implementation, retained and unrouted.
+   *
+   * Kept ONLY so facets() can be differentially tested against it across a
+   * matrix of filter combinations. Collapsing nineteen queries into one is
+   * exactly the kind of change where an off-by-one in a bracket boundary is
+   * invisible, and asserting the two agree is the only cheap way to be sure the
+   * "except" semantics survived. Delete once the matrix has ridden a release.
+   */
+  async facetsLegacy(q: DiscoverQueryDto, viewerId?: string): Promise<Record<string, unknown>> {
     const f = await this.normalize(q, viewerId);
     const c = this.conditions(f);
 
@@ -434,11 +651,153 @@ export class DiscoverService {
     return { statuses, categories, regions, pct, goals, raised, staff, collections };
   }
 
-  private moneyBracket(col: 'fundingGoalHalalas' | 'raisedHalalas', br: { minH: number | null; maxH: number | null }): Prisma.Sql {
+  /**
+   * Every facet, in ONE statement.
+   *
+   * The base CTE scans Project once under the hoisted predicate and
+   * materialises a boolean flag per excepted dimension; each facet is then a
+   * FILTER over that tuplestore re-applying the other dimensions' flags. See
+   * the partition note above for why this is exactly equal to the nineteen
+   * queries it replaces, and facets.differential.spec.ts for the proof.
+   */
+  async facets(q: DiscoverQueryDto, viewerId?: string): Promise<Record<string, unknown>> {
+    const f = await this.normalize(q, viewerId);
+    const c = this.conditions(f);
+
+    const flags = Prisma.join(
+      DiscoverService.EXCEPTED_DIMS.map(
+        (d) => Prisma.sql`${this.dimFlag(c, d)} AS ${Prisma.raw(`m_${d}`)}`,
+      ),
+      ', ',
+    );
+
+    const PCT = Prisma.sql`pct_val`;
+    const pctCounts = Prisma.join(
+      PCT_BUCKETS.map(
+        (b) => Prisma.sql`count(*) FILTER (WHERE ${this.exceptFlags('pct')} AND ${this.pctCondition(b, PCT)})::int AS ${Prisma.raw(`pct_${b}`)}`,
+      ),
+      ', ',
+    );
+    const moneyCounts = Prisma.join(
+      MONEY_BRACKETS.flatMap((br) => [
+        Prisma.sql`count(*) FILTER (WHERE ${this.exceptFlags('goal')} AND ${this.moneyBracketOn(Prisma.sql`goal_h`, br)})::int AS ${Prisma.raw(`goal_${br.key}`)}`,
+        Prisma.sql`count(*) FILTER (WHERE ${this.exceptFlags('raised')} AND ${this.moneyBracketOn(Prisma.sql`raised_h`, br)})::int AS ${Prisma.raw(`raised_${br.key}`)}`,
+      ]),
+      ', ',
+    );
+
+    const rows = await this.prisma.$queryRaw<Array<{ payload: FacetPayload }>>(Prisma.sql`
+      WITH RECURSIVE ${DiscoverService.CAT_TREE},
+      base AS MATERIALIZED (
+        SELECT p.id AS id,
+               p."categoryId" AS category_id,
+               p.region::text AS region,
+               p.status::text AS status,
+               p.deadline AS deadline,
+               p."isStaffPick" AS is_staff_pick,
+               p."fundingGoalHalalas" AS goal_h,
+               p."raisedHalalas" AS raised_h,
+               ${DiscoverService.PCT_EXPR_P} AS pct_val,
+               ${flags}
+        FROM "Project" p
+        ${this.hoistedWhere(c)}
+      ),
+      scalars AS (
+        SELECT
+          count(*) FILTER (WHERE ${this.exceptFlags('status')} AND status = 'LIVE' AND deadline >= now())::int AS st_live,
+          count(*) FILTER (WHERE ${this.exceptFlags('status')} AND status = ANY(${FUNDED_SET}))::int AS st_funded,
+          count(*) FILTER (WHERE ${this.exceptFlags('status')} AND (status = ANY(${ENDED_SET}) OR (status = 'LIVE' AND deadline < now())))::int AS st_ended,
+          ${pctCounts},
+          ${moneyCounts},
+          count(*) FILTER (WHERE ${this.exceptFlags('staff')} AND is_staff_pick)::int AS staff
+        FROM base
+      ),
+      cats AS (
+        SELECT category_id, count(*)::int AS n
+        FROM base
+        WHERE ${this.exceptFlags('category')} AND category_id IS NOT NULL
+        GROUP BY category_id
+      ),
+      -- Ancestors-including-self, exploded, so a node's rolled count is one
+      -- GROUP BY rather than a correlated prefix-sum per node. Linear in
+      -- nodes x depth instead of quadratic in nodes.
+      cat_rolled AS (
+        SELECT a.ancestor_id AS id, sum(COALESCE(o.n, 0))::int AS rolled
+        FROM (SELECT t.id AS node_id, unnest(t.id_path) AS ancestor_id FROM cat_tree t) a
+        LEFT JOIN cats o ON o.category_id = a.node_id
+        GROUP BY a.ancestor_id
+      ),
+      regions AS (
+        SELECT region, count(*)::int AS n
+        FROM base
+        WHERE ${this.exceptFlags('region')} AND region IS NOT NULL
+        GROUP BY region
+      ),
+      -- INNER JOIN, matching the legacy behaviour exactly: a collection with no
+      -- matching projects is DROPPED from the payload rather than shown as 0.
+      colls AS (
+        SELECT col.slug, col."nameAr" AS name_ar, col."sortOrder" AS sort_order, count(b.id)::int AS n
+        FROM "Collection" col
+        JOIN "ProjectCollection" pc ON pc."collectionId" = col.id
+        JOIN base b ON b.id = pc."projectId" AND (${this.exceptFlags('collection', 'b')})
+        WHERE col."isActive" = true
+        GROUP BY col.slug, col."nameAr", col."sortOrder"
+      )
+      SELECT json_build_object(
+        'scalars', (SELECT row_to_json(x) FROM scalars x),
+        'regions', COALESCE((SELECT json_object_agg(region, n) FROM regions), '{}'::json),
+        'collections', COALESCE((SELECT json_agg(json_build_object('slug', slug, 'nameAr', name_ar, 'count', n) ORDER BY sort_order) FROM colls), '[]'::json),
+        'categories', COALESCE((
+          SELECT json_agg(json_build_object(
+                   'slug', t.slug,
+                   'nameAr', t."nameAr",
+                   'parentSlug', t.parent_slug,
+                   'count', COALESCE(r.rolled, 0),
+                   'ownCount', COALESCE(o.n, 0),
+                   'path', t.path,
+                   'catParam', replace(t.path, '/', '.'),
+                   'depth', t.depth,
+                   'hasChildren', EXISTS (SELECT 1 FROM cat_tree x WHERE x."parentId" = t.id)
+                 ) ORDER BY t.sort_key)
+          FROM cat_tree t
+          LEFT JOIN cat_rolled r ON r.id = t.id
+          LEFT JOIN cats o ON o.category_id = t.id
+          WHERE t."isActive" AND (t.depth = 0 OR COALESCE(r.rolled, 0) > 0)
+        ), '[]'::json)
+      ) AS payload`);
+
+    const pay = rows[0]!.payload;
+    const sc = pay.scalars;
+    const pct: Record<string, number> = {};
+    for (const b of PCT_BUCKETS) pct[b] = sc[`pct_${b}`] ?? 0;
+    const goals: Record<string, number> = {};
+    const raised: Record<string, number> = {};
+    for (const br of MONEY_BRACKETS) {
+      goals[br.key] = sc[`goal_${br.key}`] ?? 0;
+      raised[br.key] = sc[`raised_${br.key}`] ?? 0;
+    }
+    return {
+      statuses: { live: sc.st_live, funded: sc.st_funded, ended: sc.st_ended },
+      categories: pay.categories,
+      regions: pay.regions,
+      pct,
+      goals,
+      raised,
+      staff: sc.staff,
+      collections: pay.collections,
+    };
+  }
+
+  /** Money bracket over an arbitrary column expression — see pctCondition. */
+  private moneyBracketOn(expr: Prisma.Sql, br: { minH: number | null; maxH: number | null }): Prisma.Sql {
     const parts: Prisma.Sql[] = [];
-    if (br.minH != null) parts.push(Prisma.sql`p.${Prisma.raw(`"${col}"`)} >= ${br.minH}`);
-    if (br.maxH != null) parts.push(Prisma.sql`p.${Prisma.raw(`"${col}"`)} < ${br.maxH}`);
+    if (br.minH != null) parts.push(Prisma.sql`${expr} >= ${br.minH}`);
+    if (br.maxH != null) parts.push(Prisma.sql`${expr} < ${br.maxH}`);
     return parts.length ? Prisma.sql`(${Prisma.join(parts, ' AND ')})` : Prisma.sql`true`;
+  }
+
+  private moneyBracket(col: 'fundingGoalHalalas' | 'raisedHalalas', br: { minH: number | null; maxH: number | null }): Prisma.Sql {
+    return this.moneyBracketOn(Prisma.sql`p.${Prisma.raw(`"${col}"`)}`, br);
   }
 
   // ---- bookmarks ------------------------------------------------------------
