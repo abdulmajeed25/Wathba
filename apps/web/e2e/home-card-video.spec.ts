@@ -93,9 +93,21 @@ test('V1b: a hover that lands INSIDE the LCP window still plays, once it opens',
   // not there. An unmeetable precondition is a skip; V6 pins the window's
   // behaviour independently, from inside the page, where the harness's own
   // slowness cannot reach it.
-  const windowState = await page.evaluate(() => document.documentElement.dataset.cardVideoWindow);
-  test.skip(windowState !== 'shut', 'the pointer could not reach the card inside the 2s window on this box');
-  expect(await card.locator('video').count(), 'nothing may mount while the window is shut').toBe(0);
+  //
+  // ONE evaluate for BOTH readings. Two round-trips would let the window open
+  // between them: the pointer is already inside and armed, so a 2s window that
+  // was `shut` when we asked can be `open` — with a <video> mounted — by the
+  // time the count comes back. That reads as "it mounted while shut", which is
+  // the opposite of what happened, and it only ever happens on a loaded box.
+  const snap = await page.evaluate(() => ({
+    windowState: document.documentElement.dataset.cardVideoWindow,
+    // Page-wide, like V1's own pre-hover assertion: there is no test id on the
+    // trending section, and a selector that matches nothing would make this
+    // assertion vacuously true — a guard that can only pass is not a guard.
+    videos: document.querySelectorAll('video').length,
+  }));
+  test.skip(snap.windowState !== 'shut', 'the pointer could not reach the card inside the 2s window on this box');
+  expect(snap.videos, 'nothing may mount while the window is shut').toBe(0);
 
   // No further pointer input. The guard has to wait itself out and re-arm.
   await expect

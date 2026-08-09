@@ -1689,6 +1689,37 @@ model EditorialCard {
   @@index([kind, isActive, sortOrder])
 }
 
+/// Batch DISCOVERY-ENGINE — a facet the platform learned is worth offering.
+///
+/// Recomputed nightly from a rolling 30-day window over AnalyticsEvent, which
+/// this is the first ever reader of. AGGREGATE ONLY: the recompute groups by
+/// (key, value) and never touches anonId or userId, so no per-user filter
+/// profile exists or can be derived from this table (PDPL).
+///
+/// Seeded rows carry the homepage row until real traffic clears the threshold —
+/// see migration 0063 for why cold start is a column rather than a fallback.
+model PopularFacet {
+  /// The discover-all query param and its value — 'tag'/'saudi-heritage'.
+  key         String
+  value       String
+  /// Resolved at recompute time so the homepage read is one query, no joins.
+  labelAr     String
+  href        String
+  score       Float     @default(0)
+  eventCount  Int       @default(0)
+  /// A guess, not a measurement. Steps aside once the data can speak.
+  isSeed      Boolean   @default(false)
+  /// An editor override — the nightly pass never deactivates a pinned row.
+  isPinned    Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  windowStart DateTime?
+  computedAt  DateTime  @default(now())
+
+  @@id([key, value])
+  @@index([isActive, isPinned, sortOrder, score])
+}
+
 /// Batch HOME — admin toggles/reorders homepage sections without deploys.
 model HomepageSection {
   key       String  @id

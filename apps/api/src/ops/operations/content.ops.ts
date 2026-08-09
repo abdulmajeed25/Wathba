@@ -386,8 +386,77 @@ export function contentOps(): Array<OperationDef<never, unknown>> {
     },
   };
 
+  /* ── promoted (learned) facets ─────────────────────────────────────── */
+  /**
+   * Batch DISCOVERY-ENGINE Unit 5 — an editor's override of the nightly pass.
+   *
+   * The homepage's second chip row is computed, not curated, which is the
+   * point — but "computed" must not mean "unanswerable". Pinning holds a facet
+   * in the row regardless of the window, and the recompute never deactivates a
+   * pinned row. Unpinning hands it back to the data.
+   *
+   * CONTENT tier: reversible, audited, no reason required — the same posture as
+   * toggling a homepage section, which is the same kind of decision.
+   */
+  const facetPinInput = z.object({
+    key: z.string().min(1).max(40),
+    value: z.string().min(1).max(64),
+    isPinned: z.boolean(),
+    sortOrder: z.number().int().min(0).max(99).optional(),
+  });
+  const facetPin: OperationDef<z.infer<typeof facetPinInput>, { key: string }> = {
+    key: 'content.popular-facet.pin',
+    titleAr: 'تثبيت/إلغاء تثبيت فلتر مقترح',
+    descriptionAr:
+      'يثبّت فلتراً في صف «الأكثر استخداماً» فلا تُلغيه الحسبة الليلية، أو يعيده إلى القرار الآلي.',
+    inputSchema: facetPinInput,
+    permission: 'content.editorial',
+    riskTier: 'CONTENT',
+    reversible: true,
+    compensatingKey: 'content.popular-facet.pin',
+    requiresReason: false,
+    preconditions: [
+      {
+        code: 'facet-missing',
+        reasonAr: 'هذا الفلتر غير موجود في القائمة المحسوبة',
+        check: async (db, input) =>
+          !!(await db.popularFacet.findUnique({
+            where: { key_value: { key: input.key, value: input.value } },
+          })),
+      },
+    ],
+    async dryRun(db, input) {
+      const f = await db.popularFacet.findUnique({
+        where: { key_value: { key: input.key, value: input.value } },
+      });
+      return {
+        summaryAr: `${input.isPinned ? 'سيُثبَّت' : 'سيُلغى تثبيت'} «${f?.labelAr ?? input.value}»`,
+        before: f ? { isPinned: f.isPinned, isActive: f.isActive, sortOrder: f.sortOrder } : null,
+        after: {
+          isPinned: input.isPinned,
+          // Pinning ACTIVATES: pinning a row the window had retired and leaving
+          // it hidden would be a control that silently does nothing.
+          isActive: input.isPinned ? true : f?.isActive,
+          sortOrder: input.sortOrder ?? f?.sortOrder,
+        },
+      };
+    },
+    async execute(tx, input) {
+      const row = await tx.popularFacet.update({
+        where: { key_value: { key: input.key, value: input.value } },
+        data: {
+          isPinned: input.isPinned,
+          ...(input.isPinned ? { isActive: true } : {}),
+          ...(input.sortOrder !== undefined ? { sortOrder: input.sortOrder } : {}),
+        },
+      });
+      return { key: row.key };
+    },
+  };
+
   return [
     cardCreate, cardUpdate, cardDelete, sectionUpdate,
     collectionCreate, collectionUpdate, collectionDelete, collectionAssign, collectionUnassign,
+    facetPin,
   ] as unknown as Array<OperationDef<never, unknown>>;
 }

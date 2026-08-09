@@ -7,7 +7,7 @@ import { WathbaHome } from '@/components/ventures/wathba/wathba-home';
 import { wathbaMagazineRenderers } from '@/components/ventures/wathba/wathba-home-magazine';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { getHeroProjects, getHomePayload, getRecommendedProjects, listCategories, listDiscover } from '@/lib/api/wathba';
+import { getHeroProjects, getHomePayload, getPopularFacets, getRecommendedProjects, listCategories, listDiscover } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'وثبة — منصة دعم المشاريع' };
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = { title: 'وثبة — منصة دعم الم�
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectsPage() {
-  const [live, cats, recommended, home, heroSlides] = await Promise.all([
+  const [live, cats, recommended, home, heroSlides, popularFacets] = await Promise.all([
     // HOME-REVIEW D1 — the trending grid draws REAL projects now. It used to go
     // through listVentures() → adaptApiVenture(), which matched a UUID against
     // the demo fixtures' titleEn, never matched, and silently fell back to the
@@ -38,6 +38,10 @@ export default async function ProjectsPage() {
     // Batch HERO — the rotating featured card's pool. Server-fetched so the
     // first slide's cover is in the initial HTML and stays the LCP element.
     getHeroProjects().catch(() => []),
+    // Batch DISCOVERY-ENGINE Unit 5 — the learned chip row. In the SAME
+    // Promise.all as everything else: it must never add a serial hop to a page
+    // whose LCP budget is 704ms, and [] on failure means the row just vanishes.
+    getPopularFacets().catch(() => []),
   ]);
   const catNameById = new Map<string, string>();
   for (const top of cats ?? []) {
@@ -87,6 +91,7 @@ export default async function ProjectsPage() {
         // are `film-video` and `technology` here, so two of the eight chips
         // pointed at categories that do not exist.
         categories={cats ?? undefined}
+        popularFacets={popularFacets}
         order={home?.sections.map((s) => s.key)}
         extraRenderers={
           home ? wathbaMagazineRenderers(home, home.sections.map((s) => s.key)) : undefined

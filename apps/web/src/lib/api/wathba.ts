@@ -1338,6 +1338,38 @@ export async function getHeroProjects(): Promise<ApiHeroSlide[]> {
   }
 }
 
+/** Batch DISCOVERY-ENGINE Unit 5 — one promoted chip. */
+export interface ApiPopularFacet {
+  key: string;
+  value: string;
+  labelAr: string;
+  href: string;
+  isPinned: boolean;
+}
+
+/**
+ * The facets the nightly pass promoted.
+ *
+ * ISR 3600, not 60: this list changes once a day at 04:00, and revalidating it
+ * every minute would be sixty times the requests for the same answer. An hour
+ * is well inside the cadence and still picks up an ops pin the same session.
+ *
+ * Returns [] on failure — the row simply does not render. It is an addition to
+ * the homepage, never a dependency of it.
+ */
+export async function getPopularFacets(): Promise<ApiPopularFacet[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/discover/popular`, {
+      next: { revalidate: 3600, tags: ['wathba-popular-facets'] },
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { items?: ApiPopularFacet[] };
+    return body.items ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** ISR 60 — project numbers stay fresh without hammering the API. */
 export async function getHomePayload(): Promise<ApiHomePayload | null> {
   // Tagged so the admin BFF mutations can revalidateTag('wathba-home') and
