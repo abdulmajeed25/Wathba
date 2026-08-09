@@ -116,11 +116,29 @@ async function assertHeaderFits(page: Page, who: string) {
   }
 }
 
+/**
+ * These two get their own budget, and it is not a workaround.
+ *
+ * `assertHeaderFits` walks FOURTEEN widths, and each one is a full navigation
+ * plus a wait for the account slot to stop being a placeholder — about 5.6s a
+ * width, measured. That is ~78s for the signed-in pass, against a 60s default
+ * that was never chosen with this test in mind. It had been passing on the
+ * margin and went flaky the moment the homepage gained a row.
+ *
+ * The alternative — dropping widths — is worse: the whole point is that the
+ * header is checked at every breakpoint boundary and one either side of it
+ * (1200/1199, 1000/999), which is where the 1280 regression that prompted this
+ * file actually lived. A slow, complete test beats a fast, partial one.
+ */
+const HEADER_SWEEP_TIMEOUT = 180_000;
+
 test('H1: the signed-out header fits every width and keeps its CTA reachable', async ({ page }) => {
+  test.setTimeout(HEADER_SWEEP_TIMEOUT);
   await assertHeaderFits(page, 'signed out');
 });
 
 test('H2: the signed-in header fits every width and keeps the account menu reachable', async ({ page }) => {
+  test.setTimeout(HEADER_SWEEP_TIMEOUT);
   // Signed in is the expensive row: it carries the notification bell that the
   // signed-out row does not, and it was the state that broke at 1280.
   await signUpAndVerify(page, 'قارئ الترويسة', uniqueEmail('header'), '2255669900');

@@ -143,9 +143,14 @@ export class OpsAnalyticsService {
 
   /* ── 2. FUNNEL (analytics.read) ────────────────────────────────────────────
    * visit→signup→verify→pledge→repeat, AS FAR AS THE DATA HONESTLY ALLOWS.
-   * Top-of-funnel (visits/signups-as-events) is NOT readable: AnalyticsEvent is
-   * write-only — collected, never read anywhere (census A2/A4). We DO NOT
-   * fabricate a visit count; `visits` and its drop-off are null with a note.
+   * Top-of-funnel (visits/signups-as-events) is still NOT readable here, but
+   * the reason has changed and the old note said something that is no longer
+   * true. AnalyticsEvent was write-only — collected, never read anywhere
+   * (census A2/A4) — until batch DISCOVERY-ENGINE Unit 5, which reads it to
+   * promote popular facets (`popular-facets.service.ts`) and finally puts a
+   * retention bound on it. That reader is an AGGREGATE over two discovery
+   * events; it does not give this funnel a visit count, and we still DO NOT
+   * fabricate one: `visits` and its drop-off stay null with a note.
    *
    * The verification legs (signups → emailVerified → nafathVerified) are NESTED
    * over the SAME window cohort (created in range), so their drop-offs are
@@ -192,9 +197,59 @@ export class OpsAnalyticsService {
       },
       notes: {
         topOfFunnel:
-          'لا يوجد مصدر قابل للقراءة لأعلى القمع (زيارات/تسجيلات كأحداث): جدول AnalyticsEvent يُكتب ولا يُقرأ في أي مكان (تعداد A2/A4). أُعيدت القيمة null بدلاً من تلفيقها.',
+          'لا يوجد مصدر قابل للقراءة لأعلى القمع (زيارات/تسجيلات كأحداث): جدول AnalyticsEvent لا يسجّل زيارات قابلة للعدّ هنا. يُقرأ الجدول منذ دفعة الاكتشاف لحساب الفلاتر الأكثر استخداماً (تجميع فقط، بلا ملفات مستخدمين)، لكن ذلك لا يمنح هذا القمع عدد زيارات. أُعيدت القيمة null بدلاً من تلفيقها.',
         pledgeStage:
           'المتعهّدون/المتعهّدون المتكرّرون مقياس تفاعل ضمن النافذة وليسوا مجموعة فرعية صارمة من المتحقَّقين عبر نفاذ (يمكن التبرّع دون نفاذ)، لذلك لا يُحسب هبوط نفاذ→تعهّد.',
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /* ── 2b. DISCOVERY (analytics.read) ────────────────────────────────────────
+   * Batch DISCOVERY-ENGINE Unit 5 — the filters readers actually applied, and
+   * the row the nightly pass built from them.
+   *
+   * Two halves on purpose. `applied` is the raw evidence over the requested
+   * window; `promoted` is what the 04:00 job decided. Showing only the second
+   * would make the promotion unauditable — an operator looking at a chip row
+   * they did not choose needs to see the count that put it there.
+   *
+   * AGGREGATE ONLY. The GROUP BY is (key, value). `anonId` and `userId` are not
+   * selected here and there is no code path in this service that could join
+   * them — the PDPL posture is a property of the query, not of a policy doc.
+   */
+  async discovery(w: AnalyticsWindow) {
+    const { from, to, dto } = resolveWindow(w, 30);
+
+    const [applied, promoted] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ key: string; value: string; n: bigint }>>`
+        SELECT "props"->>'key' AS key, "props"->>'value' AS value, count(*) AS n
+        FROM "AnalyticsEvent"
+        WHERE "name" IN ('filter_applied', 'search_performed')
+          AND "createdAt" >= ${from} AND "createdAt" <= ${to}
+          AND "props"->>'key' IS NOT NULL
+        GROUP BY 1, 2
+        ORDER BY n DESC
+        LIMIT 40
+      `,
+      this.prisma.popularFacet.findMany({
+        orderBy: [{ isActive: 'desc' }, { isPinned: 'desc' }, { sortOrder: 'asc' }],
+        select: {
+          key: true, value: true, labelAr: true, score: true, eventCount: true,
+          isSeed: true, isPinned: true, isActive: true, sortOrder: true, computedAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      window: dto,
+      applied: applied.map((r) => ({ key: r.key, value: r.value, count: Number(r.n) })),
+      promoted,
+      notes: {
+        privacy:
+          'التجميع حسب (المعيار، القيمة) فقط — لا تُقرأ المعرّفات المجهولة ولا معرّفات المستخدمين، ولا يوجد ملف تفضيلات لكل مستخدم.',
+        seeds:
+          'الصفوف المعلَّمة isSeed هي قيم افتراضية للانطلاق، تُستبدل تلقائياً عندما تتجاوز الفلاتر الحقيقية الحد الأدنى للأحداث.',
       },
       generatedAt: new Date().toISOString(),
     };

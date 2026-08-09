@@ -333,6 +333,7 @@ export default async function OpsHomePage() {
             { href: '/ops/support', labelAr: 'الدعم' },
             { href: '/ops/users', labelAr: 'المستخدمون' },
             { href: '/ops/analytics', labelAr: 'التحليلات' },
+            { href: '/ops/discovery', labelAr: 'الاكتشاف' },
             { href: '/ops/audit', labelAr: 'سجل التدقيق' },
             { href: '/ops/agents', labelAr: 'الوكلاء' },
           ].map((l) => (

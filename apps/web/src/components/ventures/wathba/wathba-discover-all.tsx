@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { ApiCategoryFacetNode, ApiDiscoverAllResult, ApiDiscoverCard, ApiDiscoverFacets } from '@/lib/api/wathba';
+import { track } from '@/lib/analytics';
 import { Icon } from './wathba-icons';
 import { WathbaDiscoverAllCard } from './wathba-discover-all-card';
 import { DURATION_OPTS } from './discover-all-constants';
@@ -60,6 +61,29 @@ export function WathbaDiscoverAll({
     const merged: SP = { ...sp, ...next, page: undefined };
     for (const [k, v] of Object.entries(merged)) if (v) qs.set(k, v);
     const s = qs.toString();
+
+    /*
+     * Batch DISCOVERY-ENGINE Unit 5 — the ONLY place a filter is recorded.
+     *
+     * Every sidebar control funnels through navigate(), so instrumenting here
+     * covers all of them and cannot drift as sections are added. It records the
+     * dimension and value that CHANGED, not the whole filter set: counting the
+     * merged state would score every already-applied filter again on each
+     * click, and the homepage row would end up ranking whatever people leave on
+     * rather than what they reach for.
+     *
+     * PDPL: aggregate only. The API stores this as {key, value} against a random
+     * anonId and nothing else, groups by (key, value), and builds no per-user
+     * profile — see popular-facets.service.ts. `q` is deliberately never sent;
+     * the words a reader types are not counted anywhere.
+     */
+    for (const [k, v] of Object.entries(next)) {
+      if (!v || k === 'page') continue;
+      // A CSV toggle sends the last segment — the one the reader just added.
+      const value = v.split(',').filter(Boolean).pop();
+      if (value) track(q ? 'search_performed' : 'filter_applied', { key: k, value });
+    }
+
     router.push(s ? `${pathname}?${s}` : pathname, { scroll: false });
   };
 

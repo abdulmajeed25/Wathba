@@ -6,12 +6,29 @@ import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { DiscoverService } from './discover.service';
 import { DiscoverQueryDto } from './dto/discover-query.dto';
+import { PopularFacetsService } from './popular-facets.service';
 
 /** Batch DISC — the advanced discover page query + facets + bookmarks. */
 @ApiTags('discover')
 @Controller('discover')
 export class DiscoverController {
-  constructor(private readonly discover: DiscoverService) {}
+  constructor(
+    private readonly discover: DiscoverService,
+    private readonly popular: PopularFacetsService,
+  ) {}
+
+  /**
+   * Batch DISCOVERY-ENGINE Unit 5 — the learned chip row.
+   *
+   * Public and unauthenticated: it is the same aggregate for everyone. There is
+   * deliberately no per-viewer variant — a personalised filter row would need a
+   * per-user filter profile, which this batch does not build (PDPL).
+   */
+  @Get('popular')
+  @ApiOperation({ summary: 'Facets promoted by the nightly 30-day window (aggregate, not personal)' })
+  async popularFacets() {
+    return { items: await this.popular.promoted() };
+  }
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)

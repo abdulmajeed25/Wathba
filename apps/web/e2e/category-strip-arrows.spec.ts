@@ -89,17 +89,31 @@ test('N2: at each end, only the arrow that can still move is offered', async ({ 
   expect(await page.locator(ARROW).count(), 'at the start edge only the forward arrow belongs').toBe(1);
 
   // Drive to the far end and check the offer flips rather than going stale.
+  //
+  // `behavior: 'instant'` overrides the strip's own `scroll-behavior: smooth`.
+  // Assigning scrollLeft starts an ANIMATION, and mid-animation both arrows are
+  // correctly on screen — so a fixed wait here is a guess about how long the
+  // browser takes, and when the guess is wrong the test reports a product bug
+  // that is not there. (Measured: fails, then passes on retry, running alone.)
   await page.evaluate(
     ([stripSel]) => {
       const el = document.querySelector(stripSel) as HTMLElement;
       // Blink RTL: the end is the most-negative scrollLeft.
-      el.scrollLeft = -(el.scrollWidth - el.clientWidth);
+      el.scrollTo({ left: -(el.scrollWidth - el.clientWidth), behavior: 'instant' });
     },
     [STRIP] as const,
   );
-  await page.waitForTimeout(600);
+
+  // Poll rather than sleep: the scroll listener that recomputes the arrows runs
+  // on the browser's own schedule, and the assertion is "it settles here", not
+  // "it settles within 600ms".
+  await expect
+    .poll(() => page.locator(ARROW).count(), {
+      message: 'at the far end only the back arrow belongs',
+      timeout: 10_000,
+    })
+    .toBe(1);
 
   const atEnd = await stripState(page);
   expect(atEnd!.lastFullyVisible, 'scrolling to the far end did not reveal the last pill').toBe(true);
-  expect(await page.locator(ARROW).count(), 'at the far end only the back arrow belongs').toBe(1);
 });

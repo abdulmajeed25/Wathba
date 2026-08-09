@@ -92,9 +92,19 @@ test('K3: signing out removes the session cookie', async ({ page }) => {
 
   await page.locator('button[aria-haspopup="menu"][aria-label^="حساب"]').click();
   await page.getByRole('menuitem', { name: /تسجيل الخروج/ }).click();
-  await page.waitForTimeout(1500);
 
-  expect(await sessionCookie(page), 'wathba_session survived sign-out').toBeNull();
+  // Poll, don't sleep. Sign-out is a server round trip that clears the cookie
+  // and redirects, and 1500ms was a guess about how long that takes — when the
+  // guess was wrong the test reported «wathba_session survived sign-out», which
+  // is a security claim, not a timing one. Measured: fails, then passes on
+  // retry, running ALONE. The assertion is unchanged and still absolute: the
+  // cookie must be gone. Only the deadline moved.
+  await expect
+    .poll(async () => await sessionCookie(page), {
+      message: 'wathba_session survived sign-out',
+      timeout: 15_000,
+    })
+    .toBeNull();
   await page.goto('/projects');
   await expect(page.locator('a[href="/sign-in"]').first()).toBeVisible();
 

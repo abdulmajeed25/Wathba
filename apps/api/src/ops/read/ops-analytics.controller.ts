@@ -54,6 +54,25 @@ export class OpsAnalyticsController {
     return this.analytics.funnel({ from: toDate(from), to: toDate(to) });
   }
 
+  /**
+   * Batch DISCOVERY-ENGINE Unit 5 — what readers filtered by, and what the
+   * nightly pass did with it.
+   *
+   * `analytics.read`, like the other dashboards. AGGREGATE ONLY: the response
+   * is (key, value, count) rows plus the current promoted list — there is no
+   * per-user view here, and the service has no query that could produce one.
+   */
+  @Get('discovery')
+  @ApiOperation({ summary: 'Discovery analytics — most-applied filters in the window + the promoted row' })
+  discovery(
+    @Req() req: OpsRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    this.analytics.assertPermission(req.opsPrincipal, 'analytics.read');
+    return this.analytics.discovery({ from: toDate(from), to: toDate(to) });
+  }
+
   @Get('projects')
   @ApiOperation({ summary: 'Project analytics — success rate, status distribution, per-category, pledged-vs-realized' })
   projects(

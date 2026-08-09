@@ -13,6 +13,7 @@ import {
   wathbaTickerMessages,
 } from './wathba-data';
 import { categoryCount, categoryHref, categoryIcon, type HomeCategory } from './wathba-categories';
+import type { ApiPopularFacet } from '@/lib/api/wathba';
 import { WathbaHomeStats } from './wathba-home-stats';
 import { WathbaHomeTrending } from './wathba-home-trending';
 import { Icon, Num } from './wathba-icons';
@@ -109,10 +110,76 @@ const ACT_OF: Record<string, string> = {
  */
 const HOME_CHIPS = 8;
 
+/**
+ * Batch DISCOVERY-ENGINE Unit 5 — the row the platform learned.
+ *
+ * A SECOND row under the curated category chips, never a replacement for them.
+ * The curated row is an editorial statement about what Wathba is; this one is a
+ * measurement of what readers actually did last month. Collapsing the two would
+ * lose whichever one happened to score lower, and they are not the same claim.
+ *
+ * Visually quieter than the chips above on purpose: smaller, pill-shaped, no
+ * icons, no counts. It should read as a shortcut strip, not a second navigation.
+ *
+ * Renders NOTHING when the list is empty — a heading over an empty row is worse
+ * than no row, and the API returns [] whenever it is unreachable.
+ *
+ * RTL: the row is laid out with flex + wrap and logical padding only, so it
+ * flows right-to-left with the document. No arrows, so nothing needs mirroring.
+ */
+function PopularFacetRow({ facets }: { facets?: ApiPopularFacet[] }) {
+  if (!facets?.length) return null;
+  return (
+    <div style={{ marginTop: 22 }}>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--muted)',
+          marginBottom: 10,
+        }}
+      >
+        الأكثر بحثاً هذا الأسبوع
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {facets.map((f) => (
+          <Link
+            key={`${f.key}:${f.value}`}
+            href={f.href}
+            data-popular-facet={`${f.key}:${f.value}`}
+            style={{
+              cursor: 'pointer',
+              // Logical padding — this row is mirrored by `dir`, not by CSS.
+              paddingBlock: 8,
+              paddingInline: 14,
+              borderRadius: 999,
+              border: '1px solid rgba(var(--ink-rgb),.1)',
+              background: 'var(--card)',
+              color: 'var(--text-soft)',
+              fontSize: 13.5,
+              textDecoration: 'none',
+              // WCAG 2.5.8 — the pill is 34px tall on its own padding, but a
+              // wrapped row of short Arabic labels can render shorter.
+              minHeight: 24,
+              display: 'inline-flex',
+              alignItems: 'center',
+              transition: 'border-color var(--dur-hover) var(--ease-out)',
+            }}
+          >
+            {f.labelAr}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 export function wathbaHomeRenderers(
   list: DerivedProject[],
   featured: DerivedProject,
   categories?: HomeCategory[],
+  popularFacets?: ApiPopularFacet[],
 ): HomeSectionRenderers {
   // The fixture stays as the API-unreachable fallback ONLY, mapped onto the
   // real URL space so it can never resurrect /projects/category/<slug>. Its
@@ -234,6 +301,10 @@ export function wathbaHomeRenderers(
             <Link
               key={c.slug}
               href={categoryHref(c.slug)}
+              // Unit 5 added a SECOND chip row below this one. The curated row
+              // needs to be countable on its own, or a test asserting "the
+              // editorial row survived" silently counts both.
+              data-category-chip={c.slug}
               style={{
                 cursor: 'pointer',
                 background: 'var(--card)',
@@ -269,6 +340,7 @@ export function wathbaHomeRenderers(
             </Link>
           ))}
         </div>
+        <PopularFacetRow facets={popularFacets} />
       </section>
 
       </Fragment>
@@ -675,11 +747,14 @@ export function WathbaHome({
   order,
   extraRenderers,
   categories,
+  popularFacets,
 }: {
   projects?: WathbaProject[];
   hero?: ReactNode;
   /** The live taxonomy for the chip row. Undefined when the API is down. */
   categories?: HomeCategory[];
+  /** Batch DISCOVERY-ENGINE Unit 5 — the LEARNED row. Empty ⇒ not rendered. */
+  popularFacets?: ApiPopularFacet[];
   /** Section keys in render order (HomepageSection.sortOrder). */
   order?: string[];
   /** The magazine's renderers, merged into the same ordered list. */
@@ -692,7 +767,7 @@ export function WathbaHome({
   // The fallback fixture always has >=1 entry, so list[0]! is safe.
   const featured = list.find((p) => p.id === 'p1' || p.id === 'sirb') ?? list[0]!;
 
-  const own = wathbaHomeRenderers(list, featured, categories);
+  const own = wathbaHomeRenderers(list, featured, categories, popularFacets);
   const renderers: HomeSectionRenderers = { ...own, ...extraRenderers };
 
   // OWN_ORDER is this file's historical sequence and doubles as the safety net.
