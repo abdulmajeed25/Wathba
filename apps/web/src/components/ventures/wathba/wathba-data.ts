@@ -569,6 +569,8 @@ export function adaptApiProjectDetail(d: {
   releaseThresholdPct?: number;
   createdBy?: string;
   platformPartner?: Record<string, unknown> | null;
+  mediaUrls?: string[];
+  videoUrl?: string | null;
 }): WathbaProject & { apiId: string } {
   const base = wathbaProjects[0]!;
   return {
@@ -588,6 +590,15 @@ export function adaptApiProjectDetail(d: {
         }
       : { platformPartner: null }),
     ...(d.createdBy ? { createdById: d.createdBy } : {}),
+    // The project's OWN media, not the fixture's. This adapter spreads a demo
+    // row as its base and overrides field by field, so anything it forgets
+    // silently keeps the fixture's value — which is how the campaign page came
+    // to show a stock cover and no video for every real project. The card
+    // surfaces never hit this path (they read the card payloads directly),
+    // which is why it went unnoticed until the campaign page started playing
+    // the real video.
+    coverUrl: d.mediaUrls?.[0] ?? base.coverUrl ?? null,
+    videoUrl: d.videoUrl ?? null,
   };
 }
 
