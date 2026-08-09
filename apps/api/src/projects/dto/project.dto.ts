@@ -104,6 +104,17 @@ export class CreateProjectDto {
   @IsOptional() @IsEnum(ProjectCardMedia)
   cardMedia?: ProjectCardMedia;
 
+  /**
+   * Curated tag slugs. Whole-set semantics: what you send is what the project
+   * ends up with. Unknown or retired slugs are dropped rather than rejected —
+   * a creator whose tag was deactivated by ops between page load and save
+   * should not be handed an error they cannot act on. Capped at 10 by the
+   * service; a project tagged with everything is tagged with nothing.
+   */
+  @ApiProperty({ required: false, type: [String], example: ['saudi-heritage', 'handmade'] })
+  @IsOptional() @IsArray() @IsString({ each: true })
+  tagSlugs?: string[];
+
   @ApiProperty({ example: 40_000_000, description: 'Funding goal in halalas (1 SAR = 100)' })
   @IsInt() @Min(10_000)
   fundingGoalHalalas!: number;
@@ -144,6 +155,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsArray() @IsString({ each: true }) mediaUrls?: string[];
   @IsOptional() @IsString() @MaxLength(600) @Matches(/\.(mp4|webm)(\?|$)/i, { message: 'videoUrl must be an .mp4 or .webm file' }) videoUrl?: string;
   @IsOptional() @IsEnum(ProjectCardMedia) cardMedia?: ProjectCardMedia;
+  @IsOptional() @IsArray() @IsString({ each: true }) tagSlugs?: string[];
   @IsOptional() @IsInt() @Min(10_000) fundingGoalHalalas?: number;
   @IsOptional() @IsInt() @Min(50) @Max(100) releaseThresholdPct?: number;
   @IsOptional() @IsInt() @Min(7) @Max(120) durationDays?: number;

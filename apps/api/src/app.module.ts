@@ -36,6 +36,7 @@ import { ChangelogModule } from './changelog/changelog.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { CollaboratorsModule } from './collaborators/collaborators.module';
 import { CategoriesModule } from './categories/categories.module';
+import { TagsModule } from './tags/tags.module';
 import { DiscoverModule } from './discover/discover.module';
 import { CollectionsModule } from './collections/collections.module';
 import { EmailModule } from './email/email.module';
@@ -84,6 +85,7 @@ import { AppealsModule } from './appeals/appeals.module';
     AnalyticsModule,
     CollaboratorsModule,
     CategoriesModule,
+    TagsModule,
     DiscoverModule,
     CollectionsModule,
     EmailModule,

@@ -462,6 +462,7 @@ model Project {
   collaborators  ProjectCollaborator[]
   collections    ProjectCollection[]
   savedBy        SavedProject[]
+  tags           ProjectTag[]
 
   // Hot-path query indexes:
   //  - (status, deadline)        → deadline scheduler tick
@@ -1454,6 +1455,52 @@ model Collection {
   updatedAt     DateTime            @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+/// Batch DISCOVERY-ENGINE — the project tag vocabulary.
+///
+/// CURATED, not free text. A creator picks from the active tags rather than
+/// typing their own, and the reason is Arabic orthography: «تقنية» and «تقنيه»
+/// and «تقنيّة» are one concept and three strings, so free text would fragment
+/// the facet into near-duplicates that each carry a third of the projects. Ops
+/// owns the vocabulary (add / merge / deactivate); creators own which of it
+/// applies to them.
+///
+/// `usageCount` is denormalised on purpose, the same trade CommunityStat makes:
+/// the typeahead orders by it on every keystroke, and a COUNT over ProjectTag
+/// per suggestion is a join nobody needs. Recomputed by the tag operation, so
+/// it can drift only if a row is written outside it — which the ops layer is
+/// there to prevent.
+model Tag {
+  id         String       @id @default(uuid()) @db.Uuid
+  slug       String       @unique
+  nameAr     String
+  nameEn     String
+  /// Deactivated rather than deleted: a tag that has been used is part of a
+  /// project's history, and removing it would silently rewrite campaigns.
+  /// Inactive tags stop being offered and stop faceting; they stay attached.
+  isActive   Boolean      @default(true)
+  usageCount Int          @default(0)
+  sortOrder  Int          @default(0)
+  projects   ProjectTag[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([isActive, usageCount])
+}
+
+/// Many-to-many: which tags a project carries.
+model ProjectTag {
+  tagId     String   @db.Uuid
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([tagId, projectId])
+  /// The facet counts group by tag; the campaign page and the search JOIN read
+  /// by project. Both directions are hot, so both are indexed.
+  @@index([projectId])
 }
 
 /// Many-to-many: which projects belong to a collection.

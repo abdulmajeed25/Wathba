@@ -45,6 +45,7 @@ export interface WathbaProject {
    * video only when this is a real URL.
    */
   videoUrl?: string | null;
+  tags?: Array<{ slug: string; nameAr: string }>;
 }
 
 export const wathbaProjects: WathbaProject[] = [
@@ -571,6 +572,7 @@ export function adaptApiProjectDetail(d: {
   platformPartner?: Record<string, unknown> | null;
   mediaUrls?: string[];
   videoUrl?: string | null;
+  tags?: Array<{ slug: string; nameAr: string }>;
 }): WathbaProject & { apiId: string } {
   const base = wathbaProjects[0]!;
   return {
@@ -599,6 +601,7 @@ export function adaptApiProjectDetail(d: {
     // the real video.
     coverUrl: d.mediaUrls?.[0] ?? base.coverUrl ?? null,
     videoUrl: d.videoUrl ?? null,
+    tags: d.tags ?? [],
   };
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import type { ApiProjectDetail } from '@/lib/api/wathba';
 import { WathbaDashboardCollaborators } from './wathba-dashboard-collaborators';
+import { WathbaTagPicker } from './wathba-tag-picker';
 import { useConfirm } from '../wathba-feedback';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
 
@@ -737,6 +738,29 @@ export function DashboardSettings({
             />
           </>
         )}
+      </Card>
+
+      {/* ── Batch DISCOVERY-ENGINE — project tags ───────────────────────── */}
+      {/* Not gated on `editable`, for the same reason the video card is not:
+          tags change how a project is FOUND, not what was promised to anyone
+          who backed it. A creator who realises mid-campaign that their project
+          belongs under «تراث سعودي» has to be able to say so. */}
+      <Card title="وسوم المشروع">
+        <WathbaTagPicker
+          initial={project.tags ?? []}
+          onSave={async (slugs) => {
+            await patchProject({ tagSlugs: slugs });
+            // Re-read rather than trust the request: the server drops slugs ops
+            // retired between page load and save, and the picker has to show
+            // what was actually stored.
+            const res = await fetch(`/api/projects/${project.id}`);
+            const j = (await res.json().catch(() => ({}))) as {
+              tags?: Array<{ slug: string }>;
+            };
+            router.refresh();
+            return (j.tags ?? []).map((t) => t.slug);
+          }}
+        />
       </Card>
 
       {/* ── Stage 1 item 12 — campaign video ─────────────────────────────── */}

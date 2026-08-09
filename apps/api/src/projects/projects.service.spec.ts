@@ -44,7 +44,7 @@ describe('ProjectsService.completeDelivery', () => {
       },
       milestone: { count: jest.fn().mockResolvedValue(0) },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     const out = await svc.completeDelivery(CREATOR, PROJ);
     expect(out.status).toBe(ProjectStatus.DELIVERED);
     expect(update).toHaveBeenCalledWith({
@@ -61,7 +61,7 @@ describe('ProjectsService.completeDelivery', () => {
       },
       milestone: { count: jest.fn().mockResolvedValue(2) },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     await expect(svc.completeDelivery(CREATOR, PROJ)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -75,7 +75,7 @@ describe('ProjectsService.completeDelivery', () => {
         update: jest.fn(),
       },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     await expect(svc.completeDelivery(CREATOR, PROJ)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -88,7 +88,7 @@ describe('ProjectsService.completeDelivery', () => {
         update: jest.fn(),
       },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     await expect(svc.completeDelivery('not-the-creator', PROJ)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
@@ -115,7 +115,7 @@ describe('ProjectsService.create — governed policy knobs', () => {
   it('rejects a funding goal below the configured minimum (setting non-default)', async () => {
     const prisma = makePrisma({ project: { create: jest.fn(), findUnique: jest.fn() } });
     const settings = settingsStub({ 'projects.fundingGoalMinHalalas': 5_000_000, 'projects.durationHardMaxDays': 120 });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, settings as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, settings as any, { setProjectTags: jest.fn() } as never);
     await expect(svc.create(CREATOR, dto({ fundingGoalHalalas: 1_000_000 }))).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -126,7 +126,7 @@ describe('ProjectsService.create — governed policy knobs', () => {
   it('rejects a duration beyond the configured hard cap (setting non-default)', async () => {
     const prisma = makePrisma({ project: { create: jest.fn(), findUnique: jest.fn() } });
     const settings = settingsStub({ 'projects.fundingGoalMinHalalas': 10_000, 'projects.durationHardMaxDays': 90 });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, settings as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, settings as any, { setProjectTags: jest.fn() } as never);
     await expect(svc.create(CREATOR, dto({ durationDays: 100 }))).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -139,7 +139,7 @@ describe('ProjectsService.create — governed policy knobs', () => {
       project: { create: jest.fn().mockResolvedValue({ id: PROJ }), findUnique: jest.fn() },
     });
     const settings = settingsStub({ 'projects.fundingGoalMinHalalas': 10_000, 'projects.durationHardMaxDays': 120 });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, settings as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, settings as any, { setProjectTags: jest.fn() } as never);
     await svc.create(CREATOR, dto());
     expect(prisma.project.create).toHaveBeenCalled();
   });
@@ -152,7 +152,7 @@ describe('ProjectsService.findByIdOrSlug (STAKES/N6)', () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ id: UUID }), update: jest.fn() },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     await svc.findByIdOrSlug(UUID);
     expect(prisma.project.findUnique.mock.calls[0][0].where).toEqual({ id: UUID });
   });
@@ -161,7 +161,7 @@ describe('ProjectsService.findByIdOrSlug (STAKES/N6)', () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue({ id: UUID }), update: jest.fn() },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     await svc.findByIdOrSlug('Drone-Falcon');
     expect(prisma.project.findUnique.mock.calls[0][0].where).toEqual({ slug: 'drone-falcon' });
   });
@@ -170,7 +170,7 @@ describe('ProjectsService.findByIdOrSlug (STAKES/N6)', () => {
     const prisma = makePrisma({
       project: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     await expect(svc.findByIdOrSlug('nope')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
@@ -189,7 +189,7 @@ describe('ProjectsService.report (STAKES/K3)', () => {
       project: { findUnique: jest.fn().mockResolvedValue({ id: UUIDP }), update: jest.fn() },
       projectReport: { create },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     expect(await svc.report('u1', UUIDP)).toEqual({ reported: true });
     expect(await svc.report('u1', UUIDP)).toEqual({ reported: true, alreadyReported: true });
   });
@@ -216,7 +216,7 @@ describe('ProjectsService.similar (STAKES/J3)', () => {
         update: jest.fn(),
       },
     });
-    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any);
+    const svc = new ProjectsService(prisma, { log: jest.fn() } as any, { get: jest.fn() } as any, { setProjectTags: jest.fn() } as never);
     const out = await svc.similar(UUIDP, 3);
     expect(out.items.map((i: any) => i.id)).toEqual(['a', 'b', 'c']);
     expect((out.items[0] as any).fundedPct).toBe(50);
