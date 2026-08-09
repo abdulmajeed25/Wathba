@@ -54,7 +54,26 @@ async function coversOnDiscovery(page: import('@playwright/test').Page) {
       }
       window.scrollTo(0, 0);
     });
-    await page.waitForTimeout(1200);
+    // Wait for DECODING, not for 1200ms.
+    //
+    // `naturalWidth === 0` is this test's entire failure signal, and it is also
+    // exactly what an image that simply has not finished decoding yet looks
+    // like. A fixed sleep therefore turns a slow box into "the CSP is blocking
+    // your media origin" — the loudest wrong answer this file can give.
+    //
+    // Settle when every cover has either decoded or genuinely failed; a real
+    // block still lands here with complete=true and naturalWidth=0, so the
+    // failure this test exists for is not waited away.
+    await page
+      .waitForFunction(
+        () =>
+          [...document.querySelectorAll('img')]
+            .filter((i) => /demo-covers|\/venture-/.test((i as HTMLImageElement).src))
+            .every((i) => (i as HTMLImageElement).complete),
+        null,
+        { timeout: 15_000 },
+      )
+      .catch(() => {});
     return page.evaluate(() =>
       [...document.querySelectorAll('img')]
         .filter((i) => /demo-covers|\/venture-/.test(i.src))

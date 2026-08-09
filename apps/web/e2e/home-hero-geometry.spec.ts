@@ -62,6 +62,31 @@ async function worstEscape(page: Page): Promise<{ px: number; what: string }> {
   });
 }
 
+/**
+ * The same measurement, taken once the layout has stopped moving.
+ *
+ * The three callers each slept 1200ms first, with the comment "let text metrics
+ * settle — a min-content-driven track re-resolves late". That is the right
+ * reason and the wrong instrument: 1200ms is a guess about a font load and a
+ * grid re-resolve, and when the guess is short the test reports an element
+ * escaping the viewport — a layout DEFECT — for a hero that is merely still
+ * settling. Two consecutive identical reads is the actual condition.
+ *
+ * It returns the last measurement either way, so a hero that genuinely never
+ * settles still fails on the caller's own assertion rather than being waited
+ * away here.
+ */
+async function settledEscape(page: Page): Promise<{ px: number; what: string }> {
+  let last = await worstEscape(page);
+  for (let i = 0; i < 20; i += 1) {
+    await page.waitForTimeout(100);
+    const next = await worstEscape(page);
+    if (next.px === last.px && next.what === last.what) return next;
+    last = next;
+  }
+  return last;
+}
+
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
@@ -196,9 +221,7 @@ test.describe('tablet', () => {
     await page.goto(HOME);
     await expect(page.locator(CURRENT)).toBeVisible();
     // Let text metrics settle — a min-content-driven track re-resolves late.
-    await page.waitForTimeout(1200);
-
-    const worst = await worstEscape(page);
+    const worst = await settledEscape(page);
     expect(worst.px, `${worst.what} escapes by ${worst.px}px`).toBeLessThanOrEqual(1);
   });
 
@@ -258,8 +281,7 @@ test.describe('tablet portrait', () => {
   test('G10: nothing in the hero escapes the viewport at 820', async ({ page }) => {
     await page.goto(HOME);
     await expect(page.locator(CURRENT)).toBeVisible();
-    await page.waitForTimeout(1200);
-    const worst = await worstEscape(page);
+    const worst = await settledEscape(page);
     expect(worst.px, `${worst.what} escapes by ${worst.px}px`).toBeLessThanOrEqual(1);
   });
 });
@@ -312,11 +334,9 @@ test.describe('phone', () => {
   test('G6: the stats are not sliced by the viewport edge at 360', async ({ page }) => {
     await page.goto(HOME);
     await expect(page.locator(STATS)).toBeVisible();
-    await page.waitForTimeout(1200);
-
     // This is the assertion home-hero-fit.spec.ts does not make: it measures the
     // ROTATOR, and the escape was in the text column beside it.
-    const worst = await worstEscape(page);
+    const worst = await settledEscape(page);
     expect(worst.px, `${worst.what} escapes by ${worst.px}px`).toBeLessThanOrEqual(1);
   });
 });
