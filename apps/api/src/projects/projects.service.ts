@@ -109,6 +109,7 @@ export class ProjectsService {
         shortDescAr: dto.shortDescAr,
         category: cat.category,
         categoryId: cat.categoryId,
+        region: dto.region ?? null,
         storyAr: dto.storyAr,
         mediaUrls: dto.mediaUrls ?? [],
         videoUrl: dto.videoUrl ?? null,

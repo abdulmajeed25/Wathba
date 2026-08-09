@@ -43,6 +43,10 @@ const MATRIX: Array<[string, DiscoverQueryDto]> = [
   ['goal min only', { goalMin: 1_000 }],
   ['raised range', { raisedMin: 1_000, raisedMax: 200_000 }],
   ['staff only', { only: 'staff' }],
+  ['tag single', { tag: 'saudi-heritage' }],
+  ['tag two', { tag: 'saudi-heritage,handmade' }],
+  ['has video', { hasVideo: '1' }],
+  ['duration bucket', { duration: 'd30_45' }],
   ['q term', { q: 'نخيل' }],
   // …and the interactions, which are what the except logic is actually for.
   ['status + category', { status: 'live', cat: 'technology' }],
@@ -53,10 +57,14 @@ const MATRIX: Array<[string, DiscoverQueryDto]> = [
   ['q + category', { q: 'مشروع', cat: 'technology' }],
   ['q + status + pct', { q: 'مشروع', status: 'live', pct: 'lt25' }],
   ['goal + raised', { goalMin: 10_000, raisedMin: 1_000 }],
+  ['tag + status', { tag: 'saudi-heritage', status: 'live' }],
+  ['tag + category', { tag: 'handmade', cat: 'technology' }],
+  ['video + duration', { hasVideo: '1', duration: 'd30_45' }],
+  ['tag + video + pct', { tag: 'saudi-heritage', hasVideo: '1', pct: 'lt25' }],
   ['everything', {
     status: 'live', cat: 'technology,art', region: 'RIYADH', pct: 'lt25',
     goalMin: 1_000, goalMax: 100_000_000, raisedMin: 0, raisedMax: 100_000_000,
-    only: 'staff', q: 'مشروع',
+    only: 'staff', q: 'مشروع', tag: 'saudi-heritage', hasVideo: '1', duration: 'd30_45',
   }],
 ];
 
@@ -81,6 +89,10 @@ d('facets(): one statement equals nineteen', () => {
     expect(now.raised).toEqual(legacy.raised);
     expect(now.staff).toEqual(legacy.staff);
     expect(now.collections).toEqual(legacy.collections);
+    // `tags`, `video` and `duration` are Unit 3 additions with no legacy
+    // counterpart; what matters here is that adding them did not perturb the
+    // dimensions that existed before, which the assertions above cover. Their
+    // own correctness is asserted in facet-richness.spec.ts.
 
     // ── the category facet DIVERGES on purpose, and this is the proof ──
     //
@@ -174,6 +186,7 @@ describe('the dimension partition covers conditions()', () => {
         region: 'RIYADH', goalMinH: 1, goalMaxH: 2, raisedMinH: 1, raisedMaxH: 2,
         pct: 'lt25', staffPick: true, recommended: true, savedOnly: true,
         recommendedCatIds: ['y'], collectionId: 'z', viewerId: 'v',
+        catRequested: true, tagSlugs: ['t'], hasVideo: true, duration: 'd30_45',
         q: 'x', sort: 'relevance', page: 0, take: 24,
       }),
     );

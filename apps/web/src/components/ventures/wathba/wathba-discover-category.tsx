@@ -39,6 +39,19 @@ function base(catSlug: string, subSlug?: string): string {
 }
 
 function chipHref(catSlug: string, subSlug: string | undefined, filter?: string): string {
+  // «قريبة منك» was dead on every surface. `near_you` requires a `region` and
+  // returns an empty list without one (projects.service: `if (!q.region)
+  // return { items: [] }`), and NOTHING in the UI has ever set it — the chip
+  // did not emit it, and there is no User.region to infer it from. So the chip
+  // rendered, was clicked, and showed nothing, forever.
+  //
+  // Nothing can know the reader's region, so the honest fix is to ask. The chip
+  // now lands on discover-all, where the location facet is a real control with
+  // live counts, scoped to the category the reader was already browsing.
+  if (filter === 'near_you') {
+    const cat = subSlug ? `${catSlug}.${subSlug}` : catSlug;
+    return `/projects/discover-all?cat=${encodeURIComponent(cat)}&sort=near_me`;
+  }
   return filter ? `${base(catSlug, subSlug)}?filter=${filter}` : base(catSlug, subSlug);
 }
 

@@ -46,6 +46,18 @@ export class DiscoverQueryDto {
   @ApiProperty({ required: false, example: 'staff' })
   @IsOptional() @IsString() only?: string;
 
+  /** CSV of tag slugs (OR within the group; a project matching any is kept). */
+  @ApiProperty({ required: false, example: 'saudi-heritage,handmade' })
+  @IsOptional() @IsString() tag?: string;
+
+  /** `1` to keep only projects whose card can play a video. */
+  @ApiProperty({ required: false, example: '1' })
+  @IsOptional() @IsString() hasVideo?: string;
+
+  /** Campaign-length bucket: `lt30`, `d30_45`, `d45_60`, `gte60`. */
+  @ApiProperty({ required: false, example: 'd30_45' })
+  @IsOptional() @IsString() duration?: string;
+
   /** Collection slug (حملات وثبة). */
   @ApiProperty({ required: false })
   @IsOptional() @IsString() collection?: string;

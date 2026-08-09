@@ -31,6 +31,7 @@ test('a creator can submit the 100-day campaign the rules say they may request',
   await page.locator('textarea[name="shortDescAr"]').fill('وصف قصير لاختبار مدة الحملة الطويلة');
   await page.locator('button[role="option"][data-cat-slug="technology"]').click();
   await page.locator('button[role="option"][data-sub-slug="apps"]').click();
+  await page.locator('select[name="region"]').selectOption('RIYADH');
   await page.getByRole('button', { name: 'التالي →' }).click();
   await page.locator('textarea[name="storyAr"]').fill('قصة المشروع لاختبار المدة. '.repeat(12));
   await page.getByRole('button', { name: 'التالي →' }).click();
@@ -91,6 +92,7 @@ test('the wizard states the 60-day approval tier instead of only enforcing it', 
   await page.locator('textarea[name="shortDescAr"]').fill('وصف قصير لاختبار تلميح المدة');
   await page.locator('button[role="option"][data-cat-slug="technology"]').click();
   await page.locator('button[role="option"][data-sub-slug="apps"]').click();
+  await page.locator('select[name="region"]').selectOption('RIYADH');
   await page.getByRole('button', { name: 'التالي →' }).click();
   await page.locator('textarea[name="storyAr"]').fill('قصة المشروع لاختبار التلميح. '.repeat(12));
   await page.getByRole('button', { name: 'التالي →' }).click();

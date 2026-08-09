@@ -87,6 +87,41 @@ export class SearchService {
     return [...head, `${last}:*`].join(' & ');
   }
 
+  /**
+   * The candidate-id set for a query — the ONE definition of "this project
+   * matches these words".
+   *
+   * Extracted because there are two callers and they had drifted. /v1/search
+   * matched title, body, creator, category and tag; /v1/discover's `?q=` matched
+   * title and body only. Same reader, same words, two different result sets
+   * depending on which page they landed on — «تقنية» found a project through the
+   * header suggest and then found nothing on the results page it navigated to.
+   * A shared builder is the only version of this that stays true.
+   *
+   * Shape is a UNION of single-predicate arms, not one OR-ed WHERE. See the
+   * caller's comment for the measurement that forced it.
+   */
+  static candidateIds(cleaned: string): Prisma.Sql {
+    const tsq = Prisma.sql`websearch_to_tsquery('simple', wathba_normalize_arabic(${cleaned}))`;
+    const prefixTerm = SearchService.prefixTerm(cleaned);
+    const like = Prisma.sql`('%' || wathba_normalize_arabic(${cleaned}) || '%')`;
+    return Prisma.sql`
+        SELECT p.id FROM "Project" p WHERE p."searchVector" @@ ${tsq}
+        ${prefixTerm ? Prisma.sql`UNION SELECT p.id FROM "Project" p WHERE p."searchVector" @@ to_tsquery('simple', ${prefixTerm})` : Prisma.empty}
+        UNION
+        SELECT p.id FROM "Project" p
+        WHERE wathba_normalize_arabic(${cleaned}) <% wathba_normalize_arabic(p."titleAr")
+        UNION
+        SELECT p.id FROM "Project" p JOIN "User" u2 ON u2.id = p."createdById"
+        WHERE wathba_normalize_arabic(u2."name") LIKE ${like}
+        UNION
+        SELECT p.id FROM "Project" p JOIN "Category" c2 ON c2.id = p."categoryId"
+        WHERE wathba_normalize_arabic(c2."nameAr") LIKE ${like}
+        UNION
+        SELECT xt."projectId" AS id FROM "ProjectTag" xt JOIN "Tag" xg ON xg.id = xt."tagId"
+        WHERE wathba_normalize_arabic(xg."nameAr") LIKE ${like}`;
+  }
+
   async search(
     q: string,
     limit = 20,
@@ -111,16 +146,12 @@ export class SearchService {
         ? Prisma.sql`AND p."status"::text = ${filters.status}`
         : Prisma.empty;
 
-    // ── the three query forms, built once ───────────────────────────────
-    // `tsq` is the whole-token query. `prefixQ` appends :* to the LAST token
-    // so a half-typed word still matches — null when the query ends in
-    // punctuation or is empty after normalising, in which case the SQL's
-    // IS NOT NULL guards skip it rather than matching everything.
+    // ── the two forms the SCORING needs ─────────────────────────────────
+    // Matching lives in candidateIds(); these two are only for ranking the rows
+    // it returned. `tsq` is the whole-token query — prefix matches deliberately
+    // do NOT contribute to ts_rank, because a half-typed word is weak evidence
+    // and would outrank an exact title hit.
     const tsq = Prisma.sql`websearch_to_tsquery('simple', wathba_normalize_arabic(${cleaned}))`;
-    const prefixTerm = SearchService.prefixTerm(cleaned);
-    const prefixQ = prefixTerm
-      ? Prisma.sql`to_tsquery('simple', ${prefixTerm})`
-      : Prisma.sql`NULL::tsquery`;
     // For creator / category / tag labels: a contains-match on the NORMALISED
     // label — and the pattern is normalised in SQL, not in JS. Normalising one
     // side only is the exact bug this batch exists to fix: the column would
@@ -152,21 +183,7 @@ export class SearchService {
       -- A UNION of single-predicate arms lets each one use its own index, and
       -- UNION de-duplicates the ids for free. The scoring join then touches only
       -- the rows that actually matched.
-      WITH cand AS (
-        SELECT p.id FROM "Project" p WHERE p."searchVector" @@ ${tsq}
-        ${prefixTerm ? Prisma.sql`UNION SELECT p.id FROM "Project" p WHERE p."searchVector" @@ ${prefixQ}` : Prisma.empty}
-        UNION
-        SELECT p.id FROM "Project" p
-        WHERE wathba_normalize_arabic(${cleaned}) <% wathba_normalize_arabic(p."titleAr")
-        UNION
-        SELECT p.id FROM "Project" p JOIN "User" u2 ON u2.id = p."createdById"
-        WHERE wathba_normalize_arabic(u2."name") LIKE ${like}
-        UNION
-        SELECT p.id FROM "Project" p JOIN "Category" c2 ON c2.id = p."categoryId"
-        WHERE wathba_normalize_arabic(c2."nameAr") LIKE ${like}
-        UNION
-        SELECT xt."projectId" AS id FROM "ProjectTag" xt JOIN "Tag" xg ON xg.id = xt."tagId"
-        WHERE wathba_normalize_arabic(xg."nameAr") LIKE ${like}
+      WITH cand AS (${SearchService.candidateIds(cleaned)}
       )
       SELECT
         p."id",

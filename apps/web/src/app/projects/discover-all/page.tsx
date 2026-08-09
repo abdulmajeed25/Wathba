@@ -12,7 +12,12 @@ export const metadata: Metadata = {
   description: 'اكتشف كل مشاريع وثبة مع تصفية متقدمة حسب الفئة والموقع والهدف ونسبة التمويل.',
 };
 
-const KEYS = ['status', 'includeEnded', 'cat', 'region', 'goalMin', 'goalMax', 'raisedMin', 'raisedMax', 'pct', 'only', 'collection', 'sort'] as const;
+// `q` is in the list now. It was absent, so a ?q= on THIS route was silently
+// dropped by the whitelist — the tag and search links that point here worked,
+// and a text query pasted onto the same URL did nothing, with no error and no
+// empty state to explain it. The two routes render the same component; they
+// should accept the same params.
+const KEYS = ['q', 'status', 'includeEnded', 'cat', 'tag', 'hasVideo', 'duration', 'region', 'goalMin', 'goalMax', 'raisedMin', 'raisedMax', 'pct', 'only', 'collection', 'sort'] as const;
 
 export default async function DiscoverAllPage({
   searchParams,
