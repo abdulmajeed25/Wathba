@@ -133,8 +133,10 @@ test('FR6: «قريبة منك» goes somewhere that has results', async ({ page
   // reader cannot have, so it returned an empty list every single time. Nothing
   // failed; the page just said "no projects" forever.
   await chip.click();
-  await page.waitForLoadState('networkidle');
-  expect(new URL(page.url()).pathname).toBe('/projects/discover-all');
+  // waitForURL, not waitForLoadState: a soft navigation has nothing pending on
+  // the network by the time `networkidle` resolves, so the assertion would read
+  // the OLD url and fail for a reason that has nothing to do with the chip.
+  await page.waitForURL(/\/projects\/discover-all/);
   await expect(page.getByTestId('zero-results')).toHaveCount(0);
 });
 
@@ -158,9 +160,13 @@ test('FR8: the new facets survive a reload and compose with each other', async (
 
   await page.goto('/projects/discover-all');
   await page.getByTestId(`tag-${tag.slug}`).click();
-  await page.waitForLoadState('networkidle');
+  // Wait for the URL to actually carry the first filter before adding the
+  // second. `navigate` merges the NEXT filter onto the `sp` the server last
+  // rendered, so clicking again before that round-trip lands merges onto stale
+  // state and silently drops the first choice.
+  await page.waitForURL(new RegExp(`tag=${tag.slug}`));
   await page.getByTestId('has-video').click();
-  await page.waitForLoadState('networkidle');
+  await page.waitForURL(/hasVideo=1/);
 
   const url = new URL(page.url());
   expect(url.searchParams.get('tag')).toBe(tag.slug);

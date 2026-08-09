@@ -12,6 +12,10 @@ test('creator: signup → wizard → review card → submit → dashboard', asyn
   // Batch CAT — two-level category picker: pick Technology → Apps.
   await page.locator('button[role="option"][data-cat-slug="technology"]').click();
   await page.locator('button[role="option"][data-sub-slug="apps"]').click();
+  // Batch DISCOVERY-ENGINE — the region is REQUIRED now. The location facet had
+  // 5% coverage because nothing in the product ever set it, so «قريبة منك»
+  // returned an empty list forever; one select at submission is what fixes it.
+  await page.locator('select[name="region"]').selectOption('RIYADH');
   await expect(page.getByTestId('picker-selected')).toBeVisible();
   await page.getByRole('button', { name: 'التالي →' }).click();
   await page.locator('textarea[name="storyAr"]').fill('قصة المشروع للاختبار الآلي. '.repeat(12));
