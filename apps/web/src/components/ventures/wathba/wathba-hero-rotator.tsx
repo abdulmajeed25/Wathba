@@ -6,6 +6,7 @@ import { Children, useCallback, useEffect, useRef, useState, type ReactNode } fr
 
 import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { Icon } from './wathba-icons';
+import { DWELL_MS } from './wathba-timing';
 
 /**
  * Batch HERO — the rotating featured project card.
@@ -53,8 +54,6 @@ export interface HeroSlideData {
   isStaffPick: boolean;
   bucket: 'strong' | 'diverse' | 'almost' | 'fresh';
 }
-
-const DWELL_MS = 10_000;
 
 /** Bucket → the badge the slide wears. */
 const BADGE: Record<HeroSlideData['bucket'], { label: string; icon: string }> = {

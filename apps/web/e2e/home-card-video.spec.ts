@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { LCP_PROTECTION_MS } from '../src/components/ventures/wathba/wathba-timing';
 
 /**
  * Stage 1 item 12 — hover-video on the project cards.
@@ -18,8 +19,6 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const GLYPH = '[aria-label="هذا المشروع يحتوي على فيديو"]';
 
-/** The LCP guard in wathba-card-video.tsx. Hovering earlier must do nothing. */
-const LCP_PROTECTION_MS = 2000;
 
 async function trendingCardWithVideo(page: Page): Promise<Locator> {
   const section = page.locator('section').filter({ has: page.getByRole('heading', { name: /المشاريع الرائجة/ }) });

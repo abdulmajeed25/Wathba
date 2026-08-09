@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { API } from './helpers';
+import { DWELL_MS } from '../src/components/ventures/wathba/wathba-timing';
 
 /**
  * NOTE: the slide title is an h2, not an h3. It is the first heading under the
@@ -19,7 +20,8 @@ import { API } from './helpers';
  */
 
 const CURRENT = '[data-testid="wathba-hero-slide-current"]';
-const DWELL = 10_000;
+/** Aliased for brevity — the rotator's own constant, imported not copied. */
+const DWELL = DWELL_MS;
 
 /** The hero needs a pool; an environment without one has nothing to assert. */
 async function heroPool(): Promise<Array<{ titleAr: string; bucket: string; id: string }>> {
