@@ -1147,9 +1147,41 @@ export interface ApiDiscoverAllResult {
   hasMore: boolean;
 }
 
+/**
+ * One node of the category facet — FLAT, in pre-order, with `depth`.
+ *
+ * Not nested, deliberately. Two contracts make the flat array isomorphic to a
+ * tree while keeping every field the sidebar already read:
+ *
+ *  1. pre-order DFS — a node is immediately followed by its whole subtree, so
+ *     `depth` alone is enough to render any shape;
+ *  2. a node is omitted iff `depth > 0 AND count === 0`, where `count` is the
+ *     ROLLED count. Pruning on own-count instead would orphan a non-empty
+ *     grandchild and break contract 1.
+ *
+ * `slug`/`nameAr`/`parentSlug`/`count` keep their old meaning; the rest is
+ * additive. `count` is now own + ALL descendants rather than own + direct
+ * children — arithmetically identical until a third level exists, which is why
+ * the depth work could land before the taxonomy grew one.
+ */
+export interface ApiCategoryFacetNode {
+  slug: string;
+  nameAr: string;
+  /** The IMMEDIATE parent's bare slug; null iff depth === 0. */
+  parentSlug: string | null;
+  count: number;
+  ownCount: number;
+  /** '/'-joined ancestor chain — mirrors the /projects/discover/… route. */
+  path: string;
+  /** '.'-joined — drop straight into ?cat=. URLSearchParams leaves '.' alone. */
+  catParam: string;
+  depth: number;
+  hasChildren: boolean;
+}
+
 export interface ApiDiscoverFacets {
   statuses: { live: number; funded: number; ended: number };
-  categories: Array<{ slug: string; nameAr: string; parentSlug: string | null; count: number }>;
+  categories: ApiCategoryFacetNode[];
   regions: Record<string, number>;
   pct: Record<string, number>;
   goals: Record<string, number>;

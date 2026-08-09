@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+/**
+ * How deep the category tree may go.
+ *
+ * Batch DISCOVERY-ENGINE. Everything downstream is depth-N — the facet
+ * roll-up, the slug expansion, the sidebar — so this is the only place the
+ * limit lives, and raising it is a one-line change rather than an audit.
+ */
+export const MAX_CATEGORY_DEPTH = 3;
+
 import { isExcludedCategory } from '../../categories/excluded';
 
 import type { OperationDef } from '../operation.types';
@@ -15,8 +24,13 @@ import type { CategoriesService } from '../../categories/categories.service';
  *    LGBTQIA+, occult/divination, romance) can never be re-introduced by an
  *    operator; create/update refuse via isExcludedCategory(), the SAME
  *    constants the seed guard (exclusions-guard.spec.ts) enforces.
- *  · Depth policy — the tree is exactly two levels: a parent must itself be
- *    top-level.
+ *  · Depth policy — the tree is at most MAX_CATEGORY_DEPTH levels deep.
+ *    Batch DISCOVERY-ENGINE raised this from a hardcoded two to three: the
+ *    schema was always an unbounded self-relation, but every reader stopped at
+ *    two, so a third level was unreachable rather than forbidden. It is a
+ *    GUARD, not a ceiling removed — an unbounded tree is a navigation problem
+ *    and a recursion risk, and three is the depth the taxonomy actually wants
+ *    («التقنية › الذكاء الاصطناعي › رؤية حاسوبية»).
  *  · No delete operation ON PURPOSE — Project.categoryId is onDelete:SetNull,
  *    so deleting a category silently orphans every attached project.
  *    Deactivation (set-active) is the reversible way to retire a node.
@@ -76,16 +90,27 @@ export function categoriesOps(deps: CategoriesOpsDeps): Array<OperationDef<never
           })),
       },
       {
-        // الشجرة مستويان بالضبط — الأم يجب أن تكون فئة رئيسية.
-        code: 'parent-not-toplevel',
-        reasonAr: 'الفئة الأم ليست فئة رئيسية — الشجرة مستويان كحد أقصى',
+        // الشجرة ثلاثة مستويات كحد أقصى.
+        code: 'parent-too-deep',
+        reasonAr: `الشجرة ${MAX_CATEGORY_DEPTH} مستويات كحد أقصى — الفئة الأم عميقة أكثر من اللازم`,
         check: async (db, input) => {
           if (!input.parentId) return true;
-          const parent = await db.category.findUnique({
-            where: { id: input.parentId },
-            select: { parentId: true },
-          });
-          return !parent || parent.parentId === null;
+          // Walk up from the proposed parent. Bounded by MAX_CATEGORY_DEPTH
+          // rather than trusting the data: Category.parentId is a self-FK and
+          // does not prevent a cycle, so an unbounded walk is an infinite loop
+          // rather than a rejected input.
+          let cursor: string | null = input.parentId;
+          let depth = 1; // the node being created sits one below its parent
+          for (let hops = 0; hops < MAX_CATEGORY_DEPTH + 2 && cursor; hops += 1) {
+            const node: { parentId: string | null } | null = await db.category.findUnique({
+              where: { id: cursor },
+              select: { parentId: true },
+            });
+            if (!node) break;
+            depth += 1;
+            cursor = node.parentId;
+          }
+          return depth <= MAX_CATEGORY_DEPTH;
         },
       },
       {

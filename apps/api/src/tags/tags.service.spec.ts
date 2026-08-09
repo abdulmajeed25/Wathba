@@ -9,8 +9,18 @@ import { TagsService } from './tags.service';
  * creator pressing save.
  */
 
-type Mock = ReturnType<typeof jest.fn>;
+type Mock = jest.Mock;
 
+/**
+ * A hand-rolled Prisma double.
+ *
+ * Typed as its own literal shape and cast only where it is HANDED to the
+ * service, deliberately: intersecting it with PrismaService drags in Prisma's
+ * overloaded method signatures, and `mockResolvedValue` on an overloaded method
+ * infers `never` — which `nest build` and `jest` both tolerate and `tsc
+ * --noEmit` does not. That divergence is how a broken typecheck ships while
+ * every other gate is green.
+ */
 function makePrisma(over: Record<string, unknown> = {}) {
   const base = {
     tag: {
@@ -28,14 +38,18 @@ function makePrisma(over: Record<string, unknown> = {}) {
     $queryRaw: jest.fn().mockResolvedValue([]),
     ...over,
   };
-  return base as unknown as ConstructorParameters<typeof TagsService>[0] & typeof base;
+  return base;
 }
+
+/** The service takes a PrismaService; the double is one structurally. */
+const asPrisma = (m: ReturnType<typeof makePrisma>): ConstructorParameters<typeof TagsService>[0] =>
+  m as unknown as ConstructorParameters<typeof TagsService>[0];
 
 describe('setProjectTags', () => {
   it('drops slugs the vocabulary does not have, and reports what it applied', async () => {
     const prisma = makePrisma();
     (prisma.tag.findMany as Mock).mockResolvedValue([{ id: 't1', slug: 'handmade' }]);
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
 
     // The creator submitted two; ops only recognises one.
     const applied = await svc.setProjectTags('p1', ['handmade', 'retired-tag']);
@@ -49,7 +63,7 @@ describe('setProjectTags', () => {
   it('is whole-set: the old attachments go before the new ones land', async () => {
     const prisma = makePrisma();
     (prisma.tag.findMany as Mock).mockResolvedValue([{ id: 't2', slug: 'rural' }]);
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
 
     await svc.setProjectTags('p1', ['rural']);
 
@@ -65,7 +79,7 @@ describe('setProjectTags', () => {
     (prisma.projectTag.groupBy as Mock).mockResolvedValue([
       { tagId: 'new', _count: { projectId: 3 } },
     ]);
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
 
     await svc.setProjectTags('p1', ['rural']);
 
@@ -84,7 +98,7 @@ describe('setProjectTags', () => {
   it('clearing all tags is a legal save, not a no-op', async () => {
     const prisma = makePrisma();
     (prisma.projectTag.findMany as Mock).mockResolvedValue([{ tagId: 'old' }]);
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
 
     const applied = await svc.setProjectTags('p1', []);
 
@@ -96,7 +110,7 @@ describe('setProjectTags', () => {
 
   it('caps the set so a project cannot be tagged with the whole vocabulary', async () => {
     const prisma = makePrisma();
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
     await svc.setProjectTags('p1', Array.from({ length: 25 }, (_, i) => `tag-${i}`));
     // A project tagged with everything is tagged with nothing — the facet stops
     // discriminating. The cap is enforced before the lookup so the query stays
@@ -107,7 +121,7 @@ describe('setProjectTags', () => {
 
   it('de-duplicates and trims before it looks anything up', async () => {
     const prisma = makePrisma();
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
     await svc.setProjectTags('p1', [' rural ', 'rural', '', '   ']);
     const where = (prisma.tag.findMany as Mock).mock.calls[0][0].where;
     expect(where.slug.in).toEqual(['rural']);
@@ -115,7 +129,7 @@ describe('setProjectTags', () => {
 
   it('only offers active tags — a retired one cannot be re-attached', async () => {
     const prisma = makePrisma();
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
     await svc.setProjectTags('p1', ['handmade']);
     expect((prisma.tag.findMany as Mock).mock.calls[0][0].where.isActive).toBe(true);
   });
@@ -124,7 +138,7 @@ describe('setProjectTags', () => {
 describe('suggest', () => {
   it('uses the trigram OPERATOR, not the similarity() function', async () => {
     const prisma = makePrisma();
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
     await svc.suggest('تراث');
 
     // This is the mistake the project search made and paid for: `similarity(a,b)
@@ -141,7 +155,7 @@ describe('suggest', () => {
     (prisma.tag.findMany as Mock).mockResolvedValue([
       { slug: 'a', nameAr: 'أ', nameEn: 'A', usageCount: 9 },
     ]);
-    const svc = new TagsService(prisma);
+    const svc = new TagsService(asPrisma(prisma));
     const r = await svc.suggest('  ');
     // An empty picker is a dead end; the creator should see the popular tags.
     expect(r.items).toHaveLength(1);

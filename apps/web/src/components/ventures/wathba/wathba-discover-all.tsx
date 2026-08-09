@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-import type { ApiDiscoverAllResult, ApiDiscoverCard, ApiDiscoverFacets } from '@/lib/api/wathba';
+import type { ApiCategoryFacetNode, ApiDiscoverAllResult, ApiDiscoverCard, ApiDiscoverFacets } from '@/lib/api/wathba';
 import { Icon } from './wathba-icons';
 import { WathbaDiscoverAllCard } from './wathba-discover-all-card';
 import {
@@ -272,24 +272,96 @@ function StatusSection({ facets, has, sp, toggleCsv, navigate }: {
   );
 }
 
+/**
+ * The category facet — a collapsible tree at ANY depth.
+ *
+ * The payload is a flat, pre-order array with a `depth` on each node, so
+ * rendering a tree is a filter over "is every ancestor open", not a recursive
+ * component. That is the whole reason the wire shape stayed flat: a nested
+ * payload would have needed a recursive renderer AND a second traversal to work
+ * out what is visible.
+ *
+ * Selection is by `catParam` (the '.'-joined path), not by bare slug. Eight
+ * subcategory slugs repeat across different parents, so `?cat=events` used to
+ * match every homonym at once and light all of them up in this list. A
+ * path-qualified value names exactly one node. Bare slugs still resolve
+ * server-side, so old links keep working — they simply co-highlight until the
+ * reader's first click rewrites the URL.
+ */
 function CategorySection({ facets, has, toggleCsv }: {
   facets: ApiDiscoverFacets | null; has: (k: string, v: string) => boolean; toggleCsv: (k: string, v: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  /** Which parents are open, by path. Top level is always open. */
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const rows = facets?.categories ?? [];
-  const shown = expanded ? rows : rows.filter((r) => !r.parentSlug).slice(0, 8);
+
+  const isVisible = (r: ApiCategoryFacetNode): boolean => {
+    if (r.depth === 0) return true;
+    // Every ancestor must be open. The path is '/'-joined, so the ancestors are
+    // its prefixes — no lookup table needed.
+    const parts = r.path.split('/');
+    for (let i = 1; i < parts.length; i += 1) {
+      if (!open.has(parts.slice(0, i).join('/'))) return false;
+    }
+    return true;
+  };
+
+  // Collapsed: top level only, capped. Expanded: the tree, honouring `open`.
+  const shown = expanded
+    ? rows.filter(isVisible)
+    : rows.filter((r) => r.depth === 0).slice(0, 8);
+
+  const toggleOpen = (path: string): void =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        // Closing a node closes its subtree with it, or reopening the parent
+        // would restore a state the reader cannot see and did not choose.
+        for (const p of next) if (p === path || p.startsWith(`${path}/`)) next.delete(p);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+
   return (
     <Section title="الفئة">
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {shown.map((r) => (
-          <div key={`${r.parentSlug ?? ''}/${r.slug}`} style={{ paddingInlineStart: r.parentSlug ? 16 : 0 }}>
-            <Row
-              label={r.parentSlug ? `↳ ${r.nameAr}` : r.nameAr}
-              count={r.count}
-              active={has('cat', r.slug)}
-              onClick={() => toggleCsv('cat', r.slug)}
-              testId={`cat-${r.slug}`}
-            />
+          <div
+            key={r.path}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, paddingInlineStart: r.depth * 14 }}
+          >
+            {expanded && r.hasChildren ? (
+              <button
+                type="button"
+                onClick={() => toggleOpen(r.path)}
+                aria-expanded={open.has(r.path)}
+                aria-label={`${open.has(r.path) ? 'طيّ' : 'توسيع'} ${r.nameAr}`}
+                style={{
+                  border: 0, background: 'none', cursor: 'pointer', color: 'var(--muted2)',
+                  // 24x24 target per WCAG 2.2 SC 2.5.8 without a 24px glyph.
+                  width: 24, height: 24, display: 'grid', placeItems: 'center',
+                  fontSize: 11, lineHeight: 1, flex: '0 0 auto',
+                }}
+              >
+                {open.has(r.path) ? '▾' : '◂'}
+              </button>
+            ) : (
+              // Keeps the labels on one optical line whether or not a node has
+              // children — a ragged start edge reads as a rendering fault.
+              <span aria-hidden style={{ width: expanded ? 24 : 0, flex: '0 0 auto' }} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <Row
+                label={r.nameAr}
+                count={r.count}
+                active={has('cat', r.catParam)}
+                onClick={() => toggleCsv('cat', r.catParam)}
+                testId={`cat-${r.slug}`}
+              />
+            </div>
           </div>
         ))}
       </div>
