@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { submitProjectAction } from '@/lib/projects/submit-action';
 import { WathbaCategoryPicker } from '@/components/ventures/wathba/wathba-category-picker';
+import { REGIONS } from '@/components/ventures/wathba/discover-all-constants';
 import { formatSar } from '@/lib/i18n/format';
 
 /**
@@ -35,6 +36,8 @@ interface Draft {
   // Batch CAT — canonical taxonomy node id + a display label for the review.
   categoryId: string;
   categoryLabel: string;
+  // Batch DISCOVERY-ENGINE — required, not optional. See the field's comment.
+  region: string;
   storyAr: string;
   fundingGoalSar: string;
   releaseThresholdPct: string;
@@ -48,6 +51,7 @@ const EMPTY: Draft = {
   shortDescAr: '',
   categoryId: '',
   categoryLabel: '',
+  region: '',
   storyAr: '',
   fundingGoalSar: '',
   releaseThresholdPct: '80',
@@ -62,7 +66,8 @@ function stepValid(s: StepId, d: Draft): boolean {
       return (
         d.titleAr.trim().length >= 4 &&
         d.shortDescAr.trim().length >= 8 &&
-        d.categoryId.length > 0
+        d.categoryId.length > 0 &&
+        d.region.length > 0
       );
     case 'story':
       // Create accepts ≥50 but /submit requires ≥200; gate the wizard at
@@ -162,6 +167,27 @@ export function SubmissionWizard({
                 set('categoryLabel', label);
               }}
             />
+          </Field>
+          {/*
+            REQUIRED, deliberately — the API still accepts a project without one.
+            It was optional here and nothing else in the product ever set it, so
+            the location facet had 2% coverage and «قريبة منك» returned an empty
+            list on every surface it appeared on. A filter nobody can populate is
+            a filter that is always wrong; one required select at submission is
+            what makes it true instead.
+          */}
+          <Field label="منطقة المشروع">
+            <select
+              name="region"
+              value={d.region}
+              onChange={(e) => set('region', e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">اختر المنطقة…</option>
+              {REGIONS.map((r) => (
+                <option key={r.key} value={r.key}>{r.ar}</option>
+              ))}
+            </select>
           </Field>
         </div>
 

@@ -46,6 +46,9 @@ export async function submitProjectAction(formData: FormData): Promise<void> {
     // Batch CAT — the two-level wizard sends categoryId; legacy enum optional.
     categoryId: get('categoryId') || undefined,
     category: get('category') || undefined,
+    // Batch DISCOVERY-ENGINE — the location facet counted 2% of the catalogue
+    // because nothing ever sent this. The wizard now requires it.
+    region: get('region') || undefined,
     storyAr: get('storyAr'),
     fundingGoalHalalas: Math.round(num('fundingGoalSar') * 100),
     releaseThresholdPct: num('releaseThresholdPct') || 80,

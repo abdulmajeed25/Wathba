@@ -1183,6 +1183,12 @@ export interface ApiDiscoverFacets {
   statuses: { live: number; funded: number; ended: number };
   categories: ApiCategoryFacetNode[];
   regions: Record<string, number>;
+  /** Cross-cutting tags, most-used first, capped server-side. */
+  tags: Array<{ slug: string; nameAr: string; count: number }>;
+  /** How many projects have a card that will play a video. */
+  video: number;
+  /** Campaign-length buckets: lt30 · d30_45 · d45_60 · gte60. */
+  duration: Record<string, number>;
   pct: Record<string, number>;
   goals: Record<string, number>;
   raised: Record<string, number>;

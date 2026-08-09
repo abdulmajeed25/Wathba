@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ApiCategoryFacetNode, ApiDiscoverAllResult, ApiDiscoverCard, ApiDiscoverFacets } from '@/lib/api/wathba';
 import { Icon } from './wathba-icons';
 import { WathbaDiscoverAllCard } from './wathba-discover-all-card';
+import { DURATION_OPTS } from './discover-all-constants';
 import {
   MONEY_BRACKETS, PCT_OPTS, QUICK_REGIONS, REGIONS, SORTS, arabicCount, toArabicDigits,
 } from './discover-all-constants';
@@ -112,7 +113,12 @@ export function WathbaDiscoverAll({
         >
           <StatusSection facets={facets} has={has} sp={sp} toggleCsv={toggleCsv} navigate={navigate} />
           <CategorySection facets={facets} has={has} toggleCsv={toggleCsv} />
+          {/* Tags sit next to the category tree because they answer the same
+              question from the other direction — «تراث سعودي» cuts across the
+              categories rather than living under one. */}
+          <TagSection facets={facets} has={has} toggleCsv={toggleCsv} />
           <LocationSection facets={facets} sp={sp} navigate={navigate} />
+          <MediaAndLengthSection facets={facets} sp={sp} navigate={navigate} />
           <MoneySection title="الهدف" paramMin="goalMin" paramMax="goalMax" counts={facets?.goals} sp={sp} navigate={navigate} />
           <MoneySection title="المبلغ المُجمَّع" paramMin="raisedMin" paramMax="raisedMax" counts={facets?.raised} sp={sp} navigate={navigate} />
           <PctSection facets={facets} sp={sp} navigate={navigate} />
@@ -375,6 +381,83 @@ function CategorySection({ facets, has, toggleCsv }: {
   );
 }
 
+/**
+ * Tags — the axis the category tree cannot express.
+ *
+ * OR within the group, like categories: tags are cross-cutting by design, so
+ * ANDing them would almost always return nothing. Server-capped at 30 and
+ * ordered by count, so the section leads with the vocabulary the platform
+ * actually uses rather than with the alphabet.
+ */
+function TagSection({ facets, has, toggleCsv }: {
+  facets: ApiDiscoverFacets | null; has: (k: string, v: string) => boolean; toggleCsv: (k: string, v: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const rows = facets?.tags ?? [];
+  if (rows.length === 0) return null;
+  const shown = expanded ? rows : rows.slice(0, 8);
+  return (
+    <Section title="الوسوم">
+      {shown.map((t) => (
+        <Row
+          key={t.slug}
+          label={t.nameAr}
+          count={t.count}
+          active={has('tag', t.slug)}
+          onClick={() => toggleCsv('tag', t.slug)}
+          testId={`tag-${t.slug}`}
+        />
+      ))}
+      {rows.length > 8 && (
+        <button type="button" onClick={() => setExpanded((v) => !v)} style={moreBtn}>
+          {expanded ? 'عرض أقل' : 'عرض المزيد'}
+        </button>
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Media and campaign length.
+ *
+ * Two small facets in one section because neither earns a heading of its own:
+ * «فيديو» is a single toggle, and the duration buckets are narrow enough today
+ * that a dedicated section would read as mostly empty.
+ */
+function MediaAndLengthSection({ facets, sp, navigate }: {
+  facets: ApiDiscoverFacets | null; sp: SP; navigate: (n: SP) => void;
+}) {
+  const video = facets?.video ?? 0;
+  const dur = facets?.duration ?? {};
+  const anyDuration = DURATION_OPTS.some((o) => (dur[o.key] ?? 0) > 0);
+  if (video === 0 && !anyDuration) return null;
+  return (
+    <Section title="الوسائط والمدة">
+      {video > 0 && (
+        <Row
+          label="يحتوي على فيديو"
+          count={video}
+          active={sp.hasVideo === '1'}
+          onClick={() => navigate({ hasVideo: sp.hasVideo === '1' ? undefined : '1' })}
+          testId="has-video"
+        />
+      )}
+      {anyDuration &&
+        DURATION_OPTS.map((o) => (
+          <Row
+            key={o.key}
+            kind="radio"
+            label={o.labelAr}
+            count={dur[o.key] ?? 0}
+            active={sp.duration === o.key}
+            onClick={() => navigate({ duration: sp.duration === o.key ? undefined : o.key })}
+            testId={`duration-${o.key}`}
+          />
+        ))}
+    </Section>
+  );
+}
+
 function LocationSection({ facets, sp, navigate }: {
   facets: ApiDiscoverFacets | null; sp: SP; navigate: (n: SP) => void;
 }) {
@@ -460,6 +543,18 @@ function ShowOnlySection({ facets, has, toggleCsv, signedIn }: {
 }) {
   return (
     <Section title="عرض فقط">
+      {/* DECISION — this group is AND, unlike «الحالة» and «الفئة» which are OR,
+          and the two look identical because both are checkboxes. Rather than
+          flip the semantics, the label now says which it is.
+
+          AND is the RIGHT behaviour here and OR would be the bug: «عرض فقط»
+          narrows, so ticking «مختارات وثبة» and «المشاريع المحفوظة» should mean
+          "staff picks that I also saved". Flipping to OR would silently widen
+          every existing bookmarked URL that ticks two boxes. What was actually
+          broken was that nothing told the reader. */}
+      <div style={{ fontSize: 11.5, color: 'var(--muted2)', margin: '-4px 0 6px' }}>
+        تُطبَّق مجتمعةً — كل خيار يضيّق النتائج
+      </div>
       <Row label="مختارات وثبة" count={facets?.staff} active={has('only', 'staff')} onClick={() => toggleCsv('only', 'staff')} testId="only-staff" />
       {signedIn && <Row label="موصى بها لك" active={has('only', 'recommended')} onClick={() => toggleCsv('only', 'recommended')} testId="only-recommended" />}
       {signedIn && <Row label="المشاريع المحفوظة" active={has('only', 'saved')} onClick={() => toggleCsv('only', 'saved')} testId="only-saved" />}

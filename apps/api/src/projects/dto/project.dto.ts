@@ -67,6 +67,19 @@ export class CreateProjectDto {
   @IsOptional() @IsString()
   categoryId?: string;
 
+  /**
+   * Batch DISCOVERY-ENGINE — the project's Saudi region.
+   *
+   * Optional on the wire so nothing that already posts a create keeps working
+   * without a change, but REQUIRED by the submission wizard. The field existed
+   * on the list query and the schema and was never set by anything, which left
+   * the location facet counting 2% of the catalogue and «قريبة منك» returning an
+   * empty list forever.
+   */
+  @ApiProperty({ required: false, enum: ProjectRegion })
+  @IsOptional() @IsEnum(ProjectRegion)
+  region?: ProjectRegion;
+
   @ApiProperty()
   @IsString() @MinLength(50)
   storyAr!: string;

@@ -28,6 +28,23 @@ const MONEY_BRACKETS: Array<{ key: string; minH: number | null; maxH: number | n
 ];
 const PCT_BUCKETS = ['lt25', 'p25_50', 'p50_75', 'p75_100', 'gt100'];
 
+/**
+ * Campaign-length buckets, in days.
+ *
+ * Chosen against the real spread (30-69 days, and 503 of 517 projects sit in
+ * 30-45) rather than as round numbers. That concentration means the facet
+ * discriminates almost nothing TODAY — it is shipped because the boundaries are
+ * right for the campaign lengths the platform allows (7-120 by policy), and it
+ * starts doing work the moment creators use that range. The counts say so
+ * honestly in the meantime.
+ */
+const DURATION_BUCKETS: Array<{ key: string; lo: number | null; hi: number | null }> = [
+  { key: 'lt30', lo: null, hi: 30 },
+  { key: 'd30_45', lo: 30, hi: 45 },
+  { key: 'd45_60', lo: 45, hi: 60 },
+  { key: 'gte60', lo: 60, hi: null },
+];
+
 interface NormalizedFilters {
   /** Batch SEARCH Part 3 — free-text query (unified search/discover layer). */
   q?: string;
@@ -36,6 +53,9 @@ interface NormalizedFilters {
   categoryIds: string[];
   /** Whether ?cat= was supplied at all — see the empty-resolution note. */
   catRequested: boolean;
+  tagSlugs: string[];
+  hasVideo: boolean;
+  duration?: string;
   region?: string;
   goalMinH?: number;
   goalMaxH?: number;
@@ -82,6 +102,7 @@ interface FacetPayload {
   scalars: Record<string, number> & { st_live: number; st_funded: number; st_ended: number; staff: number };
   regions: Record<string, number>;
   collections: Array<{ slug: string; nameAr: string; count: number }>;
+  tags: Array<{ slug: string; nameAr: string; count: number }>;
   categories: CategoryFacetNode[];
 }
 
@@ -263,6 +284,9 @@ export class DiscoverService {
       includeEnded: q.includeEnded === '1' || q.includeEnded === 'true',
       categoryIds: await this.expandCategoryRefs(csv(q.cat)),
       catRequested: csv(q.cat).length > 0,
+      tagSlugs: csv(q.tag),
+      hasVideo: q.hasVideo === '1' || q.hasVideo === 'true',
+      duration: DURATION_BUCKETS.some((b) => b.key === q.duration) ? q.duration : undefined,
       region: q.region,
       goalMinH: q.goalMin != null ? q.goalMin * 100 : undefined,
       goalMaxH: q.goalMax != null ? q.goalMax * 100 : undefined,
@@ -344,6 +368,21 @@ export class DiscoverService {
     if (f.raisedMaxH != null) raised.push(Prisma.sql`p."raisedHalalas" <= ${f.raisedMaxH}`);
     if (raised.length) c.raised = Prisma.sql`(${Prisma.join(raised, ' AND ')})`;
 
+    if (f.tagSlugs.length) {
+      // OR within the group, like categories and statuses: a project carrying
+      // ANY of the selected tags is kept. Tags are cross-cutting by design, so
+      // AND would almost always return nothing.
+      c.tag = Prisma.sql`EXISTS (
+        SELECT 1 FROM "ProjectTag" pt JOIN "Tag" tg ON tg.id = pt."tagId"
+        WHERE pt."projectId" = p.id AND tg."isActive" = true AND tg.slug = ANY(${f.tagSlugs}::text[])
+      )`;
+    }
+    // "Has a video" means what the CARD will do, not what the project owns: a
+    // creator who pinned their card to its poster has a campaign video and an
+    // image card, and this facet is about browsing. Same rule as the card
+    // payloads — see common/card-media.ts.
+    if (f.hasVideo) c.video = Prisma.sql`(p."videoUrl" IS NOT NULL AND p."cardMedia" = 'VIDEO')`;
+    if (f.duration) c.duration = this.durationCondition(f.duration);
     if (f.pct) c.pct = this.pctCondition(f.pct);
     if (f.staffPick) c.staff = Prisma.sql`p."isStaffPick" = true`;
     if (f.recommended) {
@@ -360,21 +399,18 @@ export class DiscoverService {
       c.collection = Prisma.sql`EXISTS (SELECT 1 FROM "ProjectCollection" pc WHERE pc."projectId" = p.id AND pc."collectionId" = ${f.collectionId}::uuid)`;
     }
     if (f.q) {
-      // Same FTS + trigram predicate as /v1/search (N2 indexes) — the search
-      // page and discover-all share this one query layer; ?q= is just one
-      // more combinable dimension.
-      // Batch DISCOVERY-ENGINE — the SAME predicate as /v1/search, still. Both
-      // now normalise fully (alef, ta-marbuta, alef-maksura, digits), both
-      // prefix the final token so a half-typed word matches, and both use the
-      // indexable `<%` word_similarity operator instead of
-      // `similarity(...) > 0.25`, which compared against the whole title and so
-      // never fired for a short query.
-      const prefixTerm = SearchService.prefixTerm(f.q);
-      c.q = Prisma.sql`(
-        p."searchVector" @@ websearch_to_tsquery('simple', wathba_normalize_arabic(${f.q}))
-        ${prefixTerm ? Prisma.sql`OR p."searchVector" @@ to_tsquery('simple', ${prefixTerm})` : Prisma.empty}
-        OR wathba_normalize_arabic(${f.q}) <% wathba_normalize_arabic(p."titleAr")
-      )`;
+      // THE SAME candidate set /v1/search uses — literally the same builder, not
+      // a second predicate that resembles it.
+      //
+      // It used to be a copy, and the copy had drifted: this one matched title
+      // and body, while /v1/search also matched creator, category and tag. So
+      // «تقنية» was found by the header suggest and then found NOTHING on the
+      // results page the reader was sent to — no error, just an empty list for a
+      // word the platform had already told them was a hit.
+      //
+      // A semi-join rather than OR-ed arms: the UNION inside lets each arm use
+      // its own GIN index, which a multi-arm OR across four tables cannot do.
+      c.q = Prisma.sql`p.id IN (${SearchService.candidateIds(f.q)})`;
     }
     return c;
   }
@@ -388,6 +424,16 @@ export class DiscoverService {
    * divergence that shows as "the facet says 12 and the list shows 11".
    */
   private static readonly PCT_EXPR_P = Prisma.sql`(p."raisedHalalas"::numeric * 100 / NULLIF(p."fundingGoalHalalas", 0)::numeric)`;
+
+  /** Campaign-length bucket over an arbitrary column expression. */
+  private durationCondition(bucket: string, expr: Prisma.Sql = Prisma.sql`p."durationDays"`): Prisma.Sql {
+    const b = DURATION_BUCKETS.find((x) => x.key === bucket);
+    if (!b) return Prisma.sql`true`;
+    const parts: Prisma.Sql[] = [];
+    if (b.lo != null) parts.push(Prisma.sql`${expr} >= ${b.lo}`);
+    if (b.hi != null) parts.push(Prisma.sql`${expr} < ${b.hi}`);
+    return parts.length ? Prisma.sql`(${Prisma.join(parts, ' AND ')})` : Prisma.sql`true`;
+  }
 
   private pctCondition(bucket: string, expr: Prisma.Sql = DiscoverService.PCT_EXPR_P): Prisma.Sql {
     const r = expr;
@@ -542,6 +588,7 @@ export class DiscoverService {
   private static readonly HOISTED_DIMS = ['visible', 'recommended', 'saved', 'q'] as const;
   private static readonly EXCEPTED_DIMS = [
     'status', 'category', 'region', 'goal', 'raised', 'pct', 'staff', 'collection',
+    'tag', 'video', 'duration',
   ] as const;
 
   /** The flag expression for one dimension — TRUE when that filter is inactive. */
@@ -687,6 +734,12 @@ export class DiscoverService {
       ),
       ', ',
     );
+    const durationCounts = Prisma.join(
+      DURATION_BUCKETS.map(
+        (b) => Prisma.sql`count(*) FILTER (WHERE ${this.exceptFlags('duration')} AND ${this.durationCondition(b.key, Prisma.sql`duration_days`)})::int AS ${Prisma.raw(`dur_${b.key}`)}`,
+      ),
+      ', ',
+    );
     const moneyCounts = Prisma.join(
       MONEY_BRACKETS.flatMap((br) => [
         Prisma.sql`count(*) FILTER (WHERE ${this.exceptFlags('goal')} AND ${this.moneyBracketOn(Prisma.sql`goal_h`, br)})::int AS ${Prisma.raw(`goal_${br.key}`)}`,
@@ -704,6 +757,8 @@ export class DiscoverService {
                p.status::text AS status,
                p.deadline AS deadline,
                p."isStaffPick" AS is_staff_pick,
+               p."durationDays" AS duration_days,
+               (p."videoUrl" IS NOT NULL AND p."cardMedia" = 'VIDEO') AS has_video,
                p."fundingGoalHalalas" AS goal_h,
                p."raisedHalalas" AS raised_h,
                ${DiscoverService.PCT_EXPR_P} AS pct_val,
@@ -718,7 +773,9 @@ export class DiscoverService {
           count(*) FILTER (WHERE ${this.exceptFlags('status')} AND (status = ANY(${ENDED_SET}) OR (status = 'LIVE' AND deadline < now())))::int AS st_ended,
           ${pctCounts},
           ${moneyCounts},
-          count(*) FILTER (WHERE ${this.exceptFlags('staff')} AND is_staff_pick)::int AS staff
+          count(*) FILTER (WHERE ${this.exceptFlags('staff')} AND is_staff_pick)::int AS staff,
+          count(*) FILTER (WHERE ${this.exceptFlags('video')} AND has_video)::int AS video,
+          ${durationCounts}
         FROM base
       ),
       cats AS (
@@ -735,6 +792,20 @@ export class DiscoverService {
         FROM (SELECT t.id AS node_id, unnest(t.id_path) AS ancestor_id FROM cat_tree t) a
         LEFT JOIN cats o ON o.category_id = a.node_id
         GROUP BY a.ancestor_id
+      ),
+      -- Tags, counted under every OTHER active filter. LIMIT because the
+      -- vocabulary grows and a sidebar section is not a place to render all of
+      -- it; the sidebar's own "show more" is bounded by what arrives here.
+      tags AS (
+        SELECT tg.slug, tg."nameAr" AS name_ar, count(b.id)::int AS n
+        FROM "Tag" tg
+        JOIN "ProjectTag" pt ON pt."tagId" = tg.id
+        JOIN base b ON b.id = pt."projectId" AND (${this.exceptFlags('tag', 'b')})
+        WHERE tg."isActive" = true
+        GROUP BY tg.slug, tg."nameAr"
+        HAVING count(b.id) > 0
+        ORDER BY count(b.id) DESC, tg."nameAr" ASC
+        LIMIT 30
       ),
       regions AS (
         SELECT region, count(*)::int AS n
@@ -756,6 +827,7 @@ export class DiscoverService {
         'scalars', (SELECT row_to_json(x) FROM scalars x),
         'regions', COALESCE((SELECT json_object_agg(region, n) FROM regions), '{}'::json),
         'collections', COALESCE((SELECT json_agg(json_build_object('slug', slug, 'nameAr', name_ar, 'count', n) ORDER BY sort_order) FROM colls), '[]'::json),
+        'tags', COALESCE((SELECT json_agg(json_build_object('slug', slug, 'nameAr', name_ar, 'count', n)) FROM tags), '[]'::json),
         'categories', COALESCE((
           SELECT json_agg(json_build_object(
                    'slug', t.slug,
@@ -779,6 +851,8 @@ export class DiscoverService {
     const sc = pay.scalars;
     const pct: Record<string, number> = {};
     for (const b of PCT_BUCKETS) pct[b] = sc[`pct_${b}`] ?? 0;
+    const duration: Record<string, number> = {};
+    for (const b of DURATION_BUCKETS) duration[b.key] = sc[`dur_${b.key}`] ?? 0;
     const goals: Record<string, number> = {};
     const raised: Record<string, number> = {};
     for (const br of MONEY_BRACKETS) {
@@ -794,6 +868,9 @@ export class DiscoverService {
       raised,
       staff: sc.staff,
       collections: pay.collections,
+      tags: pay.tags,
+      video: sc.video,
+      duration,
     };
   }
 

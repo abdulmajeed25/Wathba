@@ -27,7 +27,7 @@ export async function generateMetadata({
   };
 }
 
-const KEYS = ['q', 'status', 'includeEnded', 'cat', 'region', 'goalMin', 'goalMax', 'raisedMin', 'raisedMax', 'pct', 'only', 'collection', 'sort'] as const;
+const KEYS = ['q', 'status', 'includeEnded', 'cat', 'tag', 'hasVideo', 'duration', 'region', 'goalMin', 'goalMax', 'raisedMin', 'raisedMax', 'pct', 'only', 'collection', 'sort'] as const;
 
 export default async function SearchPage({
   searchParams,

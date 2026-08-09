@@ -515,7 +515,14 @@ export function WathbaCategoryNav() {
                 {FILTERS.map((f) => (
                   <Link
                     key={f.key}
-                    href={`/projects/discover/${cur.slug}?filter=${f.key}`}
+                    href={
+                        // Same reason as the category page: `near_you` needs a
+                        // region nothing can supply, so the chip asks instead of
+                        // silently returning nothing. See wathba-discover-category.
+                        f.key === 'near_you'
+                          ? `/projects/discover-all?cat=${encodeURIComponent(cur.slug)}&sort=near_me`
+                          : `/projects/discover/${cur.slug}?filter=${f.key}`
+                      }
                     onClick={() => close()}
                     role="menuitem"
                     style={{

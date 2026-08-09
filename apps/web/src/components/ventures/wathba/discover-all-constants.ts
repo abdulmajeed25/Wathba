@@ -54,3 +54,20 @@ export function toArabicDigits(n: number | string): string {
 export function arabicCount(n: number): string {
   return toArabicDigits(n.toLocaleString('en-US')).replace(/,/g, '٬');
 }
+
+
+/**
+ * Campaign-length buckets. Labels in days, Arabic-Indic digits handled by the
+ * Num component at the call site.
+ *
+ * The spread is narrow today — 503 of 517 live projects run 30-45 days — so
+ * this facet mostly says "everyone picks the default". The boundaries are set
+ * for the range the platform ALLOWS (7-120 by policy), not for the range it
+ * currently uses, so it starts discriminating as soon as creators vary.
+ */
+export const DURATION_OPTS: ReadonlyArray<{ key: string; labelAr: string }> = [
+  { key: 'lt30', labelAr: 'أقل من ٣٠ يوماً' },
+  { key: 'd30_45', labelAr: '٣٠ – ٤٥ يوماً' },
+  { key: 'd45_60', labelAr: '٤٥ – ٦٠ يوماً' },
+  { key: 'gte60', labelAr: '٦٠ يوماً فأكثر' },
+];
