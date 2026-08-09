@@ -4,6 +4,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
 import { SettingsService } from '../settings/settings.service';
+import { TagsService } from '../tags/tags.service';
 import {
   CreateProjectDto,
   ListProjectsQueryDto,
@@ -23,6 +24,7 @@ export class ProjectsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly settings: SettingsService,
+    private readonly tags: TagsService,
   ) {}
 
   /**
@@ -101,7 +103,7 @@ export class ProjectsService {
     // Provisional deadline; admin sets the real one on publish.
     const deadline = new Date(Date.now() + dto.durationDays * 86_400_000);
     const cat = await this.resolveCategory(dto.categoryId, dto.category, true);
-    return this.prisma.project.create({
+    const created = await this.prisma.project.create({
       data: {
         titleAr: dto.titleAr,
         shortDescAr: dto.shortDescAr,
@@ -124,6 +126,10 @@ export class ProjectsService {
           : Prisma.JsonNull,
       },
     });
+    // After the row exists — ProjectTag needs the id. Unknown slugs are dropped
+    // by the service rather than failing the create.
+    if (dto.tagSlugs) await this.tags.setProjectTags(created.id, dto.tagSlugs);
+    return created;
   }
 
   async update(creatorId: string, projectId: string, dto: UpdateProjectDto): Promise<Project> {
@@ -136,10 +142,15 @@ export class ProjectsService {
     // setting unusable for every project actually on the homepage, which is
     // every project it applies to.
     //
-    // Narrow on purpose: the carve-out is a fixed allowlist of two presentation
+    // `tagSlugs` joins them for the same reason: tags change how a project is
+    // FOUND, not what was promised to anyone who backed it. A creator who
+    // realises mid-campaign that their project belongs under «تراث سعودي» has
+    // to be able to say so — that is discoverability, not a change of terms.
+    //
+    // Narrow on purpose: the carve-out is a fixed allowlist of presentation
     // fields, and the moment a request touches anything outside it the original
     // freeze applies unchanged.
-    const PRESENTATION_ONLY = new Set(['videoUrl', 'cardMedia']);
+    const PRESENTATION_ONLY = new Set(['videoUrl', 'cardMedia', 'tagSlugs']);
     const touchesFrozen = Object.entries(dto).some(
       ([k, v]) => v !== undefined && !PRESENTATION_ONLY.has(k),
     );
@@ -156,6 +167,11 @@ export class ProjectsService {
     const cat = catTouched
       ? await this.resolveCategory(dto.categoryId, dto.category, false)
       : null;
+    // Tags are a join table, so they are applied alongside the row update rather
+    // than inside it. Before the update, deliberately: if the row update throws
+    // on a slug clash the tags have already converged, and re-submitting the
+    // form re-applies the same set — whole-set semantics make that idempotent.
+    if (dto.tagSlugs) await this.tags.setProjectTags(projectId, dto.tagSlugs);
     return this.prisma.project.update({
       where: { id: projectId },
       data: {
@@ -413,7 +429,12 @@ export class ProjectsService {
   async findById(id: string): Promise<Project> {
     const proj = await this.prisma.project.findUnique({
       where: { id },
-      include: { rewardTiers: { orderBy: { sortOrder: 'asc' } } },
+      include: {
+        rewardTiers: { orderBy: { sortOrder: 'asc' } },
+        // The campaign page renders these, and the dashboard editor round-trips
+        // them; both read the detail payload.
+        tags: { include: { tag: { select: { slug: true, nameAr: true } } } },
+      },
     });
     if (!proj) throw new NotFoundException('project not found');
     return proj;
@@ -541,7 +562,12 @@ export class ProjectsService {
       ? await this.findById(idOrSlug)
       : await this.prisma.project.findUnique({
           where: { slug: idOrSlug.toLowerCase() },
-          include: { rewardTiers: { orderBy: { sortOrder: 'asc' } } },
+          include: {
+        rewardTiers: { orderBy: { sortOrder: 'asc' } },
+        // The campaign page renders these, and the dashboard editor round-trips
+        // them; both read the detail payload.
+        tags: { include: { tag: { select: { slug: true, nameAr: true } } } },
+      },
         });
     if (!proj) throw new NotFoundException('project not found');
     if (proj.hiddenAt && proj.createdById !== viewerId) {
@@ -748,6 +774,10 @@ export class ProjectsService {
       // has a campaign video, and the campaign page still shows it.
       videoUrl: p.videoUrl,
       cardMedia: p.cardMedia,
+      tags: (p as { tags?: Array<{ tag: { slug: string; nameAr: string } }> }).tags?.map((t) => ({
+        slug: t.tag.slug,
+        nameAr: t.tag.nameAr,
+      })) ?? [],
       fundingGoalHalalas: Number(p.fundingGoalHalalas),
       releaseThresholdPct: p.releaseThresholdPct,
       durationDays: p.durationDays,

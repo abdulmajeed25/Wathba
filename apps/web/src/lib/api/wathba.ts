@@ -318,6 +318,11 @@ export interface ApiProjectDetail {
   videoUrl: string | null;
   /** What the CARD shows. 'VIDEO' means "video if there is one". */
   cardMedia: 'VIDEO' | 'POSTER';
+  /**
+   * The curated tags this project carries. Empty for every project until a
+   * creator picks some — the vocabulary is seeded, the attachments are not.
+   */
+  tags: Array<{ slug: string; nameAr: string }>;
   fundingGoalHalalas: number;
   releaseThresholdPct: number;
   durationDays: number;
@@ -1366,5 +1371,34 @@ export async function getStory(slug: string): Promise<ApiEditorialCard | null> {
     return (await res.json()) as ApiEditorialCard;
   } catch {
     return null;
+  }
+}
+
+/* ─────────────────── Batch DISCOVERY-ENGINE — tags ──────────────────────── */
+
+export interface ApiTag {
+  slug: string;
+  nameAr: string;
+  nameEn: string;
+  usageCount: number;
+}
+
+/**
+ * The active tag vocabulary, most-used first.
+ *
+ * Cached for 5 minutes like the category tree: 40 rows that change when ops
+ * edits them, which is roughly never, against a facet sidebar that renders on
+ * every discover navigation.
+ */
+export async function listTags(): Promise<ApiTag[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/tags`, {
+      next: { revalidate: 300, tags: ['wathba-tags'] },
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { items?: ApiTag[] };
+    return body.items ?? [];
+  } catch {
+    return [];
   }
 }

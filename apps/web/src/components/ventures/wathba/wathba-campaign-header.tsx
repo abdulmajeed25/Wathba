@@ -83,6 +83,39 @@ export function WathbaCampaignHeader({
         <p style={{ fontSize: 18, color: 'var(--text-soft)', maxWidth: 820, lineHeight: 1.55 }}>
           {rich.tagline}
         </p>
+
+        {/* Batch DISCOVERY-ENGINE — the project's tags, as links back into
+            discovery. A tag that only decorates the page is a wasted signal:
+            these are the axes the category tree cannot express, so the reader
+            who cares about «تراث سعودي» should be one click from every other
+            project that carries it, across every category. */}
+        {found.tags && found.tags.length > 0 && (
+          <ul
+            aria-label="وسوم المشروع"
+            style={{
+              display: 'flex', flexWrap: 'wrap', gap: 8, listStyle: 'none',
+              padding: 0, margin: '16px 0 0',
+            }}
+          >
+            {found.tags.map((t) => (
+              <li key={t.slug}>
+                <Link
+                  href={`/projects/discover-all?tag=${encodeURIComponent(t.slug)}`}
+                  style={{
+                    display: 'inline-block',
+                    background: 'rgba(var(--ink-rgb),.05)',
+                    border: '1px solid rgba(var(--ink-rgb),.12)',
+                    color: 'var(--text-soft)',
+                    padding: '5px 12px', borderRadius: 30,
+                    fontSize: 13, fontWeight: 600, textDecoration: 'none',
+                  }}
+                >
+                  {t.nameAr}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* ── HERO BAND: gallery (8) + funding rail (4) ─────────────────── */}
