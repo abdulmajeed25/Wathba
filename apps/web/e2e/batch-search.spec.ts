@@ -21,7 +21,12 @@ test('S1+S2: focus shows suggestions; typing shows grouped image-rich rows', asy
 
   await box.fill('سرب');
   const listbox = page.locator('#wathba-suggest');
-  await expect(listbox.getByText('مشاريع')).toBeVisible();
+  // The GROUP HEADING, not any text containing the word. Batch
+  // DISCOVERY-ENGINE made the creator arm actually return results, and a
+  // creator row reads «٣ مشاريع» — so a bare getByText matched two elements
+  // and tripped strict mode. The assertion was always meant to be about the
+  // heading.
+  await expect(listbox.locator('[data-suggest-group="مشاريع"]')).toBeVisible();
   // Project row: thumbnail slot (real cover img or the placeholder block).
   const firstProject = listbox.locator('a[id^="wathba-opt-prj-"]').first();
   await expect(firstProject).toBeVisible();
