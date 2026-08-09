@@ -87,8 +87,14 @@ function releasePlayback(el: HTMLVideoElement) {
  */
 const clientStart = Date.now();
 
-function mayPlayYet(): boolean {
-  return Date.now() - clientStart >= LCP_PROTECTION_MS;
+/**
+ * How much longer the LCP window stays shut, in ms. Zero once it is open.
+ *
+ * A remaining-time answer rather than a yes/no one, because the caller needs to
+ * WAIT the window out rather than give up on it — see `arm` below.
+ */
+function msUntilPlayable(): number {
+  return Math.max(0, LCP_PROTECTION_MS - (Date.now() - clientStart));
 }
 
 /**
@@ -148,6 +154,14 @@ export function WathbaCardVideo({
   const [visible, setVisible] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const video = useRef<HTMLVideoElement | null>(null);
+  /**
+   * Whether the pointer is still on the card.
+   *
+   * A ref, not state: it is read inside a timer callback and must be the value
+   * as of the moment the timer fires, not the value captured when the handler
+   * was created. Re-rendering on it would also remount nothing useful.
+   */
+  const inside = useRef(false);
 
   useEffect(
     () => () => {
@@ -159,16 +173,46 @@ export function WathbaCardVideo({
 
   if (!videoUrl) return <>{children}</>;
 
-  const enter = () => {
-    if (!hoverCapable() || reducedMotion()) return;
+  /**
+   * The LCP window WAITS OUT, it does not cancel.
+   *
+   * The window used to be a yes/no check inside the intent timer that returned
+   * early, and that quietly threw the hover away. React only synthesises
+   * onMouseEnter
+   * again after a real leave-and-re-enter, so a pointer that landed on a card
+   * during the first two seconds — which is the normal thing to do, the page
+   * has just finished painting — never got a second chance. Measured: pointer
+   * down at t=60ms and held still, window open at t=2000ms, and at t=5012ms
+   * there was still no <video>. The feature refused the most natural first
+   * interaction on the page and looked broken.
+   *
+   * Rescheduling for the remainder is the whole fix. The guard still holds
+   * absolutely — nothing plays before the window opens, which is what protects
+   * the hero cover's LCP — it just no longer punishes the reader for being
+   * early. `inside` is rechecked when the timer fires, so a pointer that left
+   * during the wait starts nothing.
+   */
+  const arm = (delay: number) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      if (!mayPlayYet()) return;
+      if (!inside.current) return;
+      const wait = msUntilPlayable();
+      if (wait > 0) {
+        arm(wait);
+        return;
+      }
       setArmed(true);
-    }, HOVER_INTENT_MS);
+    }, delay);
+  };
+
+  const enter = () => {
+    if (!hoverCapable() || reducedMotion()) return;
+    inside.current = true;
+    arm(HOVER_INTENT_MS);
   };
 
   const leave = () => {
+    inside.current = false;
     if (timer.current) clearTimeout(timer.current);
     setVisible(false);
     if (video.current) releasePlayback(video.current);

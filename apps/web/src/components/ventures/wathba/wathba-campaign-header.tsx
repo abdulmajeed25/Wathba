@@ -23,7 +23,7 @@ export function WathbaCampaignHeader({
   id: string;
   project?: WathbaProjectShape;
 }) {
-  const { active, rich, isReal } = resolveCampaign(id, project);
+  const { found, active, rich, isReal } = resolveCampaign(id, project);
 
   return (
     <div>
@@ -97,7 +97,7 @@ export function WathbaCampaignHeader({
           alignItems: 'start',
         }}
       >
-        <HeroMedia youtubeId={rich.youtubeId} alt={rich.heroImage.alt} />
+        <HeroMedia videoUrl={found.videoUrl ?? null} poster={found.coverUrl ?? null} alt={rich.heroImage.alt} />
         {/* S-13 — the rail gets the PAGE id, never the fixture-skin id. */}
         <WathbaCampaignRail
           projectId={isReal ? id : active.id}
@@ -148,8 +148,39 @@ export function WathbaCampaignHeader({
 
 /* ────────────────────────── Hero media (video or img) ──────────────────── */
 
-function HeroMedia({ youtubeId, alt }: { youtubeId: string; alt: string }) {
-  const [loaded, setLoaded] = useState(false);
+/**
+ * The campaign video — the PROJECT'S OWN, at last.
+ *
+ * This rendered a YouTube iframe whose id came from `rich.youtubeId`, a
+ * hardcoded constant in the web fixture: `jNQXAC9IVRw`, the same clip on every
+ * campaign on the platform. It was also dead in production — the CSP has no
+ * frame-src entry for youtube.com, so the iframe never loaded even when
+ * someone pressed play. The cards have been playing the real per-project
+ * `videoUrl` since migration 0059; the campaign page was the last place still
+ * showing a placeholder, which meant a card and the page it linked to could
+ * show two different videos.
+ *
+ * Click to play, not hover, and not autoplay. A campaign video is content the
+ * visitor chose to watch, so it gets real controls, real audio and no motion
+ * until they ask — the opposite of the muted decorative loop on a card, which
+ * is why this deliberately does NOT reuse WathbaCardVideo.
+ *
+ * `cardMedia: 'POSTER'` does not reach here. That flag is about the CARD; a
+ * creator who wants a still card still has a campaign video, and this is where
+ * it belongs. The API sends the raw videoUrl on the detail payload for exactly
+ * this reason.
+ */
+
+function HeroMedia({
+  videoUrl,
+  poster,
+  alt,
+}: {
+  videoUrl: string | null;
+  poster: string | null;
+  alt: string;
+}) {
+  const [playing, setPlaying] = useState(false);
   return (
     <div
       style={{
@@ -159,55 +190,70 @@ function HeroMedia({ youtubeId, alt }: { youtubeId: string; alt: string }) {
         position: 'relative',
       }}
     >
-      {loaded ? (
-        <iframe
-          src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0`}
-          title={alt}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          style={{ width: '100%', height: '100%', border: 0 }}
+      {playing && videoUrl ? (
+        <video
+          src={videoUrl}
+          poster={poster ?? undefined}
+          controls
+          autoPlay
+          playsInline
+          preload="metadata"
+          aria-label={alt}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', background: '#000', display: 'block' }}
         />
       ) : (
-        <button
-          type="button"
-          onClick={() => setLoaded(true)}
-          aria-label="تشغيل فيديو الحملة"
+        <div
           style={{
-            position: 'absolute', inset: 0, cursor: 'pointer',
-            background: `url(https://i.ytimg.com/vi/${youtubeId}/maxresdefault.jpg) center/cover, var(--ph-bg)`,
-            border: 'none', fontFamily: 'inherit',
+            position: 'absolute', inset: 0,
+            background: poster ? `url(${poster}) center/cover, var(--ph-bg)` : 'var(--ph-bg)',
           }}
         >
-          <span
-            aria-hidden
-            style={{
-              position: 'absolute', inset: 0,
-              background: 'linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,.55))',
-            }}
-          />
-          <span
-            style={{
-              position: 'absolute', top: '50%', left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: 78, height: 78, borderRadius: '50%',
-              background: 'rgba(0,0,0,.78)',
-              color: 'white', fontSize: 36,
-              display: 'grid', placeItems: 'center',
-              boxShadow: '0 12px 40px rgba(0,0,0,.4)',
-            }}
-          >
-            ▶
-          </span>
-          <span
-            style={{
-              position: 'absolute', bottom: 16, insetInlineStart: 18,
-              color: 'white', fontSize: 13, fontWeight: 600,
-              textShadow: '0 2px 8px rgba(0,0,0,.7)',
-            }}
-          >
-            فيديو الحملة · ٢ دقيقة
-          </span>
-        </button>
+          {/* No video: the cover IS the hero media, and there is nothing to
+              press. A play button over a project with no video is a promise the
+              page cannot keep. */}
+          {videoUrl ? (
+            <button
+              type="button"
+              onClick={() => setPlaying(true)}
+              aria-label="تشغيل فيديو الحملة"
+              style={{
+                position: 'absolute', inset: 0, cursor: 'pointer',
+                background: 'transparent', border: 'none', fontFamily: 'inherit',
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute', inset: 0,
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0) 60%, rgba(0,0,0,.55))',
+                }}
+              />
+              <span
+                aria-hidden
+                style={{
+                  position: 'absolute', top: '50%', left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: 78, height: 78, borderRadius: '50%',
+                  background: 'rgba(0,0,0,.78)',
+                  color: 'white', fontSize: 36,
+                  display: 'grid', placeItems: 'center',
+                  boxShadow: '0 12px 40px rgba(0,0,0,.4)',
+                }}
+              >
+                ▶
+              </span>
+              <span
+                style={{
+                  position: 'absolute', bottom: 16, insetInlineStart: 18,
+                  color: 'white', fontSize: 13, fontWeight: 600,
+                  textShadow: '0 2px 8px rgba(0,0,0,.7)',
+                }}
+              >
+                فيديو الحملة
+              </span>
+            </button>
+          ) : null}
+        </div>
       )}
     </div>
   );

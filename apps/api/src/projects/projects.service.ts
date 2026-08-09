@@ -110,6 +110,7 @@ export class ProjectsService {
         storyAr: dto.storyAr,
         mediaUrls: dto.mediaUrls ?? [],
         videoUrl: dto.videoUrl ?? null,
+        ...(dto.cardMedia !== undefined && { cardMedia: dto.cardMedia }),
         fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
         releaseThresholdPct: dto.releaseThresholdPct ?? 80,
         durationDays: dto.durationDays,
@@ -127,7 +128,26 @@ export class ProjectsService {
 
   async update(creatorId: string, projectId: string, dto: UpdateProjectDto): Promise<Project> {
     const proj = await this.requireOwned(creatorId, projectId);
-    if (proj.status !== ProjectStatus.DRAFT && proj.status !== ProjectStatus.UNDER_REVIEW) {
+    // The pre-launch freeze exists to lock the FUNDING CONTRACT and the pitch a
+    // backer read before they pledged: goal, threshold, duration, deadline,
+    // story, title. Card media is neither. `videoUrl` and `cardMedia` decide
+    // what a passing reader sees on a card, and a creator whose campaign is
+    // live is precisely the one who needs to change that — the gate made the
+    // setting unusable for every project actually on the homepage, which is
+    // every project it applies to.
+    //
+    // Narrow on purpose: the carve-out is a fixed allowlist of two presentation
+    // fields, and the moment a request touches anything outside it the original
+    // freeze applies unchanged.
+    const PRESENTATION_ONLY = new Set(['videoUrl', 'cardMedia']);
+    const touchesFrozen = Object.entries(dto).some(
+      ([k, v]) => v !== undefined && !PRESENTATION_ONLY.has(k),
+    );
+    if (
+      touchesFrozen &&
+      proj.status !== ProjectStatus.DRAFT &&
+      proj.status !== ProjectStatus.UNDER_REVIEW
+    ) {
       throw new BadRequestException(`cannot edit project in status ${proj.status}`);
     }
     // Batch CAT — keep categoryId + legacy enum in lock-step on edit (either
@@ -145,6 +165,7 @@ export class ProjectsService {
         ...(dto.storyAr !== undefined && { storyAr: dto.storyAr }),
         ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
         ...(dto.videoUrl !== undefined && { videoUrl: dto.videoUrl }),
+        ...(dto.cardMedia !== undefined && { cardMedia: dto.cardMedia }),
         ...(dto.fundingGoalHalalas !== undefined && {
           fundingGoalHalalas: BigInt(dto.fundingGoalHalalas),
         }),
@@ -721,7 +742,12 @@ export class ProjectsService {
       isStaffPick: p.isStaffPick,
       storyAr: p.storyAr,
       mediaUrls: p.mediaUrls,
+      // The DETAIL payload carries the RAW video and the flag, deliberately
+      // unlike the card payloads: this is what the dashboard edits, and what the
+      // campaign page plays. A creator who pinned their card to its poster still
+      // has a campaign video, and the campaign page still shows it.
       videoUrl: p.videoUrl,
+      cardMedia: p.cardMedia,
       fundingGoalHalalas: Number(p.fundingGoalHalalas),
       releaseThresholdPct: p.releaseThresholdPct,
       durationDays: p.durationDays,

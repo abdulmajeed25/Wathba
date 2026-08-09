@@ -66,6 +66,44 @@ test('V1: hovering a trending card mounts a muted, playing video; leaving pauses
     .toBe(true);
 });
 
+test('V1b: a hover that lands INSIDE the LCP window still plays, once it opens', async ({
+  page,
+}) => {
+  await page.goto('/projects');
+  const card = await trendingCardWithVideo(page);
+  await card.scrollIntoViewIfNeeded();
+
+  // THE BUG THIS PINS. The window used to be a yes/no check that returned early
+  // inside the intent timer, which threw the hover away. React only synthesises
+  // onMouseEnter again after a real leave-and-re-enter, so a pointer that landed
+  // during the first two seconds — the normal thing to do, the page has just
+  // painted — never got a second chance. Measured before the fix: pointer down
+  // at t=60ms and held still, window open at t=2000ms, and at t=5012ms there was
+  // still no <video>. It reads as "hover-video is broken".
+  //
+  // The pointer lands and does NOT move again for the rest of this test.
+  await card.hover();
+  expect(
+    await page.evaluate(() => document.documentElement.dataset.cardVideoWindow),
+    'the hover did not land inside the window — this test cannot prove anything',
+  ).toBe('shut');
+  expect(await card.locator('video').count(), 'nothing may mount while the window is shut').toBe(0);
+
+  // No further pointer input. The guard has to wait itself out and re-arm.
+  await expect
+    .poll(() => card.locator('video').count(), {
+      message: 'the video never started for a pointer that arrived early and stayed',
+      timeout: 8000,
+    })
+    .toBe(1);
+  await expect
+    .poll(() => card.locator('video').evaluate((v: HTMLVideoElement) => !v.paused && v.currentTime > 0), {
+      message: 'it mounted but never played',
+      timeout: 6000,
+    })
+    .toBe(true);
+});
+
 test('V2: nothing video-related is fetched before a hover', async ({ page }) => {
   const videoRequests: string[] = [];
   page.on('request', (r) => {

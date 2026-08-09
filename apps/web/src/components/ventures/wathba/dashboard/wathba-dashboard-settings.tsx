@@ -130,16 +130,50 @@ export function DashboardSettings({
   const [videoUrl, setVideoUrl] = useState(project.videoUrl ?? '');
   const [vidBusy, setVidBusy] = useState(false);
   const [vidMsg, setVidMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  /**
+   * What the CARD shows — migration 0060.
+   *
+   * Only offered once a video exists, because with no video the question has no
+   * meaning: the card is the cover either way. VIDEO is the stored default, so
+   * uploading a clip turns hover-play on and this control is how a creator
+   * turns it back off without deleting the clip — which would also remove it
+   * from the campaign page.
+   */
+  const [cardMedia, setCardMedia] = useState<'VIDEO' | 'POSTER'>(project.cardMedia ?? 'VIDEO');
 
-  const saveVideoUrl = async (next: string | null): Promise<void> => {
+  const patchProject = async (body: Record<string, unknown>): Promise<void> => {
     const res = await fetch(`/api/projects/${project.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ videoUrl: next }),
+      body: JSON.stringify(body),
     });
     const j = (await res.json().catch(() => ({}))) as { message?: string | string[] };
     if (!res.ok) {
       throw new Error(Array.isArray(j.message) ? j.message.join('، ') : (j.message ?? 'تعذّر الحفظ'));
+    }
+  };
+
+  const saveVideoUrl = (next: string | null): Promise<void> => patchProject({ videoUrl: next });
+
+  const saveCardMedia = async (next: 'VIDEO' | 'POSTER'): Promise<void> => {
+    const prev = cardMedia;
+    // Optimistic, then reverted on failure: this is a two-state toggle and a
+    // control that waits on a round trip to move reads as broken.
+    setCardMedia(next);
+    setVidBusy(true);
+    setVidMsg(null);
+    try {
+      await patchProject({ cardMedia: next });
+      setVidMsg({
+        kind: 'ok',
+        text: next === 'VIDEO' ? 'ستعرض البطاقة الفيديو عند مرور المؤشر' : 'ستعرض البطاقة الصورة فقط',
+      });
+      router.refresh();
+    } catch (e) {
+      setCardMedia(prev);
+      setVidMsg({ kind: 'err', text: e instanceof Error ? e.message : 'تعذّر الحفظ' });
+    } finally {
+      setVidBusy(false);
     }
   };
 
@@ -706,6 +740,11 @@ export function DashboardSettings({
       </Card>
 
       {/* ── Stage 1 item 12 — campaign video ─────────────────────────────── */}
+      {/* NOT gated on `editable`. Everything else in this file freezes at
+          launch because it is the funding contract or the pitch a backer read
+          before pledging; the card's media is neither, and a live campaign is
+          exactly when a creator wants to change it. The API carve-out is an
+          allowlist of these two fields — see projects.service update(). */}
       <Card title="فيديو الحملة">
         <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
           مقطع قصير يظهر على بطاقة مشروعك في الصفحة الرئيسية عند مرور المؤشر فوقها، وبدونه تبقى
@@ -725,6 +764,47 @@ export function DashboardSettings({
               preload="metadata"
               style={{ width: '100%', maxWidth: 420, aspectRatio: '3 / 2', borderRadius: 12, background: '#000' }}
             />
+            {/* The card-media choice. Offered only here, inside the branch
+                that already knows a video exists — with no video the question
+                has no meaning and an inert control is worse than none. */}
+            <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+              <legend style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                ماذا تعرض البطاقة؟
+              </legend>
+              {(
+                [
+                  ['VIDEO', 'الفيديو عند مرور المؤشر', 'يبدأ التشغيل صامتاً على الأجهزة المكتبية فقط.'],
+                  ['POSTER', 'الصورة فقط', 'تبقى البطاقة ثابتة، ويظل الفيديو على صفحة الحملة.'],
+                ] as const
+              ).map(([value, label, hint]) => (
+                <label
+                  key={value}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 9,
+                    marginBottom: 8,
+                    cursor: vidBusy ? 'default' : 'pointer',
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="cardMedia"
+                    value={value}
+                    checked={cardMedia === value}
+                    disabled={vidBusy}
+                    onChange={() => void saveCardMedia(value)}
+                    style={{ marginTop: 3, accentColor: 'var(--accent)' }}
+                  />
+                  <span>
+                    <span style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</span>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.6 }}>
+                      {hint}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
             <div>
               <button
                 type="button"

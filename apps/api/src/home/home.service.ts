@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, ProjectStatus } from '@prisma/client';
 
+import { cardVideoUrl } from '../common/card-media';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -16,7 +17,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const CARD_SELECT = {
   id: true, titleAr: true, shortDescAr: true, status: true, slug: true,
   fundingGoalHalalas: true, raisedHalalas: true, deadline: true, isStaffPick: true,
-  categoryId: true, mediaUrls: true, backersCount: true, videoUrl: true,
+  categoryId: true, mediaUrls: true, backersCount: true, videoUrl: true, cardMedia: true,
 } as const;
 
 type ProjectCardRow = Prisma.ProjectGetPayload<{ select: typeof CARD_SELECT }>;
@@ -43,7 +44,7 @@ function toCard(p: ProjectCardRow) {
     imageUrl: p.mediaUrls[0] ?? null,
     // Stage 1 item 12 — null for every project until a creator uploads one, and
     // every card falls back to the cover image when it is. See migration 0059.
-    videoUrl: p.videoUrl,
+    videoUrl: cardVideoUrl(p),
     isStaffPick: p.isStaffPick,
   };
 }
