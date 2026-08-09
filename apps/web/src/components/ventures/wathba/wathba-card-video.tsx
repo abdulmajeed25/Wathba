@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { HOVER_INTENT_MS, LCP_PROTECTION_MS } from './wathba-timing';
 
 /**
  * Stage 1 item 12 — "cards come alive" on desktop hover.
@@ -41,12 +42,6 @@ import { useEffect, useRef, useState } from 'react';
  * video is decoration over content that is already there, so a screen reader
  * and a crawler both see exactly what they saw before.
  */
-
-/** Hover dwell before anything is requested. */
-const HOVER_INTENT_MS = 150;
-
-/** No card video may start before this many ms after first client render. */
-const LCP_PROTECTION_MS = 2000;
 
 /** Cross-fade duration. Matches the card's own hover lift. */
 const FADE_MS = 260;

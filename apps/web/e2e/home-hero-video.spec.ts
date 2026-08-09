@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { DWELL_MS, LCP_PROTECTION_MS } from '../src/components/ventures/wathba/wathba-timing';
 
 /**
  * HERO-VIDEO — the rotating hero card plays its project's video on hover.
@@ -35,11 +36,6 @@ import { expect, test, type Page } from '@playwright/test';
 const GLYPH = '[aria-label="هذا المشروع يحتوي على فيديو"]';
 const CURRENT = '[data-testid="wathba-hero-slide-current"]';
 
-/** The LCP guard in wathba-card-video.tsx. Hovering earlier must do nothing. */
-const LCP_PROTECTION_MS = 2000;
-
-/** The rotator's dwell, from wathba-hero-rotator.tsx. */
-const DWELL_MS = 10_000;
 
 /**
  * Advance the hero until the slide on screen is one that has a video, using the
