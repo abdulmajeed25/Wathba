@@ -37,9 +37,11 @@ interface Suggestions {
   projects: SuggestProject[];
   creators: Array<{ id: string; name: string; handle: string | null; avatarUrl: string | null; projectsCount: number }>;
   categories: Array<{ slug: string; nameAr: string; parentSlug: string | null }>;
+  /** Batch DISCOVERY-ENGINE — the curated tag vocabulary, reachable from here. */
+  tags: Array<{ slug: string; nameAr: string; usageCount: number }>;
 }
 
-const EMPTY: Suggestions = { projects: [], creators: [], categories: [] };
+const EMPTY: Suggestions = { projects: [], creators: [], categories: [], tags: [] };
 
 /** STAKES/S-15 (L2) — recent searches, localStorage, newest-first, max 5. */
 const RECENT_KEY = 'wathba_recent_searches';
@@ -70,7 +72,7 @@ function clearRecent(): void {
 interface Option {
   key: string;
   href: string;
-  group: 'مشاريع' | 'مبدعون' | 'فئات' | '';
+  group: 'مشاريع' | 'مبدعون' | 'فئات' | 'وسوم' | '';
   render: React.ReactNode;
 }
 
@@ -160,7 +162,11 @@ function SearchCombobox({
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (q.trim().length < 2) {
+    // ONE character, not two. The floor was 2, so the first keystroke of every
+    // Arabic search returned nothing — and a single Arabic letter is far more
+    // selective than a single Latin one, because the alphabet is larger and the
+    // words are shorter. The server's prefix query makes it meaningful.
+    if (q.trim().length < 1) {
       setSug(EMPTY);
       return;
     }
@@ -168,7 +174,10 @@ function SearchCombobox({
       fetch(`/api/search/suggest?q=${encodeURIComponent(q.trim())}`, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : EMPTY))
         .then((d: Suggestions) => {
-          setSug({ projects: d.projects ?? [], creators: d.creators ?? [], categories: d.categories ?? [] });
+          setSug({
+            projects: d.projects ?? [], creators: d.creators ?? [],
+            categories: d.categories ?? [], tags: d.tags ?? [],
+          });
           setActive(-1);
         })
         .catch(() => setSug(EMPTY));
@@ -270,6 +279,29 @@ function SearchCombobox({
               <Icon name="category" size={16} color="var(--accent)" />
             </span>
             <span style={{ fontWeight: 600 }}>{c.nameAr}</span>
+          </span>
+        ),
+      });
+    }
+    // Batch DISCOVERY-ENGINE — tags, last. They are the broadest of the four
+    // groups (a tag spans categories), so they read as "or widen to…" rather
+    // than competing with the specific project the reader probably wants.
+    for (const t of sug.tags) {
+      out.push({
+        key: `tag-${t.slug}`,
+        href: `/projects/discover-all?tag=${encodeURIComponent(t.slug)}`,
+        group: 'وسوم',
+        render: (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span
+              style={{
+                width: 34, height: 34, borderRadius: 9, background: 'rgba(var(--ink-rgb),.06)',
+                display: 'grid', placeItems: 'center', flexShrink: 0,
+              }}
+            >
+              <Icon name="bookmark" size={16} color="var(--muted2)" />
+            </span>
+            <span style={{ fontWeight: 600 }}>{t.nameAr}</span>
           </span>
         ),
       });
@@ -447,7 +479,17 @@ function SearchCombobox({
               return (
                 <div key={o.key}>
                   {header && (
-                    <div style={{ padding: '8px 11px 3px', fontSize: 11, fontWeight: 700, color: 'var(--muted2)' }}>{header}</div>
+                    // data-suggest-group so a test (or anything else) can target
+                    // the HEADING rather than any row text that happens to
+                    // contain the same word — a creator row reads «٣ مشاريع»,
+                    // which collides with the «مشاريع» heading the moment the
+                    // creator group is non-empty.
+                    <div
+                      data-suggest-group={header}
+                      style={{ padding: '8px 11px 3px', fontSize: 11, fontWeight: 700, color: 'var(--muted2)' }}
+                    >
+                      {header}
+                    </div>
                   )}
                   <Link
                     id={`wathba-opt-${o.key}`}

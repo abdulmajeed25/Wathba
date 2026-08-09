@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { cardVideoUrl, rawCardMedia } from '../common/card-media';
 import { PrismaService } from '../prisma/prisma.service';
+import { SearchService } from '../projects/search.service';
 import { DiscoverQueryDto } from './dto/discover-query.dto';
 
 /**
@@ -362,9 +363,17 @@ export class DiscoverService {
       // Same FTS + trigram predicate as /v1/search (N2 indexes) — the search
       // page and discover-all share this one query layer; ?q= is just one
       // more combinable dimension.
+      // Batch DISCOVERY-ENGINE — the SAME predicate as /v1/search, still. Both
+      // now normalise fully (alef, ta-marbuta, alef-maksura, digits), both
+      // prefix the final token so a half-typed word matches, and both use the
+      // indexable `<%` word_similarity operator instead of
+      // `similarity(...) > 0.25`, which compared against the whole title and so
+      // never fired for a short query.
+      const prefixTerm = SearchService.prefixTerm(f.q);
       c.q = Prisma.sql`(
-        p."searchVector" @@ websearch_to_tsquery('simple', wathba_strip_arabic_diacritics(${f.q}))
-        OR similarity(wathba_strip_arabic_diacritics(p."titleAr"), wathba_strip_arabic_diacritics(${f.q})) > 0.25
+        p."searchVector" @@ websearch_to_tsquery('simple', wathba_normalize_arabic(${f.q}))
+        ${prefixTerm ? Prisma.sql`OR p."searchVector" @@ to_tsquery('simple', ${prefixTerm})` : Prisma.empty}
+        OR wathba_normalize_arabic(${f.q}) <% wathba_normalize_arabic(p."titleAr")
       )`;
     }
     return c;
@@ -431,7 +440,7 @@ export class DiscoverService {
         // With a text query, textual rank leads; the staff/velocity blend
         // breaks ties. Without one: staff-pick boost → velocity → recency.
         if (q) {
-          return Prisma.sql`ORDER BY ts_rank(p."searchVector", websearch_to_tsquery('simple', wathba_strip_arabic_diacritics(${q}))) DESC, p."isStaffPick" DESC, ${this.VELOCITY} DESC, p.id DESC`;
+          return Prisma.sql`ORDER BY ts_rank(p."searchVector", websearch_to_tsquery('simple', wathba_normalize_arabic(${q}))) DESC, p."isStaffPick" DESC, ${this.VELOCITY} DESC, p.id DESC`;
         }
         return Prisma.sql`ORDER BY p."isStaffPick" DESC, ${this.VELOCITY} DESC, p."publishedAt" DESC NULLS LAST, p.id DESC`;
     }

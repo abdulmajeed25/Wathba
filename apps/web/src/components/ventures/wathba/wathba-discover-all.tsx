@@ -155,8 +155,9 @@ export function WathbaDiscoverAll({
             <div style={emptyBox} data-testid="zero-results">
               <Icon name="explore" size={26} color="var(--muted2)" />
               <div style={{ marginTop: 10, fontWeight: 600 }}>
-                {q ? `لا نتائج عن «${q}» — جرّب فئة أخرى.` : 'لا توجد مشاريع مطابقة لعوامل التصفية.'}
+                {q ? `لا نتائج عن «${q}»` : 'لا توجد مشاريع مطابقة لعوامل التصفية.'}
               </div>
+              {q ? <DidYouMean q={q} /> : null}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 12 }}>
                 {SEARCH_CHIPS.map((chip) => (
                   <a
@@ -522,4 +523,67 @@ function loadMoreBtn(loading: boolean): React.CSSProperties {
     color: 'var(--on-accent)', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
     padding: '12px 28px', borderRadius: 13, opacity: loading ? 0.7 : 1,
   };
+}
+
+
+/**
+ * "هل تقصد…" — the zero state's second chance.
+ *
+ * Trigram nearest-neighbour over project titles, categories and tags, fetched
+ * only when there are no results. A reader who mistypes one letter of an Arabic
+ * word currently gets a blank page and a row of generic chips; the letter they
+ * meant is one click away and the database already knows it.
+ *
+ * Client-side and after paint, deliberately: this must never delay the results
+ * page itself, and on the far more common non-empty render it does not run at
+ * all.
+ */
+function DidYouMean({ q }: { q: string }) {
+  const [sug, setSug] = useState<{
+    terms: string[];
+    categories: Array<{ slug: string; nameAr: string }>;
+    tags: Array<{ slug: string; nameAr: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void fetch(`/api/search/did-you-mean?q=${encodeURIComponent(q)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (live) setSug(j as typeof sug);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [q]);
+
+  const items = [
+    ...(sug?.terms ?? []).map((t) => ({ label: t, href: `/projects/search?q=${encodeURIComponent(t)}` })),
+    ...(sug?.categories ?? []).map((c) => ({ label: c.nameAr, href: `/projects/discover-all?cat=${encodeURIComponent(c.slug)}` })),
+    ...(sug?.tags ?? []).map((t) => ({ label: t.nameAr, href: `/projects/discover-all?tag=${encodeURIComponent(t.slug)}` })),
+  ];
+  if (items.length === 0) return null;
+
+  return (
+    <div data-testid="did-you-mean" style={{ marginTop: 14 }}>
+      <div style={{ fontSize: 13, color: 'var(--muted2)', marginBottom: 8 }}>هل تقصد…</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+        {items.slice(0, 6).map((it) => (
+          <a
+            key={it.href}
+            href={it.href}
+            style={{
+              fontSize: 12.5, fontWeight: 600, color: 'var(--accent-ink)', textDecoration: 'none',
+              border: '1px solid rgba(var(--accent-rgb),.28)', background: 'rgba(var(--accent-rgb),.08)',
+              padding: '6px 13px', borderRadius: 999, maxWidth: 280,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+          >
+            {it.label}
+          </a>
+        ))}
+      </div>
+    </div>
+  );
 }
