@@ -60,8 +60,17 @@ test('S3: with motion allowed, below-the-fold sections reveal on scroll', async 
 
   await last.scrollIntoViewIfNeeded();
   await expect(last).toHaveAttribute('data-revealed', '1');
-  await page.waitForTimeout(800);
-  expect(await last.evaluate((e) => Number(getComputedStyle(e).opacity))).toBeGreaterThan(0.9);
+  // `data-revealed=1` says the reveal STARTED; the opacity transition still has
+  // to run. Sleeping 800ms was a guess at its duration, and when the guess was
+  // short this reported an unrevealed section — a product claim resting on a
+  // clock. Poll the opacity instead: the assertion is "it finishes", not "it
+  // finishes within 800ms".
+  await expect
+    .poll(async () => last.evaluate((e) => Number(getComputedStyle(e).opacity)), {
+      message: 'the revealed section never reached full opacity',
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(0.9);
   await ctx.close();
 });
 
