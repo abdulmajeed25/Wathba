@@ -4,7 +4,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
-import { ProjectCategory, ProjectRegion } from '@prisma/client';
+import { ProjectCardMedia, ProjectCategory, ProjectRegion } from '@prisma/client';
 
 /** Batch CAT — discovery filters (the mega-menu "تصفية حسب" list). One at a
  *  time, each combinable with category/subcategory + cursor. `upcoming` is
@@ -90,6 +90,20 @@ export class CreateProjectDto {
   @Matches(/\.(mp4|webm)(\?|$)/i, { message: 'videoUrl must be an .mp4 or .webm file' })
   videoUrl?: string;
 
+  /**
+   * What the CARD shows: the video on hover, or the cover image only.
+   *
+   * The creator's call, not the platform's. VIDEO is the default and reads as
+   * "video if there is one" — a project with no videoUrl renders its cover
+   * either way — so leaving it unset is correct for the overwhelming majority
+   * of projects and nothing changes for them. POSTER is for a creator who HAS a
+   * video and wants a still card anyway; before this the only way to get one
+   * was to delete the video, which also removed it from the campaign page.
+   */
+  @ApiProperty({ required: false, enum: ProjectCardMedia, default: ProjectCardMedia.VIDEO })
+  @IsOptional() @IsEnum(ProjectCardMedia)
+  cardMedia?: ProjectCardMedia;
+
   @ApiProperty({ example: 40_000_000, description: 'Funding goal in halalas (1 SAR = 100)' })
   @IsInt() @Min(10_000)
   fundingGoalHalalas!: number;
@@ -129,6 +143,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() @MinLength(50) storyAr?: string;
   @IsOptional() @IsArray() @IsString({ each: true }) mediaUrls?: string[];
   @IsOptional() @IsString() @MaxLength(600) @Matches(/\.(mp4|webm)(\?|$)/i, { message: 'videoUrl must be an .mp4 or .webm file' }) videoUrl?: string;
+  @IsOptional() @IsEnum(ProjectCardMedia) cardMedia?: ProjectCardMedia;
   @IsOptional() @IsInt() @Min(10_000) fundingGoalHalalas?: number;
   @IsOptional() @IsInt() @Min(50) @Max(100) releaseThresholdPct?: number;
   @IsOptional() @IsInt() @Min(7) @Max(120) durationDays?: number;

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { cardVideoUrl } from '../common/card-media';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -55,6 +56,7 @@ const SELECT = {
   shortDescAr: true,
   mediaUrls: true,
   videoUrl: true,
+  cardMedia: true,
   region: true,
   isStaffPick: true,
   fundingGoalHalalas: true,
@@ -125,7 +127,7 @@ export class HeroService {
             titleAr: p.titleAr,
             shortDescAr: p.shortDescAr,
             imageUrl: p.mediaUrls[0] ?? null,
-            videoUrl: p.videoUrl,
+            videoUrl: cardVideoUrl(p),
             creatorName: p.createdBy.name,
             categoryAr: top?.nameAr ?? null,
             categorySlug: top?.slug ?? null,

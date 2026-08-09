@@ -306,8 +306,18 @@ export interface ApiProjectDetail {
   category: string;
   storyAr: string;
   mediaUrls: string[];
-  /** Stage 1 item 12 — the campaign video (mp4/webm), or null. */
+  /**
+   * The campaign video (mp4/webm), or null.
+   *
+   * RAW here, unlike on the card payloads. The detail response is what the
+   * dashboard edits and what the campaign page plays, so it carries the video a
+   * creator actually uploaded even when they have chosen not to show it on the
+   * card. Card payloads resolve that choice server-side and simply send null —
+   * see apps/api/src/common/card-media.ts.
+   */
   videoUrl: string | null;
+  /** What the CARD shows. 'VIDEO' means "video if there is one". */
+  cardMedia: 'VIDEO' | 'POSTER';
   fundingGoalHalalas: number;
   releaseThresholdPct: number;
   durationDays: number;

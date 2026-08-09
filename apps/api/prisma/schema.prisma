@@ -68,6 +68,25 @@ enum ProjectRegion {
   JAWF
 }
 
+/// What a project shows on its CARD — the media a reader meets before they
+/// click into the campaign. The creator's choice, not the platform's.
+///
+/// VIDEO is the default and means "video if there is one": a project with no
+/// `videoUrl` renders its cover either way, so the default is safe for the
+/// 99.8% of projects that have never uploaded one. POSTER pins the card to the
+/// cover image for a creator who has a video but does not want it playing under
+/// a passing cursor — a still frame is a legitimate editorial choice, and
+/// before this the only way to get one was to delete the video.
+///
+/// Enforced SERVER-SIDE, on the card payloads: hero, home and discover emit
+/// `videoUrl: null` when this is POSTER, so every card surface inherits the
+/// decision without knowing it exists. Only the project DETAIL payload carries
+/// the raw video plus this flag, because that is where the creator edits it.
+enum ProjectCardMedia {
+  VIDEO
+  POSTER
+}
+
 enum ProjectStatus {
   DRAFT
   UNDER_REVIEW
@@ -365,6 +384,8 @@ model Project {
   /// Nullable and unset for every existing project — surfaces that hover-play
   /// the video degrade to the cover image until a creator uploads one.
   videoUrl             String?
+  /// Creator's choice of what the CARD shows. See ProjectCardMedia.
+  cardMedia            ProjectCardMedia @default(VIDEO)
   fundingGoalHalalas   BigInt
   releaseThresholdPct  Int              @default(80)
   durationDays         Int

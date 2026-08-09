@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { cardVideoUrl, rawCardMedia } from '../common/card-media';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscoverQueryDto } from './dto/discover-query.dto';
 
@@ -63,7 +64,10 @@ export interface DiscoverCard {
   deadline: string;
   publishedAt: string | null;
   mediaUrls: string[];
-  /// Stage 1 item 12 — null until a creator uploads one (migration 0059).
+  /// Stage 1 item 12 — null until a creator uploads one (migration 0059), and
+  /// ALSO null when the creator pinned the card to its poster (migration 0060).
+  /// A card surface never has to know which of the two it is; see
+  /// common/card-media.ts.
   videoUrl: string | null;
   slug: string | null;
   saved: boolean;
@@ -296,7 +300,7 @@ export class DiscoverService {
     const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>(Prisma.sql`
       SELECT p.id, p."titleAr", p."shortDescAr", p."categoryId", p.region::text AS region,
              p."isStaffPick", p.status::text AS status, p."fundingGoalHalalas", p."raisedHalalas",
-             p."backersCount", p.deadline, p."publishedAt", p."mediaUrls", p."videoUrl", p.slug,
+             p."backersCount", p.deadline, p."publishedAt", p."mediaUrls", p."videoUrl", p."cardMedia", p.slug,
              ${savedSel} AS saved, u.name AS "creatorName"
       FROM "Project" p
       JOIN "User" u ON u.id = p."createdById"
@@ -332,7 +336,10 @@ export class DiscoverService {
       deadline: d ? new Date(d).toISOString() : '',
       publishedAt: pub ? new Date(pub).toISOString() : null,
       mediaUrls: (r.mediaUrls as string[]) ?? [],
-      videoUrl: (r.videoUrl as string) ?? null,
+      // Locals, so the only `videoUrl:` in this object literal is the resolved
+      // one. A raw read here would be indistinguishable, to a reader and to the
+      // guard in card-media.spec.ts, from a surface that forgot the rule.
+      videoUrl: cardVideoUrl(rawCardMedia(r)),
       slug: (r.slug as string) ?? null,
       saved: Boolean(r.saved),
       creatorName: (r.creatorName as string) ?? '',
