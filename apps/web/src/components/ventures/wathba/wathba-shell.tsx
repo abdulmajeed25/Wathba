@@ -174,6 +174,39 @@ export function WathbaShell({
               [data-pillar="ventures"] .wathba-reveal{transition:opacity .62s ease,transform .62s cubic-bezier(.22,.68,.24,1)}
               [data-pillar="ventures"] .wathba-reveal[data-revealed="0"]{opacity:.001;transform:translateY(20px)}
               [data-pillar="ventures"] .wathba-reveal[data-revealed="1"]{opacity:1;transform:none}
+
+              /* ── SPOTLIGHT-PLUS P3 — stagger inside a chapter ─────────────
+                 Every section on /spotlight arrived as one block: header and
+                 all five cards on the same 620ms curve, so the page had one
+                 motion note and repeated it. This gives a chapter an internal
+                 order — the header, then its cards in sequence.
+
+                 CSS, not more observers. Wrapping each card in its own Reveal
+                 would mean thirteen IntersectionObservers on this page; here
+                 the section's single observer flips one attribute and the
+                 children read their own index off --i. It also runs off the
+                 main thread, which the JS path cannot promise while the page
+                 is still fetching covers.
+
+                 A STAGGERED SECTION DOES NOT MOVE ITSELF. Without -flat the
+                 parent's 20px and the child's 14px compose, so the last card
+                 travels 34px and the chapter reads as drifting rather than
+                 arriving. The parent fades; only the children translate.
+
+                 The delay is capped at the 5th item. Uncapped, the band's
+                 fifth card would wait 275ms after the first — past the point
+                 where a reader has already looked at it, which is how stagger
+                 turns into latency. This is punctuation, not choreography. */
+              [data-pillar="ventures"] .wathba-reveal-flat[data-revealed="0"]{transform:none}
+              [data-pillar="ventures"] .wathba-stagger-item{
+                transition:opacity .48s ease,transform .48s cubic-bezier(.22,.68,.24,1);
+              }
+              [data-pillar="ventures"] .wathba-reveal[data-revealed="0"] .wathba-stagger-item{
+                opacity:.001;transform:translateY(14px);
+              }
+              [data-pillar="ventures"] .wathba-reveal[data-revealed="1"] .wathba-stagger-item{
+                opacity:1;transform:none;transition-delay:calc(min(var(--i,0),5) * 55ms);
+              }
             }
 
             /* ── POLISH Unit 3 — category strip ────────────────────────────
@@ -267,6 +300,13 @@ export function WathbaShell({
                duo/row grids stack via CSS (no JS re-layout → zero CLS). */
             [data-pillar="ventures"] .lift{transition:transform .18s ease,box-shadow .18s ease}
             [data-pillar="ventures"] .lift:hover{transform:translateY(-3px);box-shadow:var(--card-shadow-h)}
+            /* A SHADOW NEEDS A SURFACE. The full-bleed band's tiles carry no
+               background, border or radius of their own — the art is the card.
+               .lift's hover shadow therefore drew a soft rectangle around
+               transparency, outlining the empty space beside the title as a
+               ghost panel that no other tile had. The lift itself is the
+               feedback; the shadow was describing a card that is not there. */
+            [data-pillar="ventures"] .lift-bare:hover{box-shadow:none}
             @media (prefers-reduced-motion:reduce){
               [data-pillar="ventures"] .lift,[data-pillar="ventures"] .lift:hover{transition:none;transform:none}
             }

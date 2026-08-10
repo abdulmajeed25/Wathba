@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import type { CSSProperties, ReactNode } from 'react';
 
 import type { ApiEditorialCard, ApiHomeProjectCard, ApiSpotlightPayload } from '@/lib/api/wathba';
 
@@ -535,6 +536,10 @@ function Section({
     <Reveal
       as="section"
       id={id}
+      // -flat: the chapter itself only fades. Its children carry the movement,
+      // in order — see the stagger block in wathba-shell.tsx for why both
+      // moving at once reads as drift rather than arrival.
+      className="wathba-reveal-flat"
       // scroll-margin so the sticky header never covers the heading when the nav
       // menu deep-links to #id.
       style={{
@@ -546,11 +551,14 @@ function Section({
     >
       <div style={{ maxWidth: MAX, margin: '0 auto', padding: '0 26px' }}>
         <div
+          className="wathba-stagger-item"
           style={{
             marginBottom: centred ? 34 : 26,
             maxWidth: 720,
+            // The header leads the chapter in, so it is step 0.
+            '--i': 0,
             ...(centred ? { marginInline: 'auto', textAlign: 'center' } : {}),
-          }}
+          } as CSSProperties}
         >
           <div
             style={{
@@ -600,8 +608,10 @@ function Section({
             padding: '0 14px',
           }}
         >
-          {items.map((p) => (
-            <TileCard key={p.id} p={p} ratio="3 / 2" bare />
+          {items.map((p, i) => (
+            <Step key={p.id} i={i + 1}>
+              <TileCard p={p} ratio="3 / 2" bare />
+            </Step>
           ))}
         </div>
       ) : (
@@ -615,8 +625,10 @@ function Section({
                 gap: 22,
               }}
             >
-              {items.map((p) => (
-                <TileCard key={p.id} p={p} ratio="4 / 5" />
+              {items.map((p, i) => (
+                <Step key={p.id} i={i + 1}>
+                  <TileCard p={p} ratio="4 / 5" />
+                </Step>
               ))}
             </div>
           ) : (
@@ -631,11 +643,17 @@ function Section({
                 alignItems: 'start',
               }}
             >
-              {lead && <LeadCard p={lead} />}
+              {lead && (
+                <Step i={1}>
+                  <LeadCard p={lead} />
+                </Step>
+              )}
               {rest.length > 0 && (
                 <div style={{ display: 'grid', gap: 14 }}>
-                  {rest.map((p) => (
-                    <RowCard key={p.id} p={p} />
+                  {rest.map((p, i) => (
+                    <Step key={p.id} i={i + 2}>
+                      <RowCard p={p} />
+                    </Step>
                   ))}
                 </div>
               )}
@@ -648,6 +666,21 @@ function Section({
 }
 
 /**
+ * One step of a chapter's entrance.
+ *
+ * A wrapper rather than a prop on each card: LeadCard, RowCard and TileCard
+ * would each need the same two lines threaded through them, and the wrapper is
+ * a grid item in every layout here — the card fills it and nothing shifts.
+ */
+function Step({ i, children }: { i: number; children: ReactNode }) {
+  return (
+    <div className="wathba-stagger-item" style={{ '--i': i } as CSSProperties}>
+      {children}
+    </div>
+  );
+}
+
+/**
  * One tile, two dresses — the only difference between a shortlist portrait and
  * a full-bleed band item is the ratio and whether it wears card chrome, so
  * they are one component rather than two near-copies.
@@ -656,7 +689,7 @@ function TileCard({ p, ratio, bare }: { p: ApiHomeProjectCard; ratio: string; ba
   return (
     <Link
       href={hrefOf(p)}
-      className="lift"
+      className={bare ? 'lift lift-bare' : 'lift'}
       style={{
         display: 'block',
         textDecoration: 'none',
