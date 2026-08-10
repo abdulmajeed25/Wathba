@@ -42,6 +42,11 @@ export function WathbaTabStory({
     : rich.story;
   return (
     <div
+      // The class carries the responsive bands (wathba-shell.tsx). This is a
+      // three-ZONE layout — contents rail, story, pledge sidebar — so
+      // auto-fit is wrong for it: the zones are not interchangeable cards.
+      // At 360 it demanded 200+360 plus gaps inside a 308px box.
+      className="wathba-story-grid"
       style={{
         display: 'grid',
         gridTemplateColumns: '200px minmax(0, 1fr) 360px',

@@ -72,7 +72,9 @@ export function WathbaContactForm() {
 
   return (
     <form onSubmit={(e) => void submit(e)} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {/* Two 310px fields inside a 308px box at 360 put the email input
+          off-screen — a contact form you cannot complete on a phone. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <label style={col}>
           <span style={lbl}>اسمك</span>
           <input name="name" required minLength={2} maxLength={80} style={inp} />
