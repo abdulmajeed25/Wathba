@@ -495,6 +495,15 @@ export function WathbaShell({
             }
             @media (max-width:760px){
               [data-pillar="ventures"] .wathba-spotlight-hero{grid-template-columns:1fr!important;gap:26px!important;padding-top:44px!important}
+              /* SPOTLIGHT-PLUS P1 — the cinematic hero re-scrims on a phone.
+                 On desktop the copy sits in the start 58% and the scrim is
+                 heaviest at that edge, letting the photograph breathe on the
+                 far side. At 360 the copy is full width, so it would run into
+                 the thin end of that gradient and lose contrast. Bottom-heavy
+                 is the correct scrim for a bottom-anchored full-width column,
+                 and it keeps the top of the cover visible. */
+              [data-pillar="ventures"] .wathba-spotlight-copy{max-width:100%!important}
+              [data-pillar="ventures"] .wathba-spotlight-scrim{background:linear-gradient(to top,rgba(4,10,7,.88) 0%,rgba(4,10,7,.74) 32%,rgba(4,10,7,.46) 62%,rgba(4,10,7,.26) 100%)!important}
               [data-pillar="ventures"] .wathba-hero-band{grid-template-columns:1fr!important}
               /* minmax(0,1fr), NOT 1fr. A grid item's min-width defaults to
                  auto, so a 1fr track cannot shrink below the item's min-content

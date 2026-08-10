@@ -96,13 +96,39 @@ async function failures(page: Page): Promise<Array<{ ratio: number; need: number
       if (r.width < 4 || r.height < 4) return;
       if ((s.webkitBackgroundClip || s.backgroundClip) === 'text') return;
 
+      // A photographic ground is not always a CSS background-image. The
+      // cinematic /spotlight hero paints its cover as an absolutely-positioned
+      // <img> LAYER behind the copy, which this walk sailed straight past —
+      // it composited the page's light surface and reported white ink at
+      // 1.09:1 on text that measures 5.4:1 to 18.5:1 against the actual pixels.
+      //
+      // Same exclusion, same stated reason as a url() background: there is no
+      // single measurable ground. Coverage is what qualifies it — a media
+      // element only counts if it is a positioned layer that fully contains
+      // the text box, so a card whose image sits ABOVE its caption is still
+      // measured normally.
+      //
+      // Excluding it here means it must be measured somewhere else: SC4 in
+      // e2e/spotlight-chapters.spec.ts samples the rendered pixels under each
+      // glyph run of the hero.
+      const overMediaLayer = (host: Element): boolean =>
+        [...host.querySelectorAll('img, video')].some((m) => {
+          const mr = m.getBoundingClientRect();
+          if (!(mr.left <= r.left + 1 && mr.right >= r.right - 1 && mr.top <= r.top + 1 && mr.bottom >= r.bottom - 1)) return false;
+          for (let a: Element | null = m; a && a !== host.parentElement; a = a.parentElement) {
+            const p = getComputedStyle(a).position;
+            if (p === 'absolute' || p === 'fixed') return true;
+          }
+          return false;
+        });
+
       const stack: number[][] = [];
       let n: Element | null = el;
       let onImage = false;
       let gradient: number[][] | null = null;
       while (n) {
         const cs = getComputedStyle(n);
-        if (/url\(/.test(cs.backgroundImage || '')) { onImage = true; break; }
+        if (/url\(/.test(cs.backgroundImage || '') || overMediaLayer(n)) { onImage = true; break; }
         const c = rgbOf(cs.backgroundColor);
         if (c[3] > 0.001) { stack.push(c); if (c[3] >= 0.999) break; }
         const g = stopsOf(cs.backgroundImage);
