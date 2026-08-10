@@ -57,6 +57,7 @@ export function WathbaSpotlight({ data }: { data: ApiSpotlightPayload | null }) 
         lede="يختارها فريق وثبة يدوياً: عمل نراه يستحق أن يُرى."
         items={staffPicks}
         premium
+        variant="band-trio"
       />
       <Section
         id="inventive"
@@ -64,6 +65,7 @@ export function WathbaSpotlight({ data }: { data: ApiSpotlightPayload | null }) 
         title="إبداعات مميزة"
         lede="أعمال تجرّب شيئاً لم يُجرَّب بعد."
         items={inventive}
+        variant="full-bleed"
       />
       <Section
         id="inclusion"
@@ -102,6 +104,217 @@ export function WathbaSpotlight({ data }: { data: ApiSpotlightPayload | null }) 
 /* ───────────────────────── hero ───────────────────────── */
 
 function Hero({ p }: { p: ApiHomeProjectCard }) {
+  // THE PREMISE CHANGED. This page was built for a dataset with no cover
+  // imagery at all, and said in its own header comment that it should get
+  // better — not merely different — when photography landed. It has: the
+  // SPOTLIGHT-PLUS audit counted 14 covers on this page, 11 decoded.
+  //
+  // So the hero picks its form from the data instead of assuming the empty
+  // case. With a cover it becomes a full-bleed stage; without one it keeps the
+  // typographic wash, which is still the right answer for a bare record.
+  return p.imageUrl ? <HeroCinematic p={p} /> : <HeroTypographic p={p} />;
+}
+
+/**
+ * The cover as the ground, edge to edge.
+ *
+ * Everything inside pins its own ink to a FIXED light palette rather than the
+ * theme's. That looks like a token violation and is the opposite: this section
+ * no longer stands on `--surface-0`, it stands on a photograph, so the theme
+ * has nothing to say about what is legible here. `var(--text)` would render
+ * near-black over a dark scrim in light mode — the same "a root owns ink AND
+ * ground" rule that broke the auth pages, applied to an element that has taken
+ * ownership of its own ground.
+ */
+function HeroCinematic({ p }: { p: ApiHomeProjectCard }) {
+  return (
+    <section
+      aria-labelledby="spotlight-hero-title"
+      style={{
+        position: 'relative',
+        overflow: 'hidden',
+        // `isolate` keeps the scrim's stacking context local, so a z-index here
+        // can never reach over the site header.
+        isolation: 'isolate',
+        // RESERVED, and this is the CLS guarantee: the section's height is a
+        // pure function of the viewport, never of whether the cover has
+        // decoded. The art fills a box that is already the right size.
+        minHeight: 'clamp(520px, 72vh, 760px)',
+        display: 'grid',
+        // Anchored to the bottom — a poster, not a centred banner.
+        alignItems: 'end',
+      }}
+    >
+      {/* THE STAGE — deliberately NOT wrapped in HeroParallax.
+
+          The first version drifted the cover on scroll, reusing the primitive
+          the typographic hero uses for its gradient washes. Measured, that was
+          a bad trade: the primitive carries `will-change: transform`, which on
+          two small gradient divs is free and on a 1366x770 photographic layer
+          promotes a texture roughly 3.6x the LCP element's old painted area.
+          The cover is the LCP element, so the cost lands on the number that
+          matters most. It is also redundant motion — this surface already
+          moves, because hovering it plays the film. */}
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+        {/* Hover anywhere on the stage plays the film. On a surface this large
+            that is close to autoplay, and it is the intent: this is the one
+            page whose whole job is to make the work look alive. The safeties
+            are the component's, unchanged — muted, looping, one at a time,
+            never before the LCP window closes, and nothing at all on a coarse
+            pointer or under reduced motion. */}
+        <WathbaCardVideo videoUrl={p.videoUrl} poster={p.imageUrl}>
+          <Image
+            src={p.imageUrl!}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            style={{ objectFit: 'cover' }}
+          />
+        </WathbaCardVideo>
+      </div>
+
+      {/* THE SCRIM, and it is load-bearing for accessibility, not decoration.
+          Two layers: a flat floor that holds no matter what the photograph
+          does, and a directional wash heaviest at the START edge — right, in
+          RTL — where the text actually sits. A gradient alone would put the
+          copy at the mercy of a bright cover.
+
+          Worst case is a pure-white photo. Composited the two layers reach
+          ~0.75 alpha under the text column, which lands white on ~10:1. The
+          far end thins out to nothing, which is why the copy is bounded to
+          the start 58% and never travels into it. */}
+      <div
+        aria-hidden
+        className="wathba-spotlight-scrim"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1,
+          background:
+            'linear-gradient(to left, rgba(4,10,7,.80) 0%, rgba(4,10,7,.66) 38%, rgba(4,10,7,.20) 78%, rgba(4,10,7,.08) 100%),' +
+            'linear-gradient(to top, rgba(4,10,7,.62) 0%, rgba(4,10,7,.10) 46%, transparent 72%)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {p.videoUrl ? <WathbaCardVideoGlyph /> : null}
+
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 2,
+          maxWidth: MAX,
+          width: '100%',
+          margin: '0 auto',
+          padding: '96px 26px 58px',
+        }}
+      >
+        <div style={{ maxWidth: 'min(58%, 760px)' }} className="wathba-spotlight-copy">
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              padding: '7px 14px',
+              borderRadius: 30,
+              // A DARK chip, and it has to be dark. The first version was a
+              // white 22% glass fill, which lightens the ground beneath its own
+              // white text: measured 3.42:1 at 360, where this pill sits at the
+              // top of the hero and the mobile scrim is at its thinnest. The
+              // rule the rest of this file follows applies to the chip too — an
+              // element that paints its own ground owns its own contrast, and
+              // must not borrow legibility from a scrim it happens to sit on.
+              // At 66% over a pure-white photograph this floors at ~6:1.
+              //
+              // NO backdrop-filter. A blur here sits above the LCP element and
+              // forces the compositor to read back a region of it before the
+              // badge can paint — measurable cost on the one element whose
+              // paint time is the metric. A flat fill at this size is
+              // indistinguishable on a photograph anyway.
+              background: 'rgba(4,10,7,.66)',
+              border: '1px solid rgba(255,255,255,.28)',
+              color: '#fff',
+              fontSize: 12.5,
+              fontWeight: 700,
+              marginBottom: 20,
+            }}
+          >
+            {/* The mark keeps the brand green even on art — identity leads. */}
+            <Icon name="diamond" size={15} color="var(--accent)" />
+            تحت الأضواء
+          </div>
+
+          <h1
+            id="spotlight-hero-title"
+            style={{
+              // The display voice the rest of the page does not have. Nothing
+              // else on /spotlight goes past 54px; this is the crescendo.
+              fontSize: 'clamp(38px, 6.6vw, 88px)',
+              // 1.3, NOT the 1.12 this hero used to carry. Arabic ascenders and
+              // descenders are taller than Latin ones and a display line-height
+              // under ~1.3 clips tails and diacritics — at 88px it clipped
+              // visibly. No letter-spacing at any size: negative tracking
+              // breaks the cursive joins.
+              lineHeight: 1.3,
+              letterSpacing: 0,
+              fontWeight: 700,
+              color: '#fff',
+              margin: '0 0 18px',
+              textShadow: '0 2px 30px rgba(0,0,0,.42)',
+            }}
+          >
+            {p.titleAr}
+          </h1>
+
+          {p.shortDescAr && (
+            <p
+              style={{
+                fontSize: 'clamp(15px, 1.5vw, 19px)',
+                lineHeight: 1.75,
+                color: 'rgba(255,255,255,.90)',
+                margin: '0 0 30px',
+                maxWidth: 620,
+                textShadow: '0 1px 18px rgba(0,0,0,.40)',
+              }}
+            >
+              {p.shortDescAr}
+            </p>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginBottom: 30 }}>
+            <Stat value={`%${toArabicDigits(p.fundedPct)}`} label="مُموَّل" onArt />
+            <Divider onArt />
+            <Stat value={toArabicDigits(p.backersCount)} label="داعم" onArt />
+          </div>
+
+          <Link
+            href={hrefOf(p)}
+            className="lift"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 9,
+              padding: '15px 26px',
+              borderRadius: 15,
+              background: 'var(--cta-grad)',
+              color: 'var(--on-accent)',
+              fontWeight: 700,
+              fontSize: 15.5,
+              textDecoration: 'none',
+            }}
+          >
+            شاهد المشروع
+            <Icon name="arrow_back" size={19} color="var(--on-accent)" />
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** No cover: the gradient wash the page was originally built around. */
+function HeroTypographic({ p }: { p: ApiHomeProjectCard }) {
   return (
     <section
       aria-labelledby="spotlight-hero-title"
@@ -147,16 +360,12 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
           maxWidth: MAX,
           margin: '0 auto',
           padding: '72px 26px 64px',
-          display: 'grid',
-          gridTemplateColumns: p.imageUrl ? '1.05fr .95fr' : '1fr',
-          gap: 40,
-          alignItems: 'center',
           position: 'relative',
           zIndex: 1,
         }}
         className="wathba-spotlight-hero"
       >
-        <div style={{ maxWidth: p.imageUrl ? undefined : 860 }}>
+        <div style={{ maxWidth: 860 }}>
           <div
             style={{
               display: 'inline-flex',
@@ -234,52 +443,69 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
           </Link>
         </div>
 
-        {p.imageUrl && (
-          <div
-            style={{
-              position: 'relative',
-              aspectRatio: '4 / 3',
-              borderRadius: 22,
-              overflow: 'hidden',
-              boxShadow: 'var(--card-shadow-h)',
-            }}
-          >
-            {/* The hero cover is the LCP element: it keeps `priority` and is
-                NOT lazy. WathbaCardVideo only mounts a <video> on hover intent
-                and never before the LCP window closes, so the still image is
-                what the first paint measures either way. */}
-            <WathbaCardVideo videoUrl={p.videoUrl} poster={p.imageUrl}>
-              <Image
-                src={p.imageUrl}
-                alt=""
-                fill
-                priority
-                sizes="(max-width: 980px) 92vw, 560px"
-                style={{ objectFit: 'cover' }}
-              />
-            </WathbaCardVideo>
-            {p.videoUrl ? <WathbaCardVideoGlyph /> : null}
-          </div>
-        )}
       </div>
     </section>
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+// `onArt` = standing on a photograph rather than on a themed surface, so the
+// theme's ink tokens do not apply. See the note on HeroCinematic.
+function Stat({ value, label, onArt }: { value: string; label: string; onArt?: boolean }) {
   return (
     <div>
-      <Num style={{ fontSize: 27, fontWeight: 700, color: 'var(--text)' }}>{value}</Num>
-      <div style={{ fontSize: 12.5, color: 'var(--muted2)', marginTop: 2 }}>{label}</div>
+      <Num style={{ fontSize: onArt ? 30 : 27, fontWeight: 700, color: onArt ? '#fff' : 'var(--text)' }}>
+        {value}
+      </Num>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: onArt ? 'rgba(255,255,255,.82)' : 'var(--muted2)',
+          marginTop: 2,
+        }}
+      >
+        {label}
+      </div>
     </div>
   );
 }
 
-function Divider() {
-  return <div style={{ width: 1, height: 34, background: 'rgba(var(--ink-rgb),.12)' }} />;
+function Divider({ onArt }: { onArt?: boolean }) {
+  return (
+    <div
+      style={{
+        width: 1,
+        height: 34,
+        background: onArt ? 'rgba(255,255,255,.32)' : 'rgba(var(--ink-rgb),.12)',
+      }}
+    />
+  );
 }
 
 /* ─────────────────────── sections ─────────────────────── */
+
+/**
+ * Batch SPOTLIGHT-PLUS P2 — chapters that are shaped like what they mean.
+ *
+ * Every section on this page used to render through one structure: a lead card
+ * beside a rail of rows. The audit measured the result — biggest 756px,
+ * staff-picks 756px, inventive 756px — three consecutive identical blocks.
+ * Nothing crescendoed, and alternating the background colour was the only
+ * signal that a new chapter had begun.
+ *
+ * So the variant is chosen by what the chapter IS, not by alternating for its
+ * own sake:
+ *
+ *   lead-rail  الأكبر والأنجح — the opener, and the canonical magazine form.
+ *              One project carries the chapter; the others report beneath it.
+ *   band-trio  مختارات وثبة — the editors picked three. Three tall portraits,
+ *              equal weight, centred heading, on the premium band. Deliberate
+ *              and spacious, because that is what a hand-picked shortlist is.
+ *   full-bleed إبداعات مميزة — «الجسارة», boldness. The art breaks the
+ *              container and runs to the edges with no card chrome at all.
+ *
+ * Structure varies, not just colour — which was the whole finding.
+ */
+type SectionVariant = 'lead-rail' | 'band-trio' | 'full-bleed';
 
 function Section({
   id,
@@ -288,6 +514,7 @@ function Section({
   lede,
   items,
   premium,
+  variant = 'lead-rail',
 }: {
   id: string;
   eyebrow: string;
@@ -295,12 +522,14 @@ function Section({
   lede: string;
   items: ApiHomeProjectCard[];
   premium?: boolean;
+  variant?: SectionVariant;
 }) {
   // "Every section renders only when it has data" — an empty rail is worse than
   // no rail, so this returns nothing rather than an apologetic placeholder.
   if (items.length === 0) return null;
 
   const [lead, ...rest] = items;
+  const centred = variant === 'band-trio';
 
   return (
     <Reveal
@@ -308,16 +537,28 @@ function Section({
       id={id}
       // scroll-margin so the sticky header never covers the heading when the nav
       // menu deep-links to #id.
-      style={{ scrollMarginTop: 90, padding: '58px 0', ...(premium ? { background: 'var(--band)' } : {}) }}
+      style={{
+        scrollMarginTop: 90,
+        padding: variant === 'band-trio' ? '74px 0' : '58px 0',
+        ...(premium ? { background: 'var(--band)' } : {}),
+      }}
       aria-labelledby={`${id}-title`}
     >
       <div style={{ maxWidth: MAX, margin: '0 auto', padding: '0 26px' }}>
-        <div style={{ marginBottom: 26, maxWidth: 720 }}>
+        <div
+          style={{
+            marginBottom: centred ? 34 : 26,
+            maxWidth: 720,
+            ...(centred ? { marginInline: 'auto', textAlign: 'center' } : {}),
+          }}
+        >
           <div
             style={{
               fontSize: 12,
               fontWeight: 700,
-              letterSpacing: '1.4px',
+              // Tracking is a LATIN device. Arabic is cursive: positive
+              // letter-spacing pulls the joins apart, so the eyebrow earns its
+              // hierarchy from weight and the accent ink instead.
               color: 'var(--accent-ink)',
               marginBottom: 9,
             }}
@@ -326,35 +567,117 @@ function Section({
           </div>
           <h2
             id={`${id}-title`}
-            style={{ fontSize: 'clamp(23px, 2.6vw, 33px)', fontWeight: 700, margin: '0 0 10px' }}
+            style={{
+              fontSize: centred ? 'clamp(26px, 3.2vw, 40px)' : 'clamp(23px, 2.6vw, 33px)',
+              fontWeight: 700,
+              // 1.35: Arabic descenders and diacritics need the room, and these
+              // headings wrap to two lines at 360.
+              lineHeight: 1.35,
+              margin: '0 0 10px',
+            }}
           >
             {title}
           </h2>
           <p style={{ fontSize: 15, lineHeight: 1.7, color: 'var(--muted)', margin: 0 }}>{lede}</p>
         </div>
+      </div>
 
-        {/* Magazine rhythm: one lead card carrying the section, the rest in a
-            calmer grid beside it. Falls back to a plain grid on one item. */}
+      {variant === 'full-bleed' ? (
+        // Escapes the MAX container deliberately — that is the chapter's whole
+        // argument. 14px of inset rather than 0 so the art reads as full-bleed
+        // without a card looking like it was clipped by the viewport.
         <div
-          className="wathba-spotlight-grid"
+          className="wathba-spotlight-band"
           style={{
             display: 'grid',
-            gridTemplateColumns: rest.length > 0 ? '1.15fr 1fr' : '1fr',
-            gap: 22,
-            alignItems: 'start',
+            // auto-fit, NOT auto-fill: the item count is fixed, so auto-fill
+            // would keep adding empty tracks on a wide screen and shrink the
+            // art. auto-fit collapses them instead — and at 360 it drops to a
+            // single column on its own, which is what stops this becoming the
+            // five-track grid that hid content on a phone elsewhere.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+            gap: 16,
+            padding: '0 14px',
           }}
         >
-          {lead && <LeadCard p={lead} />}
-          {rest.length > 0 && (
-            <div style={{ display: 'grid', gap: 14 }}>
-              {rest.map((p) => (
-                <RowCard key={p.id} p={p} />
+          {items.map((p) => (
+            <TileCard key={p.id} p={p} ratio="3 / 2" bare />
+          ))}
+        </div>
+      ) : (
+        <div style={{ maxWidth: MAX, margin: '0 auto', padding: '0 26px' }}>
+          {variant === 'band-trio' ? (
+            <div
+              className="wathba-spotlight-trio"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: 22,
+              }}
+            >
+              {items.map((p) => (
+                <TileCard key={p.id} p={p} ratio="4 / 5" />
               ))}
+            </div>
+          ) : (
+            /* Magazine rhythm: one lead card carrying the section, the rest in
+               a calmer grid beside it. Falls back to a plain grid on one item. */
+            <div
+              className="wathba-spotlight-grid"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: rest.length > 0 ? '1.15fr 1fr' : '1fr',
+                gap: 22,
+                alignItems: 'start',
+              }}
+            >
+              {lead && <LeadCard p={lead} />}
+              {rest.length > 0 && (
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {rest.map((p) => (
+                    <RowCard key={p.id} p={p} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
-      </div>
+      )}
     </Reveal>
+  );
+}
+
+/**
+ * One tile, two dresses — the only difference between a shortlist portrait and
+ * a full-bleed band item is the ratio and whether it wears card chrome, so
+ * they are one component rather than two near-copies.
+ */
+function TileCard({ p, ratio, bare }: { p: ApiHomeProjectCard; ratio: string; bare?: boolean }) {
+  return (
+    <Link
+      href={hrefOf(p)}
+      className="lift"
+      style={{
+        display: 'block',
+        textDecoration: 'none',
+        color: 'inherit',
+        ...(bare
+          ? {}
+          : {
+              background: 'var(--card)',
+              border: '1px solid rgba(var(--ink-rgb),.08)',
+              borderRadius: 20,
+              overflow: 'hidden',
+              boxShadow: 'var(--card-shadow)',
+            }),
+      }}
+    >
+      <Art p={p} ratio={ratio} radius={bare ? 14 : 0} />
+      <div style={{ padding: bare ? '14px 4px 0' : '16px 18px 18px' }}>
+        <h3 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 8px', lineHeight: 1.4 }}>{p.titleAr}</h3>
+        <Funded p={p} compact />
+      </div>
+    </Link>
   );
 }
 
