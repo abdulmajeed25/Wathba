@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { apiSignin } from './helpers';
 
 const API = process.env.E2E_API_URL ?? 'http://localhost:4001';
@@ -7,7 +11,39 @@ const API = process.env.E2E_API_URL ?? 'http://localhost:4001';
  * so the backer + supplier journeys have stable, self-contained targets.
  * Writes the ids to env for the specs.
  */
+/**
+ * Remove the previous runs' golden-journey rows before adding this one.
+ *
+ * These projects are public ON PURPOSE — in CI this is the only project that
+ * exists, and category-discovery + stakes-s10 F-10 both need it listed. That
+ * decision stands. What was wrong is that they ACCUMULATED: 531 had piled up
+ * since 2026-07-26 and became 95% of the public catalogue, so one category held
+ * 95.7% of all projects and most search results were coverless placeholders.
+ *
+ * Hiding them was tried and reverted (widening migration 0058's predicate broke
+ * both specs). Keeping exactly one is the fix that serves both needs: the specs
+ * get their listed project, the catalogue stays presentable.
+ *
+ * Best-effort: a runner without DATABASE_URL or without the api workspace on
+ * disk simply skips it. A housekeeping step must never fail the suite — and the
+ * purge script refuses on its own if any pledge belongs to a real account.
+ */
+function purgePreviousRuns(): void {
+  const script = join(__dirname, '..', '..', 'api', 'prisma', 'purge-e2e-debris.mjs');
+  if (!process.env.DATABASE_URL || !existsSync(script)) {
+    console.log('[global-setup] debris purge skipped (no DATABASE_URL or api workspace)');
+    return;
+  }
+  try {
+    const out = execFileSync('node', [script, '--keep', '0'], { encoding: 'utf8' });
+    console.log(out.trim().split('\n').map((l) => `[global-setup] ${l}`).join('\n'));
+  } catch (e) {
+    console.warn(`[global-setup] debris purge failed (continuing): ${(e as Error).message}`);
+  }
+}
+
 export default async function globalSetup(): Promise<void> {
+  purgePreviousRuns();
   const token = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
   const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
 
