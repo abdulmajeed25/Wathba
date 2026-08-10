@@ -116,7 +116,18 @@ export function WathbaHow() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3,1fr)',
+/*
+             * auto-fit, not a fixed 3 — at 360 the three cards stayed 3-up at
+             * roughly 90px each and the Arabic body copy broke to one or two
+             * words a line («عند / بلوغ / الهدف / نحوّل»). No overflow, no small
+             * tap target, nothing a numeric audit flags: just unreadable.
+             *
+             * auto-FIT rather than the auto-fill used elsewhere in this
+             * codebase, because this row has a FIXED three items: auto-fill
+             * would add empty tracks on a wide viewport and shrink the cards to
+             * a fifth of the width. auto-fit collapses them.
+             */
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: 18,
             marginBottom: 50,
           }}
@@ -205,7 +216,14 @@ export function WathbaHow() {
         </div>
 
         {/* Backer 3-col cards — design 1200-1204 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 18 }}>
+        <div
+          style={{
+            display: 'grid',
+            // Same reason as the creator steps above.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+            gap: 18,
+          }}
+        >
           {backerSteps.map((s) => (
             <div
               key={s.title}
@@ -247,7 +265,9 @@ export function WathbaHow() {
             borderRadius: 24,
             padding: 40,
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
+            // Short stat labels, so they tolerate a narrower track than the
+            // copy-heavy cards above.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
             gap: 30,
             textAlign: 'center',
           }}
