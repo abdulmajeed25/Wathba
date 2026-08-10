@@ -14,6 +14,7 @@ import {
 } from './wathba-data';
 import { categoryCount, categoryHref, categoryIcon, type HomeCategory } from './wathba-categories';
 import type { ApiPopularFacet } from '@/lib/api/wathba';
+import { toArabicDigits } from './discover-all-constants';
 import { WathbaHomeStats } from './wathba-home-stats';
 import { WathbaHomeTrending } from './wathba-home-trending';
 import { Icon, Num } from './wathba-icons';
@@ -466,7 +467,7 @@ export function wathbaHomeRenderers(
                   }}
                 >
                   <span style={{ color: 'var(--text-soft)' }}>{b.label}</span>
-                  <Num style={{ color: 'var(--muted)' }}>{b.pct}%</Num>
+                  <Num style={{ color: 'var(--muted)' }}>%{toArabicDigits(b.pct)}</Num>
                 </div>
                 <div
                   style={{
@@ -562,7 +563,7 @@ export function wathbaHomeRenderers(
               >
                 {r.en}
               </Num>
-              <Num style={{ fontSize: 12.5, color: 'var(--muted)' }}>{r.req}</Num>
+              <Num style={{ fontSize: 12.5, color: 'var(--muted)' }}>{toArabicDigits(r.req)}</Num>
             </div>
           ))}
         </div>
@@ -1151,7 +1152,7 @@ export function WathbaHome({
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-ink)' }}>
-                      {featured.pct}%
+                      %{toArabicDigits(featured.pct)}
                     </Num>
                     <div style={{ fontSize: 11, color: 'var(--muted2)' }}>مُموَّل</div>
                   </div>

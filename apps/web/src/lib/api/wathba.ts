@@ -225,6 +225,46 @@ export async function listForumThreads(_ventureId: string): Promise<ApiForumThre
   return null;
 }
 
+/** Batch PAGE-PARITY U4 — one of the creator's own campaigns. */
+export interface ApiMyProject {
+  id: string;
+  slug: string | null;
+  titleAr: string;
+  status: string;
+  raisedHalalas: string;
+  fundingGoalHalalas: string;
+  backersCount: number;
+  deadline: string | null;
+  publishedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * The signed-in creator's own campaigns — drafts included.
+ *
+ * The dashboard's four KPI tiles were literals («684,200 ر.س», «2,847»,
+ * «171%», "ends 28 يناير") while the signed-in creator's real campaigns ran
+ * 21,000–76,500 SAR with 173–512 backers. This is what makes them true.
+ *
+ * null on failure, and the caller renders an honest empty state rather than a
+ * fabricated one — that is the whole point of the change.
+ */
+export async function listMyProjects(token?: string | null): Promise<ApiMyProject[] | null> {
+  const t = token ?? (await cookies()).get(SESSION_COOKIE)?.value;
+  if (!t) return null;
+  try {
+    const res = await fetch(`${API_BASE}/v1/projects/mine`, {
+      headers: { Authorization: `Bearer ${t}` },
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { items?: ApiMyProject[] };
+    return body.items ?? [];
+  } catch {
+    return null;
+  }
+}
+
 export async function listMyBackings(token?: string | null): Promise<ApiBackingRow[] | null> {
   const bearer = token ?? (await readSessionToken());
   const data = await fetchJson<{ items: ApiPledgeRaw[] }>('/v1/pledges/me', 30, bearer);

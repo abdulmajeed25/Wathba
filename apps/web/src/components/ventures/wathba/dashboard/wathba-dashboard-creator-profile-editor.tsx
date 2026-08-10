@@ -234,7 +234,7 @@ export function DashboardCreatorProfileEditor({
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.30)',
             borderRadius: 10,
-            color: 'var(--err)',
+            color: 'var(--err-ink)',
             fontSize: 14,
           }}
         >
@@ -294,7 +294,7 @@ export function DashboardCreatorProfileEditor({
         <Field
           label="نبذة عنك"
           hint={`${draft.bioAr.length.toLocaleString('en-US')} / ${BIO_MAX.toLocaleString('en-US')} حرفاً`}
-          hintColor={bioOverLimit ? 'var(--err)' : undefined}
+          hintColor={bioOverLimit ? 'var(--err-ink)' : undefined}
         >
           <textarea
             value={draft.bioAr}
@@ -308,7 +308,7 @@ export function DashboardCreatorProfileEditor({
         <Field
           label="الموقع الإلكتروني (اختياري)"
           hint={urlInvalid ? 'الرابط يجب أن يبدأ بـ http:// أو https://' : undefined}
-          hintColor={urlInvalid ? 'var(--err)' : undefined}
+          hintColor={urlInvalid ? 'var(--err-ink)' : undefined}
         >
           <input
             type="url"
@@ -430,7 +430,7 @@ function CollaboratorRow({
         type="button"
         onClick={onRemove}
         title="حذف"
-        style={{ ...ghostBtnStyle, color: 'var(--err)', whiteSpace: 'nowrap' }}
+        style={{ ...ghostBtnStyle, color: 'var(--err-ink)', whiteSpace: 'nowrap' }}
       >
         حذف
       </button>

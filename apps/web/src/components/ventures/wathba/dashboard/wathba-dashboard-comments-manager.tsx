@@ -268,7 +268,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: 'var(--err)',
+              color: 'var(--err-ink)',
               background: 'rgba(239,68,68,0.10)',
             }}
           >
@@ -356,7 +356,7 @@ function CommentManagerRow({
             }}
           />
           {replyError && (
-            <span role="alert" style={{ fontSize: 12.5, color: 'var(--err)' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
+            <span role="alert" style={{ fontSize: 12.5, color: 'var(--err-ink)' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button

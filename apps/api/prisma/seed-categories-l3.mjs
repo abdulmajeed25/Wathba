@@ -95,8 +95,18 @@ try {
       select: { id: true },
     });
     if (!leaves.length) continue;
+    // PUBLICLY LISTABLE, not merely non-fixture.
+    //
+    // This filtered on isTestFixture alone and reported "moved 39" while the
+    // third level stayed invisible: the 39 were DRAFTs, which the facet prunes
+    // exactly like a zero. A seed whose whole job is "give these nodes non-zero
+    // counts" has to select the rows that can produce one.
     const inParent = await prisma.project.findMany({
-      where: { categoryId: sub.id, isTestFixture: false },
+      where: {
+        categoryId: sub.id,
+        isTestFixture: false,
+        status: { in: ['LIVE', 'SUCCESSFUL'] },
+      },
       select: { id: true },
       take: leaves.length * MOVE_PER_LEAF,
     });
@@ -108,7 +118,31 @@ try {
       moved += 1;
     }
   }
-  console.log(`[seed-l3] moved ${moved} project(s) down to a third-level node`);
+  // ── permanent inhabitants ────────────────────────────────────────────────
+  // The only public project that ever lived under technology/apps was the
+  // per-run e2e one, which global-setup now purges and recreates in the PARENT.
+  // So a third level populated only by "move whatever is in the parent" is
+  // empty again the moment a suite runs, and FD4 fails on a data gap rather
+  // than on a defect.
+  //
+  // These are real demo campaigns placed where they actually belong — «سوق»
+  // is a digital marketplace and «منبر» is a local-news platform; both are
+  // apps in every sense the taxonomy means. Idempotent, and it never moves a
+  // project that a human has already filed somewhere deeper.
+  const ADOPT = [['souq-artisans', 'web-apps'], ['minbar-local', 'web-apps']];
+  let adopted = 0;
+  for (const [projSlug, leafSlug] of ADOPT) {
+    const leaf = await prisma.category.findFirst({ where: { slug: leafSlug }, select: { id: true } });
+    const proj = await prisma.project.findFirst({
+      where: { slug: projSlug, isTestFixture: false },
+      select: { id: true, categoryId: true },
+    });
+    if (!leaf || !proj || proj.categoryId === leaf.id) continue;
+    await prisma.project.update({ where: { id: proj.id }, data: { categoryId: leaf.id } });
+    adopted += 1;
+  }
+
+  console.log(`[seed-l3] moved ${moved} project(s) down; ${adopted} adopted into a leaf`);
 } finally {
   await prisma.$disconnect();
 }

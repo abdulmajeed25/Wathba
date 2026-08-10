@@ -18,6 +18,7 @@ import { ShareRow } from './wathba-share';
 import { TurnstileSlot } from '@/components/auth/turnstile-slot';
 import { createCardToken } from '@/lib/payments/moyasar-client';
 import type { ApiRewardTier } from '@/lib/api/wathba';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * Pledge wizard — 4 steps: tier → info → payment → success.
@@ -277,7 +278,7 @@ export function WathbaPledge({
               <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
                 {formatSar('ar', Math.round((active.goal * active.releaseThresholdPct) / 100))}
               </Num>{' '}
-              ({active.releaseThresholdPct}% من الهدف). إذا لم يبلغ ذلك بحلول الموعد
+              (%{toArabicDigits(active.releaseThresholdPct)} من الهدف). إذا لم يبلغ ذلك بحلول الموعد
               النهائي، يُعاد كامل دعمك تلقائياً إلى بطاقتك خلال أيام عمل قليلة.
             </div>
           </div>

@@ -5,6 +5,7 @@ import { adaptApiProjectDetail, adaptApiVenture, wathbaProjects } from '@/compon
 import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/wathba/wathba-tab-story';
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
+import { notFound } from 'next/navigation';
 
 /**
  * TABS — الحملة (story), the campaign's default tab. The persistent shell
@@ -22,6 +23,22 @@ export async function generateMetadata({
   const fixture = wathbaProjects.find((p) => p.id === id);
   // CC-22 — prefer the project's real title + creator-set SEO fields.
   const live = await getProjectDetail(id).catch(() => null);
+
+  /*
+   * NOTHING RESOLVED ⇒ 404, and it has to be decided HERE.
+   *
+   * The campaign layout already calls notFound() for an unknown id, and the
+   * right page renders — «٤٠٤ الصفحة غير موجودة». The STATUS was still 200:
+   * a notFound() thrown from a nested layout runs after the response has begun
+   * streaming, and the status line is already on the wire. A crawler sees 200
+   * plus a not-found page and indexes it, which is the definition of a soft-404.
+   *
+   * generateMetadata runs before the shell is committed, so throwing here
+   * produces a real 404 — and it also stops the title fabricating a project:
+   * /projects/this-does-not-exist was titled «مشروع this-does-not-exist · وثبة».
+   */
+  if (!live && !fixture) notFound();
+
   const title = live?.titleAr
     ? `${live.titleAr} · وثبة`
     : fixture

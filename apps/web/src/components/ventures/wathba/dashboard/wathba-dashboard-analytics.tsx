@@ -151,7 +151,7 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
 
 function StateCard({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div style={{ padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14, background: 'var(--bg-elevated, #fff)', border: '1px dashed rgba(239,68,68,0.4)', color: 'var(--err)' }}>
+    <div style={{ padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14, background: 'var(--bg-elevated, #fff)', border: '1px dashed rgba(239,68,68,0.4)', color: 'var(--err-ink)' }}>
       {children}
     </div>
   );

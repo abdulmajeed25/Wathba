@@ -54,15 +54,15 @@ export function ProjectRejectionAppeal({
         padding: 20,
       }}
     >
-      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, marginBottom: 6, color: 'var(--err)' }}>
+      <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, marginBottom: 6, color: 'var(--err-ink)' }}>
         رُفض هذا المشروع في المراجعة
       </h2>
       {reviewFeedback ? (
-        <p style={{ fontSize: 14, color: 'var(--err)', margin: 0, marginBottom: 12 }}>
+        <p style={{ fontSize: 14, color: 'var(--err-ink)', margin: 0, marginBottom: 12 }}>
           ملاحظات المراجعة: {reviewFeedback}
         </p>
       ) : null}
-      <p style={{ fontSize: 13, color: 'var(--muted2)', margin: 0, marginBottom: 16 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-tertiary)', margin: 0, marginBottom: 16 }}>
         إن كنت ترى أن القرار غير صحيح، يمكنك تقديم تظلّم واحد ليعيد فريق العمليات النظر فيه.
       </p>
       {loaded ? (
@@ -73,7 +73,7 @@ export function ProjectRejectionAppeal({
           existing={existing}
         />
       ) : (
-        <p style={{ fontSize: 13, color: 'var(--muted2)', margin: 0 }}>جارٍ التحميل…</p>
+        <p style={{ fontSize: 13, color: 'var(--text-tertiary)', margin: 0 }}>جارٍ التحميل…</p>
       )}
     </section>
   );

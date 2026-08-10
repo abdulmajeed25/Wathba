@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<ContestStatusVal, string> = {
 
 const STATUS_COLOR: Record<ContestStatusVal, string> = {
   DRAFT: '#9ca3af',
-  OPEN: '#0a7653',
+  OPEN: 'var(--pos-ink)',
   CLOSED: 'var(--gold-ink)',
   ANNOUNCED: 'var(--purple-ink)',
 };
@@ -671,7 +671,7 @@ function ErrorBanner({ text }: { text: string }): React.ReactElement {
         border: '1px solid rgba(239,68,68,0.3)',
         borderRadius: 8,
         fontSize: 13,
-        color: 'var(--err)',
+        color: 'var(--err-ink)',
       }}
     >
       {text}
@@ -728,7 +728,7 @@ function dangerButtonStyle(disabled: boolean): React.CSSProperties {
     borderRadius: 10,
     border: '1px solid rgba(239,68,68,0.3)',
     background: 'transparent',
-    color: 'var(--err)',
+    color: 'var(--err-ink)',
     fontSize: 14,
     fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',

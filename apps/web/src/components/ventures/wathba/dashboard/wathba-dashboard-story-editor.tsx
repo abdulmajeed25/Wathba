@@ -196,7 +196,7 @@ export function DashboardStoryEditor({
           }}
         >
           <span>{charCount.toLocaleString('en-US')} حرف</span>
-          {tooShort && <span style={{ color: 'var(--err)' }}>الحد الأدنى 50 حرف</span>}
+          {tooShort && <span style={{ color: 'var(--err-ink)' }}>الحد الأدنى 50 حرف</span>}
           {dirty && <span style={{ color: 'var(--gold-ink)' }}>• فيه تعديلات ما انحفظت</span>}
           {!dirty && savedAt !== null && (
             <span style={{ color: 'var(--brand-ink, var(--pos-ink))' }}>
@@ -255,7 +255,7 @@ export function DashboardStoryEditor({
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             borderRadius: 10,
-            color: 'var(--err)',
+            color: 'var(--err-ink)',
             marginBottom: 16,
             fontSize: 14,
           }}

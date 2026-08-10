@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { type ApiCreatorProfile } from '@/lib/api/wathba';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * Public "المبدع" tab on the project page — avatar, verified badge, follow
@@ -403,7 +404,7 @@ function PastProjectCard({
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
-          {p.fundedPct}% من الهدف
+          %{toArabicDigits(p.fundedPct)} من الهدف
         </span>
         {p.delivered && (
           <span

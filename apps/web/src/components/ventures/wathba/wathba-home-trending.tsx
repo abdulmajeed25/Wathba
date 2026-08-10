@@ -7,6 +7,7 @@ import { useState } from 'react';
 import type { deriveProject } from './wathba-data';
 import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { Icon, Num } from './wathba-icons';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * Batch RSC — «المشاريع الرائجة» with its four sort tabs.
@@ -298,7 +299,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                     alignItems: 'center',
                   }}
                 >
-                  <Num style={{ fontSize: 15, fontWeight: 700, color: p.pctColor }}>{p.pct}%</Num>
+                  <Num style={{ fontSize: 15, fontWeight: 700, color: p.pctColor }}>%{toArabicDigits(p.pct)}</Num>
                   <Num style={{ fontSize: 12.5, color: 'var(--muted2)' }}>{p.raisedFmt}</Num>
                 </div>
                 <div

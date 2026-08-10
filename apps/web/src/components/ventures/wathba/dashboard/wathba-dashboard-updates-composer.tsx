@@ -173,7 +173,7 @@ export function DashboardUpdatesComposer({
           <div
             style={{
               fontSize: 13,
-              color: 'var(--err)',
+              color: 'var(--err-ink)',
               background: 'rgba(239,68,68,0.08)',
               border: '1px solid rgba(239,68,68,0.25)',
               borderRadius: 8,
@@ -342,7 +342,7 @@ function UpdateAdminRow({
             fontWeight: 600,
             padding: '5px 12px',
             borderRadius: 8,
-            color: 'var(--err)',
+            color: 'var(--err-ink)',
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             cursor: 'pointer',

@@ -104,7 +104,7 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
           {busy ? 'جارٍ…' : 'إضافة'}
         </button>
       </div>
-      {error && <p role="alert" style={{ fontSize: 12.5, color: 'var(--err)', margin: '0 0 10px' }}>{error}</p>}
+      {error && <p role="alert" style={{ fontSize: 12.5, color: 'var(--err-ink)', margin: '0 0 10px' }}>{error}</p>}
       {loaded && items.length === 0 && (
         <p style={{ fontSize: 13, color: 'var(--text-tertiary, var(--muted2))', margin: 0 }}>لا يوجد متعاونون بعد.</p>
       )}
@@ -120,7 +120,7 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
               <button
                 type="button"
                 onClick={() => void remove(c.userId)}
-                style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, color: 'var(--err)', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, color: 'var(--err-ink)', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 إزالة
               </button>

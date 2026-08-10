@@ -239,6 +239,16 @@ export function Icon({ name, size = 20, fill = false, color, style }: IconProps)
 }
 
 /** Numeric wrapper — Space Grotesk + tabular-nums (the `.num` class).
+ *
+ *  IT DOES NOT CONVERT DIGITS. It is a TYPEFACE, and a Latin one: pass it
+ *  Arabic-Indic where the platform wants them (`toArabicDigits`) and Latin
+ *  where it does not. The platform's rule, in one place:
+ *    · counts + percentages → Arabic-Indic (toArabicDigits / arabicCount)
+ *    · money               → Latin, deliberately (formatSar pins ar-SA-u-nu-latn)
+ *    · ids, refs, dates    → Latin / already localised
+ *  A comment in discover-all-constants.ts claimed conversion happened "by the
+ *  Num component at the call site", and three spotlight stats were written
+ *  believing it — the hero showed «964 داعم» above a card showing «٨٤٧ داعم».
  *  `decorative` marks purely-ornamental numerals (e.g. giant ghosted step
  *  watermarks) aria-hidden so they leave the a11y tree + the contrast audit. */
 export function Num({

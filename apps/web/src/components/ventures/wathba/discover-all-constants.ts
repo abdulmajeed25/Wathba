@@ -57,8 +57,8 @@ export function arabicCount(n: number): string {
 
 
 /**
- * Campaign-length buckets. Labels in days, Arabic-Indic digits handled by the
- * Num component at the call site.
+ * Campaign-length buckets. Labels in days, Arabic-Indic digits come from
+ * toArabicDigits at the call site — <Num> is a typeface, not a converter.
  *
  * The spread is narrow today — 503 of 517 live projects run 30-45 days — so
  * this facet mostly says "everyone picks the default". The boundaries are set

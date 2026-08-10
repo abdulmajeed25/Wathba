@@ -433,7 +433,7 @@ function ErrorBanner({ text }: { text: string }): React.ReactElement {
         border: '1px solid rgba(239,68,68,0.3)',
         borderRadius: 8,
         fontSize: 13,
-        color: 'var(--err)',
+        color: 'var(--err-ink)',
       }}
     >
       {text}
@@ -487,7 +487,7 @@ function dangerButtonStyle(disabled: boolean): React.CSSProperties {
     borderRadius: 10,
     border: '1px solid rgba(239,68,68,0.3)',
     background: 'transparent',
-    color: 'var(--err)',
+    color: 'var(--err-ink)',
     fontSize: 13,
     fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',

@@ -67,7 +67,7 @@ const STATUS_COLOR: Record<ApiMilestonePublic['status'], string> = {
   PENDING: '#9ca3af',
   SUBMITTED: 'var(--gold-ink)',
   APPROVED: 'var(--purple-ink)',
-  RELEASED: '#0a7653',
+  RELEASED: 'var(--pos-ink)',
 };
 
 /* Allowed to edit the entire milestone plan in one shot.
@@ -569,7 +569,7 @@ function SummaryStrip({
       }}
     >
       <Stat label="المُجمَّع من الداعمين" value={fmtSAR(raisedHalalas)} color="var(--brand-ink, var(--pos-ink))" />
-      <Stat label="المُفرَج عنه" value={fmtSAR(releasedHalalas)} color="#0a7653" />
+      <Stat label="المُفرَج عنه" value={fmtSAR(releasedHalalas)} color="var(--pos-ink)" />
       <Stat label="المُتبقّي في الضمان" value={fmtSAR(remaining)} color="var(--purple-ink)" />
       <Stat label="عدد المراحل" value={`${milestoneCount}`} color="var(--gold-ink)" extra={`صُرفَ منها ${fmtSAR(spentHalalas)}`} />
     </div>
@@ -642,7 +642,7 @@ function PlanRowEditor({
           type="button"
           onClick={onRemove}
           disabled={disabled}
-          style={{ ...ghostBtnStyle, color: 'var(--err)', padding: '2px 8px', fontSize: 11 }}
+          style={{ ...ghostBtnStyle, color: 'var(--err-ink)', padding: '2px 8px', fontSize: 11 }}
         >
           إزالة
         </button>
@@ -936,7 +936,7 @@ function SpendLogRow({
           )}
         </div>
       </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--err)' }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--err-ink)' }}>
         − {fmtSAR(log.amountHalalas)}
       </div>
     </div>

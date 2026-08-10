@@ -12,7 +12,7 @@ import { useMemo, useState } from 'react';
  */
 
 const inputCls =
-  'rounded-lg border bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none w-full';
+  'rounded-lg border bg-elevated px-3 py-2 text-sm focus:border-brand focus:outline-none w-full';
 
 export function LiveEmailField({ label = 'البريد الإلكتروني' }: { label?: string }) {
   const [value, setValue] = useState('');
@@ -31,10 +31,10 @@ export function LiveEmailField({ label = 'البريد الإلكتروني' }: 
         onChange={(e) => setValue(e.target.value)}
         onBlur={() => setTouched(true)}
         aria-invalid={invalid || undefined}
-        className={`${inputCls} ${invalid ? 'border-red-400' : 'border-neutral-300'}`}
+        className={`${inputCls} ${invalid ? 'border-err' : 'border-edge-strong'}`}
       />
       {invalid && (
-        <span role="alert" className="text-xs text-red-600">
+        <span role="alert" className="text-xs text-err">
           صيغة البريد الإلكتروني غير صحيحة.
         </span>
       )}
@@ -60,10 +60,10 @@ export function LiveNameField() {
         onChange={(e) => setValue(e.target.value)}
         onBlur={() => setTouched(true)}
         aria-invalid={invalid || undefined}
-        className={`${inputCls} ${invalid ? 'border-red-400' : 'border-neutral-300'}`}
+        className={`${inputCls} ${invalid ? 'border-err' : 'border-edge-strong'}`}
       />
       {invalid && (
-        <span role="alert" className="text-xs text-red-600">
+        <span role="alert" className="text-xs text-err">
           الاسم يجب أن يتكون من حرفين على الأقل.
         </span>
       )}
@@ -122,14 +122,14 @@ export function PasswordField({
           onChange={(e) => setValue(e.target.value)}
           onBlur={() => setTouched(true)}
           aria-invalid={tooShort || undefined}
-          className={`${inputCls} pl-10 ${tooShort ? 'border-red-400' : 'border-neutral-300'}`}
+          className={`${inputCls} pl-10 ${tooShort ? 'border-err' : 'border-edge-strong'}`}
         />
         <button
           type="button"
           onClick={() => setShow((v) => !v)}
           aria-label={show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
           aria-pressed={show}
-          className="absolute left-2 top-1/2 -translate-y-1/2 rounded p-1 text-neutral-600 hover:text-neutral-900"
+          className="absolute left-2 top-1/2 -translate-y-1/2 rounded p-1 text-fg-muted hover:text-fg"
         >
           {show ? <EyeOffIcon /> : <EyeIcon />}
         </button>
@@ -152,11 +152,11 @@ export function PasswordField({
         </div>
       )}
       {tooShort && !withStrength && (
-        <span role="alert" className="text-xs text-red-600">
+        <span role="alert" className="text-xs text-err">
           كلمة المرور يجب أن تتكون من ٨ أحرف على الأقل.
         </span>
       )}
-      {hint && !tooShort && <span className="text-xs text-neutral-600">{hint}</span>}
+      {hint && !tooShort && <span className="text-xs text-fg-muted">{hint}</span>}
     </label>
   );
 }

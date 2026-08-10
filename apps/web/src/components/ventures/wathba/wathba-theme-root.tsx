@@ -35,6 +35,32 @@ import { resolveTheme, SSR_THEME, THEME_INIT_SCRIPT } from './wathba-theme';
  * dashboard is what has no theme today, so that is what this fixes. Unifying
  * the two is a follow-up with the homepage gates re-measured, not a drive-by.
  */
+/**
+ * The Tailwind `@theme` keys, re-declared inside the themed scope.
+ *
+ * globals.css maps them as `--color-fg-muted: var(--text-secondary)` on :root.
+ * A custom property is computed WHERE IT IS DECLARED, so that inner var()
+ * resolves against :root — the light palette — and the frozen light colour then
+ * inherits into every themed subtree. The utility looks token-aware and is not:
+ * /sign-in's subtitle measured 1.98:1 in dark before this.
+ *
+ * Declared here, each one re-resolves against the element that carries the
+ * themed values.
+ */
+const TAILWIND_THEME_KEYS = {
+  '--color-fg': 'var(--text-primary)',
+  '--color-fg-muted': 'var(--text-secondary)',
+  '--color-fg-faint': 'var(--muted2)',
+  '--color-canvas': 'var(--bg)',
+  '--color-elevated': 'var(--surface)',
+  '--color-brand': 'var(--accent)',
+  '--color-brand-ink': 'var(--accent-ink)',
+  '--color-on-brand': 'var(--on-accent)',
+  '--color-err': 'var(--err-ink)',
+  '--color-edge': 'var(--border)',
+  '--color-edge-strong': 'var(--border)',
+} as unknown as CSSProperties;
+
 export function WathbaThemeRoot({
   children,
   defaultTheme = SSR_THEME,
@@ -76,6 +102,12 @@ export function WathbaThemeRoot({
     // scope, so everything below inherits the right ink without touching a
     // single component. Anything that sets its own colour still wins.
     color: 'var(--text-primary)',
+    // AND THE GROUND WITH IT. Setting the ink without the ground is the same
+    // bug upside down: the auth pages painted near-white text over <html>'s
+    // light background and the headings vanished. A theme root owns both or
+    // neither. `style` still overrides — DashboardShell passes --surface-0.
+    background: 'var(--bg)',
+    ...TAILWIND_THEME_KEYS,
     ...style,
   };
 

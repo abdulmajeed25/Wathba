@@ -67,6 +67,24 @@
   --color-fg-faint: var(--text-tertiary);
   --color-edge: var(--border-subtle);
   --color-edge-strong: var(--border-strong);
+
+  /* Batch PAGE-PARITY U2 — the auth pages were written in raw Tailwind
+     (text-emerald-700, bg-emerald-700, text-red-600): a third colour
+     vocabulary, hardcoded light, that no theme could reach. These three keys
+     complete the token-aware set those pages need.
+
+     `brand` is a FILL and fails AA as body text (#05a661 on the light canvas
+     is 3.0:1), which is why the pages reached for emerald-700 in the first
+     place. `brand-ink` is the text-weight green; `on-brand` is the ink that
+     sits ON the fill. Keeping them distinct is what stops the next page
+     colouring a link with a button colour.
+
+     Names checked against Tailwind's core utilities first — `--color-base`
+     once replaced `.text-base`'s font-size and made 48 ops headings invisible.
+     `err`, `brand-ink` and `on-brand` collide with nothing. */
+  --color-brand-ink: var(--brand-ink);
+  --color-on-brand: var(--on-brand);
+  --color-err: var(--err-ink);
 }
 
 @layer base {

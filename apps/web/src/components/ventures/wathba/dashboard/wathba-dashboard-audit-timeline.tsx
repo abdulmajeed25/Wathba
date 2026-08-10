@@ -220,7 +220,7 @@ function Card({ tone, children }: { tone: 'error' | 'empty'; children: React.Rea
         padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14,
         background: 'var(--bg-elevated, #fff)',
         border: `1px dashed ${tone === 'error' ? 'rgba(239,68,68,0.4)' : 'var(--border-strong, rgba(18,33,26,0.16))'}`,
-        color: tone === 'error' ? 'var(--err)' : 'var(--text-secondary, #3b4942)',
+        color: tone === 'error' ? 'var(--err-ink)' : 'var(--text-secondary, #3b4942)',
       }}
     >
       {children}

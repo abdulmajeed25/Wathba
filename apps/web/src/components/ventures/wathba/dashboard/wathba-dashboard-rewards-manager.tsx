@@ -230,7 +230,7 @@ export function DashboardRewardsManager({
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             borderRadius: 10,
-            color: 'var(--err)',
+            color: 'var(--err-ink)',
             marginBottom: 16,
             fontSize: 14,
           }}
@@ -647,7 +647,7 @@ function TierCard({
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{tier.titleAr}</div>
           {tier.featured && <Pill label="مميّزة" color="var(--gold-ink)" />}
-          {closed && <Pill label="مغلقة" color="var(--err)" />}
+          {closed && <Pill label="مغلقة" color="var(--err-ink)" />}
           {earlyBird && <Pill label="سعر مبكر" color="var(--pos-ink)" />}
           {hasBackers && <Pill label="لها داعمون — مقفلة جزئياً" color="var(--purple-ink)" />}
           {tier.limitQty !== null && (
@@ -657,7 +657,7 @@ function TierCard({
                   ? 'نفدت'
                   : `${(tier.limitQty - tier.claimedQty).toLocaleString('en-US')} متبقٍ من ${tier.limitQty}`
               }
-              color={soldOut ? 'var(--err)' : 'var(--purple-ink)'}
+              color={soldOut ? 'var(--err-ink)' : 'var(--purple-ink)'}
             />
           )}
         </div>
@@ -694,7 +694,7 @@ function TierCard({
             {closed ? 'إعادة فتح' : 'إغلاق للدعم'}
           </button>
           {!hasBackers && (
-            <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: 'var(--err)' }}>
+            <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: 'var(--err-ink)' }}>
               حذف
             </button>
           )}
@@ -745,7 +745,7 @@ function AddOnCard({
                     ? 'نفدت'
                     : `${(addon.limitQty - addon.claimedQty).toLocaleString('en-US')} متبقٍ`
                 }
-                color={soldOut ? 'var(--err)' : 'var(--purple-ink)'}
+                color={soldOut ? 'var(--err-ink)' : 'var(--purple-ink)'}
               />
             )}
           </div>
@@ -758,7 +758,7 @@ function AddOnCard({
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
           <span>الإجمالي المُدّعى: {addon.claimedQty.toLocaleString('en-US')}</span>
-          <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: 'var(--err)' }}>
+          <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: 'var(--err-ink)' }}>
             حذف
           </button>
         </div>

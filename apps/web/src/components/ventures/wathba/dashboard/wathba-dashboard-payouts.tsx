@@ -11,7 +11,7 @@ import { formatSarFromHalalas } from '@/lib/i18n/format';
 const TONE: Record<string, { label: string; color: string; bg: string }> = {
   PENDING: { label: 'بانتظار التحويل', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
   SENT:    { label: 'تم التحويل',      color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
-  FAILED:  { label: 'تعثّر التحويل',    color: 'var(--err)',       bg: 'rgba(239,68,68,.08)' },
+  FAILED:  { label: 'تعثّر التحويل',    color: 'var(--err-ink)',       bg: 'rgba(239,68,68,.08)' },
 };
 
 const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
@@ -84,7 +84,7 @@ export function WathbaDashboardPayouts({
                   <div style={{ fontSize: 14.5, fontWeight: 700 }}>
                     {milestoneTitle(p.milestoneId)}
                   </div>
-                  <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
+                  <Num style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
                     أُنشئت: {p.createdAt.slice(0, 10)}
                     {p.sentAt ? ` · حُوِّلت: ${p.sentAt.slice(0, 10)}` : ''}
                   </Num>
@@ -137,7 +137,7 @@ function Stat({ label, value, color }: { label: string; value: string; color: st
         minWidth: 160,
       }}
     >
-      <div style={{ fontSize: 12, color: 'var(--muted2)', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 4 }}>{label}</div>
       <Num style={{ fontSize: 19, fontWeight: 700, color }}>{value}</Num>
     </div>
   );

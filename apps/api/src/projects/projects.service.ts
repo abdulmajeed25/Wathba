@@ -86,6 +86,41 @@ export class ProjectsService {
     return { categoryId: null, category: null };
   }
 
+  /**
+   * Batch PAGE-PARITY U4 — the creator's own campaigns, for their dashboard.
+   *
+   * The dashboard index showed four KPI tiles built from literals in
+   * wathba-dashboard.tsx: «684,200 ر.س», «2,847 داعم», «171%», "ends 28 يناير".
+   * The signed-in creator's real campaigns were 21,000–76,500 SAR with 173–512
+   * backers, and the header named a project they did not own. It was a mockup
+   * wearing the clothes of a report.
+   *
+   * NOT /v1/creators/:id, which is the public profile: it hides DRAFT and 404s
+   * when there is nothing published. A creator whose only campaign is a draft
+   * still has a dashboard, and it must not 404 or lie.
+   *
+   * Ordered newest-first so the caller can headline the current campaign
+   * without a second query.
+   */
+  async listMine(creatorId: string) {
+    return this.prisma.project.findMany({
+      where: { createdById: creatorId },
+      select: {
+        id: true,
+        slug: true,
+        titleAr: true,
+        status: true,
+        raisedHalalas: true,
+        fundingGoalHalalas: true,
+        backersCount: true,
+        deadline: true,
+        publishedAt: true,
+        createdAt: true,
+      },
+      orderBy: [{ publishedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    });
+  }
+
   async create(creatorId: string, dto: CreateProjectDto): Promise<Project> {
     // Batch OPS (Unit 6) — funding-goal floor and hard duration cap are governed
     // platform settings (SETTINGS_CATALOG), read through the cached SettingsService.

@@ -109,7 +109,7 @@ export function WathbaTagPicker({
         style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, minHeight: 34 }}
       >
         {chosen.length === 0 && (
-          <span style={{ fontSize: 13, color: 'var(--muted2)', alignSelf: 'center' }}>
+          <span style={{ fontSize: 13, color: 'var(--text-tertiary)', alignSelf: 'center' }}>
             لا وسوم بعد
           </span>
         )}
