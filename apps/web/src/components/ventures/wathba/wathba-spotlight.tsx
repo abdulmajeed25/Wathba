@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import type { ApiEditorialCard, ApiHomeProjectCard, ApiSpotlightPayload } from '@/lib/api/wathba';
 
+import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { Icon, Num } from './wathba-icons';
 import { toArabicDigits } from './discover-all-constants';
 import { HeroParallax, Reveal } from './wathba-motion';
@@ -243,14 +244,21 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
               boxShadow: 'var(--card-shadow-h)',
             }}
           >
-            <Image
-              src={p.imageUrl}
-              alt=""
-              fill
-              priority
-              sizes="(max-width: 980px) 92vw, 560px"
-              style={{ objectFit: 'cover' }}
-            />
+            {/* The hero cover is the LCP element: it keeps `priority` and is
+                NOT lazy. WathbaCardVideo only mounts a <video> on hover intent
+                and never before the LCP window closes, so the still image is
+                what the first paint measures either way. */}
+            <WathbaCardVideo videoUrl={p.videoUrl} poster={p.imageUrl}>
+              <Image
+                src={p.imageUrl}
+                alt=""
+                fill
+                priority
+                sizes="(max-width: 980px) 92vw, 560px"
+                style={{ objectFit: 'cover' }}
+              />
+            </WathbaCardVideo>
+            {p.videoUrl ? <WathbaCardVideoGlyph /> : null}
           </div>
         )}
       </div>
@@ -408,9 +416,29 @@ function RowCard({ p }: { p: ApiHomeProjectCard }) {
 }
 
 /** Sized by aspect-ratio in both branches, so a late image costs no shift. */
+/**
+ * Batch SPOTLIGHT-PLUS P0 — the showcase plays its videos.
+ *
+ * /spotlight rendered ZERO <video> and zero ▶ glyphs while the homepage
+ * trending grid has played hover-video since Stage 1. The audit measured it:
+ * `WathbaCardVideo` appeared 4× in wathba-home-trending.tsx and 0× here, on the
+ * page whose whole job is to be the most alive surface on the site.
+ *
+ * The same component, not a second implementation. It already owns hover
+ * INTENT (150ms), the LCP window, one-video-at-a-time, pointer-coarse and
+ * reduced-motion opt-outs — all of which took a batch to get right and none of
+ * which should be re-derived here.
+ *
+ * `videoUrl` needs no API work: /v1/spotlight maps its cards through the same
+ * `toCard` as the homepage, and that already runs `cardVideoUrl(p)` — so a
+ * creator who attached a video and then chose the poster arrives here as null
+ * and stays a still image. The per-project choice is respected because it is
+ * decided server-side, once.
+ */
 function Art({ p, ratio, radius = 0 }: { p: ApiHomeProjectCard; ratio: string; radius?: number }) {
   return (
     <div style={{ position: 'relative', aspectRatio: ratio, borderRadius: radius, overflow: 'hidden' }}>
+      <WathbaCardVideo videoUrl={p.videoUrl} poster={p.imageUrl}>
       {p.imageUrl ? (
         <Image
           src={p.imageUrl}
@@ -435,6 +463,8 @@ function Art({ p, ratio, radius = 0 }: { p: ApiHomeProjectCard; ratio: string; r
           <Icon name="rocket_launch" size={26} color="rgba(var(--accent-rgb),.55)" />
         </div>
       )}
+      </WathbaCardVideo>
+      {p.videoUrl ? <WathbaCardVideoGlyph /> : null}
     </div>
   );
 }
