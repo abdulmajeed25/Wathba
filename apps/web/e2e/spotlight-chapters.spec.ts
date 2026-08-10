@@ -105,11 +105,33 @@ test('SC2: the chapters do not all share one structure', async ({ page }) => {
  */
 for (const [w, h] of [[1440, 900], [360, 740]] as const) {
   test(`SC4(${w}): hero copy clears WCAG AA over the real cover pixels`, async ({ page }) => {
+    const HERO = 'section[aria-labelledby="spotlight-hero-title"]';
+
     await page.setViewportSize({ width: w, height: h });
     await page.goto('/spotlight');
     await expect(page.locator('#spotlight-hero-title')).toBeVisible();
 
-    const HERO = 'section[aria-labelledby="spotlight-hero-title"]';
+    // THE GROUND HAS TO BE THERE BEFORE IT IS SAMPLED. Waiting only for the
+    // heading made this flaky under parallel workers: the screenshot landed
+    // before the cover decoded, so the pixels behind the copy were whatever
+    // sits under the image rather than the image, and white ink over the light
+    // page surface fails every threshold.
+    //
+    // naturalWidth, not `complete`. A blocked image reports complete === true
+    // with naturalWidth === 0, which reads exactly like a decoded one — so a
+    // CSP or storage failure would otherwise be measured as a real contrast
+    // result. If this never resolves the hero genuinely has no ground, and
+    // failing loudly here is correct.
+    await page.waitForFunction(
+      (sel) => {
+        const img = document.querySelector(sel)?.querySelector('img');
+        return !img || (img.complete && img.naturalWidth > 0);
+      },
+      HERO,
+      { timeout: 15000 },
+    );
+    // Glyph boxes move when the Arabic webfont swaps in; measure after.
+    await page.evaluate(() => document.fonts.ready);
     const boxes = await page.evaluate((sel) => {
       const hero = document.querySelector(sel);
       if (!hero) return [];
