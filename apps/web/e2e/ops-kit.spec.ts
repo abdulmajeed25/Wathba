@@ -112,7 +112,20 @@ test('op-runner: dry-run → preview → reason → MONEY confirm gates «تنف
   // navigates to /ops/money instead of opening a runner, and the runner dialog
   // never appears. An op key matches no section, so this selects an operation.
   await palette.getByRole('textbox').fill('money.payout.disburse');
-  const moneyOpt = palette.getByRole('option').first();
+  // MATCH THE ROW, NOT "a row". The list re-filters asynchronously, so
+  // `option.first()` plus a visibility wait is satisfied by the PREVIOUS
+  // list's first entry — which is a section. Clicking that navigates away and
+  // no runner ever opens: under two workers this failed twice, and the page
+  // snapshot at failure showed «المستخدمون», the users screen, not a dialog.
+  //
+  // Same defect the C5 note above describes, one layer down: that fix stopped
+  // the QUERY matching a section, this one stops the CLICK landing on the
+  // pre-filter list. Selecting by the operation's own title cannot resolve
+  // until the results actually belong to the query.
+  const moneyOpt = palette
+    .getByRole('option')
+    .filter({ hasText: 'تشغيل دورة صرف الدفعات' })
+    .first();
   await expect(moneyOpt).toBeVisible();
   await moneyOpt.click();
 
