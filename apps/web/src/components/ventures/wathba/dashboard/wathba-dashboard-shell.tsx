@@ -103,8 +103,18 @@ export function DashboardShell({
     // sidebar and no site footer, and adding the public header would be a
     // redesign rather than the propagation this batch is for.
     <WathbaThemeRoot
+      className="wathba-dash-shell"
       style={{
         display: 'grid',
+        // 260px + 1fr, and on a phone that 1fr computed to ONE HUNDRED PIXELS.
+        // The sidebar kept its full width at every viewport, so all 17
+        // per-project routes squeezed the dashboard into a 100px column and
+        // then blew out to 659-934px of horizontal scroll at 360. The heading
+        // was clipped, body text wrapped to roughly one word per line.
+        //
+        // The nav stays ALWAYS VISIBLE per the standing rule above — what the
+        // media query in globals.css changes is its AXIS, not its presence.
+        // Nothing moves behind a hamburger.
         gridTemplateColumns: '260px 1fr',
         minHeight: '100dvh',
         background: 'var(--surface-0)',
@@ -121,6 +131,7 @@ export function DashboardShell({
        *  data-theme and none of the ventures variables. */}
       <WathbaFeedbackProvider>
         <aside
+          className="wathba-dash-aside"
           style={{
             background: 'var(--bg-elevated, #fff)',
             borderInlineStart: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
@@ -170,7 +181,7 @@ export function DashboardShell({
             </div>
           </Link>
 
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <nav className="wathba-dash-nav" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {items.map((it) => {
               const active = isActive(it.href);
               return (
@@ -198,7 +209,7 @@ export function DashboardShell({
           </nav>
         </aside>
 
-        <main style={{ padding: '32px 40px', minWidth: 0 }}>{children}</main>
+        <main className="wathba-dash-main" style={{ padding: '32px 40px', minWidth: 0 }}>{children}</main>
       </WathbaFeedbackProvider>
     </WathbaThemeRoot>
   );

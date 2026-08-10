@@ -348,7 +348,7 @@ function OverviewPanel({
       <div
         style={{
           display: stats === null ? 'none' : 'grid',
-          gridTemplateColumns: 'repeat(4,1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
           gap: 16,
           marginBottom: 24,
         }}
@@ -402,7 +402,7 @@ function OverviewPanel({
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 18 }}>
+      <div className="wathba-dash-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', gap: 18 }}>
         {/* daily funding chart */}
         <div
           style={{
@@ -544,7 +544,7 @@ function BackersPanel({ recentBackers }: { recentBackers: (typeof recentBackersF
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '2fr 1.5fr 1fr 1fr',
+          gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr)',
           gap: 14,
           padding: '16px 24px',
           fontSize: 12,
@@ -563,7 +563,7 @@ function BackersPanel({ recentBackers }: { recentBackers: (typeof recentBackersF
           key={`${b.name}-${i}`}
           style={{
             display: 'grid',
-            gridTemplateColumns: '2fr 1.5fr 1fr 1fr',
+            gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr)',
             gap: 14,
             padding: '16px 24px',
             alignItems: 'center',
@@ -699,7 +699,7 @@ function SettingsPanel() {
         >
           نمط الألوان
         </label>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           <ThemeOption
             picked={themePick === 'light'}
             label="فاتح"

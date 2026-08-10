@@ -363,7 +363,7 @@ function BackedGrid({ projects }: { projects: DerivedProject[] }) {
   return (
     <div
       className="wathba-fade"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18 }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 18 }}
     >
       {projects.map((p) => (
         <Link
@@ -553,7 +553,7 @@ function SavedGrid({ projects }: { projects: SavedRow[] }) {
   return (
     <div
       className="wathba-fade"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 18 }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 18 }}
     >
       {projects.map((p) => (
         <Link

@@ -372,7 +372,7 @@ export function DashboardMilestonesManager({
       </div>
 
       {tab === 'plan' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 24 }}>
+        <div className="wathba-dash-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 420px', gap: 24 }}>
           <div>
             {initialMilestones.length === 0 && (
               <EmptyState message="لا توجد مراحل بعد — حدّد الخطة من النموذج بجانبك." />
@@ -459,7 +459,7 @@ export function DashboardMilestonesManager({
       )}
 
       {tab === 'transparency' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: 24 }}>
+        <div className="wathba-dash-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 420px', gap: 24 }}>
           <div>
             <SectionTitle>توزيع الميزانية</SectionTitle>
             <BudgetSplitCard budget={initialBudget} />
@@ -563,7 +563,7 @@ function SummaryStrip({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
         gap: 12,
         marginBottom: 16,
       }}

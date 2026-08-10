@@ -249,7 +249,7 @@ export function DashboardRewardsManager({
       </div>
 
       {tab === 'tiers' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 24 }}>
+        <div className="wathba-dash-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: 24 }}>
           <div>
             {initialTiers.length === 0 && (
               <EmptyState message="لا توجد باقات بعد — أضف أوّل باقة من النموذج بجانبك." />
@@ -416,7 +416,7 @@ export function DashboardRewardsManager({
       )}
 
       {tab === 'addons' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 24 }}>
+        <div className="wathba-dash-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 400px', gap: 24 }}>
           <div>
             {initialAddOns.length === 0 && (
               <EmptyState message="لا توجد إضافات بعد — أنشئ أوّل إضافة من النموذج." />

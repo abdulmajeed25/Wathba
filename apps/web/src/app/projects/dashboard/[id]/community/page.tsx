@@ -55,7 +55,7 @@ export default async function CommunityDashboardPage({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
           gap: 16,
           marginBottom: 24,
         }}
@@ -125,7 +125,7 @@ function TotalsRow({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
         gap: 16,
         marginBottom: 24,
       }}
@@ -213,7 +213,7 @@ function RankedTable({
               key={r.key}
               style={{
                 display: 'grid',
-                gridTemplateColumns: '120px 1fr 60px',
+                gridTemplateColumns: 'minmax(0, 120px) minmax(0, 1fr) minmax(0, 60px)',
                 alignItems: 'center',
                 gap: 12,
                 padding: '6px 0',

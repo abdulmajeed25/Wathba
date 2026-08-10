@@ -72,7 +72,7 @@ export function WathbaProjectPreview({
         />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
+      <div className="wathba-dash-stack" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
         {/* story */}
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>عن المشروع</h2>
