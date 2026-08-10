@@ -65,8 +65,8 @@ const STATUS_AR: Record<ApiMilestonePublic['status'], string> = {
 
 const STATUS_COLOR: Record<ApiMilestonePublic['status'], string> = {
   PENDING: '#9ca3af',
-  SUBMITTED: '#9a5a06',
-  APPROVED: '#4f46e5',
+  SUBMITTED: 'var(--gold-ink)',
+  APPROVED: 'var(--purple-ink)',
   RELEASED: '#0a7653',
 };
 
@@ -442,7 +442,7 @@ export function DashboardMilestonesManager({
               >
                 + إضافة مرحلة
               </button>
-              <div style={{ fontSize: 12, color: draftPctTotal === 100 ? 'var(--brand-ink, #047649)' : '#b91c1c', fontWeight: 700 }}>
+              <div style={{ fontSize: 12, color: draftPctTotal === 100 ? 'var(--brand-ink, var(--pos-ink))' : 'var(--err)', fontWeight: 700 }}>
                 المجموع: {fmtPct(draftPctTotal)}
               </div>
             </div>
@@ -568,10 +568,10 @@ function SummaryStrip({
         marginBottom: 16,
       }}
     >
-      <Stat label="المُجمَّع من الداعمين" value={fmtSAR(raisedHalalas)} color="var(--brand-ink, #047649)" />
+      <Stat label="المُجمَّع من الداعمين" value={fmtSAR(raisedHalalas)} color="var(--brand-ink, var(--pos-ink))" />
       <Stat label="المُفرَج عنه" value={fmtSAR(releasedHalalas)} color="#0a7653" />
-      <Stat label="المُتبقّي في الضمان" value={fmtSAR(remaining)} color="#4f46e5" />
-      <Stat label="عدد المراحل" value={`${milestoneCount}`} color="#9a5a06" extra={`صُرفَ منها ${fmtSAR(spentHalalas)}`} />
+      <Stat label="المُتبقّي في الضمان" value={fmtSAR(remaining)} color="var(--purple-ink)" />
+      <Stat label="عدد المراحل" value={`${milestoneCount}`} color="var(--gold-ink)" extra={`صُرفَ منها ${fmtSAR(spentHalalas)}`} />
     </div>
   );
 }
@@ -596,12 +596,12 @@ function Stat({
         padding: 14,
       }}
     >
-      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary, var(--muted2))', marginBottom: 4 }}>
         {label}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
       {extra && (
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)', marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary, var(--muted2))', marginTop: 2 }}>
           {extra}
         </div>
       )}
@@ -642,7 +642,7 @@ function PlanRowEditor({
           type="button"
           onClick={onRemove}
           disabled={disabled}
-          style={{ ...ghostBtnStyle, color: '#b91c1c', padding: '2px 8px', fontSize: 11 }}
+          style={{ ...ghostBtnStyle, color: 'var(--err)', padding: '2px 8px', fontSize: 11 }}
         >
           إزالة
         </button>
@@ -729,7 +729,7 @@ function MilestoneCard({
               height: 24,
               borderRadius: '50%',
               background: 'rgba(5,166,97,0.10)',
-              color: 'var(--brand-ink, #047649)',
+              color: 'var(--brand-ink, var(--pos-ink))',
               fontSize: 12,
               fontWeight: 700,
             }}
@@ -740,10 +740,10 @@ function MilestoneCard({
           <Pill label={STATUS_AR[milestone.status]} color={STATUS_COLOR[milestone.status]} />
         </div>
         <div style={{ textAlign: 'end' }}>
-          <div style={{ fontWeight: 700, color: 'var(--brand-ink, #047649)' }}>
+          <div style={{ fontWeight: 700, color: 'var(--brand-ink, var(--pos-ink))' }}>
             {fmtPct(milestone.releasePct)} · {fmtSAR(releasedDisplay)}
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary, var(--muted2))' }}>
             {isReleased ? 'تم الصرف من الضمان' : 'سيُفرَج عند الموافقة'}
           </div>
         </div>
@@ -759,7 +759,7 @@ function MilestoneCard({
             href={milestone.evidenceUrl}
             target="_blank"
             rel="noreferrer"
-            style={{ color: 'var(--brand-ink, #047649)', textDecoration: 'underline' }}
+            style={{ color: 'var(--brand-ink, var(--pos-ink))', textDecoration: 'underline' }}
           >
             عرض الإثبات المُرسَل
           </a>
@@ -819,7 +819,7 @@ function MilestoneCard({
         </div>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-tertiary, #5d6b62)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 12, fontSize: 11, color: 'var(--text-tertiary, var(--muted2))' }}>
         <Timestamp label="أُرسِل" iso={milestone.submittedAt} />
         <Timestamp label="وُوفِق" iso={milestone.approvedAt} />
         <Timestamp label="صُرِف" iso={milestone.releasedAt} />
@@ -864,7 +864,7 @@ function BudgetSplitCard({ budget }: { budget: BudgetPayload }): React.ReactElem
         <div key={`${r.label}-${i}`} style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
             <span>{r.label}</span>
-            <span style={{ color: 'var(--text-tertiary, #5d6b62)' }}>
+            <span style={{ color: 'var(--text-tertiary, var(--muted2))' }}>
               {fmtSAR(r.amountHalalas)} · {fmtPct(r.pct)}
             </span>
           </div>
@@ -921,7 +921,7 @@ function SpendLogRow({
     >
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 14, fontWeight: 600 }}>{log.descAr}</div>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary, var(--muted2))', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <span>{fmtDate(log.date)}</span>
           {milestoneTitle && <span>↳ {milestoneTitle}</span>}
           {log.proofUrl && (
@@ -929,14 +929,14 @@ function SpendLogRow({
               href={log.proofUrl}
               target="_blank"
               rel="noreferrer"
-              style={{ color: 'var(--brand-ink, #047649)', textDecoration: 'underline' }}
+              style={{ color: 'var(--brand-ink, var(--pos-ink))', textDecoration: 'underline' }}
             >
               إثبات
             </a>
           )}
         </div>
       </div>
-      <div style={{ fontSize: 14, fontWeight: 700, color: '#b91c1c' }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--err)' }}>
         − {fmtSAR(log.amountHalalas)}
       </div>
     </div>
@@ -952,7 +952,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
   background: 'var(--bg-elevated, #fff)',
-  color: 'var(--text-primary, #16201b)',
+  color: 'var(--text-primary, var(--text-primary))',
   fontFamily: 'inherit',
 };
 
@@ -994,7 +994,7 @@ function SectionTitle({
         fontWeight: 700,
         margin: 0,
         marginBottom: 10,
-        color: 'var(--text-primary, #16201b)',
+        color: 'var(--text-primary, var(--text-primary))',
         ...(style ?? {}),
       }}
     >
@@ -1019,7 +1019,7 @@ function TabBtn({
       style={{
         padding: '8px 14px',
         background: active ? 'var(--brand-primary, #05a661)' : 'transparent',
-        color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, #16201b)',
+        color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, var(--text-primary))',
         border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',
         borderRadius: 10,
         fontWeight: 600,
@@ -1124,7 +1124,7 @@ function Alert({
 }): React.ReactElement {
   const palette =
     tone === 'error'
-      ? { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)', fg: '#b91c1c' }
+      ? { bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)', fg: 'var(--err)' }
       : { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.3)', fg: '#047857' };
   return (
     <div
@@ -1171,7 +1171,7 @@ function InfoBanner({ text }: { text: string }): React.ReactElement {
         background: 'rgba(99,102,241,0.06)',
         border: '1px solid rgba(99,102,241,0.2)',
         borderRadius: 8,
-        color: '#4338ca',
+        color: 'var(--purple-ink)',
         fontSize: 12,
         marginBottom: 4,
       }}

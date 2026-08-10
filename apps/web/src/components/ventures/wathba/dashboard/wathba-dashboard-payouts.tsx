@@ -11,7 +11,7 @@ import { formatSarFromHalalas } from '@/lib/i18n/format';
 const TONE: Record<string, { label: string; color: string; bg: string }> = {
   PENDING: { label: 'بانتظار التحويل', color: 'var(--gold-ink)',   bg: 'rgba(251,191,36,.10)' },
   SENT:    { label: 'تم التحويل',      color: 'var(--pos-ink)',    bg: 'rgba(52,211,153,.10)' },
-  FAILED:  { label: 'تعثّر التحويل',    color: '#b91c1c',       bg: 'rgba(239,68,68,.08)' },
+  FAILED:  { label: 'تعثّر التحويل',    color: 'var(--err)',       bg: 'rgba(239,68,68,.08)' },
 };
 
 const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);

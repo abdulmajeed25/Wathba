@@ -98,6 +98,29 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
      * foreground/background pair that nothing has ever measured.
      */
     '--stage': '#131210',
+
+    // ── creator-dashboard vocabulary → the layers above ───────────────────
+    // Batch PAGE-PARITY. The 22 dashboard components were written against a
+    // PARALLEL set of names that never existed in this file: 224 usages of
+    // --bg-base, --bg-elevated, --border-subtle, --border-strong,
+    // --text-tertiary, --brand-primary, --brand-ink and --on-brand. Every one
+    // carried an inline hex fallback, so nothing looked broken — the surface
+    // simply painted its fallbacks and never followed the theme. Switching to
+    // dark left all 18 sub-pages white, with an indigo accent instead of the
+    // green identity.
+    //
+    // Aliased rather than renamed at 224 call sites: this file already works
+    // that way for the legacy names below, one mapping is auditable where 224
+    // edits are not, and any other surface reaching for these names is fixed
+    // by the same change.
+    '--bg-base': '#f4f6f1',
+    '--bg-elevated': '#ffffff',
+    '--border-subtle': 'rgba(18,33,26,.12)',
+    '--border-strong': 'rgba(18,33,26,.16)',
+    '--text-tertiary': '#646f68',
+    '--brand-primary': '#05a661',
+    '--brand-ink': '#04773a',
+    '--on-brand': '#08130d',
     '--stage-1': '#1c1a17',
     '--stage-text': '#f6f4ef',
     '--stage-muted': '#c0bab0',
@@ -226,6 +249,29 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
      * foreground/background pair that nothing has ever measured.
      */
     '--stage': '#131210',
+
+    // ── creator-dashboard vocabulary → the layers above ───────────────────
+    // Batch PAGE-PARITY. The 22 dashboard components were written against a
+    // PARALLEL set of names that never existed in this file: 224 usages of
+    // --bg-base, --bg-elevated, --border-subtle, --border-strong,
+    // --text-tertiary, --brand-primary, --brand-ink and --on-brand. Every one
+    // carried an inline hex fallback, so nothing looked broken — the surface
+    // simply painted its fallbacks and never followed the theme. Switching to
+    // dark left all 18 sub-pages white, with an indigo accent instead of the
+    // green identity.
+    //
+    // Aliased rather than renamed at 224 call sites: this file already works
+    // that way for the legacy names below, one mapping is auditable where 224
+    // edits are not, and any other surface reaching for these names is fixed
+    // by the same change.
+    '--bg-base': '#131210',
+    '--bg-elevated': '#1c1a17',
+    '--border-subtle': 'rgba(255,252,245,.11)',
+    '--border-strong': 'rgba(255,252,245,.16)',
+    '--text-tertiary': '#aba49a',
+    '--brand-primary': '#1fd37e',
+    '--brand-ink': '#4ade96',
+    '--on-brand': '#08130d',
     '--stage-1': '#1c1a17',
     '--stage-text': '#f6f4ef',
     '--stage-muted': '#c0bab0',

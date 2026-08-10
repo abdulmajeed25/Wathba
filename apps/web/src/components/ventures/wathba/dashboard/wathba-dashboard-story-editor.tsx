@@ -191,15 +191,15 @@ export function DashboardStoryEditor({
             gap: 12,
             marginTop: 10,
             fontSize: 12,
-            color: 'var(--text-tertiary, #5d6b62)',
+            color: 'var(--text-tertiary, var(--muted2))',
             flexWrap: 'wrap',
           }}
         >
           <span>{charCount.toLocaleString('en-US')} حرف</span>
-          {tooShort && <span style={{ color: '#b91c1c' }}>الحد الأدنى 50 حرف</span>}
-          {dirty && <span style={{ color: '#b45309' }}>• فيه تعديلات ما انحفظت</span>}
+          {tooShort && <span style={{ color: 'var(--err)' }}>الحد الأدنى 50 حرف</span>}
+          {dirty && <span style={{ color: 'var(--gold-ink)' }}>• فيه تعديلات ما انحفظت</span>}
           {!dirty && savedAt !== null && (
-            <span style={{ color: 'var(--brand-ink, #047649)' }}>
+            <span style={{ color: 'var(--brand-ink, var(--pos-ink))' }}>
               • انحفظت {timeAgo(savedAt)}
             </span>
           )}
@@ -214,7 +214,7 @@ export function DashboardStoryEditor({
             border: '1px solid rgba(245,158,11,0.35)', background: 'rgba(245,158,11,0.06)',
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#9a5a06', marginBottom: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold-ink)', marginBottom: 6 }}>
             الحملة منشورة — أي تعديل على القصة يُسجَّل علناً للداعمين
           </div>
           <input
@@ -225,7 +225,7 @@ export function DashboardStoryEditor({
             maxLength={280}
             style={{
               width: '100%', padding: '9px 11px', borderRadius: 9, fontSize: 13.5, fontFamily: 'inherit',
-              border: '1px solid rgba(18,33,26,0.16)', background: 'var(--bg-base, #fff)', color: 'var(--text-primary, #16201b)',
+              border: '1px solid rgba(18,33,26,0.16)', background: 'var(--bg-base, #fff)', color: 'var(--text-primary, var(--text-primary))',
             }}
           />
           {changeLog.length > 0 && (
@@ -237,7 +237,7 @@ export function DashboardStoryEditor({
                 {changeLog.slice(0, 5).map((c) => (
                   <li key={c.id}>
                     {c.summaryAr}{' '}
-                    <span style={{ color: 'var(--text-tertiary, #5d6b62)' }}>
+                    <span style={{ color: 'var(--text-tertiary, var(--muted2))' }}>
                       — {new Date(c.createdAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
                     </span>
                   </li>
@@ -255,7 +255,7 @@ export function DashboardStoryEditor({
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             borderRadius: 10,
-            color: '#b91c1c',
+            color: 'var(--err)',
             marginBottom: 16,
             fontSize: 14,
           }}
@@ -352,7 +352,7 @@ function Toolbar({
         onClick={onPickImage}
       />
       <div style={{ flex: 1 }} />
-      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary, var(--muted2))' }}>
         تلميح: <code style={codeHint}>#</code> عنوان، <code style={codeHint}>-</code> نقطة،
         <code style={codeHint}>![نص](رابط)</code> صورة،
         <code style={codeHint}>[youtube:ID]</code> فيديو
@@ -382,7 +382,7 @@ function ToolBtn({
         borderRadius: 8,
         fontSize: 12,
         cursor: disabled ? 'not-allowed' : 'pointer',
-        color: 'var(--text-primary, #16201b)',
+        color: 'var(--text-primary, var(--text-primary))',
         fontFamily: 'inherit',
         opacity: disabled ? 0.6 : 1,
       }}
@@ -425,7 +425,7 @@ function EditorPane({
           fontFamily:
             "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace",
           background: 'var(--bg-base, #fff)',
-          color: 'var(--text-primary, #16201b)',
+          color: 'var(--text-primary, var(--text-primary))',
           resize: 'vertical',
         }}
       />
@@ -447,11 +447,11 @@ function PreviewPane({ source }: { source: string }): React.ReactElement {
           minHeight: 480,
           fontSize: 15,
           lineHeight: 1.8,
-          color: 'var(--text-primary, #16201b)',
+          color: 'var(--text-primary, var(--text-primary))',
         }}
       >
         {blocks.length === 0 ? (
-          <div style={{ color: 'var(--text-tertiary, #5d6b62)', fontSize: 13 }}>
+          <div style={{ color: 'var(--text-tertiary, var(--muted2))', fontSize: 13 }}>
             المعاينة بتبان هنا لما تبدأ تكتب.
           </div>
         ) : (
@@ -478,7 +478,7 @@ function TocSidebar({ items }: { items: HeadingItem[] }): React.ReactElement {
         }}
       >
         {items.length === 0 ? (
-          <div style={{ color: 'var(--text-tertiary, #5d6b62)' }}>
+          <div style={{ color: 'var(--text-tertiary, var(--muted2))' }}>
             أضف عنوان بـ <code style={codeHint}>#</code> لتشوفه هنا.
           </div>
         ) : (
@@ -490,7 +490,7 @@ function TocSidebar({ items }: { items: HeadingItem[] }): React.ReactElement {
                   paddingInlineStart: h.level === 3 ? 12 : 0,
                   color:
                     h.level === 2
-                      ? 'var(--text-primary, #16201b)'
+                      ? 'var(--text-primary, var(--text-primary))'
                       : 'var(--text-secondary, #3b4942)',
                   fontWeight: h.level === 2 ? 600 : 400,
                 }}

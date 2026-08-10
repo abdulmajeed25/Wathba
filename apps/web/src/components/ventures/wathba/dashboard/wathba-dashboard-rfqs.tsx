@@ -122,7 +122,7 @@ export function WathbaDashboardRfqs({
           role="alert"
           style={{
             fontSize: 13,
-            color: '#b91c1c',
+            color: 'var(--err)',
             background: 'rgba(239,68,68,.07)',
             border: '1px solid rgba(239,68,68,.25)',
             borderRadius: 11,

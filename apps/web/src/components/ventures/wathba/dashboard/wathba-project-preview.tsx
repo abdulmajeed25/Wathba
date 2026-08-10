@@ -40,12 +40,12 @@ export function WathbaProjectPreview({
         }}
       >
         <span style={{ fontSize: 18 }}>👁</span>
-        <span style={{ fontSize: 13.5, fontWeight: 700, color: '#4f46e5' }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--purple-ink)' }}>
           معاينة — هكذا يرى الزوّار حملتك قبل النشر
         </span>
         <Link
           href={`/projects/dashboard/${projectId}`}
-          style={{ marginInlineStart: 'auto', fontSize: 13, fontWeight: 600, color: '#4f46e5', textDecoration: 'none' }}
+          style={{ marginInlineStart: 'auto', fontSize: 13, fontWeight: 600, color: 'var(--purple-ink)', textDecoration: 'none' }}
         >
           العودة للوحة التحكم ←
         </Link>
@@ -53,7 +53,7 @@ export function WathbaProjectPreview({
 
       {/* header */}
       <div style={{ marginBottom: 20 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-ink, #047649)' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-ink, var(--pos-ink))' }}>
           {CATEGORY_AR[project.category] ?? project.category}
         </span>
         <h1 style={{ fontSize: 30, fontWeight: 800, margin: '6px 0 8px', lineHeight: 1.3 }}>{project.titleAr}</h1>
@@ -82,8 +82,8 @@ export function WathbaProjectPreview({
         {/* funding rail + tiers */}
         <aside style={{ display: 'flex', flexDirection: 'column', gap: 16, position: 'sticky', top: 64 }}>
           <div style={{ background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))', borderRadius: 14, padding: 18 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>هدف التمويل</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--brand-ink, #047649)' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>هدف التمويل</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--brand-ink, var(--pos-ink))' }}>
               {fmtSAR(project.fundingGoalHalalas)}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', marginTop: 8, lineHeight: 1.9 }}>
@@ -111,13 +111,13 @@ export function WathbaProjectPreview({
                 <div key={t.id} style={{ background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))', borderRadius: 12, padding: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
                     <strong style={{ fontSize: 14 }}>{t.titleAr}</strong>
-                    <span style={{ fontWeight: 700, color: 'var(--brand-ink, #047649)', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: 700, color: 'var(--brand-ink, var(--pos-ink))', whiteSpace: 'nowrap' }}>
                       {fmtSAR(t.amountHalalas)}
                     </span>
                   </div>
                   <p style={{ fontSize: 13, color: 'var(--text-secondary, #3b4942)', margin: '6px 0 0', lineHeight: 1.6 }}>{t.descAr}</p>
                   {t.estDeliveryDate && (
-                    <div style={{ fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)', marginTop: 6 }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-tertiary, var(--muted2))', marginTop: 6 }}>
                       التسليم المتوقّع: {new Date(t.estDeliveryDate).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short' })}
                     </div>
                   )}
@@ -139,7 +139,7 @@ function StoryRender({ story }: { story: string }): React.ReactElement {
   const flush = (key: string): void => {
     if (para.length) {
       out.push(
-        <p key={key} style={{ fontSize: 15, lineHeight: 1.9, color: 'var(--text-primary, #16201b)', margin: '0 0 14px' }}>
+        <p key={key} style={{ fontSize: 15, lineHeight: 1.9, color: 'var(--text-primary, var(--text-primary))', margin: '0 0 14px' }}>
           {para.join(' ')}
         </p>,
       );

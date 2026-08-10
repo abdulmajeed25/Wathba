@@ -201,7 +201,7 @@ export function DashboardCreatorProfileEditor({
             background: 'rgba(5,166,97,0.10)',
             border: '1px solid rgba(5,166,97,0.32)',
             borderRadius: 10,
-            color: '#057a48',
+            color: 'var(--pos-ink)',
             fontSize: 14,
           }}
         >
@@ -217,7 +217,7 @@ export function DashboardCreatorProfileEditor({
             background: 'rgba(245,158,11,0.10)',
             border: '1px solid rgba(245,158,11,0.32)',
             borderRadius: 10,
-            color: '#9a5a06',
+            color: 'var(--gold-ink)',
             fontSize: 14,
           }}
         >
@@ -234,7 +234,7 @@ export function DashboardCreatorProfileEditor({
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.30)',
             borderRadius: 10,
-            color: '#b91c1c',
+            color: 'var(--err)',
             fontSize: 14,
           }}
         >
@@ -259,7 +259,7 @@ export function DashboardCreatorProfileEditor({
           }}
         >
           <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>كيف يراني الجمهور</h2>
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
             معاينة فقط — التعديلات تتم في النموذج أدناه
           </span>
         </div>
@@ -294,7 +294,7 @@ export function DashboardCreatorProfileEditor({
         <Field
           label="نبذة عنك"
           hint={`${draft.bioAr.length.toLocaleString('en-US')} / ${BIO_MAX.toLocaleString('en-US')} حرفاً`}
-          hintColor={bioOverLimit ? '#b91c1c' : undefined}
+          hintColor={bioOverLimit ? 'var(--err)' : undefined}
         >
           <textarea
             value={draft.bioAr}
@@ -308,7 +308,7 @@ export function DashboardCreatorProfileEditor({
         <Field
           label="الموقع الإلكتروني (اختياري)"
           hint={urlInvalid ? 'الرابط يجب أن يبدأ بـ http:// أو https://' : undefined}
-          hintColor={urlInvalid ? '#b91c1c' : undefined}
+          hintColor={urlInvalid ? 'var(--err)' : undefined}
         >
           <input
             type="url"
@@ -338,7 +338,7 @@ export function DashboardCreatorProfileEditor({
                   background: 'var(--bg-base, #f4f6f1)',
                   borderRadius: 10,
                   fontSize: 13,
-                  color: 'var(--text-tertiary, #5d6b62)',
+                  color: 'var(--text-tertiary, var(--muted2))',
                   textAlign: 'center',
                 }}
               >
@@ -430,7 +430,7 @@ function CollaboratorRow({
         type="button"
         onClick={onRemove}
         title="حذف"
-        style={{ ...ghostBtnStyle, color: '#b91c1c', whiteSpace: 'nowrap' }}
+        style={{ ...ghostBtnStyle, color: 'var(--err)', whiteSpace: 'nowrap' }}
       >
         حذف
       </button>
@@ -477,7 +477,7 @@ function AvatarPicker({
           style={{
             fontWeight: 700,
             fontSize: 22,
-            color: 'var(--brand-ink, #047649)',
+            color: 'var(--brand-ink, var(--pos-ink))',
           }}
         >
           {name.slice(0, 1) || '?'}
@@ -518,11 +518,11 @@ function Field({
           marginBottom: 6,
         }}
       >
-        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #16201b)' }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, var(--text-primary))' }}>
           {label}
         </label>
         {hint && (
-          <span style={{ fontSize: 12, color: hintColor ?? 'var(--text-tertiary, #5d6b62)' }}>
+          <span style={{ fontSize: 12, color: hintColor ?? 'var(--text-tertiary, var(--muted2))' }}>
             {hint}
           </span>
         )}
@@ -539,7 +539,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
   background: 'var(--bg-elevated, #fff)',
-  color: 'var(--text-primary, #16201b)',
+  color: 'var(--text-primary, var(--text-primary))',
   fontFamily: 'inherit',
 };
 

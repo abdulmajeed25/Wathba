@@ -19,8 +19,8 @@ const STATUS_LABEL: Record<ContestStatusVal, string> = {
 const STATUS_COLOR: Record<ContestStatusVal, string> = {
   DRAFT: '#9ca3af',
   OPEN: '#0a7653',
-  CLOSED: '#9a5a06',
-  ANNOUNCED: '#4f46e5',
+  CLOSED: 'var(--gold-ink)',
+  ANNOUNCED: 'var(--purple-ink)',
 };
 
 type FilterId = 'all' | ContestStatusVal;
@@ -70,7 +70,7 @@ export function ContestsManager({
           gap: 12,
         }}
       >
-        <Kpi label="إجمالي الجولات" value={sorted.length} accent="var(--brand-ink, #047649)" />
+        <Kpi label="إجمالي الجولات" value={sorted.length} accent="var(--brand-ink, var(--pos-ink))" />
         <Kpi label="جولات مفتوحة الآن" value={counts.OPEN} accent="var(--blue, #2563eb)" />
         <Kpi label="جولات أُعلِنت" value={counts.ANNOUNCED} accent="var(--purple, #6d4df0)" />
         <Kpi label="إجمالي الفائزين" value={totalWinners} accent="var(--gold, #b9820a)" />
@@ -106,7 +106,7 @@ export function ContestsManager({
                   background: 'transparent',
                   border: 'none',
                   borderBottom: `2px solid ${active ? 'var(--brand-primary, #05a661)' : 'transparent'}`,
-                  color: active ? 'var(--brand-ink, #047649)' : 'var(--text-secondary, #3b4942)',
+                  color: active ? 'var(--brand-ink, var(--pos-ink))' : 'var(--text-secondary, #3b4942)',
                   fontFamily: 'inherit',
                   fontWeight: 700,
                   fontSize: 13,
@@ -395,7 +395,7 @@ function RoundCard({
         }}
       >
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-tertiary, var(--muted2))', marginBottom: 4 }}>
             الجولة {contest.roundNum}
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.5 }}>{contest.promptAr}</div>
@@ -671,7 +671,7 @@ function ErrorBanner({ text }: { text: string }): React.ReactElement {
         border: '1px solid rgba(239,68,68,0.3)',
         borderRadius: 8,
         fontSize: 13,
-        color: '#dc2626',
+        color: 'var(--err)',
       }}
     >
       {text}
@@ -700,7 +700,7 @@ function pillStyle(active: boolean): React.CSSProperties {
     borderRadius: 999,
     border: '1px solid var(--border-strong, rgba(18,33,26,0.16))',
     background: active ? 'var(--brand-primary, #05a661)' : 'transparent',
-    color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, #16201b)',
+    color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, var(--text-primary))',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -728,7 +728,7 @@ function dangerButtonStyle(disabled: boolean): React.CSSProperties {
     borderRadius: 10,
     border: '1px solid rgba(239,68,68,0.3)',
     background: 'transparent',
-    color: '#dc2626',
+    color: 'var(--err)',
     fontSize: 14,
     fontWeight: 700,
     cursor: disabled ? 'not-allowed' : 'pointer',
