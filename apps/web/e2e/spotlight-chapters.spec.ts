@@ -86,6 +86,114 @@ test('SC2: the chapters do not all share one structure', async ({ page }) => {
   }
 });
 
+/**
+ * SC4 — the hero's contrast, measured against the pixels it actually paints.
+ *
+ * batch-polish-public-contrast.spec.ts cannot answer this and says so: it
+ * composites CSS background-colours, and this hero's ground is an <img> layer.
+ * It is excluded there by the same rule that excludes any text over a
+ * photograph, which means the guarantee has to live here instead.
+ *
+ * Method: blank the ink, screenshot, read the PNG back through a canvas as a
+ * data: URL — same-origin, unlike the cross-origin cover, so nothing taints —
+ * then sample every pixel under each GLYPH RUN and keep the worst.
+ *
+ * The glyph run matters. Sampling an element's bounding rect reads the corners
+ * of rounded buttons and pills, which lie outside the border-radius and show
+ * whatever is behind them: that reported the CTA at 1.02:1 against a ground
+ * its text never touches.
+ */
+for (const [w, h] of [[1440, 900], [360, 740]] as const) {
+  test(`SC4(${w}): hero copy clears WCAG AA over the real cover pixels`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto('/spotlight');
+    await expect(page.locator('#spotlight-hero-title')).toBeVisible();
+
+    const HERO = 'section[aria-labelledby="spotlight-hero-title"]';
+    const boxes = await page.evaluate((sel) => {
+      const hero = document.querySelector(sel);
+      if (!hero) return [];
+      const out: Array<Record<string, number | string | boolean>> = [];
+      for (const el of hero.querySelectorAll('h1, p, div, span, a')) {
+        const cs = getComputedStyle(el);
+        for (const n of el.childNodes) {
+          if (n.nodeType !== 3 || !n.textContent!.trim()) continue;
+          const rg = document.createRange();
+          rg.selectNodeContents(n);
+          for (const r of rg.getClientRects()) {
+            if (r.width < 4 || r.height < 4 || r.top > innerHeight || r.bottom < 0) continue;
+            out.push({
+              text: n.textContent!.trim().slice(0, 24),
+              color: cs.color,
+              fontSize: parseFloat(cs.fontSize),
+              bold: (parseInt(cs.fontWeight, 10) || 400) >= 700,
+              x: Math.max(0, Math.round(r.x)), y: Math.max(0, Math.round(r.y)),
+              w: Math.round(r.width), h: Math.round(r.height),
+            });
+          }
+        }
+      }
+      return out;
+    }, HERO);
+
+    expect(boxes.length, 'no hero text found to measure').toBeGreaterThan(0);
+
+    await page.evaluate((sel) => {
+      for (const el of document.querySelector(sel)!.querySelectorAll('*')) {
+        (el as HTMLElement).style.setProperty('color', 'transparent', 'important');
+        (el as HTMLElement).style.setProperty('text-shadow', 'none', 'important');
+      }
+    }, HERO);
+
+    const shot = (await page.screenshot({ clip: { x: 0, y: 0, width: w, height: h } })).toString('base64');
+
+    const fails = await page.evaluate(async ({ shot, boxes }) => {
+      const img = new Image();
+      img.src = 'data:image/png;base64,' + shot;
+      await img.decode();
+      const cv = document.createElement('canvas');
+      cv.width = img.width; cv.height = img.height;
+      const cx = cv.getContext('2d', { willReadFrequently: true })!;
+      cx.drawImage(img, 0, 0);
+
+      const lin = (v: number): number => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      const lum = (r: number, g: number, b: number): number => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+      const ratio = (a: number, b: number): number => { const [hi, lo] = a > b ? [a, b] : [b, a]; return (hi + 0.05) / (lo + 0.05); };
+
+      const bad: Array<{ ratio: number; need: number; txt: string }> = [];
+      for (const bx of boxes as Array<Record<string, never>>) {
+        const b = bx as unknown as { color: string; fontSize: number; bold: boolean; x: number; y: number; w: number; h: number; text: string };
+        const [tr, tg, tb] = b.color.match(/[\d.]+/g)!.map(Number);
+        // Text alpha composites onto whatever is behind it.
+        const alpha = b.color.startsWith('rgba') ? Number(b.color.match(/[\d.]+/g)![3]) : 1;
+        const ww = Math.min(b.w, cv.width - b.x);
+        const hh = Math.min(b.h, cv.height - b.y);
+        if (ww < 1 || hh < 1) continue;
+        const d = cx.getImageData(b.x, b.y, ww, hh).data;
+        let worst = Infinity;
+        for (let i = 0; i < d.length; i += 4) {
+          const gl = lum(d[i], d[i + 1], d[i + 2]);
+          const fg = lum(
+            Math.round(tr * alpha + d[i] * (1 - alpha)),
+            Math.round(tg * alpha + d[i + 1] * (1 - alpha)),
+            Math.round(tb * alpha + d[i + 2] * (1 - alpha)),
+          );
+          const rr = ratio(fg, gl);
+          if (rr < worst) worst = rr;
+        }
+        const need = b.fontSize >= 24 || (b.bold && b.fontSize >= 18.66) ? 3 : 4.5;
+        if (worst < need) bad.push({ ratio: Number(worst.toFixed(2)), need, txt: b.text });
+      }
+      return bad;
+    }, { shot, boxes });
+
+    expect(
+      fails,
+      `hero copy below WCAG AA over the cover:\n` + fails.map((f) => `  ${f.ratio}<${f.need} "${f.txt}"`).join('\n'),
+    ).toEqual([]);
+  });
+}
+
 test('SC3: nothing escapes the viewport on a phone', async ({ page }) => {
   // The full-bleed band is a multi-track grid that deliberately breaks its
   // container — historically the exact shape that hides content off-screen at
