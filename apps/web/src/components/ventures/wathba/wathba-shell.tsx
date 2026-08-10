@@ -513,6 +513,16 @@ export function WathbaShell({
                and with everything carrying !important the later rule would win
                across the overlap. That is how a phone-only rule ends up dead
                over a 140px band. */
+            /* The campaign story tab: contents rail | story | pledge sidebar.
+               200px + 360px + two 36px gaps needs 632px, and it kept all three
+               zones side by side at 360 — the story column alone measured
+               360px inside a 308px box. Stacks below 1000, where the sidebar
+               stops fitting beside a readable measure.
+               !important because the columns are an INLINE style, which a plain
+               stylesheet rule cannot override. */
+            @media (max-width:1000px){
+              [data-pillar="ventures"] .wathba-story-grid{grid-template-columns:minmax(0,1fr)!important;gap:24px!important}
+            }
             @media (max-width:900px){
               [data-pillar="ventures"] .wathba-home-hero{grid-template-columns:minmax(0,1fr)!important;gap:26px!important;padding-top:34px!important}
               /* The copy column is pinned to --hero-col-h so it MATCHES the card

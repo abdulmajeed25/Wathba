@@ -294,7 +294,22 @@ export function wathbaHomeRenderers(
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(8,1fr)',
+            /*
+             * auto-fit, not a fixed 8.
+             *
+             * At 360 this held eight 74px tracks — 593px of chips in a 308px
+             * box with no scroller — so four categories were off-screen and
+             * «القصص المصورة» was clipped at the edge. Exactly the defect the
+             * rank tiers had, on the most-visited page on the site.
+             *
+             * The learned-facet row directly beneath this one uses flex-wrap
+             * and has always wrapped correctly; this is the row that did not.
+             *
+             * 120px floor: a chip is an icon over a short category name and a
+             * count, so it stays legible at two-up on a phone and still lays
+             * out eight across on a desktop.
+             */
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
             gap: 14,
           }}
         >
@@ -522,7 +537,15 @@ export function wathbaHomeRenderers(
         >
           ادعم أكثر، افتح رتباً أعلى ومزايا حصرية: شارات، وصول مبكر، ولقاءات مع المبدعين.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 16 }}>
+        <div
+          style={{
+            display: 'grid',
+            // Same five backer ranks as /projects/ranks, same fix: five fixed
+            // tracks summed to 629px inside a 308px box at 360.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 16,
+          }}
+        >
           {wathbaRanks.map((r) => (
             <div
               key={r.id}
