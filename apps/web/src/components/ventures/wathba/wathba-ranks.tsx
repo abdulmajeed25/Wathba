@@ -111,7 +111,27 @@ export function WathbaRanks() {
 
       {/* 5-card rank grid — design 1154-1169 */}
       <section style={{ maxWidth: 1100, margin: '48px auto 0', padding: '0 26px 10px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14 }}>
+        <div
+          style={{
+            display: 'grid',
+            /*
+             * auto-fit, not a fixed 5.
+             *
+             * At 360 the five tiers stayed 5-across inside a 308px box whose
+             * tracks summed to 577px, with NO scroller: «محسن» was clipped at
+             * the edge and «سفير» and «داعم مؤسس» were off-screen and
+             * unreachable. Two of the five ranks did not exist on a phone, and
+             * the three that did broke to two or three words a line.
+             *
+             * 150px is the floor because a tier card is a short Arabic label
+             * over a Latin one («داعم مؤسس» / FOUNDING SUPPORTER) plus a perk
+             * list — narrower than that and the perks wrap to one word a line,
+             * which is the state this replaces.
+             */
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 14,
+          }}
+        >
           {wathbaRanks.map((r) => (
             <div
               key={r.id}
