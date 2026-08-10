@@ -34,7 +34,7 @@ export default async function NafathStepPage({
           </svg>
         </div>
         <h1 className="text-3xl font-bold">تحقّق نفاذ</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-fg-muted">
           خطوة سريعة لتأكيد هويتك الوطنية عبر تطبيق نفاذ. مطلوبة قبل إطلاق أي
           مشروع وقبل سحب أي تمويل.
         </p>
@@ -52,11 +52,11 @@ export default async function NafathStepPage({
             pattern="[0-9]{10}"
             maxLength={10}
             placeholder="1020304050"
-            className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+            className="rounded-lg border border-edge-strong bg-elevated px-3 py-2 text-sm focus:border-brand focus:outline-none"
             dir="ltr"
             style={{ textAlign: 'right' }}
           />
-          <span className="text-xs text-neutral-600">
+          <span className="text-xs text-fg-muted">
             سيُرسل طلب موافقة إلى تطبيق نفاذ على جوّالك. وافق عليه ثم اضغط متابعة.
           </span>
         </label>
@@ -72,12 +72,12 @@ export default async function NafathStepPage({
 
         <button
           type="submit"
-          className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+          className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-on-brand hover:bg-brand"
         >
           أرسل طلب التحقق
         </button>
 
-        <p className="text-center text-xs text-neutral-600">
+        <p className="text-center text-xs text-fg-muted">
           (وضع تطوير: تطبيق نفاذ غير موصول — التحقق يكتمل تلقائياً.)
         </p>
       </form>
@@ -86,7 +86,7 @@ export default async function NafathStepPage({
         <input type="hidden" name="next" value={next} />
         <button
           type="submit"
-          className="w-full rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          className="w-full rounded-lg border border-edge-strong px-4 py-2 text-sm font-medium text-fg-muted hover:bg-elevated"
         >
           أتجاوز هذه الخطوة الآن
         </button>

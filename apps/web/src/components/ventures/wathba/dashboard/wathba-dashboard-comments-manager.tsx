@@ -225,7 +225,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: 'var(--brand-ink, #047649)',
+              color: 'var(--brand-ink, var(--pos-ink))',
               border: '1px solid rgba(5,166,97,0.5)',
               background: 'rgba(5,166,97,0.08)',
             }}
@@ -240,7 +240,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: 'var(--brand-ink, #047649)',
+              color: 'var(--brand-ink, var(--pos-ink))',
               background: 'rgba(5,166,97,0.10)',
             }}
           >
@@ -254,7 +254,7 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: '#9a5a06',
+              color: 'var(--gold-ink)',
               background: 'rgba(245,158,11,0.12)',
             }}
           >
@@ -268,20 +268,20 @@ function CommentManagerRow({
               fontWeight: 700,
               padding: '2px 9px',
               borderRadius: 20,
-              color: '#b91c1c',
+              color: 'var(--err-ink)',
               background: 'rgba(239,68,68,0.10)',
             }}
           >
             🚩 مُبلَّغ ({row.reportCount})
           </span>
         )}
-        <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>
+        <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, var(--muted2))' }}>
           {dateAr}
         </span>
       </div>
 
-      <p style={{ fontSize: 14, color: 'var(--text-primary, #16201b)', margin: 0, lineHeight: 1.65 }}>
-        {row.hidden ? <em style={{ color: 'var(--text-tertiary, #5d6b62)' }}>تم إخفاء هذا التعليق</em> : row.bodyAr}
+      <p style={{ fontSize: 14, color: 'var(--text-primary, var(--text-primary))', margin: 0, lineHeight: 1.65 }}>
+        {row.hidden ? <em style={{ color: 'var(--text-tertiary, var(--muted2))' }}>تم إخفاء هذا التعليق</em> : row.bodyAr}
       </p>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -328,13 +328,13 @@ function CommentManagerRow({
               <span
                 style={{
                   fontSize: 10.5, fontWeight: 700, padding: '1px 8px', borderRadius: 20,
-                  color: 'var(--brand-ink, #047649)', border: '1px solid rgba(5,166,97,0.5)',
+                  color: 'var(--brand-ink, var(--pos-ink))', border: '1px solid rgba(5,166,97,0.5)',
                   background: 'rgba(5,166,97,0.08)',
                 }}
               >
                 صاحب المشروع
               </span>
-              <span style={{ fontSize: 13.5, color: 'var(--text-primary, #16201b)', lineHeight: 1.6 }}>{r.bodyAr}</span>
+              <span style={{ fontSize: 13.5, color: 'var(--text-primary, var(--text-primary))', lineHeight: 1.6 }}>{r.bodyAr}</span>
             </div>
           ))}
         </div>
@@ -352,11 +352,11 @@ function CommentManagerRow({
               width: '100%', resize: 'vertical', fontFamily: 'inherit', fontSize: 13.5,
               padding: '9px 11px', borderRadius: 10,
               border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',
-              background: 'var(--bg-base, #f8faf6)', color: 'var(--text-primary, #16201b)',
+              background: 'var(--bg-base, #f8faf6)', color: 'var(--text-primary, var(--text-primary))',
             }}
           />
           {replyError && (
-            <span role="alert" style={{ fontSize: 12.5, color: '#b91c1c' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
+            <span role="alert" style={{ fontSize: 12.5, color: 'var(--err-ink)' }}>تعذّر إرسال الرد — أعد المحاولة.</span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -392,10 +392,10 @@ function ManagerButton({
   danger?: boolean;
 }): React.ReactElement {
   const palette = danger
-    ? { fg: '#b91c1c', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)' }
+    ? { fg: 'var(--err)', bg: 'rgba(239,68,68,0.08)', border: 'rgba(239,68,68,0.3)' }
     : active
-      ? { fg: 'var(--brand-ink, #047649)', bg: 'rgba(5,166,97,0.10)', border: 'rgba(5,166,97,0.4)' }
-      : { fg: 'var(--text-primary, #16201b)', bg: 'transparent', border: 'rgba(18,33,26,0.12)' };
+      ? { fg: 'var(--brand-ink, var(--pos-ink))', bg: 'rgba(5,166,97,0.10)', border: 'rgba(5,166,97,0.4)' }
+      : { fg: 'var(--text-primary, var(--text-primary))', bg: 'transparent', border: 'rgba(18,33,26,0.12)' };
   return (
     <button
       type="button"

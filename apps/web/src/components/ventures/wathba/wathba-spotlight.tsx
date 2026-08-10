@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ApiEditorialCard, ApiHomeProjectCard, ApiSpotlightPayload } from '@/lib/api/wathba';
 
 import { Icon, Num } from './wathba-icons';
+import { toArabicDigits } from './discover-all-constants';
 import { HeroParallax, Reveal } from './wathba-motion';
 
 /**
@@ -200,9 +201,15 @@ function Hero({ p }: { p: ApiHomeProjectCard }) {
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginBottom: 28 }}>
-            <Stat value={`${p.fundedPct}%`} label="مُموَّل" />
+            {/* COUNTS AND PERCENTAGES ARE ARABIC-INDIC on this platform; money
+                and reference ids are deliberately Latin (formatSar pins
+                `ar-SA-u-nu-latn`). <Num> supplies the typeface and tabular
+                figures — it does NOT convert digits, which is what these three
+                sites assumed. The hero read «964 داعم» while the card beneath it
+                read «٨٤٧ داعم». */}
+            <Stat value={`%${toArabicDigits(p.fundedPct)}`} label="مُموَّل" />
             <Divider />
-            <Stat value={String(p.backersCount)} label="داعم" />
+            <Stat value={toArabicDigits(p.backersCount)} label="داعم" />
           </div>
 
           <Link
@@ -447,8 +454,8 @@ function Funded({ p, compact }: { p: ApiHomeProjectCard; compact?: boolean }) {
         <div style={{ height: '100%', width: `${pct}%`, background: 'var(--grad-bar)', borderRadius: 30 }} />
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', marginTop: 5 }}>
-        <Num style={{ fontSize: 12, color: 'var(--accent-ink)', fontWeight: 700 }}>{p.fundedPct}% مُموَّل</Num>
-        <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{p.backersCount} داعم</Num>
+        <Num style={{ fontSize: 12, color: 'var(--accent-ink)', fontWeight: 700 }}>%{toArabicDigits(p.fundedPct)} مُموَّل</Num>
+        <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{toArabicDigits(p.backersCount)} داعم</Num>
       </div>
     </div>
   );

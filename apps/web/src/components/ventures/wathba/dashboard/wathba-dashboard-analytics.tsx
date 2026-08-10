@@ -51,7 +51,7 @@ export function WathbaDashboardAnalytics({
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 160, overflowX: 'auto', paddingTop: 8 }}>
             {pledgesOverTime.map((d) => (
               <div key={d.date} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 34 }}>
-                <span style={{ fontSize: 10.5, color: 'var(--text-tertiary, #5d6b62)' }}>{d.count}</span>
+                <span style={{ fontSize: 10.5, color: 'var(--text-tertiary, var(--muted2))' }}>{d.count}</span>
                 <div
                   title={`${d.date}: ${d.count} تعهّد · ${fmtSAR(d.amountHalalas)}`}
                   style={{
@@ -59,7 +59,7 @@ export function WathbaDashboardAnalytics({
                     background: 'linear-gradient(180deg, #0bd47f, #05a661)',
                   }}
                 />
-                <span style={{ fontSize: 9.5, color: 'var(--text-tertiary, #5d6b62)', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: 9.5, color: 'var(--text-tertiary, var(--muted2))', whiteSpace: 'nowrap' }}>
                   {d.date.slice(5)}
                 </span>
               </div>
@@ -108,7 +108,7 @@ export function WathbaDashboardAnalytics({
               {followers.items.slice(0, 8).map((f) => (
                 <li key={f.followerId}>
                   {f.name}{' '}
-                  <span style={{ color: 'var(--text-tertiary, #5d6b62)', fontSize: 12 }}>
+                  <span style={{ color: 'var(--text-tertiary, var(--muted2))', fontSize: 12 }}>
                     — {new Date(f.followedAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
                   </span>
                 </li>
@@ -130,8 +130,8 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
         border: `1px solid ${accent ? 'rgba(5,166,97,0.3)' : 'var(--border-subtle, rgba(18,33,26,0.08))'}`,
       }}
     >
-      <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: accent ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)' }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: accent ? 'var(--brand-ink, var(--pos-ink))' : 'var(--text-primary, var(--text-primary))' }}>{value}</div>
     </div>
   );
 }
@@ -146,12 +146,12 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 function Empty({ children }: { children: React.ReactNode }): React.ReactElement {
-  return <div style={{ fontSize: 13.5, color: 'var(--text-tertiary, #5d6b62)' }}>{children}</div>;
+  return <div style={{ fontSize: 13.5, color: 'var(--text-tertiary, var(--muted2))' }}>{children}</div>;
 }
 
 function StateCard({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div style={{ padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14, background: 'var(--bg-elevated, #fff)', border: '1px dashed rgba(239,68,68,0.4)', color: '#b91c1c' }}>
+    <div style={{ padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14, background: 'var(--bg-elevated, #fff)', border: '1px dashed rgba(239,68,68,0.4)', color: 'var(--err-ink)' }}>
       {children}
     </div>
   );

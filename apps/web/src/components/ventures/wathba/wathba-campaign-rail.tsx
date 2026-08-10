@@ -9,6 +9,7 @@ import { ReportProjectButton } from './wathba-report-project';
 import { ShareButton } from './wathba-share';
 import { Icon, Num } from './wathba-icons';
 import { formatSar } from '@/lib/i18n/format';
+import { toArabicDigits } from './discover-all-constants';
 
 const fmtSAR = (n: number): string => formatSar('ar', n);
 
@@ -94,7 +95,7 @@ export function WathbaCampaignRail({
         >
           {showRaisedFmt}
         </Num>
-        <Num style={{ fontSize: 16, fontWeight: 700, color: pctColor }}>{showPct}%</Num>
+        <Num style={{ fontSize: 16, fontWeight: 700, color: pctColor }}>%{toArabicDigits(showPct)}</Num>
         {live && (
           <span
             aria-label="حيّ"
@@ -140,7 +141,7 @@ export function WathbaCampaignRail({
         <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-soft)' }}>
           يُموَّل عند بلوغ{' '}
           <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
-            {formatSar('ar', thresholdAmount)} ({releaseThresholdPct}%)
+            {formatSar('ar', thresholdAmount)} (%{toArabicDigits(releaseThresholdPct)})
           </Num>{' '}
           من الهدف قبل الموعد النهائي. وإلا، تُرَدّ كل الأموال تلقائياً.
         </div>

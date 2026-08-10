@@ -173,7 +173,7 @@ export function DashboardUpdatesComposer({
           <div
             style={{
               fontSize: 13,
-              color: '#b91c1c',
+              color: 'var(--err-ink)',
               background: 'rgba(239,68,68,0.08)',
               border: '1px solid rgba(239,68,68,0.25)',
               borderRadius: 8,
@@ -247,7 +247,7 @@ const inputStyle: React.CSSProperties = {
   padding: '10px 12px',
   fontSize: 14,
   fontFamily: 'inherit',
-  color: 'var(--text-primary, #16201b)',
+  color: 'var(--text-primary, var(--text-primary))',
   background: '#fff',
 };
 
@@ -280,7 +280,7 @@ function UpdateAdminRow({
             height: 30,
             borderRadius: 10,
             background: 'rgba(5,166,97,0.12)',
-            color: 'var(--brand-ink, #047649)',
+            color: 'var(--brand-ink, var(--pos-ink))',
             display: 'inline-grid',
             placeItems: 'center',
             fontSize: 12.5,
@@ -293,14 +293,14 @@ function UpdateAdminRow({
         {row.pinned && <Badge tone="brand">📌 مثبَّت</Badge>}
         {row.visibility === 'BACKERS_ONLY' && <Badge tone="amber">🔒 للداعمين فقط</Badge>}
         {row.scheduled && <Badge tone="indigo">⏰ مجدول {formatDateAr(row.publishAt ?? row.date)}</Badge>}
-        <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>
+        <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, var(--muted2))' }}>
           {dateAr}
         </span>
       </div>
       <p
         style={{
           fontSize: 13.5,
-          color: 'var(--text-primary, #16201b)',
+          color: 'var(--text-primary, var(--text-primary))',
           margin: 0,
           lineHeight: 1.7,
           whiteSpace: 'pre-wrap',
@@ -314,7 +314,7 @@ function UpdateAdminRow({
           alignItems: 'center',
           gap: 18,
           fontSize: 12.5,
-          color: 'var(--text-tertiary, #5d6b62)',
+          color: 'var(--text-tertiary, var(--muted2))',
           marginTop: 4,
         }}
       >
@@ -326,7 +326,7 @@ function UpdateAdminRow({
           style={{
             marginInlineStart: 'auto',
             fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8,
-            color: row.pinned ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
+            color: row.pinned ? 'var(--brand-ink, var(--pos-ink))' : 'var(--text-primary, var(--text-primary))',
             background: row.pinned ? 'rgba(5,166,97,0.10)' : 'transparent',
             border: `1px solid ${row.pinned ? 'rgba(5,166,97,0.4)' : 'rgba(18,33,26,0.16)'}`,
             cursor: 'pointer', fontFamily: 'inherit',
@@ -342,7 +342,7 @@ function UpdateAdminRow({
             fontWeight: 600,
             padding: '5px 12px',
             borderRadius: 8,
-            color: '#b91c1c',
+            color: 'var(--err-ink)',
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             cursor: 'pointer',
@@ -358,9 +358,9 @@ function UpdateAdminRow({
 
 function Badge({ tone, children }: { tone: 'brand' | 'amber' | 'indigo'; children: React.ReactNode }): React.ReactElement {
   const palette = {
-    brand: { fg: 'var(--brand-ink, #047649)', bg: 'rgba(5,166,97,0.10)' },
-    amber: { fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
-    indigo: { fg: '#4f46e5', bg: 'rgba(99,102,241,0.12)' },
+    brand: { fg: 'var(--brand-ink, var(--pos-ink))', bg: 'rgba(5,166,97,0.10)' },
+    amber: { fg: 'var(--gold-ink)', bg: 'rgba(245,158,11,0.12)' },
+    indigo: { fg: 'var(--purple-ink)', bg: 'rgba(99,102,241,0.12)' },
   }[tone];
   return (
     <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: palette.fg, background: palette.bg }}>

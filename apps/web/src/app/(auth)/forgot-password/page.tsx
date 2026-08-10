@@ -28,13 +28,13 @@ export default async function ForgotPasswordPage({
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
       <div className="text-center">
         <h1 className="text-3xl font-bold">استعادة كلمة المرور</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-fg-muted">
           أدخل بريدك الإلكتروني وسنرسل لك رابط تعيين كلمة مرور جديدة.
         </p>
       </div>
 
       {sp.ok ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-center text-sm text-emerald-800">
+        <div className="rounded-lg border border-edge bg-elevated p-4 text-center text-sm text-brand-ink">
           إن كان البريد مسجلاً لدينا فستصلك رسالة تحوي رابط الاستعادة خلال دقائق.
           الرابط صالح لمدة ٣٠ دقيقة.
         </div>
@@ -42,22 +42,22 @@ export default async function ForgotPasswordPage({
         <form action={forgotPasswordAction} className="flex flex-col gap-4">
           <LiveEmailField />
           {error ? (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-err">
               {error}
             </p>
           ) : null}
           <button
             type="submit"
-            className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800"
+            className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand transition hover:bg-brand"
           >
             إرسال رابط الاستعادة
           </button>
         </form>
       )}
 
-      <p className="text-center text-sm text-neutral-600">
+      <p className="text-center text-sm text-fg-muted">
         تذكرت كلمة المرور؟{' '}
-        <Link href="/sign-in" className="font-semibold text-emerald-700 underline">
+        <Link href="/sign-in" className="font-semibold text-brand-ink underline">
           تسجيل الدخول
         </Link>
       </p>

@@ -45,6 +45,19 @@ test('O1: the deleted routes no longer serve a fixture page', async ({ page }) =
  *
  * Impact: search engines treat a 200 as a live page, so these URLs stay
  * indexable as soft-404s. Worth its own investigation.
+ *
+ * Batch PAGE-PARITY U4 narrowed it further and did NOT solve it:
+ *
+ *  · Moving the existence check into the page's generateMetadata — which runs
+ *    before the shell is committed — changed the TITLE but not the status.
+ *    /projects/this-does-not-exist was «مشروع this-does-not-exist · وثبة» and
+ *    is now «وثبة», so notFound() is demonstrably firing early. Still 200.
+ *  · Every 404 OUTSIDE this subtree answers correctly: /nope, /u/{unknown},
+ *    /stories/{unknown} and /rules/{unknown} all return 404 in the same build.
+ *
+ * So it is specific to the /projects tree and survives an early notFound(),
+ * which rules out "the check runs too late" as the explanation. The fabricated
+ * title is fixed regardless; the status is not.
  */
 test.fixme('O2: /projects/* 404s should answer HTTP 404, not 200', async ({ request }) => {
   const res = await request.get('/projects/zzz-nonexistent-abc', { maxRedirects: 0 });

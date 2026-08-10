@@ -98,6 +98,40 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
      * foreground/background pair that nothing has ever measured.
      */
     '--stage': '#131210',
+
+    // The TEXT weight of the error colour.
+    //
+    // --err is the base/fill (#dc2626 light). Used as an ink on a light red
+    // tint it measures 4.35:1 — below AA — which is exactly why the components
+    // had hardcoded #b91c1c. Substituting the base for the ink regressed
+    // /settings' destructive label, caught by batch-polish-dashboard-contrast.
+    //
+    // Same fill-vs-ink split the palette already makes for pos/gold/accent/
+    // purple; error was the one semantic missing its twin.
+    '--err-ink': '#b91c1c',
+
+    // ── creator-dashboard vocabulary → the layers above ───────────────────
+    // Batch PAGE-PARITY. The 22 dashboard components were written against a
+    // PARALLEL set of names that never existed in this file: 224 usages of
+    // --bg-base, --bg-elevated, --border-subtle, --border-strong,
+    // --text-tertiary, --brand-primary, --brand-ink and --on-brand. Every one
+    // carried an inline hex fallback, so nothing looked broken — the surface
+    // simply painted its fallbacks and never followed the theme. Switching to
+    // dark left all 18 sub-pages white, with an indigo accent instead of the
+    // green identity.
+    //
+    // Aliased rather than renamed at 224 call sites: this file already works
+    // that way for the legacy names below, one mapping is auditable where 224
+    // edits are not, and any other surface reaching for these names is fixed
+    // by the same change.
+    '--bg-base': '#f4f6f1',
+    '--bg-elevated': '#ffffff',
+    '--border-subtle': 'rgba(18, 33, 26, 0.08)',
+    '--border-strong': 'rgba(18, 33, 26, 0.16)',
+    '--text-tertiary': '#5d6b62',
+    '--brand-primary': '#05a661',
+    '--brand-ink': '#047649',
+    '--on-brand': '#08130d',
     '--stage-1': '#1c1a17',
     '--stage-text': '#f6f4ef',
     '--stage-muted': '#c0bab0',
@@ -124,7 +158,7 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
     // is a fill ratio; «داعم مؤسس» is copy, so it reads from --purple-ink.
     // 4.64:1 at worst, and close enough to the fill that the rank still looks
     // like the same purple.
-    '--purple-ink': '#6a4be9',
+    '--purple-ink': '#4f46e5',
     '--purple-rgb': '109,77,240',
     '--blue': '#2563eb',
     '--blue-rgb': '37,99,235',
@@ -226,6 +260,40 @@ export const wathbaCssVars: Record<WathbaTheme, Record<string, string>> = {
      * foreground/background pair that nothing has ever measured.
      */
     '--stage': '#131210',
+
+    // The TEXT weight of the error colour.
+    //
+    // --err is the base/fill (#dc2626 light). Used as an ink on a light red
+    // tint it measures 4.35:1 — below AA — which is exactly why the components
+    // had hardcoded #b91c1c. Substituting the base for the ink regressed
+    // /settings' destructive label, caught by batch-polish-dashboard-contrast.
+    //
+    // Same fill-vs-ink split the palette already makes for pos/gold/accent/
+    // purple; error was the one semantic missing its twin.
+    '--err-ink': '#ff7b72',
+
+    // ── creator-dashboard vocabulary → the layers above ───────────────────
+    // Batch PAGE-PARITY. The 22 dashboard components were written against a
+    // PARALLEL set of names that never existed in this file: 224 usages of
+    // --bg-base, --bg-elevated, --border-subtle, --border-strong,
+    // --text-tertiary, --brand-primary, --brand-ink and --on-brand. Every one
+    // carried an inline hex fallback, so nothing looked broken — the surface
+    // simply painted its fallbacks and never followed the theme. Switching to
+    // dark left all 18 sub-pages white, with an indigo accent instead of the
+    // green identity.
+    //
+    // Aliased rather than renamed at 224 call sites: this file already works
+    // that way for the legacy names below, one mapping is auditable where 224
+    // edits are not, and any other surface reaching for these names is fixed
+    // by the same change.
+    '--bg-base': '#131210',
+    '--bg-elevated': '#1c1a17',
+    '--border-subtle': 'rgba(255,252,245,.11)',
+    '--border-strong': 'rgba(255,252,245,.16)',
+    '--text-tertiary': '#aba49a',
+    '--brand-primary': '#1fd37e',
+    '--brand-ink': '#4ade96',
+    '--on-brand': '#08130d',
     '--stage-1': '#1c1a17',
     '--stage-text': '#f6f4ef',
     '--stage-muted': '#c0bab0',

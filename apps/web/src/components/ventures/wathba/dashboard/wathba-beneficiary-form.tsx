@@ -116,7 +116,7 @@ export function WathbaBeneficiaryForm({ current }: { current: ApiBeneficiary | n
         بوّابة الدفع المرخّصة.
       </p>
       {error && (
-        <div role="alert" style={{ fontSize: 13, color: '#b91c1c', marginBottom: 12 }}>{error}</div>
+        <div role="alert" style={{ fontSize: 13, color: 'var(--err-ink)', marginBottom: 12 }}>{error}</div>
       )}
       <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
         {(['BANK_ACCOUNT', 'WALLET'] as const).map((t) => (

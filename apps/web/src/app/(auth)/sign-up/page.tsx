@@ -38,7 +38,7 @@ export default async function SignUpPage({
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
       <div className="text-center">
         <h1 className="text-3xl font-bold">إنشاء حساب جديد</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-fg-muted">
           انضم إلى وثبة لتدعم وتطلق المشاريع الإبداعية.
         </p>
       </div>
@@ -54,15 +54,15 @@ export default async function SignUpPage({
             type="checkbox"
             name="acceptTerms"
             required
-            className="mt-1 h-4 w-4 accent-emerald-600"
+            className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
           />
-          <span className="text-neutral-600">
+          <span className="text-fg-muted">
             أوافق على{' '}
-            <Link href="/projects/legal/terms" className="text-emerald-700 underline">
+            <Link href="/projects/legal/terms" className="text-brand-ink underline">
               الشروط والأحكام
             </Link>{' '}
             و{' '}
-            <Link href="/projects/legal/privacy" className="text-emerald-700 underline">
+            <Link href="/projects/legal/privacy" className="text-brand-ink underline">
               سياسة الخصوصية (PDPL)
             </Link>
             .
@@ -70,7 +70,7 @@ export default async function SignUpPage({
         </label>
 
         {error ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-err">
             {error}
           </p>
         ) : null}
@@ -78,17 +78,17 @@ export default async function SignUpPage({
 
         <button
           type="submit"
-          className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800"
+          className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand transition hover:bg-brand"
         >
           إنشاء الحساب
         </button>
       </form>
 
-      <p className="text-center text-sm text-neutral-600">
+      <p className="text-center text-sm text-fg-muted">
         لديك حساب بالفعل؟{' '}
         <Link
           href={`/sign-in?next=${encodeURIComponent(next)}`}
-          className="font-semibold text-emerald-700 hover:underline"
+          className="font-semibold text-brand-ink hover:underline"
         >
           سجّل دخولك
         </Link>

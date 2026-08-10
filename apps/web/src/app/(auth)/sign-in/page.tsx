@@ -48,7 +48,7 @@ export default async function SignInPage({
     <main className="mx-auto flex min-h-[100dvh] w-full max-w-[420px] flex-col justify-center gap-6 px-5 py-16">
       <div className="text-center">
         <h1 className="text-3xl font-bold">تسجيل الدخول</h1>
-        <p className="mt-2 text-sm text-neutral-600">
+        <p className="mt-2 text-sm text-fg-muted">
           ادخل إلى حسابك لمتابعة دعم المشاريع وإطلاقها.
         </p>
       </div>
@@ -60,34 +60,34 @@ export default async function SignInPage({
 
         <div className="flex items-center justify-between text-xs">
           {/* STAKES/S-12 F-17 — session-length choice: unchecked = browser-session cookies. */}
-          <label className="flex items-center gap-2 text-sm text-neutral-600">
-            <input type="checkbox" name="remember" defaultChecked className="h-4 w-4 accent-emerald-600" />
+          <label className="flex items-center gap-2 text-sm text-fg-muted">
+            <input type="checkbox" name="remember" defaultChecked className="h-4 w-4 accent-[var(--brand-primary)]" />
             تذكرني
           </label>
-          <Link href="/forgot-password" className="text-emerald-700 underline">
+          <Link href="/forgot-password" className="text-brand-ink underline">
             نسيت كلمة المرور؟
           </Link>
         </div>
 
         {error ? (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-err">
             {error}
           </p>
         ) : null}
 
         <button
           type="submit"
-          className="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-800"
+          className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand transition hover:bg-brand"
         >
           تسجيل الدخول
         </button>
       </form>
 
-      <p className="text-center text-sm text-neutral-600">
+      <p className="text-center text-sm text-fg-muted">
         ليس لديك حساب؟{' '}
         <Link
           href={`/sign-up?next=${encodeURIComponent(next)}`}
-          className="font-semibold text-emerald-700 hover:underline"
+          className="font-semibold text-brand-ink hover:underline"
         >
           أنشئ حساباً جديداً
         </Link>

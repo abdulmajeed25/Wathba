@@ -32,6 +32,30 @@ export class ProjectsController {
     return { items: items.map((i) => this.projects.toPublic(i)), nextCursor };
   }
 
+  /**
+   * The signed-in creator's own campaigns — drafts included.
+   *
+   * MUST be declared before `@Get(':id')`, or Nest matches "mine" as an id and
+   * this route is unreachable.
+   */
+  @Get('mine')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "The signed-in creator's own projects (drafts included)" })
+  async mine(@CurrentUser() jwt: JwtPayload) {
+    const rows = await this.projects.listMine(jwt.sub);
+    return {
+      items: rows.map((p) => ({
+        ...p,
+        raisedHalalas: String(p.raisedHalalas),
+        fundingGoalHalalas: String(p.fundingGoalHalalas),
+        deadline: p.deadline ? p.deadline.toISOString() : null,
+        publishedAt: p.publishedAt ? p.publishedAt.toISOString() : null,
+        createdAt: p.createdAt.toISOString(),
+      })),
+    };
+  }
+
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get project detail by UUID or slug (includes reward tiers)' })

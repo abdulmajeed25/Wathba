@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 
-import type { ApiApplicationRow, ApiBackingRow } from '@/lib/api/wathba';
+import type { ApiApplicationRow, ApiBackingRow, ApiMyProject } from '@/lib/api/wathba';
 import { formatSar } from '@/lib/i18n/format';
 
 import { Icon, Num } from './wathba-icons';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * Wathba (وثبة) — Creator Dashboard.
@@ -32,12 +33,53 @@ const dashTabs = [
 
 type DashTabId = (typeof dashTabs)[number]['id'];
 
-const dashStats = [
-  { label: 'إجمالي التمويل', value: '684,200 ر.س', delta: '+12% هذا الأسبوع', icon: 'trending_up', color: 'var(--accent-ink)' },
-  { label: 'الداعمون', value: '2,847', delta: '+184 جديد', icon: 'groups', color: 'var(--blue)' },
-  { label: 'نسبة الإنجاز', value: '171%', delta: 'تجاوز الهدف', icon: 'check_circle', color: 'var(--pos-ink)' },
-  { label: 'الأيام المتبقية', value: '12', delta: 'تنتهي 28 يناير', icon: 'schedule', color: 'var(--gold-ink)' },
-];
+/**
+ * Batch PAGE-PARITY U4 — the four tiles, derived from the creator's OWN
+ * campaigns.
+ *
+ * They were literals: «684,200 ر.س», «2,847», «171%», "تنتهي 28 يناير". The
+ * signed-in creator's real campaigns ran 21,000–76,500 SAR with 173–512
+ * backers, and "ends 28 January with 12 days left" is not a date that exists in
+ * August. A fixture always renders, so nothing ever failed — the same shape as
+ * the campaign page that drew a fixture and never read storyAr.
+ *
+ * The deltas are GONE rather than invented. «+12% هذا الأسبوع» and «+184 جديد»
+ * need a time series this endpoint does not carry, and a made-up trend is
+ * exactly what this change exists to remove. A tile with no delta is honest; a
+ * tile with a fabricated one is not.
+ */
+function buildStats(projects: ApiMyProject[] | null): Array<{
+  label: string; value: string; delta: string | null; icon: string; color: string;
+}> | null {
+  if (!projects || projects.length === 0) return null;
+
+  const live = projects.filter((p) => p.status === 'LIVE' || p.status === 'SUCCESSFUL' || p.status === 'FUNDED');
+  const scope = live.length > 0 ? live : projects;
+  const raised = scope.reduce((n, p) => n + Number(p.raisedHalalas), 0);
+  const goal = scope.reduce((n, p) => n + Number(p.fundingGoalHalalas), 0);
+  const backers = scope.reduce((n, p) => n + p.backersCount, 0);
+  const pct = goal > 0 ? Math.round((raised / goal) * 100) : 0;
+
+  // The soonest deadline still ahead — the number a creator is actually
+  // counting down. Null when nothing is live, and then the tile says so.
+  const now = Date.now();
+  const upcoming = scope
+    .map((p) => (p.deadline ? Math.ceil((new Date(p.deadline).getTime() - now) / 86_400_000) : null))
+    .filter((d): d is number => d !== null && d >= 0)
+    .sort((a, b) => a - b)[0];
+
+  return [
+    { label: 'إجمالي التمويل', value: formatSar('ar', Math.round(raised / 100)), delta: null, icon: 'trending_up', color: 'var(--accent-ink)' },
+    { label: 'الداعمون', value: toArabicDigits(backers), delta: null, icon: 'groups', color: 'var(--blue)' },
+    { label: 'نسبة الإنجاز', value: `%${toArabicDigits(pct)}`, delta: pct >= 100 ? 'تجاوز الهدف' : null, icon: 'check_circle', color: 'var(--pos-ink)' },
+    {
+      label: 'الأيام المتبقية',
+      value: upcoming === undefined ? '—' : toArabicDigits(upcoming),
+      delta: upcoming === undefined ? 'لا حملة نشطة' : null,
+      icon: 'schedule', color: 'var(--gold-ink)',
+    },
+  ];
+}
 
 const chartBars = [
   { d: 'السبت', h: '38%', v: '18 ألف' },
@@ -100,6 +142,8 @@ function adaptBacking(row: ApiBackingRow): (typeof recentBackersFixture)[number]
 // ─────────────── component ───────────────
 
 export interface WathbaDashboardProps {
+  /** The creator's own campaigns — what the KPI tiles are computed from. */
+  myProjects?: ApiMyProject[] | null;
   /** Optional live backings from GET /v1/ventures/me/backings. */
   backings?: ApiBackingRow[] | null;
   /** Optional live applications from GET /v1/ventures/me/applications. */
@@ -107,7 +151,8 @@ export interface WathbaDashboardProps {
 }
 
 export function WathbaDashboard(props: WathbaDashboardProps = {}) {
-  const { backings } = props;
+  const { backings, myProjects } = props;
+  const dashStats = buildStats(myProjects ?? null);
   // applications is accepted for future wiring; not yet rendered in the
   // creator dashboard surface (the design lines 945-1055 only show the
   // creator's own backings + chart + updates + settings).
@@ -163,7 +208,13 @@ export function WathbaDashboard(props: WathbaDashboardProps = {}) {
               >
                 CREATOR DASHBOARD
               </Num>
-              <h1 style={{ fontSize: 26, fontWeight: 700 }}>لوحة تحكم سِرب</h1>
+              {/* Named the creator's OWN newest campaign, not a hardcoded «سِرب» that
+                  belonged to somebody else entirely. */}
+              <h1 style={{ fontSize: 26, fontWeight: 700 }}>
+                {myProjects && myProjects.length > 0
+                  ? `لوحة تحكم ${myProjects[0]!.titleAr.split('—')[0]!.trim()}`
+                  : 'لوحة التحكم'}
+              </h1>
             </div>
           </div>
 
@@ -258,7 +309,7 @@ export function WathbaDashboard(props: WathbaDashboardProps = {}) {
 
       {/* ─────────── tab content (lines 965-1053) ─────────── */}
       <section style={{ maxWidth: 1320, margin: '0 auto', padding: '0 26px 10px' }}>
-        {tab === 'overview' && <OverviewPanel recentBackers={recentBackers} />}
+        {tab === 'overview' && <OverviewPanel recentBackers={recentBackers} stats={dashStats} />}
         {tab === 'backers' && <BackersPanel recentBackers={recentBackers} />}
         {tab === 'updates' && <UpdatesPanel />}
         {tab === 'settings' && <SettingsPanel />}
@@ -269,18 +320,40 @@ export function WathbaDashboard(props: WathbaDashboardProps = {}) {
 
 // ─────────────── overview (lines 966-1002) ───────────────
 
-function OverviewPanel({ recentBackers }: { recentBackers: (typeof recentBackersFixture)[number][] }) {
+function OverviewPanel({
+  recentBackers,
+  stats,
+}: {
+  recentBackers: (typeof recentBackersFixture)[number][];
+  /** Null when the creator has no campaigns yet — the row renders an honest
+   *  empty state instead of the fixture numbers it used to show. */
+  stats: ReturnType<typeof buildStats>;
+}) {
   return (
     <div className="wathba-fade">
+      {stats === null && (
+        <div
+          style={{
+            border: '1px dashed rgba(var(--ink-rgb),.18)',
+            borderRadius: 16,
+            padding: '22px 20px',
+            marginBottom: 24,
+            color: 'var(--muted)',
+            fontSize: 14,
+          }}
+        >
+          لا توجد حملة بعد — الأرقام تظهر هنا بمجرد إطلاق أول حملة لك.
+        </div>
+      )}
       <div
         style={{
-          display: 'grid',
+          display: stats === null ? 'none' : 'grid',
           gridTemplateColumns: 'repeat(4,1fr)',
           gap: 16,
           marginBottom: 24,
         }}
       >
-        {dashStats.map((s) => (
+        {(stats ?? []).map((s) => (
           <div
             key={s.label}
             className="lift"

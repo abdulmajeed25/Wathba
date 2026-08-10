@@ -107,14 +107,14 @@ function Stat({
         padding: 16,
       }}
     >
-      <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 8 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))', marginBottom: 8 }}>
         {label}
       </div>
       <Num
         style={{
           fontSize: 22,
           fontWeight: 700,
-          color: accent ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
+          color: accent ? 'var(--brand-ink, var(--pos-ink))' : 'var(--text-primary, var(--text-primary))',
         }}
       >
         {value}
@@ -144,12 +144,12 @@ function PanelLink({
         border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
         borderRadius: 12,
         textDecoration: 'none',
-        color: 'var(--text-primary, #16201b)',
+        color: 'var(--text-primary, var(--text-primary))',
         fontSize: 14,
       }}
     >
       <span>{label}</span>
-      <span style={{ color: 'var(--brand-ink, #047649)', fontWeight: 700 }}>{cta}</span>
+      <span style={{ color: 'var(--brand-ink, var(--pos-ink))', fontWeight: 700 }}>{cta}</span>
     </a>
   );
 }

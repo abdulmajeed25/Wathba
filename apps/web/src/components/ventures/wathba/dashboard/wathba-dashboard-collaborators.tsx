@@ -89,7 +89,7 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
           aria-label="بريد المتعاون"
           style={{
             flex: 1, minWidth: 220, padding: '9px 11px', borderRadius: 10, fontSize: 13.5, fontFamily: 'inherit',
-            border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))', background: 'var(--bg-base, #fff)', color: 'var(--text-primary, #16201b)',
+            border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))', background: 'var(--bg-base, #fff)', color: 'var(--text-primary, var(--text-primary))',
           }}
         />
         <button
@@ -104,9 +104,9 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
           {busy ? 'جارٍ…' : 'إضافة'}
         </button>
       </div>
-      {error && <p role="alert" style={{ fontSize: 12.5, color: '#b91c1c', margin: '0 0 10px' }}>{error}</p>}
+      {error && <p role="alert" style={{ fontSize: 12.5, color: 'var(--err-ink)', margin: '0 0 10px' }}>{error}</p>}
       {loaded && items.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text-tertiary, #5d6b62)', margin: 0 }}>لا يوجد متعاونون بعد.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-tertiary, var(--muted2))', margin: 0 }}>لا يوجد متعاونون بعد.</p>
       )}
       {items.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -114,13 +114,13 @@ export function WathbaDashboardCollaborators({ projectId }: { projectId: string 
             <div key={c.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: 'var(--bg-base, #f8faf6)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))' }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600 }}>{c.name}</div>
-                {c.email && <div style={{ fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>{c.email}</div>}
+                {c.email && <div style={{ fontSize: 11.5, color: 'var(--text-tertiary, var(--muted2))' }}>{c.email}</div>}
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: 'var(--brand-ink, #047649)', background: 'rgba(5,166,97,0.10)' }}>محرِّر</span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, color: 'var(--brand-ink, var(--pos-ink))', background: 'rgba(5,166,97,0.10)' }}>محرِّر</span>
               <button
                 type="button"
                 onClick={() => void remove(c.userId)}
-                style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, color: '#b91c1c', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
+                style={{ fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8, color: 'var(--err-ink)', background: 'transparent', border: '1px solid rgba(239,68,68,0.3)', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 إزالة
               </button>

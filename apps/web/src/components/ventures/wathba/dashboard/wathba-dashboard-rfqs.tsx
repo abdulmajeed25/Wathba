@@ -122,7 +122,7 @@ export function WathbaDashboardRfqs({
           role="alert"
           style={{
             fontSize: 13,
-            color: '#b91c1c',
+            color: 'var(--err-ink)',
             background: 'rgba(239,68,68,.07)',
             border: '1px solid rgba(239,68,68,.25)',
             borderRadius: 11,
@@ -241,7 +241,7 @@ export function WathbaDashboardRfqs({
                   <p style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-soft)' }}>
                     {r.specsAr.length > 160 ? `${r.specsAr.slice(0, 160)}…` : r.specsAr}
                   </p>
-                  <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
+                  <Num style={{ fontSize: 11.5, color: 'var(--text-tertiary)' }}>
                     آخر موعد: {r.dueDate.slice(0, 10)} · {r.bidsCount} عرض
                   </Num>
                 </div>
@@ -306,7 +306,7 @@ export function WathbaDashboardRfqs({
                             {formatSarFromHalalas('ar', b.amountHalalas)}
                           </Num>
                           <Num style={{ fontSize: 12.5, color: 'var(--muted)' }}>{b.leadTimeDays} يوم</Num>
-                          <span style={{ flex: 1, fontSize: 12, color: 'var(--muted2)', minWidth: 180 }}>
+                          <span style={{ flex: 1, fontSize: 12, color: 'var(--text-tertiary)', minWidth: 180 }}>
                             {b.specComplianceNote ?? ''}
                           </span>
                           {r.status === 'OPEN' ? (

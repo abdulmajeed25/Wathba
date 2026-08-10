@@ -37,7 +37,7 @@ export default async function VerifyEmailPage({
       {sp.token ? (
         <>
           <h1 className="text-3xl font-bold">تفعيل حسابك</h1>
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-fg-muted">
             اضغط الزر لتفعيل حسابك وتسجيل دخولك مباشرة.
           </p>
           <form action={verifyEmailAction} className="flex flex-col gap-4">
@@ -45,7 +45,7 @@ export default async function VerifyEmailPage({
             <input type="hidden" name="next" value={next} />
             <button
               type="submit"
-              className="w-full rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white hover:bg-emerald-800"
+              className="w-full rounded-xl bg-brand px-4 py-3 font-bold text-on-brand hover:bg-brand"
             >
               فعّل حسابي
             </button>
@@ -55,11 +55,11 @@ export default async function VerifyEmailPage({
         <>
           <h1 className="text-3xl font-bold">{error ? 'تعذّر التفعيل' : 'افحص بريدك الإلكتروني'}</h1>
           {error ? (
-            <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p role="alert" className="rounded-xl border border-err bg-elevated px-4 py-3 text-sm text-err">
               {error}
             </p>
           ) : (
-            <p className="text-sm leading-7 text-neutral-600">
+            <p className="text-sm leading-7 text-fg-muted">
               {sp.resent ? 'أعدنا إرسال رابط التفعيل' : 'أرسلنا رابط تفعيل'}
               {sp.email ? ` إلى ${sp.email}` : ' إلى بريدك'}. افتح الرسالة واضغط الرابط
               لتفعيل حسابك وتسجيل دخولك — قد تصل خلال دقائق، وتحقق من مجلد الرسائل غير
@@ -68,28 +68,28 @@ export default async function VerifyEmailPage({
           )}
           <form action={resendVerificationAction} className="flex flex-col gap-3 text-start">
             <label className="flex flex-col gap-1.5 text-sm">
-              <span className="text-neutral-600">لم تصلك الرسالة؟ أدخل بريدك لإعادة الإرسال</span>
+              <span className="text-fg-muted">لم تصلك الرسالة؟ أدخل بريدك لإعادة الإرسال</span>
               <input
                 type="email"
                 name="email"
                 required
                 dir="ltr"
                 autoComplete="email"
-                className="rounded-xl border border-neutral-300 px-4 py-3 text-sm focus:border-emerald-600 focus:outline-none"
+                className="rounded-xl border border-edge-strong px-4 py-3 text-sm focus:border-brand focus:outline-none"
               />
             </label>
             <button
               type="submit"
-              className="w-full rounded-xl border border-emerald-600 px-4 py-3 font-bold text-emerald-700 hover:bg-emerald-50"
+              className="w-full rounded-xl border border-brand px-4 py-3 font-bold text-brand-ink hover:bg-elevated"
             >
               إعادة إرسال الرابط
             </button>
           </form>
         </>
       )}
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-fg-faint">
         لديك حساب مفعّل؟{' '}
-        <Link href="/sign-in" className="font-bold text-emerald-700 underline">
+        <Link href="/sign-in" className="font-bold text-brand-ink underline">
           سجّل دخولك
         </Link>
       </p>

@@ -1,6 +1,7 @@
 import { Num } from './wathba-icons';
 
 import type { HeroSlideData } from './wathba-hero-rotator';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * Batch HERO — one slide's card body, as a SERVER component.
@@ -183,7 +184,7 @@ export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
         </div>
         <div style={{ textAlign: 'center' }}>
           <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-ink)' }}>
-            {p.fundedPct}%
+            %{toArabicDigits(p.fundedPct)}
           </Num>
           <div style={{ fontSize: 11, color: 'var(--muted2)' }}>مُموَّل</div>
         </div>

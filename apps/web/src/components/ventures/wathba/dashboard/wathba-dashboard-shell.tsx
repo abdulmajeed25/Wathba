@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { WathbaFeedbackProvider } from '../wathba-feedback';
+import { WathbaThemeRoot } from '../wathba-theme-root';
 import { Icon } from '../wathba-icons';
 
 /**
@@ -87,14 +88,26 @@ export function DashboardShell({
   };
 
   return (
-    <div
-      dir="rtl"
+    // Batch PAGE-PARITY — this surface now carries the platform palette.
+    //
+    // It used to be a bare <div> with its own hardcoded ground, reading
+    // --bg-base / --bg-elevated / --border-subtle / --text-tertiary /
+    // --brand-* — a parallel vocabulary that existed in no token file, so all
+    // 224 usages silently painted their inline hex fallbacks. Nothing looked
+    // broken; the surface just never followed the theme. A creator who chose
+    // dark got 18 white pages with an indigo accent instead of the green
+    // identity. Those names are now aliased onto the real layers in
+    // wathba-tokens.ts, and WathbaThemeRoot supplies them.
+    //
+    // The theme ROOT, not the full WathbaShell: this surface has its own
+    // sidebar and no site footer, and adding the public header would be a
+    // redesign rather than the propagation this batch is for.
+    <WathbaThemeRoot
       style={{
         display: 'grid',
         gridTemplateColumns: '260px 1fr',
         minHeight: '100dvh',
-        background: 'var(--bg-base, #f4f6f1)',
-        fontFamily: 'var(--font-arabic), system-ui, sans-serif',
+        background: 'var(--surface-0)',
       }}
     >
       {/* Six dashboard screens call useConfirm() and the rewards manager calls
@@ -126,13 +139,13 @@ export function DashboardShell({
             style={{
               display: 'block',
               padding: '8px 12px 16px',
-              color: 'var(--text-primary, #16201b)',
+              color: 'var(--text-primary, var(--text-primary))',
               textDecoration: 'none',
               borderBottom: '1px solid var(--border-subtle, rgba(18,33,26,0.08))',
               marginBottom: 12,
             }}
           >
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary, var(--muted2))', marginBottom: 4 }}>
               مشروعك
             </div>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, lineHeight: 1.35 }}>
@@ -151,7 +164,7 @@ export function DashboardShell({
               <span style={{ fontSize: 12, color: 'var(--text-secondary, #3b4942)' }}>
                 {STATUS_AR[projectStatus] ?? projectStatus}
               </span>
-              <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-ink, #047649)' }}>
+              <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--brand-ink, var(--pos-ink))' }}>
                 {projectStatus === 'DRAFT' || projectStatus === 'UNDER_REVIEW' ? 'معاينة كزائر ←' : 'عرض الحملة ←'}
               </span>
             </div>
@@ -174,7 +187,7 @@ export function DashboardShell({
                     fontSize: 14,
                     fontWeight: active ? 600 : 500,
                     background: active ? 'rgba(5,166,97,0.08)' : 'transparent',
-                    color: active ? 'var(--brand-ink, #047649)' : 'var(--text-primary, #16201b)',
+                    color: active ? 'var(--brand-ink, var(--pos-ink))' : 'var(--text-primary, var(--text-primary))',
                   }}
                 >
                   <Icon name={it.icon} size={18} />
@@ -187,6 +200,6 @@ export function DashboardShell({
 
         <main style={{ padding: '32px 40px', minWidth: 0 }}>{children}</main>
       </WathbaFeedbackProvider>
-    </div>
+    </WathbaThemeRoot>
   );
 }

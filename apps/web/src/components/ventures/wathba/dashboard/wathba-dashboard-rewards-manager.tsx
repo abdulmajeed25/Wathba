@@ -230,7 +230,7 @@ export function DashboardRewardsManager({
             background: 'rgba(239,68,68,0.08)',
             border: '1px solid rgba(239,68,68,0.3)',
             borderRadius: 10,
-            color: '#b91c1c',
+            color: 'var(--err-ink)',
             marginBottom: 16,
             fontSize: 14,
           }}
@@ -492,7 +492,7 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   fontSize: 14,
   background: 'var(--bg-elevated, #fff)',
-  color: 'var(--text-primary, #16201b)',
+  color: 'var(--text-primary, var(--text-primary))',
 };
 
 const primaryBtnStyle: React.CSSProperties = {
@@ -543,7 +543,7 @@ function TabBtn({
       style={{
         padding: '8px 14px',
         background: active ? 'var(--brand-primary, #05a661)' : 'transparent',
-        color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, #16201b)',
+        color: active ? 'var(--on-brand, #08130d)' : 'var(--text-primary, var(--text-primary))',
         border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',
         borderRadius: 10,
         fontWeight: 600,
@@ -646,10 +646,10 @@ function TierCard({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{tier.titleAr}</div>
-          {tier.featured && <Pill label="مميّزة" color="#9a5a06" />}
-          {closed && <Pill label="مغلقة" color="#b91c1c" />}
-          {earlyBird && <Pill label="سعر مبكر" color="#047649" />}
-          {hasBackers && <Pill label="لها داعمون — مقفلة جزئياً" color="#4f46e5" />}
+          {tier.featured && <Pill label="مميّزة" color="var(--gold-ink)" />}
+          {closed && <Pill label="مغلقة" color="var(--err-ink)" />}
+          {earlyBird && <Pill label="سعر مبكر" color="var(--pos-ink)" />}
+          {hasBackers && <Pill label="لها داعمون — مقفلة جزئياً" color="var(--purple-ink)" />}
           {tier.limitQty !== null && (
             <Pill
               label={
@@ -657,15 +657,15 @@ function TierCard({
                   ? 'نفدت'
                   : `${(tier.limitQty - tier.claimedQty).toLocaleString('en-US')} متبقٍ من ${tier.limitQty}`
               }
-              color={soldOut ? '#b91c1c' : '#4f46e5'}
+              color={soldOut ? 'var(--err-ink)' : 'var(--purple-ink)'}
             />
           )}
         </div>
-        <div style={{ fontWeight: 700, color: 'var(--brand-ink, #047649)', textAlign: 'end' }}>
+        <div style={{ fontWeight: 700, color: 'var(--brand-ink, var(--pos-ink))', textAlign: 'end' }}>
           {earlyBird && tier.earlyBirdAmountHalalas != null ? (
             <>
               {fmtSAR(tier.earlyBirdAmountHalalas)}
-              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-tertiary, #5d6b62)', textDecoration: 'line-through', marginInlineStart: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-tertiary, var(--muted2))', textDecoration: 'line-through', marginInlineStart: 6 }}>
                 {fmtSAR(tier.amountHalalas)}
               </span>
             </>
@@ -687,14 +687,14 @@ function TierCard({
           ))}
         </ul>
       )}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
         <span>الداعمون: {tier.claimedQty.toLocaleString('en-US')}</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={onToggleActive} style={{ ...ghostBtnStyle, color: closed ? 'var(--brand-ink, #047649)' : '#9a5a06' }}>
+          <button type="button" onClick={onToggleActive} style={{ ...ghostBtnStyle, color: closed ? 'var(--brand-ink, var(--pos-ink))' : 'var(--gold-ink)' }}>
             {closed ? 'إعادة فتح' : 'إغلاق للدعم'}
           </button>
           {!hasBackers && (
-            <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: '#b91c1c' }}>
+            <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: 'var(--err-ink)' }}>
               حذف
             </button>
           )}
@@ -745,20 +745,20 @@ function AddOnCard({
                     ? 'نفدت'
                     : `${(addon.limitQty - addon.claimedQty).toLocaleString('en-US')} متبقٍ`
                 }
-                color={soldOut ? '#b91c1c' : '#4f46e5'}
+                color={soldOut ? 'var(--err-ink)' : 'var(--purple-ink)'}
               />
             )}
           </div>
-          <div style={{ fontWeight: 700, color: 'var(--brand-ink, #047649)' }}>
+          <div style={{ fontWeight: 700, color: 'var(--brand-ink, var(--pos-ink))' }}>
             +{fmtSAR(addon.amountHalalas)}
           </div>
         </div>
         <div style={{ fontSize: 13, color: 'var(--text-secondary, #3b4942)', marginTop: 6 }}>
           {addon.descAr}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
           <span>الإجمالي المُدّعى: {addon.claimedQty.toLocaleString('en-US')}</span>
-          <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: '#b91c1c' }}>
+          <button type="button" onClick={onDelete} style={{ ...ghostBtnStyle, color: 'var(--err-ink)' }}>
             حذف
           </button>
         </div>

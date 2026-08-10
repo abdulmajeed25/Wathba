@@ -210,7 +210,7 @@ function ItemCard({
     <Card>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)', marginBottom: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))', marginBottom: 4 }}>
             ترتيب #{item.sortOrder}
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{item.questionAr}</div>
@@ -254,7 +254,7 @@ function IncomingQuestions({
         <>
           {pending.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 13, color: 'var(--text-tertiary, #5d6b62)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-tertiary, var(--muted2))' }}>
                 بانتظار الرد ({pending.length})
               </div>
               {pending.map((q) => (
@@ -265,7 +265,7 @@ function IncomingQuestions({
 
           {answered.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 13, color: 'var(--text-tertiary, #5d6b62)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-tertiary, var(--muted2))' }}>
                 مُجاب عنها ({answered.length})
               </div>
               {answered.map((q) => (
@@ -323,7 +323,7 @@ function QuestionCard({
   return (
     <Card>
       <div style={{ fontSize: 14, marginBottom: 8 }}>{q.bodyAr}</div>
-      <div style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
+      <div style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
         وردت في {new Date(q.createdAt).toLocaleDateString('ar-SA')}
       </div>
       {open ? (
@@ -433,7 +433,7 @@ function ErrorBanner({ text }: { text: string }): React.ReactElement {
         border: '1px solid rgba(239,68,68,0.3)',
         borderRadius: 8,
         fontSize: 13,
-        color: '#dc2626',
+        color: 'var(--err-ink)',
       }}
     >
       {text}
@@ -474,7 +474,7 @@ function secondaryButtonStyle(): React.CSSProperties {
     borderRadius: 10,
     border: '1px solid var(--border-strong, rgba(18,33,26,0.16))',
     background: 'transparent',
-    color: 'var(--text-primary, #16201b)',
+    color: 'var(--text-primary, var(--text-primary))',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -487,7 +487,7 @@ function dangerButtonStyle(disabled: boolean): React.CSSProperties {
     borderRadius: 10,
     border: '1px solid rgba(239,68,68,0.3)',
     background: 'transparent',
-    color: '#dc2626',
+    color: 'var(--err-ink)',
     fontSize: 13,
     fontWeight: 600,
     cursor: disabled ? 'not-allowed' : 'pointer',

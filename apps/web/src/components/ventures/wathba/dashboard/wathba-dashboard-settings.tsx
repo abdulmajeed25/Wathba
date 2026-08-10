@@ -40,15 +40,15 @@ const STATUS_LABELS: Readonly<Record<string, string>> = {
 
 const STATUS_COLORS: Readonly<Record<string, string>> = {
   DRAFT: '#6b7280',
-  UNDER_REVIEW: '#9a5a06',
-  LIVE: '#047649',
-  PAUSED: '#9a5a06',
-  SUCCESSFUL: '#047649',
-  FUNDED: '#047649',
-  IN_PRODUCTION: '#4f46e5',
-  DELIVERED: '#4f46e5',
-  FAILED: '#b91c1c',
-  REFUNDED: '#b91c1c',
+  UNDER_REVIEW: 'var(--gold-ink)',
+  LIVE: 'var(--pos-ink)',
+  PAUSED: 'var(--gold-ink)',
+  SUCCESSFUL: 'var(--pos-ink)',
+  FUNDED: 'var(--pos-ink)',
+  IN_PRODUCTION: 'var(--purple-ink)',
+  DELIVERED: 'var(--purple-ink)',
+  FAILED: 'var(--err)',
+  REFUNDED: 'var(--err)',
 };
 
 const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
@@ -579,11 +579,11 @@ export function DashboardSettings({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 16 }}>📝</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#9a5a06' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-ink)' }}>
                 طلب تعديلات من فريق المراجعة
               </span>
             </div>
-            <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-primary, #16201b)', margin: '0 0 12px', whiteSpace: 'pre-wrap' }}>
+            <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-primary, var(--text-primary))', margin: '0 0 12px', whiteSpace: 'pre-wrap' }}>
               {project.reviewFeedback}
             </p>
             <a
@@ -646,7 +646,7 @@ export function DashboardSettings({
               type="button"
               disabled={actionBusy !== null}
               onClick={() => void doAction('pause', 'تم إيقاف الحملة مؤقتاً')}
-              style={lifecycleBtn('#9a5a06', actionBusy === null)}
+              style={lifecycleBtn('#b45309', actionBusy === null)}
             >
               {actionBusy === 'pause' ? 'جارٍ الإيقاف…' : 'إيقاف مؤقت للحملة'}
             </button>
@@ -659,7 +659,7 @@ export function DashboardSettings({
               style={{
                 padding: '12px 14px', borderRadius: 10, fontSize: 13.5, lineHeight: 1.8,
                 border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.08)',
-                color: 'var(--text-primary, #16201b)', marginBottom: 10,
+                color: 'var(--text-primary, var(--text-primary))', marginBottom: 10,
               }}
             >
               الحملة موقوفة مؤقتاً — الدعم الجديد متوقف، لكن العدّ التنازلي للموعد النهائي
@@ -670,7 +670,7 @@ export function DashboardSettings({
               type="button"
               disabled={actionBusy !== null}
               onClick={() => void doAction('unpause', 'تم استئناف الحملة')}
-              style={lifecycleBtn('#047649', actionBusy === null)}
+              style={lifecycleBtn('#047857', actionBusy === null)}
             >
               {actionBusy === 'unpause' ? 'جارٍ الاستئناف…' : 'استئناف الحملة'}
             </button>
@@ -687,7 +687,7 @@ export function DashboardSettings({
               type="button"
               disabled={actionBusy !== null}
               onClick={() => void doAction('deliver', 'تم وسم الحملة كمُسلَّمة')}
-              style={lifecycleBtn('#047649', actionBusy === null)}
+              style={lifecycleBtn('#047857', actionBusy === null)}
             >
               {actionBusy === 'deliver' ? 'جارٍ…' : 'وسم الحملة كمُسلَّمة'}
             </button>
@@ -697,7 +697,7 @@ export function DashboardSettings({
         {actionMsg && (
           <p
             role="alert"
-            style={{ fontSize: 13, marginTop: 8, color: actionMsg.kind === 'ok' ? '#047649' : '#b91c1c' }}
+            style={{ fontSize: 13, marginTop: 8, color: actionMsg.kind === 'ok' ? 'var(--pos-ink)' : 'var(--err)' }}
           >
             {actionMsg.text}
           </p>
@@ -822,7 +822,7 @@ export function DashboardSettings({
                   />
                   <span>
                     <span style={{ fontSize: 13.5, fontWeight: 600 }}>{label}</span>
-                    <span style={{ display: 'block', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.6 }}>
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
                       {hint}
                     </span>
                   </span>
@@ -962,7 +962,7 @@ function CancelCampaign({
     <>
       <Hint>{copy.hint}</Hint>
       {err && (
-        <p role="alert" style={{ fontSize: 13, color: '#b91c1c', margin: '6px 0' }}>
+        <p role="alert" style={{ fontSize: 13, color: 'var(--err-ink)', margin: '6px 0' }}>
           {err}
         </p>
       )}
@@ -976,7 +976,7 @@ function CancelCampaign({
           style={{
             padding: '10px 18px',
             background: 'rgba(239,68,68,.08)',
-            color: '#b91c1c',
+            color: 'var(--err-ink)',
             border: '1px solid rgba(239,68,68,.35)',
             borderRadius: 10,
             fontWeight: 700,
@@ -1000,10 +1000,10 @@ function CancelCampaign({
                 background: 'rgba(239,68,68,.06)',
                 fontSize: 13.5,
                 lineHeight: 1.8,
-                color: 'var(--text-primary, #16201b)',
+                color: 'var(--text-primary, var(--text-primary))',
               }}
             >
-              <div style={{ fontWeight: 700, marginBottom: 4, color: '#b91c1c' }}>
+              <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--err-ink)' }}>
                 إجراء لا يمكن التراجع عنه
               </div>
               سيقوم النظام تلقائياً بإرجاع كامل المبالغ إلى{' '}
@@ -1022,7 +1022,7 @@ function CancelCampaign({
                 border: '1px solid rgba(239,68,68,.30)',
                 background: 'rgba(239,68,68,.06)',
                 fontSize: 13.5,
-                color: 'var(--text-primary, #16201b)',
+                color: 'var(--text-primary, var(--text-primary))',
               }}
             >
               سيتم حذف هذه المسودّة وكل بياناتها نهائياً — لا يمكن استرجاعها.
@@ -1030,7 +1030,7 @@ function CancelCampaign({
           )}
           {requiresTyped && (
             <label style={{ fontSize: 13, color: 'var(--text-secondary, #3b4942)', display: 'block' }}>
-              للتأكيد، اكتب اسم الحملة: <b style={{ color: 'var(--text-primary, #16201b)' }}>{project.titleAr}</b>
+              للتأكيد، اكتب اسم الحملة: <b style={{ color: 'var(--text-primary, var(--text-primary))' }}>{project.titleAr}</b>
               <input
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
@@ -1044,7 +1044,7 @@ function CancelCampaign({
                   borderRadius: 10,
                   border: `1px solid ${titleMatches ? 'rgba(5,166,97,.5)' : 'rgba(239,68,68,.35)'}`,
                   background: 'var(--bg-base, #fff)',
-                  color: 'var(--text-primary, #16201b)',
+                  color: 'var(--text-primary, var(--text-primary))',
                   fontFamily: 'inherit',
                   fontSize: 14,
                 }}
@@ -1131,7 +1131,7 @@ function Card({
           margin: 0,
           fontSize: 16,
           fontWeight: 700,
-          color: isDanger ? '#b91c1c' : 'var(--text-primary, #16201b)',
+          color: isDanger ? 'var(--err-ink)' : 'var(--text-primary, var(--text-primary))',
         }}
       >
         {title}
@@ -1170,7 +1170,7 @@ function Hint({ children }: { children: React.ReactNode }): React.ReactElement {
     <div
       style={{
         fontSize: 12,
-        color: 'var(--text-tertiary, #5d6b62)',
+        color: 'var(--text-tertiary, var(--muted2))',
         marginTop: 6,
       }}
     >
@@ -1181,7 +1181,7 @@ function Hint({ children }: { children: React.ReactNode }): React.ReactElement {
 
 function ErrorLine({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 6, fontWeight: 600 }}>
+    <div style={{ fontSize: 12, color: 'var(--err-ink)', marginTop: 6, fontWeight: 600 }}>
       {children}
     </div>
   );
@@ -1202,7 +1202,7 @@ function Banner({
         background: isErr ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
         border: `1px solid ${isErr ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
         borderRadius: 10,
-        color: isErr ? '#b91c1c' : '#92400e',
+        color: isErr ? 'var(--err-ink)' : 'var(--gold-ink)',
         marginBottom: 16,
         fontSize: 13,
       }}
@@ -1230,7 +1230,7 @@ function ReadOnlyRow({
       }}
     >
       <span style={{ color: 'var(--text-secondary, #3b4942)' }}>{label}</span>
-      <span style={{ fontWeight: 600, color: 'var(--text-primary, #16201b)' }}>
+      <span style={{ fontWeight: 600, color: 'var(--text-primary, var(--text-primary))' }}>
         {value}
       </span>
     </div>
@@ -1279,8 +1279,8 @@ function SectionFooter({
       }}
     >
       <div style={{ fontSize: 13, fontWeight: 600 }}>
-        {status?.kind === 'ok' && <span style={{ color: '#047649' }}>✓ {status.text}</span>}
-        {status?.kind === 'err' && <span style={{ color: '#b91c1c' }}>{status.text}</span>}
+        {status?.kind === 'ok' && <span style={{ color: 'var(--pos-ink)' }}>✓ {status.text}</span>}
+        {status?.kind === 'err' && <span style={{ color: 'var(--err-ink)' }}>{status.text}</span>}
       </div>
       <div>{action}</div>
     </div>
@@ -1296,15 +1296,28 @@ const inputStyle = (enabled: boolean): React.CSSProperties => ({
   borderRadius: 8,
   fontSize: 14,
   background: enabled ? 'var(--bg-elevated, #fff)' : 'rgba(0,0,0,0.03)',
-  color: 'var(--text-primary, #16201b)',
+  color: 'var(--text-primary, var(--text-primary))',
   fontFamily: 'inherit',
   opacity: enabled ? 1 : 0.7,
 });
 
+/**
+ * The primary action. DISABLED is a state, not an absence of one.
+ *
+ * `color` used to be --on-brand unconditionally — an ink chosen to sit on the
+ * green fill. Disabled swaps the fill for a 12% black scrim, and on the dark
+ * theme that composites to near-black, so the label was #08130d on #131210:
+ * 1.06:1, a button whose text you cannot read at all.
+ *
+ * WCAG 2.2 exempts inactive controls from 1.4.3, so this was never a
+ * violation — and it still looked like a rendering fault rather than a
+ * disabled control. A disabled button should read as "not now", which it can
+ * only do if you can still read it.
+ */
 const primaryBtnStyle = (enabled: boolean): React.CSSProperties => ({
   padding: '10px 18px',
   background: enabled ? 'var(--brand-primary, #05a661)' : 'rgba(0,0,0,0.12)',
-  color: 'var(--on-brand, #08130d)',
+  color: enabled ? 'var(--on-brand, #08130d)' : 'var(--muted2)',
   border: 'none',
   borderRadius: 10,
   fontWeight: 700,
@@ -1326,6 +1339,21 @@ const dangerBtnDisabledStyle: React.CSSProperties = {
 };
 
 /** Lifecycle-action button (CC-14 pause/unpause, CC-09 deliver). */
+/**
+ * A solid lifecycle action (pause / resume / publish).
+ *
+ * The fill is a SATURATED MID-TONE, deliberately theme-independent, and the
+ * text is white. It used to be called with `var(--gold-ink)` and
+ * `var(--pos-ink)` — INK tokens used as fills. An ink flips with the theme:
+ * --gold-ink is #7a5305 in light (white text fine) and #f5c24c in dark, where
+ * white text measured 1.65:1. The same trap applies to --pos-ink at 1.88:1.
+ *
+ * A mid-tone fill clears AA against white in BOTH themes (amber-700 5.02:1,
+ * emerald-700 5.48:1), which is the same choice the destructive button in this
+ * file already makes. A theme-reactive fill would need a matching on-fill ink
+ * that flips with it, and there is no such token pair yet — worth adding when a
+ * fourth button needs one, not for two.
+ */
 const lifecycleBtn = (color: string, enabled: boolean): React.CSSProperties => ({
   padding: '10px 18px',
   background: enabled ? color : 'rgba(0,0,0,0.12)',

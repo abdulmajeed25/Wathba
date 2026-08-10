@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { WathbaDashboard } from '@/components/ventures/wathba/wathba-dashboard';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { listMyApplications, listMyBackings } from '@/lib/api/wathba';
+import { listMyApplications, listMyBackings, listMyProjects } from '@/lib/api/wathba';
 import { requireCreator } from '@/lib/auth/guard';
 
 export const metadata: Metadata = { title: 'لوحة التحكم · وثبة' };
@@ -19,10 +19,16 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage() {
   // STAKES/B2 — reject users who aren't creators (0 projects → /projects/start).
   await requireCreator();
-  const [backings, applications] = await Promise.all([listMyBackings(), listMyApplications()]);
+  // The KPI tiles are computed from the creator's OWN campaigns; without this
+  // read they were literals that contradicted the creator's real numbers.
+  const [backings, applications, myProjects] = await Promise.all([
+    listMyBackings(),
+    listMyApplications(),
+    listMyProjects(),
+  ]);
   return (
     <WathbaShell>
-      <WathbaDashboard backings={backings} applications={applications} />
+      <WathbaDashboard backings={backings} applications={applications} myProjects={myProjects} />
     </WathbaShell>
   );
 }

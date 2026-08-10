@@ -35,11 +35,11 @@ interface TierLite {
 }
 
 const PLEDGE_STATUS: Record<string, { ar: string; fg: string; bg: string }> = {
-  HELD: { ar: 'محجوز', fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
-  CAPTURED: { ar: 'محصّل', fg: '#047649', bg: 'rgba(5,166,97,0.10)' },
-  REFUNDED: { ar: 'مُسترَد', fg: '#b91c1c', bg: 'rgba(239,68,68,0.10)' },
-  FAILED: { ar: 'فشل', fg: '#b91c1c', bg: 'rgba(239,68,68,0.10)' },
-  DISPUTED: { ar: 'متنازع عليه', fg: '#9a5a06', bg: 'rgba(245,158,11,0.12)' },
+  HELD: { ar: 'محجوز', fg: 'var(--gold-ink)', bg: 'rgba(245,158,11,0.12)' },
+  CAPTURED: { ar: 'محصّل', fg: 'var(--pos-ink)', bg: 'rgba(5,166,97,0.10)' },
+  REFUNDED: { ar: 'مُسترَد', fg: 'var(--err)', bg: 'rgba(239,68,68,0.10)' },
+  FAILED: { ar: 'فشل', fg: 'var(--err)', bg: 'rgba(239,68,68,0.10)' },
+  DISPUTED: { ar: 'متنازع عليه', fg: 'var(--gold-ink)', bg: 'rgba(245,158,11,0.12)' },
 };
 
 const REWARD_STATUS: Array<{ v: RosterRow['rewardStatus']; ar: string }> = [
@@ -261,7 +261,7 @@ export function WathbaDashboardBackers({
               <option key={t.id} value={t.id}>{t.titleAr}</option>
             ))}
           </select>
-          <span style={{ fontSize: 13, color: 'var(--text-tertiary, #5d6b62)' }}>←</span>
+          <span style={{ fontSize: 13, color: 'var(--text-tertiary, var(--muted2))' }}>←</span>
           <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value as RosterRow['rewardStatus'])} aria-label="الحالة الجديدة" style={inputStyle(150)}>
             {REWARD_STATUS.map((r) => (
               <option key={r.v} value={r.v}>{r.ar}</option>
@@ -270,7 +270,7 @@ export function WathbaDashboardBackers({
           <button type="button" onClick={() => void applyBulk()} disabled={bulkBusy} style={{ ...primaryBtn, opacity: bulkBusy ? 0.6 : 1 }}>
             {bulkBusy ? 'جارٍ التطبيق…' : 'تطبيق'}
           </button>
-          <span style={{ marginInlineStart: 'auto', fontSize: 12.5, color: 'var(--text-tertiary, #5d6b62)' }}>
+          <span style={{ marginInlineStart: 'auto', fontSize: 12.5, color: 'var(--text-tertiary, var(--muted2))' }}>
             {total} داعم
           </span>
         </div>
@@ -302,13 +302,13 @@ export function WathbaDashboardBackers({
         <div style={{ overflowX: 'auto', border: '1px solid var(--border-subtle, rgba(18,33,26,0.08))', borderRadius: 12, background: 'var(--bg-elevated, #fff)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 720 }}>
             <thead>
-              <tr style={{ textAlign: 'right', color: 'var(--text-tertiary, #5d6b62)', fontSize: 12 }}>
+              <tr style={{ textAlign: 'right', color: 'var(--text-tertiary, var(--muted2))', fontSize: 12 }}>
                 <Th>#</Th><Th>الداعم</Th><Th>المكافأة</Th><Th>الإضافات</Th><Th>المبلغ</Th><Th>حالة الدفع</Th><Th>حالة التسليم</Th><Th>التاريخ</Th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
-                const ps = PLEDGE_STATUS[r.status] ?? { ar: r.status, fg: '#5d6b62', bg: 'rgba(0,0,0,0.05)' };
+                const ps = PLEDGE_STATUS[r.status] ?? { ar: r.status, fg: 'var(--muted2)', bg: 'rgba(0,0,0,0.05)' };
                 return (
                   <tr key={r.pledgeId} style={{ borderTop: '1px solid var(--border-subtle, rgba(18,33,26,0.06))' }}>
                     <Td><span style={{ fontWeight: 700 }}>#{r.backerNo}</span></Td>
@@ -347,7 +347,7 @@ export function WathbaDashboardBackers({
                         ))}
                       </select>
                     </Td>
-                    <Td><span style={{ color: 'var(--text-tertiary, #5d6b62)' }}>{formatDateAr(r.pledgedAt)}</span></Td>
+                    <Td><span style={{ color: 'var(--text-tertiary, var(--muted2))' }}>{formatDateAr(r.pledgedAt)}</span></Td>
                   </tr>
                 );
               })}
@@ -382,7 +382,7 @@ function StateCard({ tone, children }: { tone: 'error' | 'empty'; children: Reac
         padding: 24, borderRadius: 12, textAlign: 'center', fontSize: 14,
         background: 'var(--bg-elevated, #fff)',
         border: `1px dashed ${tone === 'error' ? 'rgba(239,68,68,0.4)' : 'var(--border-strong, rgba(18,33,26,0.16))'}`,
-        color: tone === 'error' ? '#b91c1c' : 'var(--text-secondary, #3b4942)',
+        color: tone === 'error' ? 'var(--err-ink)' : 'var(--text-secondary, #3b4942)',
       }}
     >
       {children}
@@ -421,18 +421,18 @@ function formatDateAr(iso: string): string {
 
 const inputStyle = (w: number): React.CSSProperties => ({
   minWidth: w, background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border-subtle, rgba(18,33,26,0.14))',
-  borderRadius: 10, padding: '8px 10px', fontSize: 13, color: 'var(--text-primary, #16201b)', fontFamily: 'inherit',
+  borderRadius: 10, padding: '8px 10px', fontSize: 13, color: 'var(--text-primary, var(--text-primary))', fontFamily: 'inherit',
 });
 const ghostBtn: React.CSSProperties = {
   cursor: 'pointer', background: 'transparent', border: '1px solid var(--border-subtle, rgba(18,33,26,0.16))',
-  color: 'var(--text-primary, #16201b)', fontWeight: 600, padding: '8px 16px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
+  color: 'var(--text-primary, var(--text-primary))', fontWeight: 600, padding: '8px 16px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
 };
 const primaryBtn: React.CSSProperties = {
   cursor: 'pointer', background: 'var(--brand-primary, #05a661)', color: 'var(--on-brand, #08130d)', border: 'none',
   fontWeight: 700, padding: '8px 18px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
 };
 const exportBtn: React.CSSProperties = {
-  cursor: 'pointer', background: 'rgba(5,166,97,0.08)', color: 'var(--brand-ink, #047649)',
+  cursor: 'pointer', background: 'rgba(5,166,97,0.08)', color: 'var(--brand-ink, var(--pos-ink))',
   border: '1px solid rgba(5,166,97,0.4)', fontWeight: 700, padding: '8px 14px', borderRadius: 10,
   fontFamily: 'inherit', fontSize: 12.5, textDecoration: 'none',
 };

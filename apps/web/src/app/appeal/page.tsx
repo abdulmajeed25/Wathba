@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { AppealForm, type MyAppeal } from './appeal-form';
+import { WathbaThemeRoot } from '@/components/ventures/wathba/wathba-theme-root';
 
 /**
  * OPS-GAPS R1 — the appellant's LOCKED appeal surface.
@@ -110,26 +111,27 @@ export default async function AppealPage({
     appeals?.find((a) => a.subjectId === subjectId && a.kind === kind) ?? null;
 
   return (
-    <main className="mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col justify-center gap-6 px-5 py-16">
+    <WathbaThemeRoot>
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col justify-center gap-6 px-5 py-16">
       <header className="space-y-2 text-center">
         {kind === 'ACCOUNT_BAN' ? (
-          <span className="inline-block rounded-full border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-700">
+          <span className="inline-block rounded-full border border-err bg-elevated px-3 py-1 text-xs font-bold text-err">
             الحساب موقوف
           </span>
         ) : (
-          <span className="inline-block rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+          <span className="inline-block rounded-full border border-edge-strong bg-elevated px-3 py-1 text-xs font-bold text-[var(--gold-ink)]">
             مشروع مرفوض
           </span>
         )}
         <h1 className="text-2xl font-bold">تقديم تظلّم</h1>
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-fg-muted">
           {kind === 'ACCOUNT_BAN'
             ? 'تم إيقاف حسابك عن الوصول للمنصة. إن كنت ترى أن القرار غير صحيح، يمكنك تقديم تظلّم واحد ليراجعه فريق العمليات.'
             : 'رُفض هذا المشروع في المراجعة. يمكنك تقديم تظلّم واحد ليعيد فريق العمليات النظر في القرار.'}
         </p>
       </header>
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-neutral-200 bg-elevated p-5 shadow-sm">
         {subjectId ? (
           <AppealForm
             kind={kind}
@@ -138,14 +140,14 @@ export default async function AppealPage({
             existing={existing}
           />
         ) : (
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-[var(--gold-ink)]">
             تعذّر تحديد هويّة الحساب من الجلسة — سجّل الدخول من جديد ثم أعد المحاولة.
           </p>
         )}
       </section>
 
       {appeals === null ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs text-amber-700">
+        <p className="rounded-lg border border-amber-200 bg-elevated px-4 py-3 text-center text-xs text-[var(--gold-ink)]">
           خدمة التظلّمات قيد الإنشاء أو غير متاحة حالياً — يمكنك المحاولة، وسنحفظ طلبك عند تفعيلها.
         </p>
       ) : null}
@@ -153,18 +155,19 @@ export default async function AppealPage({
       {/* Batch CONTENT Part 2 — the appellant is asked to argue against a
           decision without being shown the rules it was made under, or how the
           review that follows works. Both are on the enforcement page. */}
-      <p className="text-center text-sm text-neutral-500">
-        <Link href="/rules/enforcement" className="text-emerald-700 hover:underline">
+      <p className="text-center text-sm text-fg-faint">
+        <Link href="/rules/enforcement" className="text-brand-ink hover:underline">
           كيف تُتَّخذ قرارات الإنفاذ وكيف يُراجَع التظلّم
         </Link>
       </p>
 
-      <p className="text-center text-sm text-neutral-500">
-        <Link href="/sign-in" className="text-emerald-700 hover:underline">
+      <p className="text-center text-sm text-fg-faint">
+        <Link href="/sign-in" className="text-brand-ink hover:underline">
           العودة لتسجيل الدخول
         </Link>
       </p>
-    </main>
+      </main>
+    </WathbaThemeRoot>
   );
 }
 
@@ -183,51 +186,53 @@ export default async function AppealPage({
 function NoAppealNotice({ restriction }: { restriction: 'SUSPENDED' | 'BANNED' | null }) {
   const suspended = restriction === 'SUSPENDED';
   return (
-    <main className="mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col justify-center gap-6 px-5 py-16">
+    <WathbaThemeRoot>
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-[560px] flex-col justify-center gap-6 px-5 py-16">
       <header className="space-y-2 text-center">
         {suspended ? (
-          <span className="inline-block rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">
+          <span className="inline-block rounded-full border border-edge-strong bg-elevated px-3 py-1 text-xs font-bold text-[var(--gold-ink)]">
             إيقاف مؤقت
           </span>
         ) : null}
         <h1 className="text-2xl font-bold">
           {suspended ? 'حسابك موقوف مؤقتاً' : 'لا يوجد قرار للتظلّم عنه'}
         </h1>
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-fg-muted">
           {suspended
             ? 'هذا إيقاف إداري مؤقت وليس حظراً دائماً، ولذلك لا يوجد قرار حظر يُتظلَّم عنه. يراجع فريق العمليات الإيقاف ويُعاد تفعيل الحساب عند انتهاء سببه — وإن كنت ترى أنه حدث خطأً، راسل الدعم وسنرد عليك.'
             : 'حسابك يعمل بشكل طبيعي ولم يصدر بحقّه أي قرار إشرافي. صفحة التظلّمات مخصّصة لمن صدر بحقّه قرار حظر أو رفض مشروع.'}
         </p>
       </header>
 
-      <section className="rounded-2xl border border-neutral-200 bg-white p-5 text-center shadow-sm">
+      <section className="rounded-2xl border border-neutral-200 bg-elevated p-5 text-center shadow-sm">
         {suspended ? (
           <p className="text-sm text-neutral-700">
             للتواصل:{' '}
-            <a href="mailto:support@wathba.sa" className="font-semibold text-emerald-700 hover:underline">
+            <a href="mailto:support@wathba.sa" className="font-semibold text-brand-ink hover:underline">
               support@wathba.sa
             </a>
           </p>
         ) : (
-          <Link href="/projects" className="font-semibold text-emerald-700 hover:underline">
+          <Link href="/projects" className="font-semibold text-brand-ink hover:underline">
             العودة إلى وثبة
           </Link>
         )}
       </section>
 
-      <p className="text-center text-sm text-neutral-500">
-        <Link href="/rules/enforcement" className="text-emerald-700 hover:underline">
+      <p className="text-center text-sm text-fg-faint">
+        <Link href="/rules/enforcement" className="text-brand-ink hover:underline">
           كيف تُتَّخذ قرارات الإنفاذ وكيف يُراجَع التظلّم
         </Link>
       </p>
 
       {suspended ? (
-        <p className="text-center text-sm text-neutral-500">
-          <Link href="/sign-in" className="text-emerald-700 hover:underline">
+        <p className="text-center text-sm text-fg-faint">
+          <Link href="/sign-in" className="text-brand-ink hover:underline">
             العودة لتسجيل الدخول
           </Link>
         </p>
       ) : null}
-    </main>
+      </main>
+    </WathbaThemeRoot>
   );
 }
