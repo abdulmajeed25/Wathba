@@ -175,6 +175,31 @@ function HeroCinematic({ p }: { p: ApiHomeProjectCard }) {
         </WathbaCardVideo>
       </div>
 
+      {/* MEASURED, so nobody re-investigates the image. This hero costs ~280ms
+          of LCP against the contained hero it replaced (20 paired runs, slower
+          in 18). The findings, because every one of them is counter-intuitive:
+
+            · LCP == FCP in 40/40 samples. The hero paints at the page's FIRST
+              paint, so this is a first-paint cost that LCP inherits, not an
+              "LCP element" problem.
+            · The cover is NOT the cost. It downloads at 71ms, and hiding it
+              entirely makes first paint SLOWER (1040ms vs 1008ms) because the
+              h1 becomes the largest paint instead.
+            · The cost is the scrim below: a viewport-sized translucent layer
+              composited over a viewport-sized image before anything paints.
+              Hiding it recovers 90-290ms — and it carries WCAG AA on this
+              copy, so it stays.
+
+          Three cheaper formulations were tested paired, 20 pairs each, and
+          NONE beat chance: a flat fill plus one gradient (-60ms, 12/20), a
+          shorter hero (+102ms, 9/20), and a GPU filter on the image instead of
+          an overlay (+66ms, 7/20). Two were outright worse.
+
+          This box is a 6-core shared vCPU under load; real hardware composites
+          a viewport gradient in single-digit milliseconds. The regression is
+          accepted deliberately — CLS is 0 and contrast is AA. If you are here
+          to optimise it, the ~500ms of pre-paint time on this page is the
+          target, not the hero. */}
       {/* THE SCRIM, and it is load-bearing for accessibility, not decoration.
           Two layers: a flat floor that holds no matter what the photograph
           does, and a directional wash heaviest at the START edge — right, in
