@@ -185,21 +185,35 @@ function HeroCinematic({ p }: { p: ApiHomeProjectCard }) {
             · The cover is NOT the cost. It downloads at 71ms, and hiding it
               entirely makes first paint SLOWER (1040ms vs 1008ms) because the
               h1 becomes the largest paint instead.
-            · The cost is the scrim below: a viewport-sized translucent layer
-              composited over a viewport-sized image before anything paints.
-              Hiding it recovers 90-290ms — and it carries WCAG AA on this
-              copy, so it stays.
+            · This comment used to blame the scrim below, on the strength of
+              hiding it recovering 90-290ms. THAT WAS WRONG, and it is
+              corrected rather than deleted because it was nearly acted on. A
+              bare synthetic page with one viewport-sized two-layer gradient
+              costs 16ms on this same host, so a 0.91Mpx scrim cannot plausibly
+              be worth 290ms; that reading was noise in a window that swings
+              456-1584ms. It fits the evidence already in the paragraph below —
+              all three cheaper scrim formulations failed to beat chance, which
+              is what a non-cost looks like when you try to optimise it.
 
           Three cheaper formulations were tested paired, 20 pairs each, and
           NONE beat chance: a flat fill plus one gradient (-60ms, 12/20), a
           shorter hero (+102ms, 9/20), and a GPU filter on the image instead of
           an overlay (+66ms, 7/20). Two were outright worse.
 
-          This box is a 6-core shared vCPU under load; real hardware composites
-          a viewport gradient in single-digit milliseconds. The regression is
-          accepted deliberately — CLS is 0 and contrast is AA. If you are here
-          to optimise it, the ~500ms of pre-paint time on this page is the
-          target, not the hero. */}
+          THE REAL COST WAS FOUND, and it was never on this component. The
+          themed root in wathba-shell.tsx painted two radial gradients across
+          the entire document — 6.1Mpx here, 11.4Mpx on /projects — for a wash
+          visible only in the top ~330px. Bounding it is worth -349ms of FCP
+          (11/12 paired runs, CLS unchanged), which is larger than this hero's
+          whole regression. Ablation cleared the other suspects on the way:
+          hydration -96ms, the cover images noise, and content-visibility
+          halved the Layout event while moving FCP not at all.
+
+          So the ~280ms attributed to this hero is real but small, and the
+          scrim stays because it carries WCAG AA on this copy — now for the
+          plain reason that it was never measurably expensive. Absolute numbers
+          here are a no-GPU worst case (this host rasterises in SwiftShader).
+          Full write-up: /root/spotlight-prepaint-investigation.md. */}
       {/* THE SCRIM, and it is load-bearing for accessibility, not decoration.
           Two layers: a flat floor that holds no matter what the photograph
           does, and a directional wash heaviest at the START edge — right, in

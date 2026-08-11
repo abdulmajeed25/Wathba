@@ -104,8 +104,47 @@ export function WathbaShell({
      * absolute height, which on a 360px screen is what makes a rich page feel
      * endless rather than organised. Overridden below 760px in the CSS block.
      */
-    background:
-      'radial-gradient(1200px 700px at 85% -5%,rgba(var(--accent-rgb),.10),transparent 60%),radial-gradient(900px 600px at 0% 0%,rgba(var(--accent2-rgb),.10),transparent 55%),var(--bg)',
+    /**
+     * The brand wash — bounded to the area it actually occupies.
+     *
+     * This is one element and it is as tall as the whole document, so painting
+     * two RADIAL gradients over it meant evaluating them across 6.1 megapixels
+     * on /spotlight and 11.4 on /projects — six to eleven times the viewport —
+     * for a decoration that fades out by y≈330. Measured, it was the single
+     * largest cost in the pre-paint window: FCP −349ms with this bounded form,
+     * faster in 11 of 12 paired runs, CLS unchanged at 0.
+     *
+     * Two changes, and the second one is a bug fix rather than a speed-up:
+     *
+     *  · `background-size` + `no-repeat` stop the gradient being evaluated
+     *    below the band it is visible in. The rest of the element is the flat
+     *    --bg colour, which is what it already looked like.
+     *
+     *  · The vertical anchor is now PIXELS, not a percentage. A percentage in
+     *    `at 85% -5%` resolves against the background positioning area — this
+     *    element — so `-5%` meant "minus five percent of however long this page
+     *    happens to be", and the wash landed somewhere different on every
+     *    route. Sampled at x=1140 with content hidden: on /spotlight (4462px)
+     *    it renders, tint +17 at the top; on /projects (8371px) it was pushed
+     *    entirely off-screen and the browser painted 11.4Mpx to produce
+     *    nothing. -223px is exactly what -5% resolved to on /spotlight, so
+     *    that page is unchanged (max channel difference 3 across the ground);
+     *    the long pages now get the wash they were always meant to have.
+     *
+     * NOT the hero scrim, which is a separate 1366x668 layer in
+     * wathba-spotlight.tsx. Ablation ruled out hydration (-96ms), the cover
+     * images (noise) and layout volume (content-visibility halved the Layout
+     * event and moved FCP not at all). Full write-up, including why the
+     * absolute milliseconds are a no-GPU worst case, in
+     * /root/spotlight-prepaint-investigation.md.
+     */
+    backgroundImage:
+      'radial-gradient(1200px 700px at 85% -223px,rgba(var(--accent-rgb),.10),transparent 60%),radial-gradient(900px 600px at 0 0,rgba(var(--accent2-rgb),.10),transparent 55%)',
+    backgroundColor: 'var(--bg)',
+    backgroundRepeat: 'no-repeat',
+    // Each layer bounded just past where its own colour stop reaches zero:
+    // 700px radius x 60% = 420 below a centre at -223 -> 197; 600 x 55% = 330.
+    backgroundSize: '100% 520px, 100% 340px',
     color: 'var(--text)',
     fontFamily: "'IBM Plex Sans Arabic', sans-serif",
     WebkitFontSmoothing: 'antialiased',
