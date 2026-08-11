@@ -65,11 +65,19 @@ export function WathbaThemeRoot({
   children,
   defaultTheme = SSR_THEME,
   style,
+  className,
 }: {
   children: ReactNode;
   defaultTheme?: WathbaTheme;
   /** Extra styles merged onto the themed element (layout, not colour). */
   style?: CSSProperties;
+  /**
+   * A hook for rules that inline styles cannot express. `style` covers colour
+   * and layout, but a media query cannot live in an inline style — and the
+   * creator dashboard composes its whole grid here, so its responsive
+   * behaviour had nowhere to attach.
+   */
+  className?: string;
 }) {
   const [theme, setTheme] = useState<WathbaTheme>(defaultTheme);
 
@@ -112,7 +120,7 @@ export function WathbaThemeRoot({
   };
 
   return (
-    <div data-theme={theme} data-pillar="ventures" style={styleVars}>
+    <div data-theme={theme} data-pillar="ventures" className={className} style={styleVars}>
       {/* FIRST child, deliberately. It reads
        *  `document.currentScript.parentElement`, so it must sit inside the
        *  element it themes, and it must run before anything below it paints. */}

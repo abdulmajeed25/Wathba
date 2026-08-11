@@ -282,7 +282,7 @@ export function DashboardStoryEditor({
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '220px 1fr 1fr',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: 16,
           alignItems: 'flex-start',
         }}

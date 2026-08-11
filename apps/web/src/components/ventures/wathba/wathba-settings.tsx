@@ -185,7 +185,7 @@ function ProfileTab({
         />
       </label>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>المدينة</span>
           <input
@@ -735,7 +735,7 @@ function SocialLinksFields({ me }: { me?: ApiUserMe | null }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span style={{ fontSize: 13, color: 'var(--text-soft)', fontWeight: 600 }}>روابط التواصل (اختيارية)</span>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
         {SOCIAL_PLATFORMS.map((p) => (
           <label key={p.key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{p.label}</span>
@@ -780,6 +780,15 @@ const inputStyle: React.CSSProperties = {
   fontSize: 14,
   color: 'var(--text)',
   fontFamily: 'inherit',
+  // AN <input> HAS AN INTRINSIC WIDTH. Its default `size` is 20 characters, so
+  // with no width set each field insisted on roughly 200px — and because a
+  // grid/flex item's min-width defaults to auto, the City/Website pair could
+  // not shrink below the two of them side by side. The form measured 658px
+  // inside a 306px box on a phone, which then widened the whole settings page
+  // to 685px. Every field here already sits in a full-width column, so 100%
+  // changes nothing on desktop and is what lets them shrink on a phone.
+  width: '100%',
+  minWidth: 0,
 };
 
 /** STAKES/S-15 (C2) — square center-crop + resize via canvas → JPEG 0.9. */

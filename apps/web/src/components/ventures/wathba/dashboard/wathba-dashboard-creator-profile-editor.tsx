@@ -398,7 +398,7 @@ function CollaboratorRow({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '64px 1fr 1fr auto',
+        gridTemplateColumns: '64px minmax(0, 1fr) minmax(0, 1fr) auto',
         gap: 10,
         alignItems: 'center',
         padding: 12,

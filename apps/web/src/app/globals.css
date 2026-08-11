@@ -521,3 +521,77 @@
 :is([data-ops-root][data-theme='light'], [data-ops-root][data-theme='light'] *).bg-red-400 {
   background-color: var(--ops-status-danger);
 }
+
+/* ── Creator dashboard, on a phone ──────────────────────────────────────────
+ * The shell is `grid-template-columns: 260px 1fr`, and at 360 that 1fr computes
+ * to ONE HUNDRED PIXELS. Every one of the 17 per-project routes squeezed the
+ * whole dashboard into that column and then overflowed to 659-934px: the page
+ * heading was clipped at the edge, body copy wrapped to about one word per
+ * line, and stat cards rendered ~100px wide.
+ *
+ * It hid from the earlier public sweep because that looked for horizontal
+ * overflow, and these routes are behind auth — nothing unauthenticated could
+ * reach them to overflow in the first place.
+ *
+ * THE NAV STAYS VISIBLE. The shell's standing rule is no hide-on-mobile
+ * collapse (KSA SMB Arabic pattern), so nothing here moves behind a hamburger
+ * or a drawer: the side-nav changes AXIS, becoming a horizontally scrollable
+ * strip of the same labelled links above the content. Same links, same labels,
+ * same order, still one tap away.
+ *
+ * These rules live in globals.css rather than the shell's <style> block on
+ * purpose: the dashboard renders WathbaThemeRoot WITHOUT WathbaShell, so that
+ * block is not on the page at all. globals.css is also in <head>, so the layout
+ * is correct on first paint rather than after a reflow.
+ */
+@media (max-width: 760px) {
+  .wathba-dash-shell {
+    /* minmax(0, 1fr), NOT 1fr — the same trap the public shell documents. A
+     * grid item's min-width defaults to auto, so a 1fr track cannot shrink
+     * below its content's min-content width. With plain 1fr the <aside> sized
+     * itself to the full 16-link nav row and the page overflowed to 1728px:
+     * WORSE than the 260px sidebar it replaced, because overflow-x on the nav
+     * can only scroll what its parent is willing to clip. */
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .wathba-dash-aside {
+    /* Same reason, one level down: without this the aside grows to the nav's
+     * content width and there is nothing for the strip to scroll inside. */
+    min-width: 0;
+    /* The divider moves with the axis: it separated nav from content on the
+     * inline edge, and now does the same on the block edge. */
+    border-inline-start: 0 !important;
+    border-block-end: 1px solid var(--border-subtle, rgba(18, 33, 26, 0.08));
+    padding: 14px 14px 10px !important;
+  }
+  .wathba-dash-nav {
+    flex-direction: row !important;
+    gap: 8px !important;
+    min-width: 0;
+    overflow-x: auto;
+    /* A strip that scrolls sideways must not also drag the page. */
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+  .wathba-dash-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .wathba-dash-nav > a {
+    /* Without this the flex items shrink to fit and every label truncates —
+     * the same "tracks shrink instead of overflowing" failure as the grid. */
+    flex: 0 0 auto;
+  }
+  .wathba-dash-main {
+    padding: 20px 16px !important;
+  }
+}
+
+/* Two-pane dashboard editors — an editor beside a fixed-width preview or form
+ * panel. `minmax(0,1fr) 400px` needs 400px before the flexible pane gets
+ * anything, so on a 360 phone the second track alone is wider than the screen.
+ * Below the same breakpoint as the nav, the panes stack. */
+@media (max-width: 760px) {
+  .wathba-dash-stack {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
