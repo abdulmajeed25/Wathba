@@ -31,8 +31,16 @@ test.describe('dashboard at 360', () => {
     jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
   });
 
-  test.beforeEach(async ({ context, page }) => {
-    const host = new URL(page.url() === 'about:blank' ? 'http://127.0.0.1' : page.url()).hostname;
+  // THE COOKIE GOES ON THE HOST THE TESTS ACTUALLY VISIT, which is baseURL.
+  //
+  // This used to read `page.url()`, and in a beforeEach that is ALWAYS
+  // 'about:blank' — Playwright hands each test a fresh page. So the ternary's
+  // other branch never ran and the domain was hard-coded to 127.0.0.1, while
+  // baseURL is localhost:3123. A cookie on 127.0.0.1 is not sent to localhost,
+  // so every test here was signed out: three skipped themselves on the line
+  // below and DG(nav) failed outright.
+  test.beforeEach(async ({ context, page, baseURL }) => {
+    const host = new URL(baseURL ?? 'http://localhost:3123').hostname;
     await context.addCookies([
       { name: 'wathba_session', value: jwt, domain: process.env.E2E_COOKIE_DOMAIN ?? host, path: '/' },
     ]);
@@ -43,8 +51,14 @@ test.describe('dashboard at 360', () => {
     test(`DG(${route}): no sideways scroll and no crushed grid`, async ({ page }) => {
       const res = await page.goto(route);
       test.skip(!res || res.status() >= 400, `${route} unavailable`);
-      // A signed-out redirect would make every assertion below vacuously true.
-      test.skip(page.url().includes('/sign-in'), 'not signed in — cookie domain mismatch');
+      // ASSERT, do not skip. A signed-out redirect makes every check below
+      // vacuously true, and skipping on it meant the session breaking looked
+      // exactly like the grid being fine — which is what happened: these three
+      // reported clean for a whole run while never loading the dashboard at
+      // all. The comment at the top of this file warns about precisely this
+      // failure mode; the guard against it was itself an instance of it.
+      expect(page.url(), `bounced to sign-in — the session cookie is not reaching ${route}`)
+        .not.toContain('/sign-in');
 
       const m = await page.evaluate((MIN_TRACK) => {
         const de = document.documentElement;
