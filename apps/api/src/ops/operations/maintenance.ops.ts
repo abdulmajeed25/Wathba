@@ -46,8 +46,9 @@ const UNWIRED_DEPS = new Proxy(
   },
 ) as MaintenanceOpsDeps;
 
-/** The two GIN indexes backing project search (defined in
- *  prisma/_raw/searchVector.sql). REINDEX target names are quoted verbatim. */
+/** The two GIN indexes backing project search (defined in migration
+ *  0062_arabic_search, which replaced the prisma/_raw/searchVector.sql
+ *  sidecar). REINDEX target names are quoted verbatim. */
 const SEARCH_INDEXES = ['Project_searchVector_gin', 'Project_titleAr_trgm'] as const;
 
 export function maintenanceOps(

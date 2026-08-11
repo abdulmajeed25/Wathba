@@ -102,10 +102,19 @@ async function attach(prisma) {
   console.log(`[seed-tags] attached ${attached} tag(s) across ${projects.length} project(s)`);
 }
 
-const prisma = new PrismaClient();
-try {
+/** Reusable entry — used by seed-e2e.mjs so the tag facet and the search
+ *  suggest dropdown have a vocabulary to return. Mirrors seedCategories. */
+export async function seedTags(prisma) {
   await seedVocabulary(prisma);
-  if (process.argv.includes('--attach')) await attach(prisma);
-} finally {
-  await prisma.$disconnect();
+}
+
+// Run standalone: `node prisma/seed-tags.mjs [--attach]`
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const prisma = new PrismaClient();
+  try {
+    await seedVocabulary(prisma);
+    if (process.argv.includes('--attach')) await attach(prisma);
+  } finally {
+    await prisma.$disconnect();
+  }
 }

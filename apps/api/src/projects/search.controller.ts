@@ -17,8 +17,24 @@ import { SearchService } from './search.service';
 export class SearchController {
   constructor(private readonly search: SearchService) {}
 
+  /**
+   * Per-IP 30/min. Tighter than the global 120/min because each miss costs a
+   * GIN scan plus, on zero results, three trigram scans.
+   *
+   * ENV-TUNABLE FOR THE SAME REASON AS SIGN-IN. The whole Playwright suite
+   * searches from ONE IP, so this limit is shared across every spec in the
+   * run rather than being per-spec. arabic-search.spec.ts alone makes about
+   * twenty calls; anything that ran before it has already spent part of the
+   * budget, so the spec passed in isolation and failed in the suite —
+   * ORDER-DEPENDENTLY, since how much budget was left depended on what ran
+   * first. A 429 answers `{statusCode:429}` with no `items` key, so the
+   * failure surfaced as `Cannot read properties of undefined (reading
+   * 'length')` rather than as anything resembling rate limiting.
+   *
+   * Production leaves SEARCH_THROTTLE_LIMIT unset and keeps 30.
+   */
   @Get()
-  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Throttle({ default: { ttl: 60_000, limit: Number(process.env.SEARCH_THROTTLE_LIMIT ?? 30) } })
   @ApiOperation({ summary: 'Full-text + trigram fuzzy search over projects (STAKES/L4: + filters)' })
   async query(
     @Query('q') q = '',
@@ -35,8 +51,11 @@ export class SearchController {
     return { items, suggestions };
   }
 
+  // Same reasoning as above, and the suite drives this one through the real
+  // typeahead (AS12 types into the header box), so a debounced keystroke
+  // stream lands here on top of whatever the API-level specs spent.
   @Get('suggest')
-  @Throttle({ default: { ttl: 60_000, limit: 120 } })
+  @Throttle({ default: { ttl: 60_000, limit: Number(process.env.SUGGEST_THROTTLE_LIMIT ?? 120) } })
   // Batch SEARCH Part 2 — brief shared cache: suggestions tolerate 15s
   // staleness and the debounced keystroke stream hits this hard.
   @Header('Cache-Control', 'public, max-age=15')
