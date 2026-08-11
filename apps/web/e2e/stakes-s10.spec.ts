@@ -122,6 +122,12 @@ test('F-04: campaign OG card has an image fallback + large twitter card', async 
   // Seeded project has no media → the brand card must back it.
   expect(html).toContain('og-default.png');
   expect(html).toContain('summary_large_image');
-  // Funded % rides the description for LIVE campaigns.
-  expect(html).toMatch(/مُموَّل \d+٪/);
+  // Funded % rides the description for LIVE campaigns — in ARABIC-INDIC, like
+  // every other count and percentage on the platform. This asserted `\d+٪`
+  // (Latin digits against the Arabic sign) and was the last place still
+  // rendering the mixed form: NS1 scans main/body innerText, so metadata
+  // served to link-preview crawlers sits outside its reach and only this
+  // assertion covered it.
+  expect(html).toMatch(/مُموَّل [٠-٩]+٪/);
+  expect(html, 'the share card must not mix numeral systems').not.toMatch(/مُموَّل \d+٪/);
 });
