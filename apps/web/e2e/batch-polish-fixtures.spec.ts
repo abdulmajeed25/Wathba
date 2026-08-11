@@ -16,7 +16,7 @@ import { API } from './helpers';
 
 /** Mirror of the trigger predicate in migration 0058. */
 const isFixtureTitle = (t: string) =>
-  /(E2E|إي٢إي|PAY|SMOKE|TEST|SEED|FIXTURE)/.test(t) && /[0-9]{10,}/.test(t);
+  /(E2E|إي٢إي|PAY|SMOKE|TEST|SEED|FIXTURE)/.test(t) && /[0-9٠-٩]{10,}/.test(t);
 
 test('F1: no fixture-titled project is in the public listing API', async () => {
   const res = await fetch(`${API}/v1/projects?take=60`);
@@ -73,7 +73,7 @@ test('F4: the rendered discover page shows no fixture titles', async ({ page }) 
 
   const text = await page.locator('main').innerText();
   // The visible shape of the leak: a fixture token next to a 13-digit timestamp.
-  expect(text).not.toMatch(/(E2E|إي٢إي|PAY)\s*[0-9]{10,}/);
+  expect(text).not.toMatch(/(E2E|إي٢إي|PAY)[ \t\u00a0]*[0-9٠-٩]{10,}/);
 });
 
 test('F5: a fixture is still reachable at its own URL — listings only', async () => {

@@ -45,7 +45,7 @@ test('H1: the pool is real, bucketed, and never repeats a bucket or category bac
   // being unfit for a showcase once a few hundred have piled up.
   const unpresentable = slides
     .map((s) => s.titleAr)
-    .filter((t) => /(E2E|إي٢إي|PAY|SMOKE|TEST|SEED|FIXTURE)/.test(t) || /[0-9]{10,}/.test(t));
+    .filter((t) => /(E2E|إي٢إي|PAY|SMOKE|TEST|SEED|FIXTURE)/.test(t) || /[0-9٠-٩]{10,}/.test(t));
   expect(unpresentable, `test artefacts reached the hero:\n${unpresentable.join('\n')}`).toEqual([]);
 
   const full = (await (await fetch(`${API}/v1/hero-projects`)).json()) as {
