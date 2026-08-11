@@ -10,6 +10,7 @@ import { ShareButton } from './wathba-share';
 import { Icon, Num } from './wathba-icons';
 import { formatSar } from '@/lib/i18n/format';
 import { toArabicDigits } from './discover-all-constants';
+import { arabicCount } from './discover-all-constants';
 
 const fmtSAR = (n: number): string => formatSar('ar', n);
 
@@ -61,7 +62,7 @@ export function WathbaCampaignRail({
     const livePct = goal > 0 ? Math.min(999, Math.round((raisedSAR / goal) * 100)) : 0;
     return {
       raisedFmt: fmtSAR(raisedSAR),
-      backersFmt: tick.backersCount.toLocaleString('en-US'),
+      backersFmt: arabicCount(tick.backersCount),
       pct: livePct,
       pctW: `${Math.min(100, livePct)}%`,
     };
@@ -154,7 +155,7 @@ export function WathbaCampaignRail({
         </div>
         <div style={{ width: 1, background: 'rgba(var(--ink-rgb),.1)' }} />
         <div style={{ flex: 1, paddingInlineStart: 18 }}>
-          <Num style={{ fontSize: 22, fontWeight: 700 }}>{daysLeft}</Num>
+          <Num style={{ fontSize: 22, fontWeight: 700 }}>{toArabicDigits(daysLeft)}</Num>
           <div style={{ fontSize: 12, color: 'var(--muted2)' }}>يوم متبقٍ</div>
         </div>
       </div>

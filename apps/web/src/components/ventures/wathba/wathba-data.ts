@@ -7,6 +7,7 @@
  */
 
 import { formatSar } from '@/lib/i18n/format';
+import { arabicCount } from './discover-all-constants';
 
 export interface WathbaProject {
   id: string;
@@ -353,7 +354,9 @@ export interface DerivedProject extends WathbaProject {
   trustBand: 'low' | 'moderate' | 'high' | 'exceptional';
 }
 
-const fmtNum = (n: number) => Math.round(n).toLocaleString('en-US');
+// Counts are Arabic-Indic on this platform; arabicCount is this call plus
+// the conversion. Feeds backersFmt, which every card renders beside «داعم».
+const fmtNum = (n: number) => arabicCount(Math.round(n));
 // BUG-1 (Batch SEARCH) — Wathba is SAR-only. ALL money strings flow through
 // formatSar (src/lib/i18n/format.ts), the single money renderer; the
 // policy spec (e2e/policy-guards.spec.ts) fails the gate on any dollar render.

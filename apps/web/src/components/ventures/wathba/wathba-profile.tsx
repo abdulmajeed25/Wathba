@@ -9,6 +9,7 @@ import { adaptApiVenture, deriveProject, wathbaProjects, type DerivedProject } f
 import { Icon, Num } from './wathba-icons';
 import { WathbaProfileCompleteness } from './wathba-profile-completeness';
 import { EmptyState } from './wathba-states';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * Wathba (وثبة) — Profile surface.
@@ -466,7 +467,7 @@ function CreatedList({ projects }: { projects: DerivedProject[] }) {
                 {p.backersFmt} داعم
               </Num>
               <Num className="num" style={{ fontSize: 14, color: 'var(--muted)' }}>
-                {p.daysLeft} يوم متبقٍ
+                {toArabicDigits(p.daysLeft)} يوم متبقٍ
               </Num>
             </div>
             <div

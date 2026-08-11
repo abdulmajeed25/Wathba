@@ -313,7 +313,7 @@ export function WathbaHomeTrending({ list }: { list: ReturnType<typeof derivePro
                   }}
                 >
                   <Num>{p.backersFmt} داعم</Num>
-                  <Num>{p.daysLeft} يوم</Num>
+                  <Num>{toArabicDigits(p.daysLeft)} يوم</Num>
                 </div>
               </div>
             </div>

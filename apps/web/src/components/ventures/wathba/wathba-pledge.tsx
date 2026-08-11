@@ -474,7 +474,7 @@ export function WathbaPledge({
                         </h4>
                       </div>
                       <Num style={{ fontSize: 12, color: 'var(--muted2)' }}>
-                        {t.backers} داعم
+                        {toArabicDigits(t.backers)} داعم
                       </Num>
                     </div>
                     <p
