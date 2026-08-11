@@ -6,6 +6,7 @@ import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/w
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
 import { notFound } from 'next/navigation';
+import { toArabicDigits } from '@/components/ventures/wathba/discover-all-constants';
 
 /**
  * TABS — الحملة (story), the campaign's default tab. The persistent shell
@@ -50,7 +51,7 @@ export async function generateMetadata({
     live && live.fundingGoalHalalas > 0 && (live.status === 'LIVE' || live.status === 'FUNDED')
       ? Math.round((live.raisedHalalas / live.fundingGoalHalalas) * 100)
       : null;
-  const description = pct !== null ? `مُموَّل ${pct}٪ · ${baseDescription ?? ''}`.trim() : baseDescription;
+  const description = pct !== null ? `مُموَّل ${toArabicDigits(pct)}٪ · ${baseDescription ?? ''}`.trim() : baseDescription;
   // STAKES/I2 + S-10 F-04 — og:image: campaign media, else the brand card.
   const ogImage = live?.ogImage ?? live?.mediaUrls?.[0] ?? '/og-default.png';
   // STAKES/N4 N6 — ONE canonical per project: the human slug when set.
