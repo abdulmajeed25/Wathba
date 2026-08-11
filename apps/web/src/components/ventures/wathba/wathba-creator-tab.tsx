@@ -112,6 +112,12 @@ export function WathbaCreatorTab({
         style={{
           display: 'flex',
           alignItems: 'center',
+          // WRAPS. This preview card sits two cards deep inside the dashboard,
+          // so at 360 the avatar and the follow button between them left the
+          // name-and-stats column 42px wide: the name spilled sideways out of
+          // its own box and every stat landed on a line of its own, separator
+          // dots included. Wrapping drops the button to its own row instead.
+          flexWrap: 'wrap',
           gap: 16,
           padding: 16,
           background: 'var(--bg-elevated, #fff)',
@@ -123,7 +129,9 @@ export function WathbaCreatorTab({
         <Link href={`/u/${encodeURIComponent(data.handle ?? data.userId)}`} style={{ textDecoration: 'none', flexShrink: 0 }}>
           <Avatar url={data.avatarUrl} name={data.name} />
         </Link>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* basis 160: the column asks for a readable width and forces the
+            wrap above rather than collapsing to nothing. */}
+        <div style={{ flex: '1 1 160px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
               <Link
@@ -135,7 +143,7 @@ export function WathbaCreatorTab({
             </h2>
             {data.nafathVerified && <VerifiedBadge />}
           </div>
-          <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
             <span>{fmt(data.followersCount)} متابِع</span>
             <span>·</span>
             <span>{fmt(data.createdProjectsCount)} مشروعاً أنشأها</span>

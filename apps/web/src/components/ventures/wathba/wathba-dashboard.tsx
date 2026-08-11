@@ -268,6 +268,14 @@ export function WathbaDashboard(props: WathbaDashboardProps = {}) {
         <div
           style={{
             display: 'flex',
+            // WRAPS, because four tabs do not fit on a phone. At 360 this row
+            // measured 449px inside a 308px box and simply overflowed — the
+            // page did not scroll, so «الإعدادات» was clipped off the edge with
+            // no way to reach it. Wrapping keeps every tab visible; a scroller
+            // would hide half of them behind a gesture with nothing to hint at
+            // it. This row is also what widened the section and the page
+            // wrapper to 475px.
+            flexWrap: 'wrap',
             gap: 10,
             borderBottom: '1px solid rgba(var(--ink-rgb),.08)',
             marginBottom: 28,
