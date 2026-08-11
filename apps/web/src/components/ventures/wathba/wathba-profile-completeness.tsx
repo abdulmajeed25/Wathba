@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import type { ApiUserMe } from '@/lib/api/wathba';
 import { Num } from './wathba-icons';
+import { toArabicDigits } from './discover-all-constants';
 
 /**
  * STAKES/S-11 F-18 (C8) — «أكمل ملفك» nudge. Six identity fields count
@@ -43,7 +44,7 @@ export function WathbaProfileCompleteness({ me }: { me: ApiUserMe }) {
     >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text)' }}>
-          أكمل ملفك — <Num style={{ color: 'var(--accent-ink)' }}>{pct}٪</Num>
+          أكمل ملفك — <Num style={{ color: 'var(--accent-ink)' }}>{toArabicDigits(pct)}٪</Num>
         </span>
         <Link
           href="/projects/settings"
@@ -57,7 +58,7 @@ export function WathbaProfileCompleteness({ me }: { me: ApiUserMe }) {
         aria-valuenow={pct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`اكتمال الملف ${pct}٪`}
+        aria-label={`اكتمال الملف ${toArabicDigits(pct)}٪`}
         style={{ height: 6, borderRadius: 30, background: 'rgba(var(--ink-rgb),.08)', overflow: 'hidden', margin: '10px 0 8px' }}
       >
         <div style={{ height: '100%', width: `${pct}%`, background: 'var(--grad)', borderRadius: 30 }} />

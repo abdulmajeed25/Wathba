@@ -8,6 +8,7 @@ import { WathbaDashboardCollaborators } from './wathba-dashboard-collaborators';
 import { WathbaTagPicker } from './wathba-tag-picker';
 import { useConfirm } from '../wathba-feedback';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
+import { toArabicDigits } from '../discover-all-constants';
 
 /* ─────── Static enums + labels ──────────────────────────────────────────────
  * Kept colocated so we don't drag the @prisma/client enum into the browser
@@ -476,7 +477,7 @@ export function DashboardSettings({
           {goalError && <ErrorLine>{goalError}</ErrorLine>}
         </Field>
 
-        <Field label={`عتبة الإفراج عن الأموال — ${threshold}٪`}>
+        <Field label={`عتبة الإفراج عن الأموال — ${toArabicDigits(threshold)}٪`}>
           <input
             type="range"
             min={50}

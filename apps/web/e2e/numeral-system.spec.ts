@@ -56,7 +56,13 @@ const LATIN_COUNT = new RegExp(
   'g',
 );
 /** A Latin percentage, same line. */
-const LATIN_PCT = /(?<![\d٠-٩])\d+[ \t\u00a0]*%|%[ \t\u00a0]*\d+(?![\d٠-٩])/g;
+/*
+ * BOTH PERCENT SIGNS. The site writes «٪» (U+066A) as often as «%», and a
+ * pattern that knows only the ASCII one cannot see «85٪» — Latin digits
+ * against the Arabic sign, which is exactly the mixed form this guard exists
+ * to forbid. Same mistake as the dead \b, in a different character.
+ */
+const LATIN_PCT = /(?<![\d٠-٩])\d+[ \t\u00a0]*[%٪]|[%٪][ \t\u00a0]*\d+(?![\d٠-٩])/g;
 
 /**
  * NS0 — the patterns are proved against known-bad text, not only against pages
@@ -74,6 +80,8 @@ test('NS0: the guards match the text they exist to catch', () => {
   expect('٥ مشروع'.match(LATIN_COUNT), 'must NOT flag an Arabic-Indic count').toBeNull();
   expect('130%'.match(LATIN_PCT), 'must catch a Latin percentage').not.toBeNull();
   expect('%١٣٠'.match(LATIN_PCT), 'must NOT flag an Arabic-Indic percentage').toBeNull();
+  expect('85٪'.match(LATIN_PCT), 'must catch Latin digits on the ARABIC percent sign').not.toBeNull();
+  expect('٨٥٪'.match(LATIN_PCT), 'must NOT flag an Arabic-Indic percentage on ٪').toBeNull();
 });
 
 for (const route of COUNT_PAGES) {
