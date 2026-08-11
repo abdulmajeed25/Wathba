@@ -3,10 +3,11 @@ import type { ApiProjectDetail } from '@/lib/api/wathba';
 import { Num } from '../wathba-icons';
 import { ProjectRejectionAppeal } from './wathba-dashboard-appeal';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
+import { arabicCount } from '../discover-all-constants';
 
 const fmtSAR = (halalas: number): string => formatSarFromHalalas('ar', halalas);
 
-const fmtNum = (n: number): string => n.toLocaleString('en-US');
+const fmtNum = (n: number): string => arabicCount(n);
 
 export function DashboardOverview({
   project,

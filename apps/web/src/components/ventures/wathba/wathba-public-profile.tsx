@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import type { ApiPublicProfile } from '@/lib/api/wathba';
+import { arabicCount, toArabicDigits } from './discover-all-constants';
 import { Icon, Num } from './wathba-icons';
 
 /**
@@ -129,7 +130,7 @@ export function WathbaPublicProfile({
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Num style={{ fontSize: 12.5, color: p.fundedPct >= 100 ? 'var(--accent-ink)' : 'var(--muted2)' }}>
-                      {p.fundedPct}%
+                      %{toArabicDigits(p.fundedPct)}
                     </Num>
                     <span style={{ fontSize: 11, color: 'var(--muted2)' }}>{STATUS_LABELS[p.status] ?? p.status}</span>
                   </div>
@@ -174,7 +175,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div style={{ flex: 1, textAlign: 'center' }}>
       <Num style={{ display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--accent-ink)' }}>
-        {value.toLocaleString('en-US')}
+        {arabicCount(value)}
       </Num>
       <span style={{ fontSize: 12.5, color: 'var(--muted2)' }}>{label}</span>
     </div>

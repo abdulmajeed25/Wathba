@@ -1,5 +1,6 @@
 import type { ApiAnalytics, ApiFollowerRow } from '@/lib/api/wathba';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
+import { toArabicDigits } from '../discover-all-constants';
 
 /**
  * Creator analytics (Creator-CC / CC-16) + follower roster (CC-17). Purely
@@ -79,7 +80,7 @@ export function WathbaDashboardAnalytics({
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                   <span style={{ fontWeight: 600 }}>{t.titleAr}</span>
                   <span style={{ color: 'var(--text-secondary, #3b4942)' }}>
-                    {t.backers} داعم · {fmtSAR(t.amountHalalas)}
+                    {toArabicDigits(t.backers)} داعم · {fmtSAR(t.amountHalalas)}
                   </span>
                 </div>
                 <div style={{ height: 10, borderRadius: 6, background: 'rgba(18,33,26,0.06)', overflow: 'hidden' }}>

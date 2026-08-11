@@ -6,8 +6,9 @@ import { formatSarCompact } from '@/lib/i18n/format';
 
 import { compactNum } from './wathba-data';
 import { Num } from './wathba-icons';
+import { arabicCount } from './discover-all-constants';
 
-const fmtNum = (n: number): string => Math.round(n).toLocaleString('en-US');
+const fmtNum = (n: number): string => arabicCount(Math.round(n));
 
 /**
  * Batch RSC — the animated hero counters, as the only client code in this part

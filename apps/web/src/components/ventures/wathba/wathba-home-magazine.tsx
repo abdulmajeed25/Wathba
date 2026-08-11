@@ -6,7 +6,7 @@ import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { WathbaCarousel } from './wathba-carousel';
 import { WathbaHeroBanners } from './wathba-hero-banners';
 import { Num } from './wathba-icons';
-import { toArabicDigits } from './discover-all-constants';
+import { arabicCount, toArabicDigits } from './discover-all-constants';
 
 /**
  * Batch HOME — the magazine body (S1..S12, Kickstarter home parity, Wathba-
@@ -419,7 +419,7 @@ function StageFunded({ p }: { p: ApiHomeProjectCard }) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12.5 }}>
         <Num style={{ fontWeight: 700, color: 'var(--on-scrim-accent)' }}>%{toArabicDigits(p.fundedPct)}</Num>
-        <Num style={{ color: 'var(--stage-muted)' }}>{p.backersCount} داعم</Num>
+        <Num style={{ color: 'var(--stage-muted)' }}>{arabicCount(p.backersCount)} داعم</Num>
       </div>
     </div>
   );

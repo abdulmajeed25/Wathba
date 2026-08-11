@@ -1,7 +1,7 @@
 import { Num } from './wathba-icons';
 
 import type { HeroSlideData } from './wathba-hero-rotator';
-import { toArabicDigits } from './discover-all-constants';
+import { arabicCount, toArabicDigits } from './discover-all-constants';
 
 /**
  * Batch HERO — one slide's card body, as a SERVER component.
@@ -27,10 +27,16 @@ const REGION_AR: Record<string, string> = {
 };
 
 /**
- * Latin digits, matching fmtNum() in wathba-data.ts, which is what this card
- * showed before it rotated. The site is not internally consistent about numerals
- * — the discover cards use Arabic-Indic — but the hero is not the place to start
- * changing that, so it holds the convention it already had.
+ * MONEY ONLY, now that the name is honest.
+ *
+ * This used to format the backer COUNT as well, with a note saying it matched
+ * fmtNum() in wathba-data.ts and that the hero was not the place to start
+ * fixing the site's numeral inconsistency. fmtNum counts in Arabic-Indic now,
+ * so holding Latin here would CREATE the inconsistency that comment was
+ * avoiding: «1420 داعم» in the hero above «١٬٤٢٠ داعم» on the card below it.
+ *
+ * Money stays Latin deliberately — formatSar pins ar-SA-u-nu-latn for the same
+ * reason — so `sar()` below is the only caller left.
  */
 const money = new Intl.NumberFormat('en-US');
 const sar = (halalas: string): string => money.format(Math.round(Number(halalas) / 100));
@@ -190,12 +196,12 @@ export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
         </div>
         <div style={{ textAlign: 'center' }}>
           <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
-            {money.format(p.backersCount)}
+            {arabicCount(p.backersCount)}
           </Num>
           <div style={{ fontSize: 11, color: 'var(--muted2)' }}>داعم</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{p.daysLeft}</Num>
+          <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{toArabicDigits(p.daysLeft)}</Num>
           <div style={{ fontSize: 11, color: 'var(--muted2)' }}>يوم متبقٍ</div>
         </div>
       </div>

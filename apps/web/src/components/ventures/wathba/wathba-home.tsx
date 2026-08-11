@@ -1181,7 +1181,7 @@ export function WathbaHome({
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
-                      {featured.daysLeft}
+                      {toArabicDigits(featured.daysLeft)}
                     </Num>
                     <div style={{ fontSize: 11, color: 'var(--muted2)' }}>يوم متبقٍ</div>
                   </div>
