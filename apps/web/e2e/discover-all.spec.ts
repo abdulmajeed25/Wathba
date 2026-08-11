@@ -65,7 +65,26 @@ test('discover-all: signed-in user bookmarks a card then filters by saved', asyn
   await page.goto('/projects/discover-all');
   const firstCard = page.locator('[data-testid="discover-card"]').first();
   await expect(firstCard).toBeVisible();
+
+  // WAIT FOR THE WRITE, not for the button.
+  //
+  // The toggle is OPTIMISTIC: it calls setSaved(next) immediately and only then
+  // POSTs /api/bookmarks/<id>, rolling back if the request fails. So
+  // aria-pressed flips to true before the server has stored anything — waiting
+  // on the button's own state would look like a fix and change nothing.
+  //
+  // The next line navigates. If the POST has not landed, the server renders
+  // `only=saved` against a user with no bookmarks and the assertion below finds
+  // zero cards; worse, the navigation can abort the request outright. That is
+  // the whole flake: it passed whenever the POST happened to win the race.
+  //
+  // Registered BEFORE the click, or the response can arrive while the waiter is
+  // still being set up.
+  const saved = page.waitForResponse(
+    (r) => /\/api\/bookmarks\//.test(r.url()) && r.request().method() === 'POST' && r.ok(),
+  );
   await firstCard.getByTestId('bookmark-toggle').click();
+  await saved;
 
   // Enable the "saved only" filter (visible only when signed in).
   await page.getByTestId('only-saved').click();
