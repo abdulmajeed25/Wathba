@@ -41,7 +41,11 @@ interface PromotedRow {
 }
 
 interface DiscoveryDto {
-  window: { from: string | null; to: string | null; days: number };
+  // `defaultDays`, NOT `days`. The API's ResolvedWindow has always called it
+  // defaultDays; this DTO invented `days`, so data.window.days was undefined
+  // and arInt(undefined) threw — the whole board answered HTTP 500. A hand
+  // written DTO that disagrees with the service compiles perfectly.
+  window: { from: string | null; to: string | null; defaultDays: number };
   applied: AppliedRow[];
   promoted: PromotedRow[];
   notes: { privacy: string; seeds: string };
@@ -183,7 +187,7 @@ export default async function OpsDiscoveryPage({
           <section className="mt-9">
             <h2 className="text-base font-bold text-[#c9d1d9]">الأكثر تطبيقاً في المدة</h2>
             <p className="mb-3 mt-1 text-xs text-[#8b949e]">
-              {arInt(data.window.days)} يوماً · {data.notes.privacy}
+              {arInt(data.window.defaultDays)} يوماً · {data.notes.privacy}
             </p>
             <table className="w-full border-collapse">
               <thead>
