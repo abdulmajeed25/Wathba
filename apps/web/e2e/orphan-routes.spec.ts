@@ -28,40 +28,79 @@ test('O1: the deleted routes no longer serve a fixture page', async ({ page }) =
 });
 
 /**
- * KNOWN DEFECT, pre-existing and NOT fixed here — deliberately left as a
- * failing marker rather than omitted, because a spec that simply does not
- * mention the status code would read as though the status were fine.
+ * SOLVED. This was a `test.fixme` for several batches: every notFound() under
+ * /projects/* rendered the right 404 BODY and answered HTTP 200, so search
+ * engines kept the URLs indexed as soft-404s.
  *
- * Every notFound() under /projects/* renders the right 404 BODY but answers
- * HTTP 200. It is not caused by this change: the pre-existing notFound() in
- * /projects/[id]/(campaign)/updates/[updateId] behaves identically. Meanwhile
- * /stories/<bogus> and /p/<bogus> both answer a correct 404, so it is scoped to
- * the /projects subtree.
+ * THE CAUSE WAS `app/projects/loading.tsx`. A loading.tsx wraps its whole
+ * segment in a Suspense boundary, and Next flushes the shell — committing the
+ * 200 — before the page below it resolves. A notFound() thrown after that can
+ * still swap the BODY, but the status line has already gone out on the wire.
+ * That file sat at the root of the subtree, so it covered every route beneath
+ * it, and every loading.tsx in the entire app was under /projects — which is
+ * exactly why this subtree was the only one affected.
  *
- * The obvious suspect — the 'use client' WathbaProviders layout at
- * app/projects/layout.tsx committing a 200 before notFound() can run — was
- * TESTED AND DISPROVED: rebuilding with that layout reduced to a plain server
- * passthrough still returned 200. The real cause is not yet known.
+ * It explains each earlier dead end, which is how the diagnosis was confirmed:
  *
- * Impact: search engines treat a 200 as a live page, so these URLs stay
- * indexable as soft-404s. Worth its own investigation.
+ *  · Reducing the 'use client' layout to a passthrough changed nothing — the
+ *    boundary is created by loading.tsx, not by the layout.
+ *  · Moving the check into generateMetadata changed the TITLE but not the
+ *    status — metadata is part of the shell that has already been flushed.
+ *  · /nope, /u/{unknown}, /stories/{unknown}, /rules/{unknown} all answered 404
+ *    in the same build — none of them has a loading.tsx anywhere above it.
  *
- * Batch PAGE-PARITY U4 narrowed it further and did NOT solve it:
+ * `app/projects/discover/[catSlug]/loading.tsx` was the same defect one level
+ * down and is gone for the same reason.
  *
- *  · Moving the existence check into the page's generateMetadata — which runs
- *    before the shell is committed — changed the TITLE but not the status.
- *    /projects/this-does-not-exist was «مشروع this-does-not-exist · وثبة» and
- *    is now «وثبة», so notFound() is demonstrably firing early. Still 200.
- *  · Every 404 OUTSIDE this subtree answers correctly: /nope, /u/{unknown},
- *    /stories/{unknown} and /rules/{unknown} all return 404 in the same build.
- *
- * So it is specific to the /projects tree and survives an early notFound(),
- * which rules out "the check runs too late" as the explanation. The fabricated
- * title is fixed regardless; the status is not.
+ * STILL SOFT-404, deliberately: /projects/<real-id>/updates/<bogus-update-id>.
+ * Its nearest boundary is `[id]/(campaign)/loading.tsx`, so fixing it means
+ * giving up the skeleton on the campaign tabs — the heaviest and most-visited
+ * pages on the site — to correct a deep sub-resource URL that is far less
+ * likely to be indexed than a project or a category. Measured, not assumed:
+ * removing `updates/loading.tsx` alone does NOT fix it, because the (campaign)
+ * boundary above simply takes over. See O2b.
  */
-test.fixme('O2: /projects/* 404s should answer HTTP 404, not 200', async ({ request }) => {
-  const res = await request.get('/projects/zzz-nonexistent-abc', { maxRedirects: 0 });
-  expect(res.status()).toBe(404);
+test('O2: /projects/* 404s answer HTTP 404, not 200', async ({ request }) => {
+  for (const path of [
+    '/projects/zzz-nonexistent-abc',
+    '/projects/zzz-nonexistent-abc/rewards',
+    '/projects/discover/zzz-nonexistent-cat',
+    '/projects/discover/technology/zzz-nonexistent-sub',
+  ]) {
+    const res = await request.get(path, { maxRedirects: 0 });
+    expect(res.status(), `${path} must answer 404`).toBe(404);
+  }
+
+  // ...and the real pages in the same subtree still answer 200, so this cannot
+  // pass by the routes having broken outright.
+  for (const path of ['/projects', '/projects/discover-all']) {
+    const res = await request.get(path, { maxRedirects: 0 });
+    expect(res.status(), `${path} must still answer 200`).toBe(200);
+  }
+});
+
+test('O2b: no loading.tsx sits above a route that calls notFound()', async () => {
+  // THE REGRESSION VECTOR. The fix is two deleted files, and nothing about
+  // adding a loading.tsx announces that it silently converts every 404 beneath
+  // it into a 200 — the page still renders the right body, so it looks fine.
+  // This fails the moment one reappears at either place.
+  const { readdirSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const appDir = join(__dirname, '..', 'src', 'app');
+
+  const banned = [
+    join(appDir, 'projects', 'loading.tsx'),
+    join(appDir, 'projects', 'discover', '[catSlug]', 'loading.tsx'),
+  ];
+  const present = banned.filter((f) => existsSync(f));
+  expect(
+    present.map((f) => f.slice(appDir.length + 1)),
+    'a loading.tsx here re-commits a 200 before notFound() can set the status',
+  ).toEqual([]);
+
+  // Guard the shape rather than only the two known paths: a loading.tsx
+  // directly beside a page that calls notFound() has the same effect.
+  expect(readdirSync(join(appDir, 'projects')).includes('loading.tsx')).toBe(false);
 });
 
 test('O3: /projects/v2030 permanently redirects to the real discovery page', async ({
