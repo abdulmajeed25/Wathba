@@ -56,7 +56,7 @@
 - [ ] **Set:**
   - API: `CORS_ORIGINS=https://<web-domain>` · `APP_PUBLIC_URL=https://<web-domain>` · `WEB_BASE_URL=https://<web-domain>` · a strong `JWT_SECRET` (≥16 chars, the boot check enforces this) · `DEVICE_HASH_SALT=` (random) · `DATABASE_URL=` (managed Postgres with `pgvector` + `pgcrypto`).
   - Web: `NEXT_PUBLIC_API_URL=https://<api-domain>`
-- [ ] **Post-deploy DB steps (one-time, not in the migration chain):** apply `apps/api/prisma/_raw/searchVector.sql` (Arabic FTS — discover/search 500s without it) after `prisma migrate deploy`.
+- [x] ~~**Post-deploy DB steps:** apply `apps/api/prisma/_raw/searchVector.sql`~~ — **no longer a step, and must NOT be done.** Migration `0062_arabic_search` brought the tsvector column into the chain and the sidecar is deleted, so `prisma migrate deploy` covers it. Running the old sidecar afterwards rebuilds the column on the diacritics-only function and silently disables hamza / digit folding — no error, just fewer results.
 - [ ] **Verify:** `https://<web-domain>` serves over TLS; sign-in works; `GET https://<api-domain>/v1/platform/status` returns `{maintenance:false}`; discovery/search return results (searchVector applied).
 
 ---

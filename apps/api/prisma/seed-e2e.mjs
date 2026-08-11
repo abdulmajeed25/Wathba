@@ -4,6 +4,8 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { seedCategories } from './seed-categories.mjs';
 import { seedCollections } from './seed-collections.mjs';
+import { seedTags } from './seed-tags.mjs';
+import { seedSearchFixtures } from './seed-e2e-search.mjs';
 
 const prisma = new PrismaClient();
 const EMAIL = 'smoke-s1@test.wathba.sa';
@@ -13,6 +15,9 @@ async function main() {
   await seedCategories(prisma);
   // Batch DISC — the 5 example collections (inactive placeholders).
   await seedCollections(prisma);
+  // DISCOVERY-ENGINE Unit 1 — the curated tag vocabulary, which the tag facet
+  // and the search suggest dropdown both read.
+  await seedTags(prisma);
 
   const passwordHash = await bcrypt.hash('Str0ngPass!x', 12);
   const admin = await prisma.user.upsert({
@@ -63,6 +68,11 @@ async function main() {
   if (ownerRole) {
     await prisma.opsRoleGrant.deleteMany({ where: { userId: finance.id } });
   }
+
+  // The Arabic reference content arabic-search.spec.ts searches for. Without
+  // it that spec fails 6 and skips 2 — which nobody saw, because the suite was
+  // silently running against the demo database (#172).
+  await seedSearchFixtures(prisma);
 
   console.log('[seed-e2e] admin/creator ready:', EMAIL, '+ finance fixture (no money role)');
 }
