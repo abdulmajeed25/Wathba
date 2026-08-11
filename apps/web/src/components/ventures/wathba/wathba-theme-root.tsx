@@ -30,10 +30,26 @@ import { resolveTheme, SSR_THEME, THEME_INIT_SCRIPT } from './wathba-theme';
  *
  * DELIBERATE DUPLICATION, for now. `WathbaShell` still carries its own copy of
  * this wrapper. Collapsing it onto this primitive means handing the header a
- * setter, and the homepage carries measured LCP ≤704ms / CLS ≤0.0012 gates that
- * a restructure of its root would put at risk for no user-visible gain. The
- * dashboard is what has no theme today, so that is what this fixes. Unifying
- * the two is a follow-up with the homepage gates re-measured, not a drive-by.
+ * setter, and the dashboard is what had no theme at all, so that is what this
+ * fixed first.
+ *
+ * THE ORIGINAL REASON GIVEN HERE WAS WRONG, and it is corrected rather than
+ * deleted because it was repeated forward for several batches. It said the
+ * homepage carries «measured LCP ≤704ms / CLS ≤0.0012 gates» that a restructure
+ * would risk. Those are historical MEASUREMENTS, not gates: nothing in the
+ * suite asserts an LCP budget at all, and the only enforced stability gate is
+ * batch-polish-cls.spec.ts at CLS < 0.1 on /projects, /projects/discover-all
+ * and /spotlight — roughly eighty times looser than the number quoted. Anyone
+ * weighing unification should weigh it against that, not against 0.0012.
+ *
+ * THE REAL ASYMMETRY, which is worth knowing before merging them: this file
+ * declares TAILWIND_THEME_KEYS and `WathbaShell` does not. Measured across the
+ * public site and every campaign tab in dark, that costs nothing today — zero
+ * contrast failures — because the pages inside the shell reach for the ventures
+ * variables directly rather than the Tailwind token utilities. It would start
+ * costing the moment one of them used `text-fg-muted`, which is exactly how
+ * /sign-in's subtitle reached 1.98:1. That, not a perf budget, is the thing
+ * unification has to preserve.
  */
 /**
  * The Tailwind `@theme` keys, re-declared inside the themed scope.

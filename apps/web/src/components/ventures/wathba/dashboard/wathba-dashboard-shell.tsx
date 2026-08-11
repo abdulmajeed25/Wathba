@@ -12,6 +12,14 @@ import { Icon } from '../wathba-icons';
  * managed section listed in the engagement+dashboard spec (§I). The nav is
  * always visible (no hide-on-mobile collapse — KSA SMB Arabic SMB pattern,
  * per the Hraj F1 standing rule).
+ *
+ * THAT RULE IS NOT DEFINED ANYWHERE IN THIS REPOSITORY. Searched the working
+ * tree, every commit message, and every revision that ever touched the string:
+ * this comment is its only record, added with the shell itself in 6954f30. It
+ * is honoured here as written — the mobile pass changed the nav's AXIS, never
+ * its presence — but a constraint with no definition cannot be checked, and the
+ * next person to touch this is entitled to know that rather than assume there
+ * is a document behind it.
  */
 
 interface NavItem {
