@@ -49,16 +49,28 @@ test('O1: the deleted routes no longer serve a fixture page', async ({ page }) =
  *  · /nope, /u/{unknown}, /stories/{unknown}, /rules/{unknown} all answered 404
  *    in the same build — none of them has a loading.tsx anywhere above it.
  *
- * `app/projects/discover/[catSlug]/loading.tsx` was the same defect one level
- * down and is gone for the same reason.
+ * Three more were the same defect further down and are gone for the same
+ * reason: `discover/[catSlug]/loading.tsx`, `[id]/(campaign)/loading.tsx` and
+ * `[id]/(campaign)/updates/loading.tsx`.
  *
- * STILL SOFT-404, deliberately: /projects/<real-id>/updates/<bogus-update-id>.
- * Its nearest boundary is `[id]/(campaign)/loading.tsx`, so fixing it means
- * giving up the skeleton on the campaign tabs — the heaviest and most-visited
- * pages on the site — to correct a deep sub-resource URL that is far less
- * likely to be indexed than a project or a category. Measured, not assumed:
- * removing `updates/loading.tsx` alone does NOT fix it, because the (campaign)
- * boundary above simply takes over. See O2b.
+ * THE DEEPEST CASE NEEDED BOTH CAMPAIGN FILES, which is worth recording
+ * because removing one looks like it should be enough and is not: with only
+ * `updates/loading.tsx` gone, the `(campaign)` boundary directly above simply
+ * takes over and /projects/<real>/updates/<bogus> still answered 200. A
+ * boundary anywhere on the path is enough to lose the status.
+ *
+ * WHAT IT COST, measured rather than argued. Those routes no longer stream a
+ * skeleton; they block until their data resolves:
+ *
+ *              TTFB median      TOTAL median
+ *   campaign    29ms -> 111ms    32ms -> 67ms
+ *   updates     32ms ->  82ms    37ms -> 59ms
+ *
+ * So the reader gets the whole page at ~67ms instead of a skeleton at ~29ms
+ * followed by content at ~32ms. Nothing on these routes is slow enough for a
+ * skeleton to earn its keep, and an indexable URL answering 200 for a page
+ * that does not exist costs more than 40ms of TTFB. The remaining tab-level
+ * loading.tsx files are untouched — none of them sits above a notFound().
  */
 test('O2: /projects/* 404s answer HTTP 404, not 200', async ({ request }) => {
   for (const path of [
@@ -70,6 +82,19 @@ test('O2: /projects/* 404s answer HTTP 404, not 200', async ({ request }) => {
     const res = await request.get(path, { maxRedirects: 0 });
     expect(res.status(), `${path} must answer 404`).toBe(404);
   }
+
+  // The deepest case: a REAL project, a bogus sub-resource. This one also
+  // fabricated a title from the bogus slug — «تحديث zzz-bogus · وثبة» — so a
+  // crawler saw a plausible page rather than a 404.
+  const live = await request.get('/projects/discover-all');
+  const id = (await live.text()).match(/\/projects\/([0-9a-f-]{36})"/)?.[1];
+  expect(id, 'no live project found to test a nested 404 against').toBeTruthy();
+  const nested = await request.get(`/projects/${id}/updates/zzz-bogus-update`, { maxRedirects: 0 });
+  expect(nested.status(), 'a bogus update under a real project must answer 404').toBe(404);
+  // ...and the real tab beside it still answers 200, so the assertion above
+  // cannot pass by the whole campaign subtree having broken.
+  const realTab = await request.get(`/projects/${id}/updates`, { maxRedirects: 0 });
+  expect(realTab.status(), 'the real updates tab must still answer 200').toBe(200);
 
   // ...and the real pages in the same subtree still answer 200, so this cannot
   // pass by the routes having broken outright.
@@ -91,6 +116,11 @@ test('O2b: no loading.tsx sits above a route that calls notFound()', async () =>
   const banned = [
     join(appDir, 'projects', 'loading.tsx'),
     join(appDir, 'projects', 'discover', '[catSlug]', 'loading.tsx'),
+    // Both of these, not either. With only the updates one restored the
+    // (campaign) boundary above takes over and the 404 is lost again — a
+    // boundary ANYWHERE on the path is enough.
+    join(appDir, 'projects', '[id]', '(campaign)', 'loading.tsx'),
+    join(appDir, 'projects', '[id]', '(campaign)', 'updates', 'loading.tsx'),
   ];
   const present = banned.filter((f) => existsSync(f));
   expect(
