@@ -44,18 +44,61 @@ test('AS1: hamza is optional — the headline defect', async () => {
   expect(bare.items.map((i) => i.id).sort()).toEqual(hamza.items.map((i) => i.id).sort());
 });
 
+/**
+ * BOTH OF THESE ASSERTED TWO EMPTY SETS ARE EQUAL, and `[]` equals `[]`.
+ *
+ * On a database without the reference content — which is every database except
+ * the demo one — each query returned nothing, the comparison held, and the two
+ * tests guarding the headline features of this unit reported green while
+ * proving that the normaliser had folded exactly nothing. Set equality is the
+ * right assertion for "these agree"; it is worthless without a precondition
+ * that there was something to agree about.
+ *
+ * AS1 already got this right one test above: it asserts the reference query
+ * returned rows BEFORE comparing. These now do the same.
+ */
+/**
+ * THE REFERENCE TERMS ARE CHOSEN FROM TRACKED SEED TEXT, deliberately.
+ *
+ * The originals were «مصطفى/مصطفي» and «٢٠٣٠/2030», and NEITHER EXISTS in any
+ * database — 0 hits on both sides, on the demo DB too. Combined with the
+ * missing precondition above, that is why these two proved nothing anywhere.
+ * Replacing them with terms that merely happen to be present today would swap
+ * one accident for another, so each is traceable to a seed file in the repo:
+ *
+ *   «تقنية»  categories.data.mjs        4 hits   ta-marbuta
+ *   «حتى»    seed-project-stories.mjs  24 hits   alef-maksura
+ *   «٢٠٠»    seeded storyAr literal     2 hits   Arabic-Indic digits
+ *
+ * If one of them ever stops matching, the precondition says so by name rather
+ * than quietly reducing the test to `[] === []`.
+ */
 test('AS2: ta-marbuta and alef-maksura fold too', async () => {
-  for (const [a, b] of [['تقنية', 'تقنيه'], ['مصطفى', 'مصطفي']]) {
-    const [x, y] = await Promise.all([search(a), search(b)]);
-    expect(x.items.map((i) => i.id).sort(), `«${a}» and «${b}» disagree`).toEqual(
+  // First of each pair is the spelling the DATA uses; second is what a reader
+  // types instead. The fold has to make them the same query.
+  for (const [seeded, typed] of [['تقنية', 'تقنيه'], ['حتى', 'حتي']]) {
+    const [x, y] = await Promise.all([search(seeded), search(typed)]);
+    expect(
+      x.items.length,
+      `«${seeded}» returned nothing — the reference content is missing, so no folding is under test`,
+    ).toBeGreaterThan(0);
+    expect(x.items.map((i) => i.id).sort(), `«${seeded}» and «${typed}» disagree`).toEqual(
       y.items.map((i) => i.id).sort(),
     );
   }
 });
 
 test('AS3: Arabic-Indic digits find their ASCII twins', async () => {
-  const [ar, ascii] = await Promise.all([search('٢٠٣٠'), search('2030')]);
-  expect(ar.items.map((i) => i.id).sort()).toEqual(ascii.items.map((i) => i.id).sort());
+  // This direction round, because it is the one readers hit: the seeded Arabic
+  // copy writes «٢٠٠», and a reader on a Latin keyboard types «200».
+  const [ar, ascii] = await Promise.all([search('٢٠٠'), search('200')]);
+  expect(
+    ar.items.length,
+    '«٢٠٠» returned nothing — the reference content is missing, so no digit folding is under test',
+  ).toBeGreaterThan(0);
+  expect(ascii.items.map((i) => i.id).sort(), '«200» does not find what «٢٠٠» finds').toEqual(
+    ar.items.map((i) => i.id).sort(),
+  );
 });
 
 test('AS4: a partial word matches — a typeahead has to be a typeahead', async () => {
