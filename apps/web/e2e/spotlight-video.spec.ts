@@ -20,13 +20,31 @@ test('SV1: cards with a video advertise it, and hovering plays one', async ({ pa
   const n = await glyphs.count();
   expect(n, '/spotlight advertises no card video at all').toBeGreaterThan(0);
 
+  // A CARD, explicitly — `glyphs.first()` used to be hovered directly, and the
+  // hero also renders this glyph when its project has a video. Which one came
+  // first was therefore a property of the DATA, and on a catalogue where the
+  // hero's project has a video this test hovered the hero and failed.
+  //
+  // It is not hoverable in the way this test means: the hero's copy block sits
+  // over the cover, so a hover at the section's centre lands on the <h1> and
+  // never reaches the WathbaCardVideo wrapper. Playwright says so outright —
+  // "<h1 id="spotlight-hero-title"> from <div>…</div> subtree intercepts
+  // pointer events".
+  //
+  // WORTH KNOWING, and deliberately NOT asserted here: that means the hero can
+  // advertise a video the reader cannot start by hovering the obvious part of
+  // it. Whether the hero should play on hover at all is a design question about
+  // the LCP element, not something this test should decide by accident.
+  const cardGlyphs = page.locator(`a:has(${GLYPH}) ${GLYPH}`);
+  expect(await cardGlyphs.count(), 'no CARD advertises a video — only the hero does').toBeGreaterThan(0);
+
   // Nothing is fetched before hover.
   await expect(page.locator('video')).toHaveCount(0);
 
   // Past the LCP guard, or the hover is correctly ignored.
   await page.waitForTimeout(LCP_PROTECTION_MS + 100);
 
-  const card = glyphs.first().locator('xpath=..');
+  const card = cardGlyphs.first().locator('xpath=..');
   await card.scrollIntoViewIfNeeded();
   await card.hover();
 

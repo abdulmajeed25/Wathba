@@ -150,10 +150,25 @@ for (const [w, h] of [
       // CSP or storage failure would otherwise be measured as a real contrast
       // result. If this never resolves the hero genuinely has no ground, and
       // failing loudly here is correct.
+      // ATTACHED FIRST, THEN DECODED — and `!img` is no longer an escape.
+      //
+      // The predicate below used to begin `!img ||`, so a run that evaluated it
+      // before React had put the cover in the DOM passed INSTANTLY and sampled
+      // a hero with no ground: white ink over the bare page surface, which
+      // measures right around 3.9. That is what this test reported
+      // intermittently — 3.88 in one full run, flaky in another, and a clean
+      // 5.26 whenever it was run on its own. "No image" and "image not there
+      // YET" are not the same state, and the old wait could not tell them
+      // apart.
+      //
+      // A hero with genuinely no cover now fails here instead of being
+      // measured. That is the honest outcome for a test whose subject is "the
+      // real cover pixels": with no cover there is nothing it can assert.
+      await expect(page.locator(`${HERO} img`).first()).toBeAttached({ timeout: 15000 });
       await page.waitForFunction(
         (sel) => {
           const img = document.querySelector(sel)?.querySelector('img');
-          return !img || (img.complete && img.naturalWidth > 0);
+          return !!img && img.complete && img.naturalWidth > 0;
         },
         HERO,
         { timeout: 15000 },
