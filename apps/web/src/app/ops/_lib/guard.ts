@@ -62,6 +62,12 @@ export async function requireAdmin(): Promise<{ token: string }> {
 }
 
 export interface OpsSessionInfo {
+  // The live four-eyes state, auto-on at the 2nd money admin. Returned by
+  // /v1/ops/auth/session all along and simply not declared here, so every
+  // caller silently dropped it — which is how the vault badge ended up
+  // hardcoding a state it never asked for.
+  fourEyes: boolean;
+  moneyAdmins: number;
   email: string;
   roles: string[];
   totpEnabled: boolean;
