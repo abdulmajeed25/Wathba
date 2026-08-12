@@ -331,6 +331,63 @@ export function WathbaShell({
               font-size:14px;padding:11px 19px;border-radius:13px;text-decoration:none;display:inline-block;
             }
 
+            /* ── Batch ACCOUNT / U5 — /following, /recommendations ───────── */
+            [data-pillar="ventures"] .wathba-follow-page{max-width:720px;margin:0 auto;padding:28px 16px 64px}
+            [data-pillar="ventures"] .wathba-follow-page h1{font-size:24px;font-weight:800;margin:0 0 4px}
+            [data-pillar="ventures"] .wathba-follow-lede{
+              font-size:13.5px;color:var(--muted2);margin:0 0 18px;line-height:1.8;
+            }
+            [data-pillar="ventures"] .wathba-follow-lede a{color:var(--accent-ink)}
+            [data-pillar="ventures"] .wathba-follow-tabs{
+              display:flex;gap:4px;border-bottom:1px solid rgba(var(--ink-rgb),.1);margin-bottom:14px;
+            }
+            [data-pillar="ventures"] .wathba-follow-tabs button{
+              border:none;background:transparent;cursor:pointer;font-family:inherit;
+              padding:9px 12px;font-size:14px;font-weight:500;color:var(--muted);
+              border-bottom:2px solid transparent;
+              transition:color var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-follow-tabs button:hover{color:var(--text)}
+            [data-pillar="ventures"] .wathba-follow-tabs button.is-active{
+              font-weight:700;color:var(--accent-ink);border-bottom-color:var(--accent);
+            }
+            [data-pillar="ventures"] .wathba-follow-tabs button:focus-visible,
+            [data-pillar="ventures"] .wathba-follow-list button:focus-visible,
+            [data-pillar="ventures"] .wathba-follow-empty a:focus-visible{
+              outline:2px solid var(--accent);outline-offset:2px;
+            }
+            [data-pillar="ventures"] .wathba-follow-skeletons span{
+              display:block;height:62px;border-radius:12px;background:rgba(var(--ink-rgb),.06);margin-bottom:8px;
+            }
+            [data-pillar="ventures"] .wathba-follow-empty{text-align:center;padding:36px 16px}
+            [data-pillar="ventures"] .wathba-follow-empty p{
+              font-size:14px;color:var(--muted2);line-height:1.9;margin:0 0 14px;
+            }
+            [data-pillar="ventures"] .wathba-follow-empty a{
+              display:inline-block;background:var(--grad);color:var(--on-accent);
+              font-weight:700;font-size:14px;padding:10px 20px;border-radius:12px;text-decoration:none;
+            }
+            [data-pillar="ventures"] .wathba-follow-list{
+              list-style:none;padding:0;margin:0;display:grid;gap:8px;
+            }
+            [data-pillar="ventures"] .wathba-follow-list li{
+              display:flex;align-items:center;gap:12px;padding:12px 14px;
+              border:1px solid rgba(var(--ink-rgb),.1);border-radius:12px;
+            }
+            [data-pillar="ventures"] .wathba-follow-list li > div{min-width:0;flex:1}
+            [data-pillar="ventures"] .wathba-follow-list li a{
+              font-size:14.5px;font-weight:700;color:var(--text);text-decoration:none;
+              display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            }
+            [data-pillar="ventures"] .wathba-follow-list li span{font-size:12px;color:var(--muted2)}
+            [data-pillar="ventures"] .wathba-follow-list li button{
+              border:1px solid rgba(var(--ink-rgb),.14);background:transparent;color:var(--muted);
+              font-family:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:10px;cursor:pointer;
+              transition:background var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-follow-list li button:hover{background:rgba(var(--ink-rgb),.05)}
+            [data-pillar="ventures"] .wathba-follow-list li button:disabled{opacity:.5;cursor:progress}
+
             /* Motion is a courtesy, not a requirement. */
             @media (prefers-reduced-motion: reduce){
               [data-pillar="ventures"] .wathba-account-panel{animation:none}
