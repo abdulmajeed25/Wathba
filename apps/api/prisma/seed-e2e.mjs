@@ -30,7 +30,18 @@ async function main() {
   // The demo catalogue — the same tracked seeds the demo database is built
   // from, so there is one definition of what a populated Wathba looks like
   // rather than two that drift. ~45s.
-  await seedCatalogue();
+  //
+  // seedCatalogue RETURNS its failures instead of throwing, because run
+  // standalone it wants to attempt all eleven and report them together rather
+  // than stopping at the first. Discarding that return value made THIS script
+  // exit 0 over a half-seeded database — and the runner's `|| true` was only
+  // the second of two places that had agreed to ignore it. Either one alone
+  // was enough to turn a broken seed into twenty minutes of content-shaped
+  // test failures that read as product bugs.
+  const { failed } = await seedCatalogue();
+  if (failed.length) {
+    throw new Error(`catalogue seed incomplete — ${failed.length} script(s) failed: ${failed.join(', ')}`);
+  }
 
   const passwordHash = await bcrypt.hash('Str0ngPass!x', 12);
   const admin = await prisma.user.upsert({

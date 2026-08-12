@@ -18,8 +18,7 @@
 #   API_PORT       default 4001        WEB_PORT   default 3123
 #   E2E_LOG_DIR    where server logs land; default $TMPDIR
 #
-# THREE WAYS THIS REPORTED SUCCESS IT HAD NOT EARNED, all fixed below and all
-# found the same afternoon:
+# FOUR WAYS THIS REPORTED SUCCESS IT HAD NOT EARNED, all fixed below:
 #
 #  1. It never checked the ports were free. The API died on EADDRINUSE, wait-on
 #     was satisfied by whatever stranger already held the port, and the suite
@@ -31,6 +30,9 @@
 #     something else answers the health check.
 #  3. `echo "PLAYWRIGHT_EXIT=$?"` was the LAST command, so the script's exit
 #     status was echo's. It exited 0 over a red suite, every time.
+#  4. It seeded with `|| true`, so a half-seeded database ran the full suite
+#     anyway. The first three were about not knowing WHAT was being tested;
+#     this one was about not knowing what it was being tested AGAINST.
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -114,7 +116,15 @@ wait_for "$API_PID" "http://localhost:${API_PORT}/v1/health/live" "API" || {
 }
 
 echo "== seed =="
-node apps/api/prisma/seed-e2e.mjs || true
+# NOT `|| true`. A seed that fails here does not go away — it comes back
+# fifteen minutes later as content-shaped failures that read as product bugs,
+# which is the exact trade the catalogue file exists to stop making. Two places
+# had to agree to ignore it: this, and seed-e2e.mjs discarding seedCatalogue's
+# returned failure list. Both now refuse.
+if ! node apps/api/prisma/seed-e2e.mjs; then
+  echo "FATAL: seed failed — refusing to run the suite against a dataset nobody can vouch for."
+  exit 5
+fi
 
 echo "== boot WEB :${WEB_PORT} (standalone) =="
 ( cd apps/web && PORT="$WEB_PORT" HOSTNAME=0.0.0.0 node .next/standalone/apps/web/server.js ) > "${LOG_DIR}/e2e-web.log" 2>&1 &
