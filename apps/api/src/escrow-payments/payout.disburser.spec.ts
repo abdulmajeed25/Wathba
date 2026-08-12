@@ -76,7 +76,14 @@ function makePrisma(pending: any[]): any {
     },
     // STAKES follow-up — creator + project lookups for the payout-sent comms.
     user: { findUnique: jest.fn().mockResolvedValue({ email: 'creator@test.sa' }) },
-    project: { findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع' }) },
+    project: {
+      findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع' }),
+      // Batch ACCOUNT — the disburser now stamps Project.settledAt when a
+      // payout reaches SENT. Added to the double because the double must
+      // mirror the client the code actually calls; without it the suite failed
+      // on a missing method and said nothing about the behaviour.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
   };
 }
 
