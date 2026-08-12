@@ -203,6 +203,34 @@ export function WathbaShell({
               [data-pillar="ventures"] .wathba-account-slot{min-width:59px}
             }
 
+            /* ── Batch ACCOUNT — the account panel becomes a bottom sheet ────
+               Below the md breakpoint a 620px two-column panel anchored to the
+               avatar cannot fit, and shrinking it to a 220px dropdown is how
+               the mobile menu drifted from the desktop one in the first place
+               (two hand-maintained lists — see the audit). Same markup, same
+               order, re-laid out: projects column first, because on a phone the
+               creator opening this menu is far likelier to want a campaign than
+               their settings. */
+            [data-pillar="ventures"] .wathba-account-cols{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}
+            @media (max-width:767px){
+              [data-pillar="ventures"] .wathba-account-panel{
+                position:fixed;inset-inline:0;inset-block-end:0;top:auto;width:auto;max-width:none;
+                border-radius:18px 18px 0 0;padding:8px 10px 18px;max-height:82vh;overflow-y:auto;
+              }
+              /* The drag handle — affordance only, the sheet closes by
+                 outside-click, Esc, or choosing something. */
+              [data-pillar="ventures"] .wathba-account-panel::before{
+                content:"";display:block;width:38px;height:4px;border-radius:999px;margin:2px auto 10px;
+                background:rgba(var(--ink-rgb),.18);
+              }
+              [data-pillar="ventures"] .wathba-account-cols{grid-template-columns:1fr;gap:0}
+              /* Projects first on a phone. */
+              [data-pillar="ventures"] .wathba-account-cols > :last-child{
+                order:-1;border-inline-start:none;padding-inline-start:0;
+                border-block-end:1px solid rgba(var(--ink-rgb),.08);padding-block-end:8px;margin-block-end:8px;
+              }
+            }
+
             /* ── POLISH Unit 2 — reveal-on-scroll ─────────────────────────
                The hidden state exists ONLY inside no-preference, so a
                reduced-motion reader can never end up looking at opacity:0

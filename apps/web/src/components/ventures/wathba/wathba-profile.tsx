@@ -122,10 +122,14 @@ export interface WathbaProfileProps {
   saved?: ApiSavedCard[] | null;
   /** STAKES/S-11 F-18 (C8) — drives the «أكمل ملفك» nudge. */
   me?: ApiUserMe | null;
+  /** Batch ACCOUNT — which tab the ROUTE means. /saved is a place a reader can
+   *  link to and land on, so it must open on its own content rather than on
+   *  «backed» with the real destination one click away. */
+  initialTab?: ProfileTabId;
 }
 
-export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfileProps = {}) {
-  const [tab, setTab] = useState<ProfileTabId>('backed');
+export function WathbaProfile({ backings, saved: savedCards, me, initialTab }: WathbaProfileProps = {}) {
+  const [tab, setTab] = useState<ProfileTabId>(initialTab ?? 'backed');
 
   const list = wathbaProjects.map(deriveProject);
   // Fixture slices that mirror the design's design-time state (lines 1721-1723).

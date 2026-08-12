@@ -310,10 +310,18 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           <div aria-hidden style={{ height: 1, background: 'rgba(var(--ink-rgb),.08)', margin: '6px 0' }} />
           {(me?.signedIn
             ? [
-                { href: '/projects/me/profile', label: 'الملف الشخصي' },
-                ...(me.isCreator ? [{ href: '/projects/dashboard', label: 'لوحة مشاريعي' }] : []),
+                /* Batch ACCOUNT — kept in step with the account panel. This
+                   list had ALREADY drifted from it (it was missing the admin
+                   row and pointed «المشاريع المحفوظة» at a filter), which is
+                   what two hand-maintained copies of one menu always do. The
+                   panel is now a bottom sheet below md, so this list is the
+                   hamburger's own smaller set and no longer a second account
+                   menu — but its destinations must still agree. */
+                { href: '/activity', label: 'النشاط' },
+                { href: '/following', label: 'متابَعاتي' },
+                ...(me.isCreator ? [{ href: '/projects/dashboard', label: 'مشاريعي' }] : []),
                 { href: '/projects/me/pledges', label: 'تعهداتي' },
-                { href: '/projects/discover-all?only=saved', label: 'المشاريع المحفوظة' },
+                { href: '/saved', label: 'المشاريع المحفوظة' },
                 { href: '/projects/notifications', label: 'الإشعارات' },
                 { href: '/projects/settings', label: 'الإعدادات' },
               ]
