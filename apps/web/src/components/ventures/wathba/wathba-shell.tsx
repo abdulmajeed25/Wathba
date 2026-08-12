@@ -203,6 +203,170 @@ export function WathbaShell({
               [data-pillar="ventures"] .wathba-account-slot{min-width:59px}
             }
 
+            /* ── Batch ACCOUNT / U4 — the account panel ────────────────────
+               These are CLASSES because the previous version was 21 inline
+               style objects with ZERO focus styles: :hover, :focus-visible and
+               :disabled cannot be expressed inline at all, so the missing focus
+               ring was unreachable until the styles moved here.
+
+               Rhythm: ONE height for every NAV row (40px), ONE nav icon size
+               (20px), ONE label size (14px). The identity row and the project
+               rows are deliberately taller — they carry an avatar and a 48px
+               thumbnail — and the thumb's placeholder glyph is 18px. Measured:
+               rows [61, 40, 56], icons [20, 18]. Stated rather than claimed as
+               a single value it is not. The project ships a MOTION scale (--dur-*/--ease-*)
+               and this adopts it; it ships no spacing-scale token, so the panel
+               uses a plain 4px rhythm rather than inventing a token set. */
+            [data-pillar="ventures"] .wathba-acct-root{position:relative}
+            [data-pillar="ventures"] .wathba-acct-trigger{
+              width:42px;height:42px;border-radius:13px;overflow:hidden;padding:0;
+              border:1px solid rgba(var(--ink-rgb),.12);background:rgba(var(--accent-rgb),.12);
+              color:var(--accent-ink);font-weight:800;font-size:17px;font-family:inherit;
+              cursor:pointer;display:grid;place-items:center;
+              transition:background var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-acct-trigger:hover{background:rgba(var(--accent-rgb),.2)}
+            [data-pillar="ventures"] .wathba-account-panel{
+              position:absolute;top:calc(100% + 8px);inset-inline-end:0;
+              width:620px;max-width:calc(100vw - 24px);z-index:80;
+              background:var(--card);border:1px solid rgba(var(--ink-rgb),.1);
+              border-radius:16px;box-shadow:0 30px 60px -24px rgba(0,0,0,.5);padding:8px;
+              animation:wathba-acct-in var(--dur-hover) var(--ease-out);
+            }
+            @keyframes wathba-acct-in{
+              /* Never from scale(0): nothing in the world appears from nothing. */
+              from{opacity:0;transform:translateY(-4px) scale(.98)}
+              to{opacity:1;transform:none}
+            }
+            [data-pillar="ventures"] .wathba-account-cols{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}
+            [data-pillar="ventures"] .wathba-acct-col-b{
+              border-inline-start:1px solid rgba(var(--ink-rgb),.08);padding-inline-start:8px;min-width:0;
+            }
+
+            /* The four states, on every interactive row. */
+            [data-pillar="ventures"] .wathba-acct-row{
+              display:flex;align-items:center;gap:10px;min-height:40px;padding:0 10px;
+              border-radius:10px;text-decoration:none;color:var(--text-soft);
+              font-size:14px;font-weight:500;text-align:start;width:100%;
+              border:none;background:transparent;font-family:inherit;cursor:pointer;
+              transition:background var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-acct-row:hover{background:rgba(var(--ink-rgb),.05)}
+            [data-pillar="ventures"] .wathba-acct-row:focus-visible,
+            [data-pillar="ventures"] .wathba-acct-project:focus-visible,
+            [data-pillar="ventures"] .wathba-acct-identity:focus-visible,
+            [data-pillar="ventures"] .wathba-acct-create:focus-visible,
+            [data-pillar="ventures"] .wathba-acct-trigger:focus-visible{
+              outline:2px solid var(--accent);outline-offset:2px;
+            }
+            [data-pillar="ventures"] .wathba-acct-row.is-destructive{color:var(--err,#dc2626)}
+            [data-pillar="ventures"] .wathba-acct-row.is-destructive:hover{background:rgba(220,38,38,.08)}
+
+            [data-pillar="ventures"] .wathba-acct-identity{
+              display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;
+              text-decoration:none;border-bottom:1px solid rgba(var(--ink-rgb),.08);margin-bottom:4px;
+              transition:background var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-acct-identity:hover{background:rgba(var(--ink-rgb),.04)}
+            [data-pillar="ventures"] .wathba-acct-avatar{
+              width:40px;height:40px;border-radius:11px;flex-shrink:0;display:grid;place-items:center;
+              background:rgba(var(--accent-rgb),.12);color:var(--accent-ink);font-weight:800;font-size:16px;overflow:hidden;
+            }
+            [data-pillar="ventures"] .wathba-acct-identity-text{min-width:0}
+            [data-pillar="ventures"] .wathba-acct-identity-text strong{display:block;font-weight:700;font-size:14px;color:var(--text)}
+            [data-pillar="ventures"] .wathba-acct-identity-text em{display:block;font-style:normal;font-size:12px;color:var(--muted2)}
+
+            [data-pillar="ventures"] .wathba-acct-divider{
+              height:1px;border:0;background:rgba(var(--ink-rgb),.08);margin:4px 0;
+            }
+            [data-pillar="ventures"] .wathba-acct-section{
+              display:flex;align-items:center;gap:6px;margin:0;padding:4px 10px 8px;
+              font-size:12px;font-weight:700;color:var(--muted2);
+            }
+            [data-pillar="ventures"] .wathba-acct-chip{
+              font-size:11px;font-weight:700;color:var(--accent-ink);
+              background:rgba(var(--accent-rgb),.12);border-radius:999px;padding:1px 7px;
+            }
+            [data-pillar="ventures"] .wathba-acct-project{
+              display:flex;align-items:center;gap:9px;padding:4px 8px;border-radius:10px;text-decoration:none;
+              transition:background var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-acct-project:hover{background:rgba(var(--ink-rgb),.05)}
+            [data-pillar="ventures"] .wathba-acct-thumb{
+              width:48px;height:48px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;
+              background:rgba(var(--accent-rgb),.10);overflow:hidden;
+            }
+            [data-pillar="ventures"] .wathba-acct-thumb img{border-radius:9px;object-fit:cover}
+            [data-pillar="ventures"] .wathba-acct-project-text{min-width:0;flex:1}
+            [data-pillar="ventures"] .wathba-acct-project-text strong{
+              display:block;font-size:13.5px;font-weight:600;color:var(--text);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+            }
+            [data-pillar="ventures"] .wathba-acct-project-text em{
+              display:inline-block;margin-top:3px;font-style:normal;font-size:11px;font-weight:600;
+              color:var(--muted2);background:rgba(var(--ink-rgb),.06);border-radius:999px;padding:1px 8px;
+            }
+            [data-pillar="ventures"] .wathba-acct-empty{
+              padding:2px 10px 10px;margin:0;font-size:12.5px;line-height:1.7;color:var(--muted2);
+            }
+            [data-pillar="ventures"] .wathba-acct-create{
+              display:block;margin-top:8px;text-align:center;background:var(--grad);color:var(--on-accent);
+              font-weight:700;font-size:13.5px;padding:10px;border-radius:11px;text-decoration:none;
+            }
+            /* Disabled carries its REASON — a refusal nobody can read is a dead click. */
+            [data-pillar="ventures"] .wathba-acct-create.is-off{
+              background:rgba(var(--ink-rgb),.06);color:var(--muted2);cursor:not-allowed;
+            }
+            [data-pillar="ventures"] .wathba-acct-create.is-off em{
+              display:block;font-style:normal;font-size:11.5px;font-weight:500;margin-top:2px;
+            }
+            [data-pillar="ventures"] .wathba-acct-skeleton{
+              display:block;height:48px;border-radius:9px;margin:2px 8px;background:rgba(var(--ink-rgb),.06);
+            }
+            [data-pillar="ventures"] .wathba-acct-login{
+              cursor:pointer;font-size:14.5px;color:var(--muted);font-weight:500;text-decoration:none;
+            }
+            [data-pillar="ventures"] .wathba-acct-start{
+              border:none;cursor:pointer;background:var(--grad);color:var(--on-accent);font-weight:700;
+              font-size:14px;padding:11px 19px;border-radius:13px;text-decoration:none;display:inline-block;
+            }
+
+            /* Motion is a courtesy, not a requirement. */
+            @media (prefers-reduced-motion: reduce){
+              [data-pillar="ventures"] .wathba-account-panel{animation:none}
+              [data-pillar="ventures"] .wathba-acct-row,
+              [data-pillar="ventures"] .wathba-acct-project,
+              [data-pillar="ventures"] .wathba-acct-identity,
+              [data-pillar="ventures"] .wathba-acct-trigger{transition:none}
+            }
+
+            /* ── Bottom sheet below md ──────────────────────────────────────
+               The panel is PORTALLED to <body> in this mode (see the component)
+               because the header is a transformed ancestor and would otherwise
+               become the containing block for position:fixed — measured once at
+               y=-425 on a 390x664 screen, off the top of the viewport. */
+            @media (max-width:767px){
+              [data-pillar="ventures"] .wathba-account-panel{
+                position:fixed;inset-inline:0;inset-block-end:0;top:auto;
+                width:auto;max-width:none;border-radius:18px 18px 0 0;
+                padding:8px 10px 18px;max-height:82vh;overflow-y:auto;
+                animation:wathba-acct-sheet-in var(--dur-reveal) var(--ease-out);
+              }
+              @keyframes wathba-acct-sheet-in{from{transform:translateY(12%)}to{transform:none}}
+              [data-pillar="ventures"] .wathba-account-panel::before{
+                content:"";display:block;width:38px;height:4px;border-radius:999px;margin:2px auto 10px;
+                background:rgba(var(--ink-rgb),.18);
+              }
+              [data-pillar="ventures"] .wathba-account-cols{grid-template-columns:1fr;gap:0}
+              /* Projects first on a phone: a creator opening this on a phone
+                 wants a campaign far more often than their settings. */
+              [data-pillar="ventures"] .wathba-acct-col-b{
+                order:-1;border-inline-start:none;padding-inline-start:0;
+                border-block-end:1px solid rgba(var(--ink-rgb),.08);
+                padding-block-end:8px;margin-block-end:8px;
+              }
+            }
+
             /* ── POLISH Unit 2 — reveal-on-scroll ─────────────────────────
                The hidden state exists ONLY inside no-preference, so a
                reduced-motion reader can never end up looking at opacity:0

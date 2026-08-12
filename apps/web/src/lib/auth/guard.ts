@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 
+import { isCreatorAccount } from '@/components/ventures/wathba/wathba-account-nav';
+
 import { getMe, type ApiUserMe } from '@/lib/api/wathba';
 
 /**
@@ -41,7 +43,10 @@ export async function requireRole(role: string): Promise<ApiUserMe> {
  */
 export async function requireCreator(): Promise<ApiUserMe> {
   const user = await requireUser();
-  const isCreator = user.roles.includes('CREATOR') || (user.createdProjectsCount ?? 0) > 0;
+  // Batch ACCOUNT / U4 — one definition, shared with the menu. This rule was
+  // re-derived in four places; four copies is three chances to disagree about
+  // who may see a dashboard.
+  const isCreator = isCreatorAccount(user);
   if (!isCreator) redirect('/projects/start');
   return user;
 }
@@ -53,7 +58,7 @@ export async function requireCreator(): Promise<ApiUserMe> {
  */
 export function destinationFor(user: Pick<ApiUserMe, 'roles' | 'createdProjectsCount'>): string {
   if (user.roles.includes('ADMIN')) return '/projects/admin';
-  if (user.roles.includes('CREATOR') || (user.createdProjectsCount ?? 0) > 0) {
+  if (isCreatorAccount(user)) {
     return '/projects/dashboard';
   }
   return '/projects';
