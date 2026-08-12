@@ -120,7 +120,6 @@ d('facets(): one statement equals nineteen', () => {
       for (const old of legacyCats) {
         const path = old.parentSlug ? `${String(old.parentSlug)}/${String(old.slug)}` : String(old.slug);
         const fresh = byPathNow.get(path);
-        // eslint-disable-next-line jest/valid-expect
         expect(fresh).toBeTruthy();
         // Everything the legacy roll-up could not see: descendants BELOW
         // depth 1. That threshold is the same for a top-level node and for a
