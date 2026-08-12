@@ -11,6 +11,7 @@ import { WathbaCategoryNav } from './wathba-category-nav';
 import { WathbaHeaderSearch, WathbaMobileSearchButton } from './wathba-header-search';
 import { WathbaSpotlightMenu } from './wathba-spotlight-menu';
 import { WathbaAccountMenu } from './wathba-account-menu';
+import { ACCOUNT_ITEMS_FLAT, isCreatorAccount } from './wathba-account-nav';
 
 export interface WathbaHeaderProps {
   theme: WathbaTheme;
@@ -68,7 +69,7 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           d
             ? {
                 signedIn: true,
-                isCreator: (d.roles ?? []).includes('CREATOR') || (d.createdProjectsCount ?? 0) > 0,
+                isCreator: isCreatorAccount(d),
               }
             : { signedIn: false, isCreator: false },
         );
@@ -310,12 +311,16 @@ export function WathbaHeader({ theme, onToggleTheme }: WathbaHeaderProps) {
           <div aria-hidden style={{ height: 1, background: 'rgba(var(--ink-rgb),.08)', margin: '6px 0' }} />
           {(me?.signedIn
             ? [
-                { href: '/projects/me/profile', label: 'الملف الشخصي' },
-                ...(me.isCreator ? [{ href: '/projects/dashboard', label: 'لوحة مشاريعي' }] : []),
-                { href: '/projects/me/pledges', label: 'تعهداتي' },
-                { href: '/projects/discover-all?only=saved', label: 'المشاريع المحفوظة' },
+                /* Batch ACCOUNT / U4 — ONE source. This was a second
+                   hand-maintained array and it had ALREADY drifted from the
+                   panel: it was missing the admin row and pointed «المشاريع
+                   المحفوظة» at a discover FILTER rather than a page, while the
+                   panel pointed somewhere else. Both now render from
+                   wathba-account-nav, so a destination cannot be changed in one
+                   copy and forgotten in the other. */
+                ...ACCOUNT_ITEMS_FLAT.map((i) => ({ href: i.href, label: i.label })),
+                ...(me.isCreator ? [{ href: '/projects/dashboard', label: 'مشاريعي' }] : []),
                 { href: '/projects/notifications', label: 'الإشعارات' },
-                { href: '/projects/settings', label: 'الإعدادات' },
               ]
             : [
                 { href: '/sign-in', label: 'تسجيل الدخول' },
