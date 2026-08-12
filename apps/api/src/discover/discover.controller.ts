@@ -67,4 +67,36 @@ export class DiscoverController {
   async unsave(@CurrentUser() jwt: JwtPayload, @Param('projectId', new ParseUUIDPipe()) projectId: string) {
     return this.discover.unbookmark(jwt.sub, projectId);
   }
+
+  /* ── Batch ACCOUNT — «متابعة المشروع», the subscribe half ─────────────────
+   *
+   * Sits beside the bookmark routes on purpose: same guard, same shape, same
+   * idempotency, so the difference between the two is the WORD and nothing
+   * else. A save is silent; a follow is what puts project updates in your
+   * notifications. They are independent — holding one never implies the other.
+   */
+
+  @Post('follows/:projectId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Follow a project — subscribe to its updates (متابعة المشروع)' })
+  async followProject(@CurrentUser() jwt: JwtPayload, @Param('projectId', new ParseUUIDPipe()) projectId: string) {
+    return this.discover.followProject(jwt.sub, projectId);
+  }
+
+  @Delete('follows/:projectId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unfollow a project — stop its updates' })
+  async unfollowProject(@CurrentUser() jwt: JwtPayload, @Param('projectId', new ParseUUIDPipe()) projectId: string) {
+    return this.discover.unfollowProject(jwt.sub, projectId);
+  }
+
+  @Get('follows')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Projects I follow (مشاريع أتابعها)' })
+  async myFollowedProjects(@CurrentUser() jwt: JwtPayload) {
+    return this.discover.listFollowedProjects(jwt.sub);
+  }
 }

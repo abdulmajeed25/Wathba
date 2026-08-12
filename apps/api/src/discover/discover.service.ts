@@ -901,6 +901,49 @@ export class DiscoverService {
     return { saved: false };
   }
 
+  /**
+   * Batch ACCOUNT — «متابعة المشروع»: subscribe to a project's updates.
+   *
+   * NOT the same act as bookmark() above, and deliberately not the same row.
+   * Saving is "read later" and silent; following is "tell me what happens".
+   * The two are independent — you can hold either, both, or neither, and
+   * un-saving must never quietly unsubscribe you.
+   *
+   * Idempotent via the unique (userId, projectId): a retried POST is one row.
+   * Returns the resulting state so the UI never has to guess what it now holds.
+   */
+  async followProject(userId: string, projectId: string): Promise<{ following: boolean }> {
+    await this.prisma.projectFollow.upsert({
+      where: { userId_projectId: { userId, projectId } },
+      create: { userId, projectId },
+      update: {},
+    });
+    return { following: true };
+  }
+
+  async unfollowProject(userId: string, projectId: string): Promise<{ following: boolean }> {
+    await this.prisma.projectFollow.deleteMany({ where: { userId, projectId } });
+    return { following: false };
+  }
+
+  /** Projects this user subscribed to, newest first — the /following tab. */
+  async listFollowedProjects(userId: string) {
+    const rows = await this.prisma.projectFollow.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        createdAt: true,
+        project: {
+          select: {
+            id: true, slug: true, titleAr: true, status: true,
+            mediaUrls: true, fundingGoalHalalas: true, raisedHalalas: true, deadline: true,
+          },
+        },
+      },
+    });
+    return { items: rows.map((r) => ({ followedAt: r.createdAt, ...r.project })) };
+  }
+
   private async buildCategoryFacet(own: Map<string, number>): Promise<
     Array<{ slug: string; nameAr: string; parentSlug: string | null; count: number }>
   > {

@@ -98,6 +98,22 @@ export const SETTINGS_CATALOG = {
     schema: z.number().int().positive(),
     defaultValue: 10_000,
   },
+  'projects.cooldownDays': {
+    key: 'projects.cooldownDays',
+    titleAr: 'فترة الانتظار بين المشاريع (أيام)',
+    descriptionAr:
+      'كم يوماً ينتظر المبدع بعد انتهاء مشروعه قبل أن يُرسل مشروعاً جديداً، حسب نتيجة المشروع السابق: ناجح (يُحتسب من تاريخ التسوية) · متعثّر (من نهاية الحملة) · مسترَد (من الاسترداد) · مرفوض (من تاريخ الرفض). القيم هنا هي المرجع — لا توجد نسخة ثانية في الكود. صفر يعني بلا انتظار. الإعفاء الفردي يُمنح عبر عملية users.cooldown.waive ويُسجَّل في سجل التدقيق.',
+    // Owner-confirmed 2026-08-12: 30/14/14/7. `canceled by creator` from the
+    // batch has no home in this schema — ProjectStatus has no CANCELLED — so
+    // the four keys below are the four terminal states that actually exist.
+    schema: z.object({
+      successful: z.number().int().min(0),
+      failed: z.number().int().min(0),
+      refunded: z.number().int().min(0),
+      rejected: z.number().int().min(0),
+    }),
+    defaultValue: { successful: 30, failed: 14, refunded: 14, rejected: 7 },
+  },
   'projects.durationSelfServeMaxDays': {
     key: 'projects.durationSelfServeMaxDays',
     titleAr: 'سقف المدة ذاتية الخدمة (أيام)',

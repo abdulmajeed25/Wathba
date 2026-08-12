@@ -1,5 +1,5 @@
 import {
-  BadRequestException, ForbiddenException, Injectable, NotFoundException,
+  BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
@@ -377,6 +377,94 @@ export class ProjectsService {
     return updated;
   }
 
+  /**
+   * Batch ACCOUNT §4.3 + §4.4 — may this creator put another project into
+   * review right now?
+   *
+   * The DB trigger added in 0064 is the backstop and it refuses in every path,
+   * including seeds and ops SQL. This is the layer that refuses in a language a
+   * person can act on: which project is blocking, or how many days are left.
+   * A trigger can only raise; it cannot tell the creator when to come back.
+   *
+   * NON-TERMINAL is the real enum (schema.prisma:90-102). The batch's
+   * {DRAFT_SUBMITTED, IN_REVIEW, APPROVED, LIVE} matches nothing here. The
+   * project being submitted is excluded — it is DRAFT at this point and would
+   * otherwise block itself.
+   */
+  private async assertMaySubmitAnother(creatorId: string, projectId: string): Promise<void> {
+    const NON_TERMINAL: ProjectStatus[] = [
+      ProjectStatus.DRAFT,
+      ProjectStatus.UNDER_REVIEW,
+      ProjectStatus.SCHEDULED,
+      ProjectStatus.LIVE,
+      ProjectStatus.PAUSED,
+      ProjectStatus.FUNDED,
+      ProjectStatus.IN_PRODUCTION,
+    ];
+
+    const blocking = await this.prisma.project.findFirst({
+      where: {
+        createdById: creatorId,
+        id: { not: projectId },
+        isTestFixture: false,
+        status: { in: NON_TERMINAL },
+      },
+      select: { id: true, titleAr: true, status: true },
+    });
+    if (blocking) {
+      throw new ConflictException({
+        code: 'PROJECT_ACTIVE_EXISTS',
+        message: 'لديك مشروع نشط بالفعل — أنهِه قبل إرسال مشروع جديد.',
+        blockingProjectId: blocking.id,
+        blockingProjectTitleAr: blocking.titleAr,
+        blockingProjectStatus: blocking.status,
+      });
+    }
+
+    // ── cooldown ──
+    // An ops waiver short-circuits everything. It is a timestamp, so it lapses
+    // on its own rather than staying true until someone remembers it.
+    const creator = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { cooldownWaivedUntil: true },
+    });
+    if (creator?.cooldownWaivedUntil && creator.cooldownWaivedUntil > new Date()) return;
+
+    const days = await this.settings.get('projects.cooldownDays');
+    const last = await this.prisma.project.findFirst({
+      where: {
+        createdById: creatorId,
+        id: { not: projectId },
+        isTestFixture: false,
+        status: { in: [ProjectStatus.SUCCESSFUL, ProjectStatus.FAILED, ProjectStatus.REFUNDED] },
+      },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, status: true, updatedAt: true },
+    });
+    if (!last) return;
+
+    const waitDays =
+      last.status === ProjectStatus.SUCCESSFUL ? days.successful
+      : last.status === ProjectStatus.FAILED ? days.failed
+      : days.refunded;
+    if (waitDays <= 0) return;
+
+    const availableAt = new Date(last.updatedAt.getTime() + waitDays * 86_400_000);
+    if (availableAt > new Date()) {
+      const remaining = Math.ceil((availableAt.getTime() - Date.now()) / 86_400_000);
+      throw new ConflictException({
+        code: 'PROJECT_COOLDOWN_ACTIVE',
+        // Plain Arabic with the number of days — never a raw date-diff, and
+        // never a bare "not allowed" that leaves the creator guessing.
+        message: `متاح بعد ${remaining.toLocaleString('ar-SA')} يوماً`,
+        remainingDays: remaining,
+        availableAt: availableAt.toISOString(),
+        previousProjectId: last.id,
+        previousOutcome: last.status,
+      });
+    }
+  }
+
   async submitForReview(creatorId: string, projectId: string): Promise<Project> {
     const proj = await this.requireOwned(creatorId, projectId);
     // Sprint 2 / P0-501: creators must be Nafath-verified before anything
@@ -397,6 +485,7 @@ export class ProjectsService {
     if (proj.fundingGoalHalalas <= 0n) {
       throw new BadRequestException('fundingGoal must be positive');
     }
+    await this.assertMaySubmitAnother(creatorId, projectId);
     const updated = await this.prisma.project.update({
       where: { id: projectId },
       // Clear stale rejection feedback on resubmit (CC-04) so the creator
