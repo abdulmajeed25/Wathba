@@ -60,9 +60,16 @@ export class FundingController {
   }
 
   @Get('me')
-  @ApiOperation({ summary: 'List my pledges (cursor-paginated)' })
-  async mine(@CurrentUser() jwt: JwtPayload, @Query() q: CursorQueryDto) {
-    const { items, nextCursor } = await this.funding.listMine(jwt.sub, q);
+  @ApiOperation({ summary: 'List my pledges (cursor-paginated); phase=active|past splits «تعهداتي»' })
+  async mine(
+    @CurrentUser() jwt: JwtPayload,
+    @Query() q: CursorQueryDto,
+    @Query('phase') phase?: 'active' | 'past',
+  ) {
+    // Anything other than the two known values is ignored rather than
+    // rejected: an unknown phase should show the reader everything, not a 400.
+    const p = phase === 'active' || phase === 'past' ? phase : undefined;
+    const { items, nextCursor } = await this.funding.listMine(jwt.sub, { ...q, phase: p });
     return { items: items.map((i) => this.funding.toPublic(i)), nextCursor };
   }
 }

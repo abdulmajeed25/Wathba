@@ -80,7 +80,14 @@ describe('MONEY-AUDIT — payout SENT (PayoutDisburser)', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       user: { findUnique: jest.fn().mockResolvedValue({ email: 'c@test.sa' }) },
-      project: { findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع' }) },
+      project: {
+      findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع' }),
+      // Batch ACCOUNT — the disburser now stamps Project.settledAt when a
+      // payout reaches SENT. Added to the double because the double must
+      // mirror the client the code actually calls; without it the suite failed
+      // on a missing method and said nothing about the behaviour.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     } as any;
     const cfg = { get: jest.fn().mockReturnValue('') } as any; // stub mode
     const audit = auditMock();

@@ -1,5 +1,5 @@
 import {
-  BadRequestException, ForbiddenException, Injectable, NotFoundException,
+  BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../identity/audit.service';
@@ -377,6 +377,107 @@ export class ProjectsService {
     return updated;
   }
 
+  /**
+   * Batch ACCOUNT — may this creator put another project into review now?
+   *
+   * The 0064 trigger is the backstop and refuses in every path including seeds
+   * and ops SQL. This layer exists because a trigger can only RAISE — it cannot
+   * name the blocking project or count the days, and a guard nobody can act on
+   * is a guard that generates support tickets.
+   *
+   * NON_TERMINAL is the real enum. Every clock reads a purpose-built column, so
+   * none of them can be restarted by an unrelated edit:
+   *   SUCCESSFUL -> settledAt   (when the money finished moving)
+   *   FAILED     -> deadline    (campaign end; already accurate, no column)
+   *   rejected   -> rejectedAt  (DRAFT + reviewFeedback is not a status)
+   * A NULL clock means the row predates the rule and is grandfathered.
+   */
+  private async assertMaySubmitAnother(creatorId: string, projectId: string): Promise<void> {
+    const NON_TERMINAL: ProjectStatus[] = [
+      ProjectStatus.DRAFT,
+      ProjectStatus.UNDER_REVIEW,
+      ProjectStatus.SCHEDULED,
+      ProjectStatus.LIVE,
+      ProjectStatus.PAUSED,
+      ProjectStatus.FUNDED,
+      ProjectStatus.IN_PRODUCTION,
+    ];
+
+    const blocking = await this.prisma.project.findFirst({
+      where: {
+        createdById: creatorId,
+        id: { not: projectId },
+        isTestFixture: false,
+        status: { in: NON_TERMINAL },
+      },
+      select: { id: true, titleAr: true, status: true },
+    });
+    if (blocking) {
+      throw new ConflictException({
+        code: 'PROJECT_ACTIVE_EXISTS',
+        message: 'لديك مشروع نشط بالفعل — أنهِه قبل إرسال مشروع جديد.',
+        blockingProjectId: blocking.id,
+        blockingProjectTitleAr: blocking.titleAr,
+        blockingProjectStatus: blocking.status,
+      });
+    }
+
+    // An ops waiver short-circuits everything. It is a timestamp, so it lapses
+    // on its own rather than staying true until someone remembers it.
+    const creator = await this.prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { cooldownWaivedUntil: true },
+    });
+    if (creator?.cooldownWaivedUntil && creator.cooldownWaivedUntil > new Date()) return;
+
+    const days = await this.settings.get('projects.cooldownDays');
+
+    // Each candidate carries its OWN clock. Ordered by that clock, not by
+    // updatedAt: the most recent OUTCOME is what gates the next submission.
+    const prior = await this.prisma.project.findMany({
+      where: {
+        createdById: creatorId,
+        id: { not: projectId },
+        isTestFixture: false,
+        OR: [
+          { status: ProjectStatus.SUCCESSFUL, settledAt: { not: null } },
+          { status: ProjectStatus.FAILED },
+          { rejectedAt: { not: null } },
+        ],
+      },
+      select: { id: true, status: true, settledAt: true, rejectedAt: true, deadline: true },
+    });
+
+    let worst: { until: Date; id: string; reason: string } | null = null;
+    for (const pr of prior) {
+      const clocks: Array<[Date | null, number, string]> = [
+        [pr.settledAt, days.successful, 'SUCCESSFUL'],
+        [pr.status === ProjectStatus.FAILED ? pr.deadline : null, days.failed, 'FAILED'],
+        [pr.rejectedAt, days.rejected, 'REJECTED'],
+      ];
+      for (const [from, waitDays, reason] of clocks) {
+        if (!from || waitDays <= 0) continue;
+        const until = new Date(from.getTime() + waitDays * 86_400_000);
+        if (until > new Date() && (!worst || until > worst.until)) {
+          worst = { until, id: pr.id, reason };
+        }
+      }
+    }
+    if (!worst) return;
+
+    const remaining = Math.ceil((worst.until.getTime() - Date.now()) / 86_400_000);
+    throw new ConflictException({
+      code: 'PROJECT_COOLDOWN_ACTIVE',
+      // Latin digits, platform-wide decision: the interpolated number is a
+      // plain integer and the surrounding text stays Arabic.
+      message: `متاح بعد ${remaining} يوماً`,
+      remainingDays: remaining,
+      availableAt: worst.until.toISOString(),
+      previousProjectId: worst.id,
+      previousOutcome: worst.reason,
+    });
+  }
+
   async submitForReview(creatorId: string, projectId: string): Promise<Project> {
     const proj = await this.requireOwned(creatorId, projectId);
     // Sprint 2 / P0-501: creators must be Nafath-verified before anything
@@ -397,11 +498,15 @@ export class ProjectsService {
     if (proj.fundingGoalHalalas <= 0n) {
       throw new BadRequestException('fundingGoal must be positive');
     }
+    await this.assertMaySubmitAnother(creatorId, projectId);
     const updated = await this.prisma.project.update({
       where: { id: projectId },
       // Clear stale rejection feedback on resubmit (CC-04) so the creator
       // doesn't see the previous round's note while UNDER_REVIEW.
-      data: { status: ProjectStatus.UNDER_REVIEW, reviewFeedback: null },
+      // Batch ACCOUNT — rejectedAt is cleared with the feedback it belongs to.
+      // Leaving it set would keep charging the creator a rejection cooldown for
+      // a rejection they have already answered.
+      data: { status: ProjectStatus.UNDER_REVIEW, reviewFeedback: null, rejectedAt: null },
     });
     // CC-06 — audit the creator's submit-for-review decision.
     await this.audit.log({
