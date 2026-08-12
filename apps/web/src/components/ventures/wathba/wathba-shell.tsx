@@ -213,9 +213,18 @@ export function WathbaShell({
                their settings. */
             [data-pillar="ventures"] .wathba-account-cols{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}
             @media (max-width:767px){
+              /* !important is load-bearing here, not laziness. The panel's box
+                 is an inline style object on the component (position/top/
+                 inset-inline-end/width), and an inline style outranks any
+                 stylesheet rule regardless of selector specificity. Without
+                 this the media query parsed, matched, and lost: the panel
+                 opened at 366x18 in the top corner on a 390px phone instead of
+                 becoming a sheet. Measured before believing it. */
               [data-pillar="ventures"] .wathba-account-panel{
-                position:fixed;inset-inline:0;inset-block-end:0;top:auto;width:auto;max-width:none;
-                border-radius:18px 18px 0 0;padding:8px 10px 18px;max-height:82vh;overflow-y:auto;
+                position:fixed!important;inset-inline:0!important;inset-block-end:0!important;
+                top:auto!important;width:auto!important;max-width:none!important;
+                border-radius:18px 18px 0 0!important;padding:8px 10px 18px!important;
+                max-height:82vh!important;overflow-y:auto!important;
               }
               /* The drag handle — affordance only, the sheet closes by
                  outside-click, Esc, or choosing something. */
@@ -223,10 +232,10 @@ export function WathbaShell({
                 content:"";display:block;width:38px;height:4px;border-radius:999px;margin:2px auto 10px;
                 background:rgba(var(--ink-rgb),.18);
               }
-              [data-pillar="ventures"] .wathba-account-cols{grid-template-columns:1fr;gap:0}
+              [data-pillar="ventures"] .wathba-account-cols{grid-template-columns:1fr!important;gap:0!important}
               /* Projects first on a phone. */
               [data-pillar="ventures"] .wathba-account-cols > :last-child{
-                order:-1;border-inline-start:none;padding-inline-start:0;
+                order:-1;border-inline-start:none!important;padding-inline-start:0!important;
                 border-block-end:1px solid rgba(var(--ink-rgb),.08);padding-block-end:8px;margin-block-end:8px;
               }
             }

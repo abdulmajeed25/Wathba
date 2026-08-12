@@ -131,9 +131,17 @@ export function WathbaCampaignHeader({
         }}
       >
         <HeroMedia videoUrl={found.videoUrl ?? null} poster={found.coverUrl ?? null} alt={rich.heroImage.alt} />
-        {/* S-13 — the rail gets the PAGE id, never the fixture-skin id. */}
+        {/* S-13 — the rail gets the PAGE id, never the fixture-skin id.
+            Batch ACCOUNT — follow/save need the DATABASE id, which is NOT
+            always the page id: /projects/nakhil-dates addresses the project by
+            slug and the API's ParseUUIDPipe rejects it. Passed separately, and
+            null on the fixture skin, rather than overloading projectId — which
+            is deliberately the page id for the live-funding socket and the
+            report affordance. Caught because a click flipped the control
+            optimistically and then silently rolled back. */}
         <WathbaCampaignRail
           projectId={isReal ? id : active.id}
+          followTargetId={project?.id ?? null}
           projectTitle={active.titleAr}
           raisedFmt={active.raisedFmt}
           goalFmt={active.goalFmt}

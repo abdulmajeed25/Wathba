@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { signOutAction } from '@/lib/auth/actions';
 import { Icon } from './wathba-icons';
@@ -130,11 +131,41 @@ export function WathbaAccountMenu() {
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close();
+      // panelRef is checked SEPARATELY from rootRef: as a sheet the panel is
+      // portalled to <body>, so it is no longer a descendant of the root and a
+      // tap inside it would read as "outside" and close the sheet on every
+      // touch.
+      const t = e.target as Node;
+      const inRoot = rootRef.current?.contains(t);
+      const inPanel = panelRef.current?.contains(t);
+      if (!inRoot && !inPanel) close();
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [open, close]);
+
+  /**
+   * Below md the panel is a bottom sheet, and a bottom sheet cannot live where
+   * this component sits. The header is a framer-motion element, and a
+   * TRANSFORMED ancestor becomes the containing block for `position: fixed` —
+   * so `inset-block-end: 0` anchored to the header instead of the viewport and
+   * the sheet rendered off the top of the screen with only its last two rows
+   * visible. Measured at 390x664: panel at y=-425.
+   *
+   * Portalling to <body> escapes the transform. Desktop keeps its in-place
+   * absolute panel, which must stay anchored to the avatar.
+   *
+   * Read in an effect and not during render: matchMedia does not exist on the
+   * server, and a server/client disagreement here is a hydration error.
+   */
+  const [isSheet, setIsSheet] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width:767px)');
+    const sync = () => setIsSheet(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const focusables = (): HTMLElement[] =>
     Array.from(panelRef.current?.querySelectorAll<HTMLElement>('a,button:not([disabled])') ?? []);
@@ -229,8 +260,9 @@ export function WathbaAccountMenu() {
           initial
         )}
       </button>
-      {open && (
-        <div ref={panelRef} role="menu" aria-label="حسابي" className="wathba-account-panel" style={panel}>
+      {open && (() => {
+        const body = (
+        <div ref={panelRef} role="menu" aria-label="حسابي" className="wathba-account-panel" style={panel} onKeyDown={onKey}>
           {/* Identity. The whole row is the link to the public profile, which
               is what «ملفي العام» used to spend a menu row on. */}
           <Link href={publicProfileHref} role="menuitem" onClick={() => close()} style={identityRow}>
@@ -332,7 +364,13 @@ export function WathbaAccountMenu() {
             </button>
           </form>
         </div>
-      )}
+        );
+        // Portalled ONLY as a sheet; the desktop panel must stay anchored to
+        // the avatar it belongs to.
+        return isSheet && typeof document !== 'undefined'
+          ? createPortal(body, document.body)
+          : body;
+      })()}
     </div>
   );
 }

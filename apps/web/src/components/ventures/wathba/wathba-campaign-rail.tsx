@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { useLiveFunding } from '@/lib/hooks/use-live-funding';
 import { ReportProjectButton } from './wathba-report-project';
 import { ShareButton } from './wathba-share';
+import { WathbaProjectActions } from './wathba-project-actions';
 import { Icon, Num } from './wathba-icons';
 import { formatSar } from '@/lib/i18n/format';
 import { toArabicDigits } from './discover-all-constants';
@@ -23,6 +24,7 @@ const fmtSAR = (n: number): string => formatSar('ar', n);
  */
 export function WathbaCampaignRail({
   projectId,
+  followTargetId,
   projectTitle,
   raisedFmt,
   goalFmt,
@@ -37,6 +39,8 @@ export function WathbaCampaignRail({
   variant = 'sidebar',
 }: {
   projectId: string;
+  /** Batch ACCOUNT — the DB uuid for follow/save; null on the fixture skin. */
+  followTargetId?: string | null;
   projectTitle: string;
   raisedFmt: string;
   goalFmt: string;
@@ -173,21 +177,13 @@ export function WathbaCampaignRail({
         ادعم هذا المشروع
       </Link>
 
+      {/* Batch ACCOUNT §3.5 — was a DEAD «ذكّرني» button: a bell icon, no
+          onClick, no handler. It looked like a subscription and did nothing,
+          while saving lived only on discover cards, so the campaign page
+          offered neither act for real. Now both, and visibly different from
+          each other. */}
+      {followTargetId && <WathbaProjectActions projectId={followTargetId} />}
       <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
-        <button
-          type="button"
-          style={{
-            flex: 1, cursor: 'pointer',
-            background: 'transparent',
-            border: '1px solid rgba(var(--ink-rgb),.16)',
-            color: 'var(--text)', fontWeight: 600, fontSize: 13,
-            padding: '10px', borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 6, fontFamily: 'inherit',
-          }}
-        >
-          <Icon name="notifications" size={16} /> ذكّرني
-        </button>
         {/* STAKES/I1 — per-network share (X/WhatsApp/Telegram/copy). */}
         <ShareButton title={projectTitle} />
       </div>

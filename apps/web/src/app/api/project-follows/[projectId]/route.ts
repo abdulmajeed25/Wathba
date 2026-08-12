@@ -7,18 +7,21 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BASE_URL ?? 'http://localhost:4000';
 const SESSION_COOKIE = 'wathba_session';
 
-/** BFF → POST/DELETE /v1/discover/saved/:projectId (Batch DISC bookmarks). */
+/** BFF → POST/DELETE /v1/discover/follows/:projectId (Batch ACCOUNT project follows). */
 async function proxy(method: 'POST' | 'DELETE', projectRef: string): Promise<Response> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return NextResponse.json(null, { status: 401 });
 
-  // Batch ACCOUNT — discover cards hold a uuid, the campaign page holds a
-  // slug, and both save through here. Resolved so the caller need not know
-  // which it has; a uuid costs no request.
+  // The campaign page addresses projects by SLUG (/projects/nakhil-dates), so
+  // that is what the follow control has in hand. The API takes a uuid and its
+  // ParseUUIDPipe 400s on anything else. Resolved here rather than in the
+  // component: the client should not have to know which of the two forms it
+  // holds, and every caller would otherwise need the same branch.
   const projectId = await resolveProjectUuid(projectRef);
   if (!projectId) return NextResponse.json(null, { status: 404 });
+
   try {
-    const res = await fetch(`${API_BASE}/v1/discover/saved/${projectId}`, {
+    const res = await fetch(`${API_BASE}/v1/discover/follows/${projectId}`, {
       method,
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
