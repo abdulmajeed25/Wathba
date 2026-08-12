@@ -196,6 +196,40 @@ export class CreatorsService {
   // POST /v1/creators/:userId/follow
   // --------------------------------------------------------------------------
 
+  /**
+   * Batch ACCOUNT — creators this user follows, newest first.
+   *
+   * Goes through CreatorProfile because that is what CreatorFollow points at
+   * (schema.prisma:1047-1049) — the follow targets the profile, not the user
+   * row, which is also why the self-follow guard had to become a trigger.
+   */
+  async listFollowedCreators(followerId: string) {
+    const rows = await this.prisma.creatorFollow.findMany({
+      where: { followerId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        createdAt: true,
+        creatorProfile: {
+          select: {
+            followersCount: true,
+            createdProjectsCount: true,
+            user: { select: { id: true, name: true, handle: true } },
+          },
+        },
+      },
+    });
+    return {
+      items: rows.map((r) => ({
+        followedAt: r.createdAt,
+        id: r.creatorProfile.user.id,
+        name: r.creatorProfile.user.name,
+        handle: r.creatorProfile.user.handle,
+        followersCount: r.creatorProfile.followersCount,
+        createdProjectsCount: r.creatorProfile.createdProjectsCount,
+      })),
+    };
+  }
+
   async follow(
     followerId: string,
     targetUserId: string,

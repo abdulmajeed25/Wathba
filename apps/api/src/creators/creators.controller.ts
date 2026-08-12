@@ -38,6 +38,30 @@ import {
 export class CreatorsController {
   constructor(private readonly creators: CreatorsService) {}
 
+  /**
+   * Batch ACCOUNT — the «مبدعون أتابعهم» and «متابِعوني» tabs.
+   *
+   * DECLARED BEFORE @Get(':userId'). Nest matches in declaration order and
+   * ':userId' is a ParseUUIDPipe param, so registering these second would send
+   * /creators/me/following into the profile handler and 400 on 'me' — a routing
+   * bug that presents as a validation error.
+   */
+  @Get('me/following')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Creators I follow (مبدعون أتابعهم)' })
+  async myFollowedCreators(@CurrentUser() jwt: JwtPayload) {
+    return this.creators.listFollowedCreators(jwt.sub);
+  }
+
+  @Get('me/followers')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'People who follow me (متابِعوني)' })
+  async myFollowers(@CurrentUser() jwt: JwtPayload) {
+    return this.creators.listFollowers(jwt.sub);
+  }
+
   @Get(':userId')
   // Public read endpoint — tighter limit than the 120/min global default
   // because creator profiles are an obvious scrape target.

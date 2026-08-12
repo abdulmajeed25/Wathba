@@ -98,6 +98,22 @@ export const SETTINGS_CATALOG = {
     schema: z.number().int().positive(),
     defaultValue: 10_000,
   },
+  'projects.cooldownDays': {
+    key: 'projects.cooldownDays',
+    titleAr: 'فترة الانتظار بين المشاريع (أيام)',
+    descriptionAr:
+      'كم يوماً ينتظر المبدع بعد انتهاء مشروعه قبل أن يُرسل مشروعاً جديداً، حسب نتيجة المشروع السابق. الناجح يُحتسب من تاريخ التسوية (settledAt)، والمتعثّر من نهاية الحملة (deadline)، والمرفوض من تاريخ الرفض (rejectedAt). القيم هنا هي المرجع الوحيد — لا نسخة ثانية في الكود. صفر يعني بلا انتظار. الإعفاء الفردي يُمنح لمستخدم بعينه ويُسجَّل في سجل التدقيق.',
+    // Owner-confirmed: 30 / 14 / 7. There is no `cancelled` key because
+    // ProjectStatus has no CANCELLED — the brief's fourth clock does not exist
+    // in this schema. REFUNDED is not a creator-fault outcome and is not
+    // charged a cooldown.
+    schema: z.object({
+      successful: z.number().int().min(0),
+      failed: z.number().int().min(0),
+      rejected: z.number().int().min(0),
+    }),
+    defaultValue: { successful: 30, failed: 14, rejected: 7 },
+  },
   'projects.durationSelfServeMaxDays': {
     key: 'projects.durationSelfServeMaxDays',
     titleAr: 'سقف المدة ذاتية الخدمة (أيام)',

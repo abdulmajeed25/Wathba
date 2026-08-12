@@ -183,6 +183,17 @@ export class PayoutDisburser {
           netHalalas: fees.netHalalas,
         },
       });
+      // Batch ACCOUNT — the settlement clock. This is the moment the money
+      // finished moving, which is what the between-projects cooldown counts
+      // from. NOT the campaign end (`deadline`) and NOT the outcome decision
+      // (funding.service sets SUCCESSFUL/FAILED at close, often long before a
+      // payout lands). Written idempotently: a project with several payouts
+      // stamps the first one that lands and keeps it, so a later payout cannot
+      // push the creator's cooldown further out.
+      await this.prisma.project.updateMany({
+        where: { id: p.projectId, settledAt: null },
+        data: { settledAt: new Date() },
+      });
       await this.ledger.record({
         entryType: LedgerEntryType.PAYOUT_SENT,
         amountHalalas: fees.netHalalas,

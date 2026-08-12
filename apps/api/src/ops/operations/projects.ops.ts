@@ -205,7 +205,17 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
       const feedback = (input.feedbackAr ?? ctx.reason ?? '').trim() || null;
       const updated = await tx.project.update({
         where: { id: input.projectId },
-        data: { status: ProjectStatus.DRAFT, reviewFeedback: feedback, reviewedAt: new Date() },
+        // Batch ACCOUNT — rejectedAt is written HERE because rejection is not a
+        // status: the project goes back to DRAFT carrying reviewFeedback, so
+        // without this column the only record of WHEN it was rejected is an
+        // AuditLog row, and a cooldown cannot be counted from a log entry.
+        // reviewedAt is not a substitute — it also moves on approval.
+        data: {
+          status: ProjectStatus.DRAFT,
+          reviewFeedback: feedback,
+          reviewedAt: new Date(),
+          rejectedAt: new Date(),
+        },
       });
       return {
         id: updated.id,

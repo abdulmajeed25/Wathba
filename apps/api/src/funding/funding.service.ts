@@ -507,13 +507,48 @@ export class FundingService {
     return { ok: true };
   }
 
+  /**
+   * Batch ACCOUNT — «تعهداتي» is now two lists, not one.
+   *
+   * The audit found this endpoint returning active and finished pledges in a
+   * single undifferentiated stream, so a backer scanning "what am I currently
+   * committed to" had to read past years of settled ones. The split is by what
+   * the READER can still act on:
+   *
+   *   active — money is still in play: held, awaiting capture, awaiting a
+   *            BNPL leg or a re-authorisation, or in dispute. Something may
+   *            still change, and some of it may still need the backer.
+   *   past   — the outcome is fixed: captured, refunded, or failed.
+   *
+   * DISPUTED counts as ACTIVE deliberately: it is the one state where the
+   * backer most needs to find the pledge again.
+   *
+   * Absent `phase` returns everything, so existing callers are unaffected.
+   */
   async listMine(
     backerId: string,
-    opts: { take?: number; cursor?: string } = {},
+    opts: { take?: number; cursor?: string; phase?: 'active' | 'past' } = {},
   ): Promise<{ items: Pledge[]; nextCursor: string | null }> {
+    const ACTIVE: PledgeStatus[] = [
+      PledgeStatus.HELD,
+      PledgeStatus.PENDING_BNPL,
+      PledgeStatus.CAPTURE_GRACE,
+      PledgeStatus.PENDING_REAUTH,
+      PledgeStatus.DISPUTED,
+    ];
+    const PAST: PledgeStatus[] = [
+      PledgeStatus.CAPTURED,
+      PledgeStatus.REFUNDED,
+      PledgeStatus.FAILED,
+      PledgeStatus.FAILED_CAPTURE,
+    ];
     const take = Math.min(50, Math.max(1, opts.take ?? 20));
     const items = await this.prisma.pledge.findMany({
-      where: { backerId },
+      where: {
+        backerId,
+        ...(opts.phase === 'active' ? { status: { in: ACTIVE } } : {}),
+        ...(opts.phase === 'past' ? { status: { in: PAST } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       take: take + 1,
       ...(opts.cursor && { cursor: { id: opts.cursor }, skip: 1 }),
