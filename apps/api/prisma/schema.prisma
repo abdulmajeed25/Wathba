@@ -325,6 +325,11 @@ model User {
   updateLikes       UpdateLike[]
   payoutBeneficiary PayoutBeneficiary?
   savedProjects     SavedProject[]
+  followedProjects  ProjectFollow[]
+  /// Batch ACCOUNT — ops waiver of the between-projects cooldown. A timestamp
+  /// and not a boolean so a waiver lapses by itself instead of being a flag
+  /// someone forgets to clear.
+  cooldownWaivedUntil DateTime?
 
   @@index([reputationTier])
   @@index([email])
@@ -391,6 +396,15 @@ model Project {
   durationDays         Int
   deadline             DateTime
   status               ProjectStatus    @default(DRAFT)
+  /// Batch ACCOUNT — when the money finished moving: set once this project's
+  /// payouts reach PayoutStatus.SENT. NOT the campaign end (`deadline`) and NOT
+  /// the outcome decision. NULL = predates the rule or not settled; either way
+  /// no cooldown counts from it.
+  settledAt            DateTime?
+  /// Batch ACCOUNT — when ops rejected this submission. Needed because
+  /// rejection is NOT a status: a rejected project sits in DRAFT with
+  /// reviewFeedback set. Cleared on resubmit alongside reviewFeedback.
+  rejectedAt           DateTime?
   productSpecAr        String?          @db.Text
   expectedDeliveryDate DateTime?
   createdById          String           @db.Uuid
@@ -462,6 +476,7 @@ model Project {
   collaborators  ProjectCollaborator[]
   collections    ProjectCollection[]
   savedBy        SavedProject[]
+  followedBy     ProjectFollow[]
   tags           ProjectTag[]
 
   // Hot-path query indexes:
@@ -1515,7 +1530,31 @@ model ProjectCollection {
   @@index([projectId])
 }
 
+/// Batch ACCOUNT — «متابعة المشروع»: a notification SUBSCRIPTION to a project.
+///
+/// A separate table from SavedProject, not a flag on it. A save is "read later"
+/// and gets cleared once read; a follow is "tell me what happens" and outlives
+/// the reading. Folding them together would make un-saving silently
+/// unsubscribe you — the exact overloading this batch exists to prevent.
+///
+/// Private: never shown on the project, never shown to its creator, and it
+/// carries no counter. Only CreatorFollow is public.
+model ProjectFollow {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@index([userId, createdAt])
+}
+
 /// "المشاريع المحفوظة" — a backer's bookmarked projects (Batch DISC). Auth-gated.
+/// SILENT by design: saving notifies nobody, ever. See ProjectFollow above for
+/// the subscribe half — the two are separate on purpose.
 model SavedProject {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
