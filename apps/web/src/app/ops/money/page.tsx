@@ -120,9 +120,13 @@ export default async function MoneyVaultPage({
         {/* Four-eyes state (Part 2) — read-only, so the operator knows a payout may enter the queue. */}
         <div className="flex items-center gap-2 text-xs">
           <span className="text-[#8b949e]">الرقابة الثنائية على المال:</span>
-          <StatusBadge intent={info.roles?.length ? 'info' : 'muted'}>
-            {/* fourEyes/moneyAdmins are surfaced by the session endpoint; the team screen renders the authoritative view */}
-            مفعّلة حسب عدد مدراء المال
+          {/* Reads the session endpoint's live value. This used to be the literal
+              string «مفعّلة حسب عدد مدراء المال», which said "on" on a box where
+              it was off — the one place an operator checks before a payout was
+              the one place not asking. Same wording as /ops/team, deliberately:
+              two screens reporting one fact must not word it two ways. */}
+          <StatusBadge intent={info.fourEyes ? 'ok' : 'warn'}>
+            {info.fourEyes ? 'مفعّلة' : 'غير مفعّلة'} — {info.moneyAdmins.toLocaleString('ar-SA')} من مدراء المال
           </StatusBadge>
         </div>
       </header>
