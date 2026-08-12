@@ -325,6 +325,12 @@ model User {
   updateLikes       UpdateLike[]
   payoutBeneficiary PayoutBeneficiary?
   savedProjects     SavedProject[]
+  followedProjects  ProjectFollow[]
+  /// Batch ACCOUNT — ops waiver of the between-projects cooldown, written only
+  /// by the governed users.cooldown.waive operation. A timestamp and not a
+  /// boolean so a waiver expires by itself instead of being a flag someone
+  /// forgets to clear.
+  cooldownWaivedUntil DateTime?
 
   @@index([reputationTier])
   @@index([email])
@@ -462,6 +468,7 @@ model Project {
   collaborators  ProjectCollaborator[]
   collections    ProjectCollection[]
   savedBy        SavedProject[]
+  followedBy     ProjectFollow[]
   tags           ProjectTag[]
 
   // Hot-path query indexes:
@@ -1515,7 +1522,32 @@ model ProjectCollection {
   @@index([projectId])
 }
 
+/// Batch ACCOUNT — «متابعة المشروع»: a notification SUBSCRIPTION to a project.
+///
+/// Deliberately a separate table from SavedProject rather than a flag on it.
+/// They are different acts with different lifetimes: a save is "read later" and
+/// gets cleared once read; a follow is "tell me what happens" and outlives the
+/// reading. Folding them together would make un-saving silently unsubscribe
+/// you — the exact overloading this batch exists to prevent.
+///
+/// Private: never surfaced on the followed project or to its creator, and it
+/// carries no counter. Only CreatorFollow is public.
+model ProjectFollow {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@index([userId, createdAt])
+}
+
 /// "المشاريع المحفوظة" — a backer's bookmarked projects (Batch DISC). Auth-gated.
+/// Silent by design: saving never notifies anyone. See ProjectFollow above for
+/// the subscribe half — the two are separate on purpose.
 model SavedProject {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @db.Uuid
