@@ -147,7 +147,7 @@ export async function LedgerBrowser({
                   )}
                 </td>
                 <td className="px-3 py-2 text-[11px] text-[#8b949e]">
-                  {new Date(e.createdAt).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}
+                  {new Date(e.createdAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' })}
                 </td>
               </tr>
             ))}

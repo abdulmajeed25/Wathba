@@ -21,7 +21,7 @@ export interface WinnerRow {
 }
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('ar-SA', { dateStyle: 'medium' }) : '—';
+  return iso ? new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : '—';
 }
 
 export function WinnersTable({ rows }: { rows: WinnerRow[] }) {

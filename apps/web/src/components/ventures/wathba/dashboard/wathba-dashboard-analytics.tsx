@@ -1,6 +1,6 @@
 import type { ApiAnalytics, ApiFollowerRow } from '@/lib/api/wathba';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
-import { toArabicDigits } from '../discover-all-constants';
+import { toDisplayDigits } from '../discover-all-constants';
 
 /**
  * Creator analytics (Creator-CC / CC-16) + follower roster (CC-17). Purely
@@ -40,7 +40,7 @@ export function WathbaDashboardAnalytics({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
         <Stat label="نسبة التمويل" value={`${totals.percentFunded}%`} accent />
         <Stat label="المبلغ المجموع" value={fmtSAR(totals.raisedHalalas)} />
-        <Stat label="عدد الداعمين" value={totals.backersCount.toLocaleString('ar-SA')} />
+        <Stat label="عدد الداعمين" value={totals.backersCount.toLocaleString('ar-SA-u-nu-latn')} />
         <Stat label="متوسّط الدعم" value={fmtSAR(totals.avgPledgeHalalas)} />
       </div>
 
@@ -80,7 +80,7 @@ export function WathbaDashboardAnalytics({
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
                   <span style={{ fontWeight: 600 }}>{t.titleAr}</span>
                   <span style={{ color: 'var(--text-secondary, #3b4942)' }}>
-                    {toArabicDigits(t.backers)} داعم · {fmtSAR(t.amountHalalas)}
+                    {toDisplayDigits(t.backers)} داعم · {fmtSAR(t.amountHalalas)}
                   </span>
                 </div>
                 <div style={{ height: 10, borderRadius: 6, background: 'rgba(18,33,26,0.06)', overflow: 'hidden' }}>
@@ -110,7 +110,7 @@ export function WathbaDashboardAnalytics({
                 <li key={f.followerId}>
                   {f.name}{' '}
                   <span style={{ color: 'var(--text-tertiary, var(--muted2))', fontSize: 12 }}>
-                    — {new Date(f.followedAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+                    — {new Date(f.followedAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' })}
                   </span>
                 </li>
               ))}

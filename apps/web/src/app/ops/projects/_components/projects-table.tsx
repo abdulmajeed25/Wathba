@@ -72,7 +72,7 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
       sortable: true,
       sortValue: (r) => r.backersCount,
       csv: (r) => String(r.backersCount),
-      render: (r) => <span className="tabular-nums">{r.backersCount.toLocaleString('ar-SA')}</span>,
+      render: (r) => <span className="tabular-nums">{r.backersCount.toLocaleString('ar-SA-u-nu-latn')}</span>,
     },
     {
       key: 'openReportCount',
@@ -88,7 +88,7 @@ export function ProjectsTable({ rows }: { rows: ProjectRow[] }) {
             title="فتح طابور الثقة والبلاغات"
             className="inline-block rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-300 hover:bg-amber-500/20"
           >
-            {r.openReportCount.toLocaleString('ar-SA')}
+            {r.openReportCount.toLocaleString('ar-SA-u-nu-latn')}
           </Link>
         ) : (
           <span className="text-[#484f58]">—</span>

@@ -171,7 +171,7 @@ function ProfileTab({
           style={{ ...inputStyle, textAlign: 'left' }}
         />
         <span style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
-          ٣–٣٠ حرفاً لاتينياً أو رقماً أو (ـ . -). يظهر في رابط ملفك العام.
+          3–30 حرفاً لاتينياً أو رقماً أو (ـ . -). يظهر في رابط ملفك العام.
         </span>
       </label>
 
@@ -550,7 +550,7 @@ const SETTINGS_MESSAGES: Record<string, { text: string; ok: boolean; scope: stri
   emailpending: { text: 'أرسلنا رابط تأكيد إلى بريدك الجديد — لن يتغيّر شيء قبل الضغط عليه.', ok: true, scope: 'security' },
   notifs:       { text: 'حُفظت تفضيلات الإشعارات.',                             ok: true,  scope: 'notifications' },
   privacy:      { text: 'حُفظت إعدادات الخصوصية.',                              ok: true,  scope: 'privacy' },
-  pwshort:      { text: 'كلمة المرور الجديدة يجب أن تتكون من ٨ أحرف على الأقل.', ok: false, scope: 'security' },
+  pwshort:      { text: 'كلمة المرور الجديدة يجب أن تتكون من 8 أحرف على الأقل.', ok: false, scope: 'security' },
   pwmismatch:   { text: 'كلمتا المرور غير متطابقتين.',                          ok: false, scope: 'security' },
   badpass:      { text: 'كلمة المرور الحالية غير صحيحة.',                       ok: false, scope: 'security' },
   emailtaken:   { text: 'تعذّر استخدام هذا البريد — جرّب بريداً آخر.',           ok: false, scope: 'security' },
@@ -646,7 +646,7 @@ function AvatarField({ me }: { me?: ApiUserMe | null }) {
 
   const pick = async (rawFile: File) => {
     setErr(null);
-    if (rawFile.size > 2 * 1024 * 1024) { setErr('حجم الصورة يتجاوز ٢ ميغابايت.'); return; }
+    if (rawFile.size > 2 * 1024 * 1024) { setErr('حجم الصورة يتجاوز 2 ميغابايت.'); return; }
     setBusy(true);
     try {
       // STAKES/S-15 (C2) — square center-crop + resize to 512px client-side,
@@ -709,7 +709,7 @@ function AvatarField({ me }: { me?: ApiUserMe | null }) {
           )}
         </div>
         <span style={{ fontSize: 11.5, color: err ? '#dc2626' : 'var(--muted2)' }}>
-          {err ?? 'JPG / PNG / WebP — بحد أقصى ٢ ميغابايت.'}
+          {err ?? 'JPG / PNG / WebP — بحد أقصى 2 ميغابايت.'}
         </span>
       </div>
       <input

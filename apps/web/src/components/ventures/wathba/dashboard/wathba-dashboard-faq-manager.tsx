@@ -324,7 +324,7 @@ function QuestionCard({
     <Card>
       <div style={{ fontSize: 14, marginBottom: 8 }}>{q.bodyAr}</div>
       <div style={{ fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
-        وردت في {new Date(q.createdAt).toLocaleDateString('ar-SA')}
+        وردت في {new Date(q.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
       </div>
       {open ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>

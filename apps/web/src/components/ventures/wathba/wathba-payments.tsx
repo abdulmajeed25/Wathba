@@ -73,7 +73,7 @@ export function WathbaPayments({
               <EmptyState
                 icon="check"
                 title="لا استردادات في حسابك"
-                body="ستظهر هنا أي مبالغ يُسترد فيها دعمك (مثلاً عند فشل حملة في بلوغ عتبة ٨٠٪)."
+                body="ستظهر هنا أي مبالغ يُسترد فيها دعمك (مثلاً عند فشل حملة في بلوغ عتبة 80٪)."
               />
             ) : (
               <HistoryTab pledges={refunded} />
@@ -140,7 +140,7 @@ function MethodsTab() {
         <span>
           عند الدعم نُجري عملية حجز (Authorize) فقط على بطاقتك. لا يُخصم أي
           مبلغ فعلياً قبل نجاح الحملة. إن فشلت الحملة يُحرَّر الحجز تلقائياً
-          خلال ٧ أيام عمل بنكية.
+          خلال 7 أيام عمل بنكية.
         </span>
       </article>
     </div>
@@ -191,7 +191,7 @@ function HistoryTab({ pledges }: { pledges: ApiBackingRow[] }) {
                 }}
               >
                 <td style={{ padding: '14px 18px', color: 'var(--muted)' }}>
-                  <Num>{new Date(p.committedAt).toLocaleDateString('ar-SA')}</Num>
+                  <Num>{new Date(p.committedAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</Num>
                 </td>
                 <td style={{ padding: '14px 18px', color: 'var(--text)' }}>
                   {projectAr}
@@ -324,7 +324,7 @@ function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined 
                     }}
                   >
                     <td style={{ padding: '14px 18px', color: 'var(--muted)' }}>
-                      <Num>{new Date(p.createdAt).toLocaleDateString('ar-SA')}</Num>
+                      <Num>{new Date(p.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</Num>
                     </td>
                     <td style={{ padding: '14px 18px' }}>{p.projectId.slice(0, 8)}…</td>
                     <td style={{ padding: '14px 18px', textAlign: 'end', fontWeight: 700 }}>
@@ -364,7 +364,7 @@ function WalletTab({ payouts }: { payouts: ApiPayoutsPayload | null | undefined 
       )}
 
       <p style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.65 }}>
-        فواتير ZATCA Phase 2 تُصدر تلقائياً على عمولة المنصة فقط (٥٪) ولا تشمل
+        فواتير ZATCA Phase 2 تُصدر تلقائياً على عمولة المنصة فقط (5٪) ولا تشمل
         مبلغ الدعم الأصلي. تستلم نسخة PDF + QR على بريدك بعد كل صرف.
       </p>
     </div>

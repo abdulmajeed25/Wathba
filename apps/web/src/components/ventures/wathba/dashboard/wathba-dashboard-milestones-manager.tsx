@@ -161,12 +161,12 @@ export function DashboardMilestonesManager({
     }
     for (const r of draft) {
       if (!r.titleAr || r.titleAr.trim().length < 4) {
-        setError('كل مرحلة تحتاج عنوان (٤ أحرف فأكثر).');
+        setError('كل مرحلة تحتاج عنوان (4 أحرف فأكثر).');
         return;
       }
       const pct = Number(r.releasePct);
       if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
-        setError('نسبة الإفراج لكل مرحلة بين ١ و ١٠٠.');
+        setError('نسبة الإفراج لكل مرحلة بين 1 و 100.');
         return;
       }
       if (!r.evidenceRequired || r.evidenceRequired.trim().length < 4) {
@@ -175,7 +175,7 @@ export function DashboardMilestonesManager({
       }
     }
     if (draftPctTotal !== 100) {
-      setError(`المجموع لازم يساوي ١٠٠% — حالياً ${draftPctTotal}%.`);
+      setError(`المجموع لازم يساوي 100% — حالياً ${draftPctTotal}%.`);
       return;
     }
     setBusy(true);
@@ -297,7 +297,7 @@ export function DashboardMilestonesManager({
     setError(null);
     setNotice(null);
     if (!spendForm.descAr || spendForm.descAr.trim().length < 4) {
-      setError('اكتب وصفاً للصرفية (٤ أحرف فأكثر).');
+      setError('اكتب وصفاً للصرفية (4 أحرف فأكثر).');
       return;
     }
     const amountSAR = Number(spendForm.amountSAR);
@@ -307,7 +307,7 @@ export function DashboardMilestonesManager({
     }
     const amountHalalas = Math.round(amountSAR * 100);
     if (amountHalalas < 100) {
-      setError('الحد الأدنى ١ ر.س.');
+      setError('الحد الأدنى 1 ر.س.');
       return;
     }
     setBusy(true);

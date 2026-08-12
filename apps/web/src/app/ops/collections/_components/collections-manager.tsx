@@ -83,7 +83,7 @@ function CreateCollectionForm({ onDone }: { onDone: () => void }) {
     >
       <h2 className="text-base font-bold sm:col-span-2">إنشاء حملة وثبة</h2>
       <label className="flex flex-col gap-1">
-        <span className="text-xs text-[#8b949e]">المُعرّف (slug — ٣ أحرف على الأقل)</span>
+        <span className="text-xs text-[#8b949e]">المُعرّف (slug — 3 أحرف على الأقل)</span>
         <input value={slug} onChange={(e) => setSlug(e.target.value)} dir="ltr" placeholder="ramadan-2026" className={INPUT} />
       </label>
       <label className="flex flex-col gap-1">
@@ -91,7 +91,7 @@ function CreateCollectionForm({ onDone }: { onDone: () => void }) {
         <input value={nameAr} onChange={(e) => setNameAr(e.target.value)} placeholder="حملة رمضان" className={INPUT} />
       </label>
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs text-[#8b949e]">الوصف (٤ أحرف على الأقل)</span>
+        <span className="text-xs text-[#8b949e]">الوصف (4 أحرف على الأقل)</span>
         <textarea value={descriptionAr} onChange={(e) => setDescriptionAr(e.target.value)} rows={2} className={INPUT} />
       </label>
       <label className="flex flex-col gap-1">
@@ -150,7 +150,7 @@ function CollectionRow({ collection: c, onDone }: { collection: Collection; onDo
             {c.isActive ? <StatusBadge intent="ok">مفعّلة</StatusBadge> : <StatusBadge intent="muted">غير مفعّلة</StatusBadge>}
             {c.showInMenu ? <StatusBadge intent="info">في القائمة</StatusBadge> : null}
             <StatusBadge intent="muted">
-              {(c._count?.projects ?? 0).toLocaleString('ar-SA')} مشروع مُسند
+              {(c._count?.projects ?? 0).toLocaleString('ar-SA-u-nu-latn')} مشروع مُسند
             </StatusBadge>
           </div>
           <p className="mt-1 line-clamp-2 text-xs text-[#8b949e]">{c.descriptionAr}</p>

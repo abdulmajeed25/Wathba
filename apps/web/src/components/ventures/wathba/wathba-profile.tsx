@@ -9,7 +9,7 @@ import { adaptApiVenture, deriveProject, wathbaProjects, type DerivedProject } f
 import { Icon, Num } from './wathba-icons';
 import { WathbaProfileCompleteness } from './wathba-profile-completeness';
 import { EmptyState } from './wathba-states';
-import { toArabicDigits } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
 
 /**
  * Wathba (وثبة) — Profile surface.
@@ -240,7 +240,7 @@ export function WathbaProfile({ backings, saved: savedCards, me }: WathbaProfile
               </span>
             </div>
             <p style={{ fontSize: 14, color: 'var(--muted)', marginBottom: 18 }}>
-              داعمة للإبداع العربي · انضمّت يناير ٢٠٢٥ · دبي، الإمارات
+              داعمة للإبداع العربي · انضمّت يناير 2025 · دبي، الإمارات
             </p>
             <div style={{ display: 'flex', gap: 30, flexWrap: 'wrap' }}>
               {heroStats.map((s) => (
@@ -467,7 +467,7 @@ function CreatedList({ projects }: { projects: DerivedProject[] }) {
                 {p.backersFmt} داعم
               </Num>
               <Num className="num" style={{ fontSize: 14, color: 'var(--muted)' }}>
-                {toArabicDigits(p.daysLeft)} يوم متبقٍ
+                {toDisplayDigits(p.daysLeft)} يوم متبقٍ
               </Num>
             </div>
             <div

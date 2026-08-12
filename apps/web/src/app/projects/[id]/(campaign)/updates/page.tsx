@@ -64,7 +64,7 @@ export default async function ProjectUpdatesIndexPage({
                       </span>
                     )}
                     <span style={{ marginInlineStart: 'auto', fontSize: 11.5, color: 'var(--text-tertiary, #5d6b62)' }}>
-                      {new Date(u.date).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}
+                      {new Date(u.date).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' })}
                     </span>
                   </div>
                   <p style={{ fontSize: 13.5, color: 'var(--text-secondary, #3b4942)', margin: 0, lineHeight: 1.7, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>

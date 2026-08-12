@@ -32,12 +32,12 @@ export interface AppealRow {
 
 /** Appeal status → badge hue. */
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  return iso ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 }
 
 function fmtAge(hours: number): string {
-  if (hours < 24) return `${Math.round(hours).toLocaleString('ar-SA')} ساعة`;
-  return `${Math.round(hours / 24).toLocaleString('ar-SA')} يوم`;
+  if (hours < 24) return `${Math.round(hours).toLocaleString('ar-SA-u-nu-latn')} ساعة`;
+  return `${Math.round(hours / 24).toLocaleString('ar-SA-u-nu-latn')} يوم`;
 }
 
 export function AppealsTable({ rows }: { rows: AppealRow[] }) {

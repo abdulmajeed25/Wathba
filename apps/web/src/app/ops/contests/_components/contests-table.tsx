@@ -50,7 +50,7 @@ export function ContestsTable({ rows }: { rows: ContestRow[] }) {
       sortValue: (r) => r.targetWinnersCount,
       csv: (r) => String(r.targetWinnersCount),
       render: (r) => (
-        <span className="tabular-nums">{r.targetWinnersCount.toLocaleString('ar-SA')}</span>
+        <span className="tabular-nums">{r.targetWinnersCount.toLocaleString('ar-SA-u-nu-latn')}</span>
       ),
     },
     {
@@ -62,7 +62,7 @@ export function ContestsTable({ rows }: { rows: ContestRow[] }) {
       csv: (r) => String(r.winnerCount),
       render: (r) => (
         <span className="tabular-nums text-[#8b949e]">
-          {r.winnerCount.toLocaleString('ar-SA')}
+          {r.winnerCount.toLocaleString('ar-SA-u-nu-latn')}
         </span>
       ),
     },

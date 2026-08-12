@@ -62,8 +62,8 @@ export function StepUpCard({
         )}
       </div>
       <p className="mb-4 text-xs text-[#8b949e]">
-        عمليات المال والصلاحيات تتطلب إعادة إدخال كلمة المرور خلال آخر ١٠ دقائق.
-        {stepUpAt ? ` آخر توثيق: ${new Date(stepUpAt).toLocaleTimeString('ar-SA')}.` : ''}
+        عمليات المال والصلاحيات تتطلب إعادة إدخال كلمة المرور خلال آخر 10 دقائق.
+        {stepUpAt ? ` آخر توثيق: ${new Date(stepUpAt).toLocaleTimeString('ar-SA-u-nu-latn')}.` : ''}
       </p>
       <form onSubmit={submit} className="space-y-3">
         <input

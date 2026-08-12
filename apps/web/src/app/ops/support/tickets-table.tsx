@@ -40,11 +40,11 @@ function ageAr(iso: string | null): string {
   if (!iso) return '—';
   const ms = Date.now() - new Date(iso).getTime();
   const days = Math.floor(ms / 86_400_000);
-  if (days >= 1) return `${days.toLocaleString('ar-SA')} يوم`;
+  if (days >= 1) return `${days.toLocaleString('ar-SA-u-nu-latn')} يوم`;
   const hours = Math.floor(ms / 3_600_000);
-  if (hours >= 1) return `${hours.toLocaleString('ar-SA')} ساعة`;
+  if (hours >= 1) return `${hours.toLocaleString('ar-SA-u-nu-latn')} ساعة`;
   const mins = Math.max(1, Math.floor(ms / 60_000));
-  return `${mins.toLocaleString('ar-SA')} دقيقة`;
+  return `${mins.toLocaleString('ar-SA-u-nu-latn')} دقيقة`;
 }
 
 export function TicketsTable({ rows }: { rows: TicketRow[] }) {

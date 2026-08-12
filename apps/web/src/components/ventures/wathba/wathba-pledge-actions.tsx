@@ -46,7 +46,7 @@ export function PledgeActions({ row }: { row: ApiBackingRow }) {
     try {
       const res = await fetch(`/api/pledges/${row.id}/cancel`, { method: 'POST' });
       if (res.status === 403) {
-        toast('error', 'قُفلت التعهدات — أقل من ٤٨ ساعة على إغلاق الحملة.');
+        toast('error', 'قُفلت التعهدات — أقل من 48 ساعة على إغلاق الحملة.');
       } else if (!res.ok) {
         toast('error', 'تعذّر الإلغاء حالياً — حاول بعد قليل.');
       } else {
@@ -113,7 +113,7 @@ export function PledgeActions({ row }: { row: ApiBackingRow }) {
       )}
       {cancellable && locked && (
         <span data-testid="cancel-locked" style={lockedChip}>
-          قُفلت التعهدات — أقل من ٤٨ ساعة على الإغلاق
+          قُفلت التعهدات — أقل من 48 ساعة على الإغلاق
         </span>
       )}
 
@@ -124,7 +124,7 @@ export function PledgeActions({ row }: { row: ApiBackingRow }) {
               حدّث بطاقتك — تبقّى{' '}
               {row.graceExpiresAt
                 ? `${Math.max(0, Math.round((new Date(row.graceExpiresAt).getTime() - Date.now()) / 3_600_000))} ساعة`
-                : '٧٢ ساعة'}
+                : '72 ساعة'}
             </button>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8, marginTop: 8 }}>

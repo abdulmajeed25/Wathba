@@ -205,7 +205,7 @@ export function BulkBar<Row extends { id: string }>({
     >
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-bold">
-          محدَّد: {rows.length.toLocaleString('ar-SA')}
+          محدَّد: {rows.length.toLocaleString('ar-SA-u-nu-latn')}
         </span>
 
         {phase === 'choose'
@@ -242,8 +242,8 @@ export function BulkBar<Row extends { id: string }>({
         <div className="space-y-3">
           <p className="rounded border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-sm">
             سيُطبَّق «{op.label}» على{' '}
-            <b className="tabular-nums">{targets.length.toLocaleString('ar-SA')}</b> من{' '}
-            {rows.length.toLocaleString('ar-SA')} صف محدَّد
+            <b className="tabular-nums">{targets.length.toLocaleString('ar-SA-u-nu-latn')}</b> من{' '}
+            {rows.length.toLocaleString('ar-SA-u-nu-latn')} صف محدَّد
             {targets.length < rows.length ? ' (البقية غير مؤهّلة لهذا الإجراء)' : ''}.
             {op.describeAr ? <span className="mt-1 block text-[#8b949e]">{op.describeAr}</span> : null}
             <span className="mt-1 block text-xs text-[#8b949e]">
@@ -254,7 +254,7 @@ export function BulkBar<Row extends { id: string }>({
           {needsReason ? (
             <label className="block">
               <span className="mb-1 block text-xs text-[#8b949e]">
-                السبب (١٠ أحرف على الأقل — يُسجَّل في تدقيق كل صف)
+                السبب (10 أحرف على الأقل — يُسجَّل في تدقيق كل صف)
               </span>
               <textarea
                 value={reason}
@@ -303,7 +303,7 @@ export function BulkBar<Row extends { id: string }>({
       {phase === 'running' ? (
         <div className="space-y-2" aria-live="polite">
           <p className="text-sm text-[#8b949e]">
-            جارٍ التنفيذ… {progress.toLocaleString('ar-SA')} / {targets.length.toLocaleString('ar-SA')}
+            جارٍ التنفيذ… {progress.toLocaleString('ar-SA-u-nu-latn')} / {targets.length.toLocaleString('ar-SA-u-nu-latn')}
           </p>
           <div className="h-1.5 w-full overflow-hidden rounded bg-[#0d1117]">
             <div
@@ -318,13 +318,13 @@ export function BulkBar<Row extends { id: string }>({
         <div className="space-y-3" aria-live="polite">
           <div className="flex flex-wrap gap-2 text-sm">
             <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-emerald-300">
-              ✓ نُفِّذت: {okCount.toLocaleString('ar-SA')}
+              ✓ نُفِّذت: {okCount.toLocaleString('ar-SA-u-nu-latn')}
             </span>
             <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-amber-300">
-              رُفِضت: {refusedCount.toLocaleString('ar-SA')}
+              رُفِضت: {refusedCount.toLocaleString('ar-SA-u-nu-latn')}
             </span>
             <span className="rounded border border-red-500/40 bg-red-500/10 px-2.5 py-1 text-red-300">
-              أخفقت: {errorCount.toLocaleString('ar-SA')}
+              أخفقت: {errorCount.toLocaleString('ar-SA-u-nu-latn')}
             </span>
           </div>
 

@@ -35,7 +35,7 @@ const BID_INTENT: Record<string, 'ok' | 'warn' | 'danger' | 'muted'> = {
 const numeric = (v: string | null): number => Number(String(v ?? '0').replace(/[^\d-]/g, '') || '0');
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('ar-SA', { dateStyle: 'medium' }) : '—';
+  return iso ? new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : '—';
 }
 
 export function SupplierBidsTable({ rows }: { rows: SupplierBidRow[] }) {
@@ -67,7 +67,7 @@ export function SupplierBidsTable({ rows }: { rows: SupplierBidRow[] }) {
       csv: (r) => (r.leadTimeDays != null ? String(r.leadTimeDays) : ''),
       render: (r) =>
         r.leadTimeDays != null ? (
-          <span className="tabular-nums">{r.leadTimeDays.toLocaleString('ar-SA')}</span>
+          <span className="tabular-nums">{r.leadTimeDays.toLocaleString('ar-SA-u-nu-latn')}</span>
         ) : (
           <span className="text-[#484f58]">—</span>
         ),

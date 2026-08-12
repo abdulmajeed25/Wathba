@@ -96,7 +96,7 @@ interface AppealDetail {
 }
 
 function fmtDate(iso: string | null | undefined): string {
-  return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  return iso ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 }
 
 export default async function OpsAppealDetailPage({

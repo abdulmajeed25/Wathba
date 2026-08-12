@@ -35,7 +35,7 @@ const REWARD_INTENT: Record<string, 'ok' | 'warn' | 'danger' | 'muted' | 'info'>
 const numeric = (v: string | null): number => Number(String(v ?? '0').replace(/[^\d-]/g, '') || '0');
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleDateString('ar-SA', { dateStyle: 'medium' }) : '—';
+  return iso ? new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' }) : '—';
 }
 
 export function BackersTable({ rows }: { rows: BackerRow[] }) {

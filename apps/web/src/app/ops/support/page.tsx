@@ -91,14 +91,14 @@ export default async function OpsSupportPage({
           <StatTile
             key={c.status}
             label={STATUS_AR[c.status] ?? c.status}
-            value={c.count.toLocaleString('ar-SA')}
+            value={c.count.toLocaleString('ar-SA-u-nu-latn')}
             intent={c.status === 'OPEN' && c.count > 0 ? 'warn' : 'default'}
           />
         ))}
       </div>
       <p className="text-[11px] text-[#484f58]">
         الأعداد إجمالية عبر كل الصفحات (GET /v1/ops/tickets/stats)
-        {stats ? ` — الإجمالي ${stats.total.toLocaleString('ar-SA')} تذكرة` : ''}.
+        {stats ? ` — الإجمالي ${stats.total.toLocaleString('ar-SA-u-nu-latn')} تذكرة` : ''}.
       </p>
 
       <FilterForm

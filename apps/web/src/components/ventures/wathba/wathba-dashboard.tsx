@@ -6,7 +6,7 @@ import type { ApiApplicationRow, ApiBackingRow, ApiMyProject } from '@/lib/api/w
 import { formatSar } from '@/lib/i18n/format';
 
 import { Icon, Num } from './wathba-icons';
-import { toArabicDigits } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
 
 /**
  * Wathba (وثبة) — Creator Dashboard.
@@ -70,11 +70,11 @@ function buildStats(projects: ApiMyProject[] | null): Array<{
 
   return [
     { label: 'إجمالي التمويل', value: formatSar('ar', Math.round(raised / 100)), delta: null, icon: 'trending_up', color: 'var(--accent-ink)' },
-    { label: 'الداعمون', value: toArabicDigits(backers), delta: null, icon: 'groups', color: 'var(--blue)' },
-    { label: 'نسبة الإنجاز', value: `%${toArabicDigits(pct)}`, delta: pct >= 100 ? 'تجاوز الهدف' : null, icon: 'check_circle', color: 'var(--pos-ink)' },
+    { label: 'الداعمون', value: toDisplayDigits(backers), delta: null, icon: 'groups', color: 'var(--blue)' },
+    { label: 'نسبة الإنجاز', value: `%${toDisplayDigits(pct)}`, delta: pct >= 100 ? 'تجاوز الهدف' : null, icon: 'check_circle', color: 'var(--pos-ink)' },
     {
       label: 'الأيام المتبقية',
-      value: upcoming === undefined ? '—' : toArabicDigits(upcoming),
+      value: upcoming === undefined ? '—' : toDisplayDigits(upcoming),
       delta: upcoming === undefined ? 'لا حملة نشطة' : null,
       icon: 'schedule', color: 'var(--gold-ink)',
     },
@@ -92,18 +92,18 @@ const chartBars = [
 ];
 
 const recentBackersFixture = [
-  { name: 'عبدالله الشمري', tier: 'الباقة المزدوجة', amount: '149 ر.س', time: 'قبل ٥ دقائق', rank: 'داعم', rc: 'var(--blue)' },
-  { name: 'نورة ع.', tier: 'الباقة الأساسية', amount: '79 ر.س', time: 'قبل ١٨ دقيقة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
-  { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '399 ر.س', time: 'قبل ٤٢ دقيقة', rank: 'محسن', rc: 'var(--accent-ink)' },
+  { name: 'عبدالله الشمري', tier: 'الباقة المزدوجة', amount: '149 ر.س', time: 'قبل 5 دقائق', rank: 'داعم', rc: 'var(--blue)' },
+  { name: 'نورة ع.', tier: 'الباقة الأساسية', amount: '79 ر.س', time: 'قبل 18 دقيقة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
+  { name: 'فهد التميمي', tier: 'باقة المحترفين', amount: '399 ر.س', time: 'قبل 42 دقيقة', rank: 'محسن', rc: 'var(--accent-ink)' },
   { name: 'ريم خالد', tier: 'داعم مبكر', amount: '25 ر.س', time: 'قبل ساعة', rank: 'مستكشف', rc: 'var(--rank-silver)' },
-  { name: 'سلطان ا.', tier: 'الداعم المؤسس', amount: '2,500 ر.س', time: 'قبل ٣ ساعات', rank: 'داعم مؤسس', rc: 'var(--purple-ink)' },
+  { name: 'سلطان ا.', tier: 'الداعم المؤسس', amount: '2,500 ر.س', time: 'قبل 3 ساعات', rank: 'داعم مؤسس', rc: 'var(--purple-ink)' },
 ];
 
 const updates = [
   { n: 4, title: 'وصلنا 150% — شكراً لكم!', date: 'قبل يومين' },
-  { n: 3, title: 'العيّنة الهندسية الأولى جاهزة', date: 'قبل ٦ أيام' },
-  { n: 2, title: 'شراكة مع شركة شحن إقليمية', date: 'قبل ١١ يوماً' },
-  { n: 1, title: 'انطلقنا رسمياً على وثبة', date: 'قبل ١٤ يوماً' },
+  { n: 3, title: 'العيّنة الهندسية الأولى جاهزة', date: 'قبل 6 أيام' },
+  { n: 2, title: 'شراكة مع شركة شحن إقليمية', date: 'قبل 11 يوماً' },
+  { n: 1, title: 'انطلقنا رسمياً على وثبة', date: 'قبل 14 يوماً' },
 ];
 
 // Adapter — when the API hands us live backings we render them in the
@@ -430,7 +430,7 @@ function OverviewPanel({
           >
             <h3 style={{ fontSize: 17, fontWeight: 700 }}>التمويل اليومي</h3>
             <Num className="num" style={{ fontSize: 13, color: 'var(--muted2)' }}>
-              آخر ٧ أيام
+              آخر 7 أيام
             </Num>
           </div>
           <div

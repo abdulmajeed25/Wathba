@@ -9,7 +9,7 @@ import { Icon } from './wathba-icons';
 import { WathbaDiscoverAllCard } from './wathba-discover-all-card';
 import { DURATION_OPTS } from './discover-all-constants';
 import {
-  MONEY_BRACKETS, PCT_OPTS, QUICK_REGIONS, REGIONS, SORTS, arabicCount, toArabicDigits,
+  MONEY_BRACKETS, PCT_OPTS, QUICK_REGIONS, REGIONS, SORTS, displayCount, toDisplayDigits,
 } from './discover-all-constants';
 import { SEARCH_CHIPS } from './wathba-search-chips';
 
@@ -155,7 +155,7 @@ export function WathbaDiscoverAll({
           {/* Top bar */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             <h1 style={{ fontSize: 22, fontWeight: 800 }} data-testid="discover-total">
-              {q ? <>{arabicCount(total)} نتيجة عن «{q}»</> : <>{arabicCount(total)} مشروعاً</>}
+              {q ? <>{displayCount(total)} نتيجة عن «{q}»</> : <>{displayCount(total)} مشروعاً</>}
             </h1>
             <label style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
               ترتيب حسب
@@ -224,7 +224,7 @@ export function WathbaDiscoverAll({
               {/* Load-more + progress */}
               <div style={{ marginTop: 28, textAlign: 'center' }}>
                 <div style={{ fontSize: 13, color: 'var(--muted2)', marginBottom: 8 }}>
-                  شاهدت {toArabicDigits(items.length)} من {arabicCount(total)} مشروعاً
+                  شاهدت {toDisplayDigits(items.length)} من {displayCount(total)} مشروعاً
                 </div>
                 <div style={{ height: 4, background: 'rgba(var(--ink-rgb),.1)', borderRadius: 999, overflow: 'hidden', maxWidth: 320, margin: '0 auto 16px' }}>
                   <div style={{ height: '100%', width: `${total ? Math.min(100, (items.length / total) * 100) : 100}%`, background: 'var(--grad)' }} />
@@ -283,7 +283,7 @@ function Row({
         {active && <Icon name="check" size={12} color="var(--on-accent)" />}
       </span>
       <span style={{ flex: 1 }}>{label}</span>
-      {count !== undefined && <span style={{ fontSize: 12, color: 'var(--muted2)' }}>{toArabicDigits(count)}</span>}
+      {count !== undefined && <span style={{ fontSize: 12, color: 'var(--muted2)' }}>{toDisplayDigits(count)}</span>}
     </button>
   );
 }

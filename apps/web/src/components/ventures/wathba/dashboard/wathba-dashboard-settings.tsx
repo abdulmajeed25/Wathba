@@ -8,7 +8,7 @@ import { WathbaDashboardCollaborators } from './wathba-dashboard-collaborators';
 import { WathbaTagPicker } from './wathba-tag-picker';
 import { useConfirm } from '../wathba-feedback';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
-import { toArabicDigits } from '../discover-all-constants';
+import { toDisplayDigits } from '../discover-all-constants';
 
 /* ─────── Static enums + labels ──────────────────────────────────────────────
  * Kept colocated so we don't drag the @prisma/client enum into the browser
@@ -292,7 +292,7 @@ export function DashboardSettings({
     goalHalalas > 0 && goalHalalas < project.raisedHalalas
       ? `الهدف الجديد (${fmtSAR(goalHalalas)}) أقلّ ممّا تم جمعه فعلاً (${fmtSAR(project.raisedHalalas)})`
       : goalHalalas > 0 && goalHalalas < 10_000
-        ? 'الحدّ الأدنى للهدف ١٠٠ ر.س'
+        ? 'الحدّ الأدنى للهدف 100 ر.س'
         : null;
 
   /* ─── Action helpers ─────────────────────────────────────────────────── */
@@ -378,7 +378,7 @@ export function DashboardSettings({
 
   /* ─── Render ─────────────────────────────────────────────────────────── */
 
-  const deadlineFmt = new Date(project.deadline).toLocaleDateString('ar-SA', {
+  const deadlineFmt = new Date(project.deadline).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -413,7 +413,7 @@ export function DashboardSettings({
             disabled={!editable}
             style={inputStyle(editable)}
           />
-          <Hint>{titleAr.length}/120 حرفاً — الحدّ الأدنى ٤ أحرف</Hint>
+          <Hint>{titleAr.length}/120 حرفاً — الحدّ الأدنى 4 أحرف</Hint>
         </Field>
 
         <Field label="وصف مختصر">
@@ -477,7 +477,7 @@ export function DashboardSettings({
           {goalError && <ErrorLine>{goalError}</ErrorLine>}
         </Field>
 
-        <Field label={`عتبة الإفراج عن الأموال — ${toArabicDigits(threshold)}٪`}>
+        <Field label={`عتبة الإفراج عن الأموال — ${toDisplayDigits(threshold)}٪`}>
           <input
             type="range"
             min={50}
@@ -489,8 +489,8 @@ export function DashboardSettings({
             style={{ width: '100%' }}
           />
           <Hint>
-            أقلّ نسبة من الهدف يجب بلوغها لصرف الأموال من الضمان (٨٠٪ افتراضياً، بين
-            ٥٠٪ و١٠٠٪).
+            أقلّ نسبة من الهدف يجب بلوغها لصرف الأموال من الضمان (80٪ افتراضياً، بين
+            50٪ و100٪).
           </Hint>
         </Field>
 
@@ -510,16 +510,16 @@ export function DashboardSettings({
               style={inputStyle(editable)}
             />
             <Hint>
-              بين ٧ و١٢٠ يوماً — حتى ٦٠ تُعتمد مباشرة، وما فوقها يحتاج موافقة مسبقة من
+              بين 7 و120 يوماً — حتى 60 تُعتمد مباشرة، وما فوقها يحتاج موافقة مسبقة من
               فريق وثبة. يُحتسب الموعد النهائي تلقائياً من المدّة عند نشر الحملة.
-              بعد النشر يُقفل الموعد ولا يمكن تمديده (سياسة §١).
+              بعد النشر يُقفل الموعد ولا يمكن تمديده (سياسة §1).
             </Hint>
           </Field>
         ) : (
           <>
             <ReadOnlyRow label="مدّة الحملة" value={`${project.durationDays} يوماً`} />
             <ReadOnlyRow label="الموعد النهائي" value={deadlineFmt} />
-            <Hint>الموعد النهائي مقفل بعد النشر — لا يمكن تمديده (سياسة §١).</Hint>
+            <Hint>الموعد النهائي مقفل بعد النشر — لا يمكن تمديده (سياسة §1).</Hint>
           </>
         )}
 
@@ -623,7 +623,7 @@ export function DashboardSettings({
             />
             {project.storyAr.length < 200 && (
               <ErrorLine>
-                لا يمكن الإرسال — يجب أن تكون قصّة الحملة ٢٠٠ حرف على الأقل (الحالي:{' '}
+                لا يمكن الإرسال — يجب أن تكون قصّة الحملة 200 حرف على الأقل (الحالي:{' '}
                 {project.storyAr.length}).
               </ErrorLine>
             )}
@@ -664,7 +664,7 @@ export function DashboardSettings({
               }}
             >
               الحملة موقوفة مؤقتاً — الدعم الجديد متوقف، لكن العدّ التنازلي للموعد النهائي
-              <b> مستمر</b> (لا يُمدَّد). الحدّ الأقصى للإيقاف ٧ أيام تراكمياً — المُستخدَم حتى الآن:{' '}
+              <b> مستمر</b> (لا يُمدَّد). الحدّ الأقصى للإيقاف 7 أيام تراكمياً — المُستخدَم حتى الآن:{' '}
               <b>{Math.floor((project.pausedMsAccrued ?? 0) / 3_600_000)}</b> ساعة.
             </div>
             <button
@@ -773,7 +773,7 @@ export function DashboardSettings({
       <Card title="فيديو الحملة">
         <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.7, marginBottom: 12 }}>
           مقطع قصير يظهر على بطاقة مشروعك في الصفحة الرئيسية عند مرور المؤشر فوقها، وبدونه تبقى
-          البطاقة بالصورة فقط. الصيغ المقبولة: MP4 أو WebM، بحد أقصى ٢٥ ميجابايت.
+          البطاقة بالصورة فقط. الصيغ المقبولة: MP4 أو WebM، بحد أقصى 25 ميجابايت.
         </p>
         {videoUrl ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1008,7 +1008,7 @@ function CancelCampaign({
                 إجراء لا يمكن التراجع عنه
               </div>
               سيقوم النظام تلقائياً بإرجاع كامل المبالغ إلى{' '}
-              <b>{project.backersCount.toLocaleString('ar-SA')}</b> داعم — بإجمالي{' '}
+              <b>{project.backersCount.toLocaleString('ar-SA-u-nu-latn')}</b> داعم — بإجمالي{' '}
               <b>{fmtSAR(project.raisedHalalas)}</b>، وتنتقل الحملة نهائياً إلى حالة «متعثّر».
               <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary, #3b4942)' }}>
                 أنت لا تحرّك الأموال بنفسك — الاسترداد نتيجة نظامية تلقائية للإلغاء.

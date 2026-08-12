@@ -420,7 +420,7 @@ function ManagerButton({
 function formatDateAr(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return d.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' });
   } catch {
     return iso;
   }

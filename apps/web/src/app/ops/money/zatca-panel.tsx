@@ -111,7 +111,7 @@ export async function ZatcaPanel({
                   )}
                 </td>
                 <td className="px-3 py-2 text-[11px] text-[#8b949e]">
-                  {new Date(z.createdAt).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}
+                  {new Date(z.createdAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' })}
                 </td>
               </tr>
             ))}

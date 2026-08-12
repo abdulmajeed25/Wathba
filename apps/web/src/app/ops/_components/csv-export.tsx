@@ -48,7 +48,7 @@ export function CsvExport<Row>({
       <span aria-hidden className="ml-1">⬇︎</span>
       {labelAr}
       {!empty ? (
-        <span className="text-[#8b949e]"> ({rows.length.toLocaleString('ar-SA')})</span>
+        <span className="text-[#8b949e]"> ({rows.length.toLocaleString('ar-SA-u-nu-latn')})</span>
       ) : null}
     </button>
   );

@@ -127,7 +127,7 @@ const COLUMNS: Column<UserRow>[] = [
       u.supplierVerifiedAt ? (
         <span
           className="text-emerald-400"
-          title={new Date(u.supplierVerifiedAt).toLocaleString('ar-SA')}
+          title={new Date(u.supplierVerifiedAt).toLocaleString('ar-SA-u-nu-latn')}
         >
           ✓
         </span>
@@ -152,7 +152,7 @@ const COLUMNS: Column<UserRow>[] = [
     sortValue: (u) => u.createdAt,
     render: (u) => (
       <span className="whitespace-nowrap text-[#8b949e]">
-        {new Date(u.createdAt).toLocaleDateString('ar-SA', { dateStyle: 'medium' })}
+        {new Date(u.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' })}
       </span>
     ),
   },

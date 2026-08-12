@@ -100,15 +100,15 @@ export default async function OpsAppealsPage({
         <section className="grid gap-3 sm:grid-cols-3">
           <StatTile
             label="تظلّمات مفتوحة (بهذه الصفحة)"
-            value={openCount.toLocaleString('ar-SA')}
+            value={openCount.toLocaleString('ar-SA-u-nu-latn')}
             intent={openCount > 0 ? 'warn' : 'default'}
           />
           <StatTile
             label="تجاوزت SLA"
-            value={overdueCount.toLocaleString('ar-SA')}
+            value={overdueCount.toLocaleString('ar-SA-u-nu-latn')}
             intent={overdueCount > 0 ? 'warn' : 'default'}
           />
-          <StatTile label="تظلّمات حظر" value={banCount.toLocaleString('ar-SA')} />
+          <StatTile label="تظلّمات حظر" value={banCount.toLocaleString('ar-SA-u-nu-latn')} />
         </section>
       ) : null}
 

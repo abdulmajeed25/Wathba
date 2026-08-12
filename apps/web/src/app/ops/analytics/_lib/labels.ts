@@ -10,12 +10,12 @@
 
 /** ar-SA integer. */
 export const arInt = (n: number | null | undefined): string =>
-  n === null || n === undefined ? '—' : n.toLocaleString('ar-SA');
+  n === null || n === undefined ? '—' : n.toLocaleString('ar-SA-u-nu-latn');
 
 /** A already-computed percentage number (e.g. 42.5) → ar-SA "42.5%". null → honest dash. */
 export function fmtPct(pct: number | null | undefined): string {
   if (pct === null || pct === undefined || Number.isNaN(pct)) return '—';
-  return `${pct.toLocaleString('ar-SA', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}٪`;
+  return `${pct.toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}٪`;
 }
 
 export type Intent = 'ok' | 'warn' | 'danger' | 'default';

@@ -126,7 +126,7 @@ export default async function MoneyVaultPage({
               the one place not asking. Same wording as /ops/team, deliberately:
               two screens reporting one fact must not word it two ways. */}
           <StatusBadge intent={info.fourEyes ? 'ok' : 'warn'}>
-            {info.fourEyes ? 'مفعّلة' : 'غير مفعّلة'} — {info.moneyAdmins.toLocaleString('ar-SA')} من مدراء المال
+            {info.fourEyes ? 'مفعّلة' : 'غير مفعّلة'} — {info.moneyAdmins.toLocaleString('ar-SA-u-nu-latn')} من مدراء المال
           </StatusBadge>
         </div>
       </header>

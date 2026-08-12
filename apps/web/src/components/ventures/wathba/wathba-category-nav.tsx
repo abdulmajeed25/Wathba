@@ -44,8 +44,8 @@ const FILTERS: Array<{ key: string; ar: string; icon: string }> = [
   { key: 'staff_pick', ar: 'مختارات وثبة', icon: 'verified' },
 ];
 
-function toArabicDigits(n: number): string {
-  return String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]!);
+function toDisplayDigits(n: number): string {
+  return String(n).replace(/[0-9]/g, (d) => '0123456789'[Number(d)]!);
 }
 
 /**
@@ -474,7 +474,7 @@ export function WathbaCategoryNav() {
               >
                 <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{cur.nameAr}</h3>
                 <span style={{ fontSize: 12.5, color: 'var(--muted2)' }}>
-                  {toArabicDigits(cur.liveCount)} مشروع نشط
+                  {toDisplayDigits(cur.liveCount)} مشروع نشط
                 </span>
                 <Icon name="chevron_left" size={17} color="var(--accent)" style={{ marginInlineStart: 'auto' }} />
               </Link>
@@ -618,9 +618,9 @@ export function WathbaCategoryNav() {
                       {feat.titleAr}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                      <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{toArabicDigits(feat.pct)}</Num>
+                      <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{toDisplayDigits(feat.pct)}</Num>
                       <span style={{ color: 'var(--muted2)' }}>
-                        مموَّل · {toArabicDigits(feat.daysLeft)} يوم متبقٍ
+                        مموَّل · {toDisplayDigits(feat.daysLeft)} يوم متبقٍ
                       </span>
                     </div>
                   </div>

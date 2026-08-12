@@ -7,7 +7,7 @@
  */
 
 import { formatSar } from '@/lib/i18n/format';
-import { arabicCount } from './discover-all-constants';
+import { displayCount } from './discover-all-constants';
 
 export interface WathbaProject {
   id: string;
@@ -175,13 +175,13 @@ export interface WathbaCategory {
 }
 
 export const wathbaCategories: WathbaCategory[] = [
-  { id: 'tech', ar: 'تقنية', en: 'Technology', icon: 'memory', count: '٨٤٢ مشروع', subs: ['أجهزة', 'تطبيقات', 'روبوتات', 'طاقة', 'إنترنت الأشياء', 'ارتداءات ذكية', 'واقع افتراضي', 'فضاء'] },
-  { id: 'art', ar: 'فنون', en: 'Art', icon: 'palette', count: '٦١٠ مشروع', subs: ['رسم', 'نحت', 'تصوير فوتوغرافي', 'فن رقمي', 'خزف', 'فن الشارع', 'تجهيز فني', 'نسيج'] },
-  { id: 'games', ar: 'ألعاب', en: 'Games', icon: 'sports_esports', count: '٤٩٣ مشروع', subs: ['ألعاب طاولة', 'ألعاب فيديو', 'بطاقات', 'أحجية', 'ألعاب أدوار', 'ألعاب جوال', 'أجهزة لعب'] },
-  { id: 'film', ar: 'أفلام', en: 'Film', icon: 'movie', count: '٣٨٧ مشروع', subs: ['وثائقي', 'روائي', 'أفلام قصيرة', 'رسوم متحركة', 'خيال علمي', 'كوميديا', 'دراما', 'تجريبي'] },
-  { id: 'design', ar: 'تصميم', en: 'Design', icon: 'design_services', count: '٥٥٨ مشروع', subs: ['منتجات', 'جرافيك', 'أثاث', 'أزياء', 'طباعة', 'عمارة', 'تصميم تفاعلي', 'ألعاب أطفال'] },
-  { id: 'publishing', ar: 'نشر', en: 'Publishing', icon: 'menu_book', count: '٣٠٢ مشروع', subs: ['روايات', 'قصص مصوّرة', 'كتب أطفال', 'شعر', 'مجلات', 'كتب فنية', 'صحافة', 'مختارات'] },
-  { id: 'food', ar: 'طعام', en: 'Food', icon: 'restaurant', count: '٢١٧ مشروع', subs: ['مأكولات', 'مشروبات', 'حلويات', 'مطاعم', 'مزارع', 'كتب طبخ', 'دفعات صغيرة', 'نباتي'] },
+  { id: 'tech', ar: 'تقنية', en: 'Technology', icon: 'memory', count: '842 مشروع', subs: ['أجهزة', 'تطبيقات', 'روبوتات', 'طاقة', 'إنترنت الأشياء', 'ارتداءات ذكية', 'واقع افتراضي', 'فضاء'] },
+  { id: 'art', ar: 'فنون', en: 'Art', icon: 'palette', count: '610 مشروع', subs: ['رسم', 'نحت', 'تصوير فوتوغرافي', 'فن رقمي', 'خزف', 'فن الشارع', 'تجهيز فني', 'نسيج'] },
+  { id: 'games', ar: 'ألعاب', en: 'Games', icon: 'sports_esports', count: '493 مشروع', subs: ['ألعاب طاولة', 'ألعاب فيديو', 'بطاقات', 'أحجية', 'ألعاب أدوار', 'ألعاب جوال', 'أجهزة لعب'] },
+  { id: 'film', ar: 'أفلام', en: 'Film', icon: 'movie', count: '387 مشروع', subs: ['وثائقي', 'روائي', 'أفلام قصيرة', 'رسوم متحركة', 'خيال علمي', 'كوميديا', 'دراما', 'تجريبي'] },
+  { id: 'design', ar: 'تصميم', en: 'Design', icon: 'design_services', count: '558 مشروع', subs: ['منتجات', 'جرافيك', 'أثاث', 'أزياء', 'طباعة', 'عمارة', 'تصميم تفاعلي', 'ألعاب أطفال'] },
+  { id: 'publishing', ar: 'نشر', en: 'Publishing', icon: 'menu_book', count: '302 مشروع', subs: ['روايات', 'قصص مصوّرة', 'كتب أطفال', 'شعر', 'مجلات', 'كتب فنية', 'صحافة', 'مختارات'] },
+  { id: 'food', ar: 'طعام', en: 'Food', icon: 'restaurant', count: '217 مشروع', subs: ['مأكولات', 'مشروبات', 'حلويات', 'مطاعم', 'مزارع', 'كتب طبخ', 'دفعات صغيرة', 'نباتي'] },
 ];
 
 export interface WathbaRank {
@@ -225,10 +225,10 @@ export interface WathbaRank {
  */
 export const wathbaRanks: WathbaRank[] = [
   { id: 'r1', ar: 'مستكشف', en: 'EXPLORER', req: 'أول دعم', icon: 'explore', bg: 'rgba(148,163,184,.15)', icoColor: 'var(--rank-silver)', titleColor: 'var(--rank-silver)', border: 'rgba(var(--ink-rgb),.08)', glow: 'none', perks: ['شارة رتبتك على ملفك الشخصي', 'الوصول لمجتمع الداعمين والتعليقات', 'تحديثات المشاريع الخاصة بالداعمين'] },
-  { id: 'r2', ar: 'داعم', en: 'BACKER', req: '٣ مشاريع', icon: 'favorite', bg: 'rgba(var(--accent2-rgb),.18)', icoColor: 'var(--blue)', titleColor: 'var(--blue)', border: 'rgba(var(--accent2-rgb),.25)', glow: 'none', perks: ['كل مزايا المستكشف', 'إشعار فور إطلاق أي مشروع جديد'] },
-  { id: 'r3', ar: 'محسن', en: 'PATRON', req: '١٬٠٠٠+ ر.س', icon: 'volunteer_activism', bg: 'rgba(var(--accent-rgb),.18)', icoColor: 'var(--accent)', titleColor: 'var(--accent-ink)', border: 'rgba(var(--accent-rgb),.3)', glow: '0 0 24px -6px rgba(var(--accent-rgb),.5)', perks: ['كل مزايا الداعم', 'أولوية في ترتيب ردود المبدعين على تعليقاتك'] },
-  { id: 'r4', ar: 'سفير', en: 'AMBASSADOR', req: '١٠ مشاريع', icon: 'workspace_premium', bg: 'rgba(251,191,36,.18)', icoColor: 'var(--gold)', titleColor: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)', glow: '0 0 28px -6px rgba(251,191,36,.55)', perks: ['كل مزايا المحسن', 'لقب «سفير» ووسم مميّز على تعليقاتك'] },
-  { id: 'r5', ar: 'داعم مؤسس', en: 'FOUNDING SUPPORTER', req: '١٠٬٠٠٠+ ر.س', icon: 'diamond', bg: 'linear-gradient(135deg,var(--purple),var(--accent))', icoColor: 'var(--on-accent)', titleColor: 'var(--purple-ink)', border: 'rgba(167,139,250,.4)', glow: '0 0 32px -4px rgba(167,139,250,.6)', perks: ['كل المزايا السابقة', 'لقب «داعم مؤسس» — أعلى وسم على المنصة'] },
+  { id: 'r2', ar: 'داعم', en: 'BACKER', req: '3 مشاريع', icon: 'favorite', bg: 'rgba(var(--accent2-rgb),.18)', icoColor: 'var(--blue)', titleColor: 'var(--blue)', border: 'rgba(var(--accent2-rgb),.25)', glow: 'none', perks: ['كل مزايا المستكشف', 'إشعار فور إطلاق أي مشروع جديد'] },
+  { id: 'r3', ar: 'محسن', en: 'PATRON', req: '1,000+ ر.س', icon: 'volunteer_activism', bg: 'rgba(var(--accent-rgb),.18)', icoColor: 'var(--accent)', titleColor: 'var(--accent-ink)', border: 'rgba(var(--accent-rgb),.3)', glow: '0 0 24px -6px rgba(var(--accent-rgb),.5)', perks: ['كل مزايا الداعم', 'أولوية في ترتيب ردود المبدعين على تعليقاتك'] },
+  { id: 'r4', ar: 'سفير', en: 'AMBASSADOR', req: '10 مشاريع', icon: 'workspace_premium', bg: 'rgba(251,191,36,.18)', icoColor: 'var(--gold)', titleColor: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)', glow: '0 0 28px -6px rgba(251,191,36,.55)', perks: ['كل مزايا المحسن', 'لقب «سفير» ووسم مميّز على تعليقاتك'] },
+  { id: 'r5', ar: 'داعم مؤسس', en: 'FOUNDING SUPPORTER', req: '10,000+ ر.س', icon: 'diamond', bg: 'linear-gradient(135deg,var(--purple),var(--accent))', icoColor: 'var(--on-accent)', titleColor: 'var(--purple-ink)', border: 'rgba(167,139,250,.4)', glow: '0 0 32px -4px rgba(167,139,250,.6)', perks: ['كل المزايا السابقة', 'لقب «داعم مؤسس» — أعلى وسم على المنصة'] },
 ];
 
 /**
@@ -257,7 +257,7 @@ export const wathbaHowSteps = [
 
 export const wathbaTickerMessages = [
   '🟢 أحمد دعم «سِرب» بـ 240 ر.س',
-  '🚀 «حكايا» وصل ٪١٠٠ من هدفه',
+  '🚀 «حكايا» وصل ٪100 من هدفه',
   '🟢 سارة أصبحت سفيرة الآن',
   '✨ مشروع جديد: «بستان» في التصميم',
   '🟢 خالد دعم «صدى» بـ 85 ر.س',
@@ -354,9 +354,9 @@ export interface DerivedProject extends WathbaProject {
   trustBand: 'low' | 'moderate' | 'high' | 'exceptional';
 }
 
-// Counts are Arabic-Indic on this platform; arabicCount is this call plus
+// Counts are Arabic-Indic on this platform; displayCount is this call plus
 // the conversion. Feeds backersFmt, which every card renders beside «داعم».
-const fmtNum = (n: number) => arabicCount(Math.round(n));
+const fmtNum = (n: number) => displayCount(Math.round(n));
 // BUG-1 (Batch SEARCH) — Wathba is SAR-only. ALL money strings flow through
 // formatSar (src/lib/i18n/format.ts), the single money renderer; the
 // policy spec (e2e/policy-guards.spec.ts) fails the gate on any dollar render.
@@ -702,10 +702,10 @@ export const wathbaTiers: WathbaTier[] = [
     price: 79,
     title: 'الباقة الأساسية',
     desc: 'وحدة واحدة بسعر الإطلاق الحصري قبل طرحها في الأسواق.',
-    items: ['١× المنتج', 'خصم الإطلاق ٣٠٪', 'شحن مجاني محلياً'],
+    items: ['1× المنتج', 'خصم الإطلاق 30٪', 'شحن مجاني محلياً'],
     backers: 1240,
     left: null,
-    est: 'مارس ٢٠٢٦',
+    est: 'مارس 2026',
     rank: 'داعم',
     popular: true,
   },
@@ -714,10 +714,10 @@ export const wathbaTiers: WathbaTier[] = [
     price: 149,
     title: 'الباقة المزدوجة',
     desc: 'وحدتان بسعرٍ مخفّض — مثالية لك ولمن تحب، مع إكسسوارات إضافية.',
-    items: ['٢× المنتج', 'حقيبة حمل حصرية', 'وصول مبكر للتحديثات'],
+    items: ['2× المنتج', 'حقيبة حمل حصرية', 'وصول مبكر للتحديثات'],
     backers: 680,
     left: 120,
-    est: 'مارس ٢٠٢٦',
+    est: 'مارس 2026',
     rank: 'داعم',
   },
   {
@@ -729,10 +729,10 @@ export const wathbaTiers: WathbaTier[] = [
     // the buyer a partner — same reasoning that renamed the top supporter rank.
     // The substance of the reward is name credit on the campaign page, and that
     // survives the wording change intact.
-    items: ['٥× المنتج', 'دعم فني سنوي', 'اسمك ضمن داعمي المشروع في الصفحة'],
+    items: ['5× المنتج', 'دعم فني سنوي', 'اسمك ضمن داعمي المشروع في الصفحة'],
     backers: 94,
     left: 30,
-    est: 'أبريل ٢٠٢٦',
+    est: 'أبريل 2026',
     rank: 'محسن',
   },
   {
@@ -743,33 +743,33 @@ export const wathbaTiers: WathbaTier[] = [
     items: ['كل ما سبق', 'جولة في الاستوديو', 'نسخة موقّعة رقم #001', 'عشاء مع المؤسسين'],
     backers: 6,
     left: 4,
-    est: 'مايو ٢٠٢٦',
+    est: 'مايو 2026',
     rank: 'داعم مؤسس',
   },
 ];
 
 export const wathbaProjectUpdates = [
   { n: 4, title: 'وصلنا 150% — شكراً لكم!', date: 'قبل يومين', body: 'تجاوزنا الهدف الإضافي الأول، ما يعني أن كل وحدة ستحصل على بطارية أكبر دون أي تكلفة إضافية عليكم.', tag: 'إنجاز' },
-  { n: 3, title: 'العيّنة الهندسية الأولى جاهزة', date: 'قبل ٦ أيام', body: 'استلمنا أول نموذج من المصنع وأجرينا اختبارات الطيران الأولية بنجاح. شاهدوا الفيديو في الصفحة.', tag: 'تطوير' },
-  { n: 2, title: 'شراكة مع شركة شحن إقليمية', date: 'قبل ١١ يوماً', body: 'وقّعنا اتفاقية تضمن وصول الطلبات خلال ٥ أيام عمل داخل دول الخليج.', tag: 'لوجستيات' },
-  { n: 1, title: 'انطلقنا رسمياً على وثبة', date: 'قبل ١٤ يوماً', body: 'أهلاً بكم في رحلة سِرب! نشارككم اليوم كل التفاصيل والمخططات. تابعونا.', tag: 'إطلاق' },
+  { n: 3, title: 'العيّنة الهندسية الأولى جاهزة', date: 'قبل 6 أيام', body: 'استلمنا أول نموذج من المصنع وأجرينا اختبارات الطيران الأولية بنجاح. شاهدوا الفيديو في الصفحة.', tag: 'تطوير' },
+  { n: 2, title: 'شراكة مع شركة شحن إقليمية', date: 'قبل 11 يوماً', body: 'وقّعنا اتفاقية تضمن وصول الطلبات خلال 5 أيام عمل داخل دول الخليج.', tag: 'لوجستيات' },
+  { n: 1, title: 'انطلقنا رسمياً على وثبة', date: 'قبل 14 يوماً', body: 'أهلاً بكم في رحلة سِرب! نشارككم اليوم كل التفاصيل والمخططات. تابعونا.', tag: 'إطلاق' },
 ];
 
 export const wathbaProjectComments = [
-  { name: 'منى العتيبي', rank: 'سفير', rankColor: 'var(--gold-ink)', time: 'قبل ٣ ساعات', body: 'فكرة رائعة وتنفيذ احترافي. متحمسة جداً لاستلام وحدتي! هل ستتوفر ألوان إضافية لاحقاً؟', likes: 24, reply: 'نعم منى، خططنا لطرح لونين جديدين بعد الحملة مباشرةً 🎉' },
-  { name: 'يوسف حدّاد', rank: 'محسن', rankColor: 'var(--accent-ink)', time: 'قبل ٨ ساعات', body: 'دعمت المشروع من اليوم الأول. لوحة الشفافية أقنعتني تماماً — هذا ما ينقص بقية المنصات.', likes: 41, reply: null as string | null },
+  { name: 'منى العتيبي', rank: 'سفير', rankColor: 'var(--gold-ink)', time: 'قبل 3 ساعات', body: 'فكرة رائعة وتنفيذ احترافي. متحمسة جداً لاستلام وحدتي! هل ستتوفر ألوان إضافية لاحقاً؟', likes: 24, reply: 'نعم منى، خططنا لطرح لونين جديدين بعد الحملة مباشرةً 🎉' },
+  { name: 'يوسف حدّاد', rank: 'محسن', rankColor: 'var(--accent-ink)', time: 'قبل 8 ساعات', body: 'دعمت المشروع من اليوم الأول. لوحة الشفافية أقنعتني تماماً — هذا ما ينقص بقية المنصات.', likes: 41, reply: null as string | null },
   { name: 'رهف ا.', rank: 'داعم', rankColor: 'var(--blue)', time: 'قبل يوم', body: 'سؤال عن الشحن لخارج الخليج، هل متاح؟', likes: 7, reply: 'متاح يا رهف، ستُضاف رسوم الشحن الدولي عند الدفع.' },
 ];
 
 export const wathbaProjectFaqs = [
-  { q: 'متى سأستلم مكافأتي؟', a: 'تبدأ عمليات الشحن في مارس ٢٠٢٦ بعد انتهاء الحملة بنجاح، وسنوافيكم بتحديثات دورية عن حالة طلبكم.' },
+  { q: 'متى سأستلم مكافأتي؟', a: 'تبدأ عمليات الشحن في مارس 2026 بعد انتهاء الحملة بنجاح، وسنوافيكم بتحديثات دورية عن حالة طلبكم.' },
   { q: 'ماذا لو لم يصل المشروع لهدفه؟', a: 'نعتمد مبدأ «الكل أو لا شيء». إن لم نبلغ الهدف، تُعاد كامل مبالغكم تلقائياً دون أي خصم.' },
-  { q: 'هل الشحن الدولي متاح؟', a: 'نعم، نشحن إلى أكثر من ٣٨ دولة. تُحتسب رسوم الشحن الدولي عند إتمام الدعم.' },
+  { q: 'هل الشحن الدولي متاح؟', a: 'نعم، نشحن إلى أكثر من 38 دولة. تُحتسب رسوم الشحن الدولي عند إتمام الدعم.' },
   { q: 'كيف أضمن جودة المنتج؟', a: 'أكملنا مرحلة العيّنات الهندسية بنجاح، وكل المراحل موثّقة في لوحة الشفافية وقسم التحديثات.' },
 ];
 
 export const wathbaTxTimeline = [
-  { label: 'إطلاق الحملة', amount: '0 ر.س', date: '١ يناير', done: true },
+  { label: 'إطلاق الحملة', amount: '0 ر.س', date: '1 يناير', done: true },
   { label: 'تأمين المصنع', amount: '120 ألف ر.س', date: 'مكتمل', done: true },
   { label: 'بدء الإنتاج', amount: '330 ألف ر.س', date: 'فبراير', done: true },
   { label: 'الشحن للداعمين', amount: '110 آلاف ر.س', date: 'مارس', done: false },
@@ -821,12 +821,12 @@ export interface WathbaMilestone {
 export const wathbaMilestones: WathbaMilestone[] = [
   {
     id: 'm1', order: 1, releasePct: 25, status: 'RELEASED',
-    titleAr: 'تأمين خط الإنتاج', descAr: 'توقيع اتفاقية المصنع وتأمين خطّ تجميع مخصّص لـ٥٠٠ وحدة من النموذج الأوّل.',
-    evidenceUrl: '#evidence-m1', releasedAt: '٢٠٢٦/٠٢/١٢',
+    titleAr: 'تأمين خط الإنتاج', descAr: 'توقيع اتفاقية المصنع وتأمين خطّ تجميع مخصّص لـ500 وحدة من النموذج الأوّل.',
+    evidenceUrl: '#evidence-m1', releasedAt: '2026/02/12',
   },
   {
     id: 'm2', order: 2, releasePct: 35, status: 'APPROVED',
-    titleAr: 'الإنتاج الأوّلي + شهادة الجودة', descAr: 'إنتاج أوّل ٢٠٠ وحدة + اجتياز اختبار الـIP54 + شهادة CE.',
+    titleAr: 'الإنتاج الأوّلي + شهادة الجودة', descAr: 'إنتاج أوّل 200 وحدة + اجتياز اختبار الـIP54 + شهادة CE.',
     evidenceUrl: '#evidence-m2', releasedAt: null,
   },
   {
@@ -836,7 +836,7 @@ export const wathbaMilestones: WathbaMilestone[] = [
   },
   {
     id: 'm4', order: 4, releasePct: 15, status: 'PENDING',
-    titleAr: 'التشغيل والدعم', descAr: 'دعم فني أولي للداعمين خلال أول ٩٠ يوماً من التسليم + إصلاحات مجّانية.',
+    titleAr: 'التشغيل والدعم', descAr: 'دعم فني أولي للداعمين خلال أول 90 يوماً من التسليم + إصلاحات مجّانية.',
     evidenceUrl: null, releasedAt: null,
   },
 ];
@@ -868,29 +868,29 @@ export const wathbaRfqs: WathbaRfq[] = [
     id: 'rfq-001',
     ventureTitleAr: 'سِرب — درون التصوير الذكي',
     ventureSlug: 'p1',
-    specsAr: 'مطلوب ٥٠٠ وحدة بطارية ليثيوم بوليمر ٤٥٠٠ مللي أمبير، تصنيع بمعايير IEC ٦٢١٣٣ مع شهادة منشأ.',
-    dueDate: '٢٠٢٦/٠٧/١٥', bidsCount: 7, status: 'OPEN', category: 'مكوّنات إلكترونية',
+    specsAr: 'مطلوب 500 وحدة بطارية ليثيوم بوليمر 4500 مللي أمبير، تصنيع بمعايير IEC 62133 مع شهادة منشأ.',
+    dueDate: '2026/07/15', bidsCount: 7, status: 'OPEN', category: 'مكوّنات إلكترونية',
   },
   {
     id: 'rfq-002',
     ventureTitleAr: 'بستان — حقيبة من مواد معاد تدويرها',
     ventureSlug: 'p4',
-    specsAr: 'مطلوب ٢٠٠٠ متر من نسيج معاد تدويره مصدره مؤكّد، عرض ١٥٠ سم، وزن ٢٢٠–٢٥٠ غ/م².',
-    dueDate: '٢٠٢٦/٠٧/٠٢', bidsCount: 4, status: 'OPEN', category: 'مواد خام',
+    specsAr: 'مطلوب 2000 متر من نسيج معاد تدويره مصدره مؤكّد، عرض 150 سم، وزن 220–250 غ/م².',
+    dueDate: '2026/07/02', bidsCount: 4, status: 'OPEN', category: 'مواد خام',
   },
   {
     id: 'rfq-003',
     ventureTitleAr: 'حكايا — لعبة الطاولة العربية',
     ventureSlug: 'p2',
-    specsAr: 'طباعة ١٠٠٠ صندوق كرتون فاخر ٣٠×٣٠ سم مع طبقة ماط ولامي على الأركان.',
-    dueDate: '٢٠٢٦/٠٦/٣٠', bidsCount: 9, status: 'AWARDED', category: 'تغليف وطباعة',
+    specsAr: 'طباعة 1000 صندوق كرتون فاخر 30×30 سم مع طبقة ماط ولامي على الأركان.',
+    dueDate: '2026/06/30', bidsCount: 9, status: 'AWARDED', category: 'تغليف وطباعة',
   },
   {
     id: 'rfq-004',
     ventureTitleAr: 'نواة — حديقة منزلية ذكية',
     ventureSlug: 'p7',
-    specsAr: 'تصنيع ٣٠٠ وحدة بلاستيك مقاوم للأشعة فوق البنفسجية، تصميم مزود مع المتسابق، شهادة FDA.',
-    dueDate: '٢٠٢٦/٠٧/٢٠', bidsCount: 2, status: 'OPEN', category: 'تصنيع',
+    specsAr: 'تصنيع 300 وحدة بلاستيك مقاوم للأشعة فوق البنفسجية، تصميم مزود مع المتسابق، شهادة FDA.',
+    dueDate: '2026/07/20', bidsCount: 2, status: 'OPEN', category: 'تصنيع',
   },
 ];
 
@@ -907,7 +907,7 @@ export interface WathbaSupplierBid {
 export const wathbaMySupplierBids: WathbaSupplierBid[] = [
   { id: 'b-1', rfqId: 'rfq-003', rfqTitleAr: 'حكايا — لعبة الطاولة العربية', amount: 18_500, leadTimeDays: 21, status: 'AWARDED', submittedAt: 'قبل أسبوع' },
   { id: 'b-2', rfqId: 'rfq-001', rfqTitleAr: 'سِرب — درون التصوير الذكي',    amount: 84_200, leadTimeDays: 30, status: 'PENDING',  submittedAt: 'قبل يومين' },
-  { id: 'b-3', rfqId: 'rfq-002', rfqTitleAr: 'بستان — حقيبة من مواد معاد تدويرها', amount: 22_100, leadTimeDays: 18, status: 'REJECTED', submittedAt: 'قبل ٣ أيام' },
+  { id: 'b-3', rfqId: 'rfq-002', rfqTitleAr: 'بستان — حقيبة من مواد معاد تدويرها', amount: 22_100, leadTimeDays: 18, status: 'REJECTED', submittedAt: 'قبل 3 أيام' },
 ];
 
 export const wathbaPledgeSteps = [

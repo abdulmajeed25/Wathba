@@ -238,7 +238,7 @@ export function DashboardStoryEditor({
                   <li key={c.id}>
                     {c.summaryAr}{' '}
                     <span style={{ color: 'var(--text-tertiary, var(--muted2))' }}>
-                      — {new Date(c.createdAt).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' })}
+                      — {new Date(c.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' })}
                     </span>
                   </li>
                 ))}

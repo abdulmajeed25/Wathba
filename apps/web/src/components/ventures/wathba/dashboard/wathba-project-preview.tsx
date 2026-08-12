@@ -89,7 +89,7 @@ export function WathbaProjectPreview({
             <div style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', marginTop: 8, lineHeight: 1.9 }}>
               <div>عتبة الإفراج: {project.releaseThresholdPct}%</div>
               <div>المدّة: {project.durationDays} يوماً</div>
-              {deadline && <div>الموعد النهائي: {deadline.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}</div>}
+              {deadline && <div>الموعد النهائي: {deadline.toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' })}</div>}
             </div>
             <button
               type="button"
@@ -118,7 +118,7 @@ export function WathbaProjectPreview({
                   <p style={{ fontSize: 13, color: 'var(--text-secondary, #3b4942)', margin: '6px 0 0', lineHeight: 1.6 }}>{t.descAr}</p>
                   {t.estDeliveryDate && (
                     <div style={{ fontSize: 11.5, color: 'var(--text-tertiary, var(--muted2))', marginTop: 6 }}>
-                      التسليم المتوقّع: {new Date(t.estDeliveryDate).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short' })}
+                      التسليم المتوقّع: {new Date(t.estDeliveryDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short' })}
                     </div>
                   )}
                 </div>

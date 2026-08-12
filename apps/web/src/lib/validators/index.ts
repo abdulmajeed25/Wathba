@@ -15,18 +15,18 @@ export const supplierBidSchema = z.object({
     .coerce.number({ message: 'أدخل عدد أيام' })
     .int('عدد أيام صحيح فقط')
     .min(1, 'يوم واحد على الأقل')
-    .max(365, 'حتى ٣٦٥ يوماً'),
+    .max(365, 'حتى 365 يوماً'),
   compliancePct: z
     .coerce.number({ message: 'أدخل نسبة' })
-    .min(0, '٠٪ كحد أدنى')
-    .max(100, '١٠٠٪ كحد أعلى'),
+    .min(0, '0٪ كحد أدنى')
+    .max(100, '100٪ كحد أعلى'),
 });
 export type SupplierBidInput = z.infer<typeof supplierBidSchema>;
 
 export const nafathSchema = z.object({
   nationalId: z
     .string()
-    .regex(/^\d{10}$/, 'رقم الهوية يجب أن يتكون من ١٠ أرقام بالضبط'),
+    .regex(/^\d{10}$/, 'رقم الهوية يجب أن يتكون من 10 أرقام بالضبط'),
 });
 export type NafathInput = z.infer<typeof nafathSchema>;
 
@@ -34,7 +34,7 @@ export const profileUpdateSchema = z.object({
   name: z
     .string()
     .min(2, 'الاسم على الأقل حرفان')
-    .max(80, 'حتى ٨٠ حرفاً'),
+    .max(80, 'حتى 80 حرفاً'),
   phone: z
     .string()
     .regex(/^\+?\d{8,15}$/, 'صيغة الجوال غير صحيحة (+9665XXXXXXXX)')

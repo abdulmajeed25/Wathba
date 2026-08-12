@@ -71,7 +71,7 @@ export default async function OpsUsersPage({
     /* API unreachable — the page renders the refused/empty states below */
   }
 
-  const nf = (n: number) => n.toLocaleString('ar-SA');
+  const nf = (n: number) => n.toLocaleString('ar-SA-u-nu-latn');
   const tabBase =
     'rounded-md border px-3 py-1.5 text-sm transition-colors';
   const activeTab = 'border-[#30363d] bg-[#21262d] text-[#e6edf3]';

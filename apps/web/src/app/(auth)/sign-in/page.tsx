@@ -22,8 +22,8 @@ function lockedMessage(waitSec: number): string {
   if (waitSec <= 0) return 'محاولات دخول كثيرة — انتظر قليلاً ثم حاول مجدداً.';
   const min = Math.ceil(waitSec / 60);
   return min > 1
-    ? `محاولات دخول كثيرة — حاول بعد ${min.toLocaleString('ar-SA')} دقائق.`
-    : `محاولات دخول كثيرة — حاول بعد ${waitSec.toLocaleString('ar-SA')} ثانية.`;
+    ? `محاولات دخول كثيرة — حاول بعد ${min.toLocaleString('ar-SA-u-nu-latn')} دقائق.`
+    : `محاولات دخول كثيرة — حاول بعد ${waitSec.toLocaleString('ar-SA-u-nu-latn')} ثانية.`;
 }
 
 export default async function SignInPage({

@@ -43,7 +43,7 @@ interface AuditRow {
 
 function fmtDate(iso: string | null): string {
   return iso
-    ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' })
+    ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' })
     : '—';
 }
 
@@ -182,8 +182,8 @@ export default async function OpsContestDetailPage({
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="المشاركات" value={d.entryCount.toLocaleString('ar-SA')} />
-        <StatTile label="الفائزون" value={d.winnerCount.toLocaleString('ar-SA')} />
+        <StatTile label="المشاركات" value={d.entryCount.toLocaleString('ar-SA-u-nu-latn')} />
+        <StatTile label="الفائزون" value={d.winnerCount.toLocaleString('ar-SA-u-nu-latn')} />
         <StatTile
           label="الإغلاق"
           value={<span className="text-sm font-normal">{d.closesAt ? fmtDate(d.closesAt) : '—'}</span>}

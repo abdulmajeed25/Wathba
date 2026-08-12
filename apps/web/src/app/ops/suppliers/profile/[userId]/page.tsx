@@ -50,7 +50,7 @@ interface AuditRow {
 }
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  return iso ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 }
 
 function Figure({ labelAr, value, muted = false }: { labelAr: string; value: string; muted?: boolean }) {
@@ -196,9 +196,9 @@ export default async function OpsSupplierProfilePage({
 
       {/* Bid tally */}
       <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Figure labelAr="إجمالي العروض" value={totalBids.toLocaleString('ar-SA')} muted />
-        <Figure labelAr="عروض فائزة" value={p.wonCount.toLocaleString('ar-SA')} />
-        <Figure labelAr="عروض مرفوضة" value={p.lostCount.toLocaleString('ar-SA')} muted />
+        <Figure labelAr="إجمالي العروض" value={totalBids.toLocaleString('ar-SA-u-nu-latn')} muted />
+        <Figure labelAr="عروض فائزة" value={p.wonCount.toLocaleString('ar-SA-u-nu-latn')} />
+        <Figure labelAr="عروض مرفوضة" value={p.lostCount.toLocaleString('ar-SA-u-nu-latn')} muted />
         <Figure labelAr="عضو منذ" value={fmtDate(p.createdAt)} muted />
       </dl>
 
@@ -209,7 +209,7 @@ export default async function OpsSupplierProfilePage({
               key={status}
               className="rounded border border-[#30363d] bg-[#0d1117] px-2.5 py-1 text-xs text-[#8b949e]"
             >
-              {status}: <b className="tabular-nums text-[#e6edf3]">{count.toLocaleString('ar-SA')}</b>
+              {status}: <b className="tabular-nums text-[#e6edf3]">{count.toLocaleString('ar-SA-u-nu-latn')}</b>
             </span>
           ))}
         </div>

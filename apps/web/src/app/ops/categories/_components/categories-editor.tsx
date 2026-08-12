@@ -228,7 +228,7 @@ function NodeRow({
           <code dir="ltr" className="text-[11px] text-[#8b949e]">
             {node.slug}
           </code>
-          <StatusBadge intent="info">{node.projectCount.toLocaleString('ar-SA')} مشروع</StatusBadge>
+          <StatusBadge intent="info">{node.projectCount.toLocaleString('ar-SA-u-nu-latn')} مشروع</StatusBadge>
           {!node.isActive ? <StatusBadge intent="warn">غير مُفعَّلة</StatusBadge> : null}
           {node.excluded ? <StatusBadge intent="danger">🔒 مستثناة</StatusBadge> : null}
         </div>

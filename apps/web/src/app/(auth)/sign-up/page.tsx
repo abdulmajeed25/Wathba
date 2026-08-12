@@ -47,7 +47,7 @@ export default async function SignUpPage({
         <input type="hidden" name="next" value={next} />
         <LiveNameField />
         <LiveEmailField />
-        <PasswordField autoComplete="new-password" withStrength hint="٨ أحرف على الأقل — أضف أرقاماً ورموزاً لتقويتها." />
+        <PasswordField autoComplete="new-password" withStrength hint="8 أحرف على الأقل — أضف أرقاماً ورموزاً لتقويتها." />
 
         <label className="flex items-start gap-2 text-sm">
           <input

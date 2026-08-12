@@ -25,7 +25,7 @@ export interface CommentRow {
 }
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  return iso ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 }
 
 export function CommentsPanel({ rows }: { rows: CommentRow[] }) {
@@ -53,7 +53,7 @@ export function CommentsPanel({ rows }: { rows: CommentRow[] }) {
             {c.pinned ? <StatusBadge intent="info">مثبَّت</StatusBadge> : null}
             {c.hidden ? <StatusBadge intent="danger">مخفي</StatusBadge> : null}
             {c.reportCount > 0 ? (
-              <StatusBadge intent="warn">{c.reportCount.toLocaleString('ar-SA')} بلاغ</StatusBadge>
+              <StatusBadge intent="warn">{c.reportCount.toLocaleString('ar-SA-u-nu-latn')} بلاغ</StatusBadge>
             ) : null}
           </div>
 

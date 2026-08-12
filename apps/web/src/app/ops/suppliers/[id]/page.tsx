@@ -143,13 +143,13 @@ export default async function OpsRfqDetailPage({
           <dt className="text-xs text-[#8b949e]">آخر موعد للعروض</dt>
           <dd className="mt-0.5">
             {rfq.dueDate
-              ? new Date(rfq.dueDate).toLocaleDateString('ar-SA', { dateStyle: 'medium' })
+              ? new Date(rfq.dueDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' })
               : '—'}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-[#8b949e]">عدد العروض</dt>
-          <dd className="mt-0.5 tabular-nums">{rfq.bids.length.toLocaleString('ar-SA')}</dd>
+          <dd className="mt-0.5 tabular-nums">{rfq.bids.length.toLocaleString('ar-SA-u-nu-latn')}</dd>
         </div>
         {rfq.specsAr ? (
           <div className="sm:col-span-3">
@@ -228,7 +228,7 @@ export default async function OpsRfqDetailPage({
                       {formatSar(b.amountHalalas)}
                     </td>
                     <td className="px-3 py-2 text-[#8b949e]">
-                      {b.leadTimeDays !== null ? `${b.leadTimeDays.toLocaleString('ar-SA')} يوم` : '—'}
+                      {b.leadTimeDays !== null ? `${b.leadTimeDays.toLocaleString('ar-SA-u-nu-latn')} يوم` : '—'}
                     </td>
                     <td className="px-3 py-2">
                       <StatusBadge intent={BID_INTENT[b.status] ?? 'muted'}>{b.status}</StatusBadge>
@@ -282,7 +282,7 @@ export default async function OpsRfqDetailPage({
                 <li key={a.id} className="flex flex-wrap items-baseline gap-2 text-xs">
                   <span className="tabular-nums text-[#484f58]">#{a.chainSeq}</span>
                   <span className="whitespace-nowrap text-[#8b949e]">
-                    {new Date(a.createdAt).toLocaleString('ar-SA', {
+                    {new Date(a.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                       dateStyle: 'short',
                       timeStyle: 'short',
                     })}

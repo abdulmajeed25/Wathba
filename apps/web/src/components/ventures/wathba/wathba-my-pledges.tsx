@@ -23,7 +23,7 @@ const STATE_TONE: Record<
   FAILED:    { label: 'فشل الدفع',                bg: 'rgba(239,68,68,.08)',  color: '#dc2626',       border: 'rgba(239,68,68,.30)' },
   // Batch PAY — the new pledge states.
   PENDING_BNPL:   { label: 'تقسيط معلّق · حتى نجاح الحملة', bg: 'rgba(96,165,250,.10)', color: 'var(--blue)', border: 'rgba(96,165,250,.30)' },
-  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع · ٧٢ ساعة', bg: 'rgba(251,191,36,.12)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)' },
+  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع · 72 ساعة', bg: 'rgba(251,191,36,.12)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)' },
   FAILED_CAPTURE: { label: 'أُلغي — تعذّر السحب',            bg: 'rgba(239,68,68,.08)', color: '#dc2626', border: 'rgba(239,68,68,.30)' },
   PENDING_REAUTH: { label: 'بحاجة لتحديث البطاقة',           bg: 'rgba(251,191,36,.10)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.30)' },
 };
@@ -96,7 +96,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                   <div style={{ flex: 1, minWidth: 200 }}>
                     <h3 style={{ fontSize: 16, fontWeight: 700 }}>{projectAr}</h3>
                     <Num style={{ fontSize: 12, color: 'var(--muted2)', display: 'block', marginTop: 4 }}>
-                      {new Date(p.committedAt).toLocaleDateString('ar-SA')}
+                      {new Date(p.committedAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
                     </Num>
                   </div>
                   <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent-ink)' }}>
@@ -136,11 +136,11 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                         <>
                           {' '}بتاريخ{' '}
                           <Num style={{ fontWeight: 600 }}>
-                            {new Date(p.refundedAt).toLocaleDateString('ar-SA')}
+                            {new Date(p.refundedAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}
                           </Num>
                         </>
                       )}
-                      . يظهر في كشف حسابك خلال ٣–١٤ يوم عمل حسب البنك.
+                      . يظهر في كشف حسابك خلال 3–14 يوم عمل حسب البنك.
                       {p.paymentRef && (
                         <>
                           {' '}رقم العملية:{' '}

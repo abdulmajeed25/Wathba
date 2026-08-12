@@ -91,7 +91,7 @@ function OpenBanner({ contest }: { contest: ApiContest }): React.ReactElement {
             {contest.winnersCount === 1 ? 'فائز' : 'فائزين'})
           </span>
           {contest.endsAt && (
-            <span>تنتهي: {new Date(contest.endsAt).toLocaleDateString('ar-SA')}</span>
+            <span>تنتهي: {new Date(contest.endsAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</span>
           )}
         </div>
         <div

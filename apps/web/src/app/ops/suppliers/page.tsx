@@ -95,11 +95,11 @@ export default async function OpsSuppliersPage({
       <div className="grid gap-3 sm:grid-cols-3">
         <StatTile
           label="موردون بانتظار التوثيق"
-          value={unverified.length.toLocaleString('ar-SA')}
+          value={unverified.length.toLocaleString('ar-SA-u-nu-latn')}
           intent={unverified.length > 0 ? 'warn' : 'ok'}
         />
-        <StatTile label="موردون موثَّقون" value={verified.toLocaleString('ar-SA')} />
-        <StatTile label="طلبات عروض مفتوحة" value={openRfqs.toLocaleString('ar-SA')} />
+        <StatTile label="موردون موثَّقون" value={verified.toLocaleString('ar-SA-u-nu-latn')} />
+        <StatTile label="طلبات عروض مفتوحة" value={openRfqs.toLocaleString('ar-SA-u-nu-latn')} />
       </div>
 
       {/* ── (a) verification queue ─────────────────────────────────────── */}
@@ -149,7 +149,7 @@ export default async function OpsSuppliersPage({
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-[#8b949e]">
                         {u.createdAt
-                          ? new Date(u.createdAt).toLocaleDateString('ar-SA', { dateStyle: 'medium' })
+                          ? new Date(u.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' })
                           : '—'}
                       </td>
                       <td className="px-3 py-2">

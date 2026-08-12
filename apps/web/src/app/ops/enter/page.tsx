@@ -12,7 +12,7 @@ export default async function OpsEnterPage() {
     <div className="mx-auto max-w-md">
       <h1 className="mb-1 text-xl font-bold">دخول إلى مركز العمليات</h1>
       <p className="mb-6 text-sm text-[#8b949e]">
-        هذه جلسة منفصلة عن جلستك العامة: تنتهي بعد ٦٠ دقيقة من الخمول، وكل
+        هذه جلسة منفصلة عن جلستك العامة: تنتهي بعد 60 دقيقة من الخمول، وكل
         محاولة دخول فاشلة تُسجَّل.
       </p>
       <EnterForm />

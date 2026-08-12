@@ -56,7 +56,7 @@ export function WathbaRewards({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700 }}>ادعم بدون مكافأة</div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-            أدخل أي مبلغ — الحد الأدنى ١٠ ريالات. كل داعم يُحتسب مهما كان مبلغه.
+            أدخل أي مبلغ — الحد الأدنى 10 ريالات. كل داعم يُحتسب مهما كان مبلغه.
           </div>
           {/* Batch PAY (Part 3) — frictionless quick amounts. */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

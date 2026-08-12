@@ -64,7 +64,7 @@ const DEFAULT_MILESTONES: DraftMilestone[] = [
   { id: 'dm0', titleAr: 'تأمين خط الإنتاج',        descAr: 'توقيع المصنع + شراء المواد',           releasePct: 25 },
   { id: 'dm1', titleAr: 'الإنتاج الأوّلي والجودة', descAr: 'إنتاج الدفعة الأولى + شهادات الجودة',    releasePct: 35 },
   { id: 'dm2', titleAr: 'الشحن للداعمين',           descAr: 'بدء شحن الباقات للداعمين',              releasePct: 25 },
-  { id: 'dm3', titleAr: 'التشغيل والدعم',           descAr: 'دعم فني للداعمين خلال أول ٩٠ يوماً',    releasePct: 15 },
+  { id: 'dm3', titleAr: 'التشغيل والدعم',           descAr: 'دعم فني للداعمين خلال أول 90 يوماً',    releasePct: 15 },
 ];
 
 const DEFAULTS = {

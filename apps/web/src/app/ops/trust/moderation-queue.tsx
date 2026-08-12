@@ -54,7 +54,7 @@ export interface TrustCommentRow {
 }
 
 const arDate = (iso: string | null): string =>
-  iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+  iso ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 
 function KindBadge({ kind }: { kind: TrustReportRow['kind'] }) {
   return kind === 'project' ? (
@@ -238,7 +238,7 @@ function commentColumns(): Column<TrustCommentRow>[] {
       sortValue: (c) => c.reportCount,
       render: (c) => (
         <span className={`tabular-nums ${c.reportCount > 0 ? 'font-bold text-amber-300' : 'text-[#8b949e]'}`}>
-          {c.reportCount.toLocaleString('ar-SA')}
+          {c.reportCount.toLocaleString('ar-SA-u-nu-latn')}
         </span>
       ),
     },
@@ -333,7 +333,7 @@ export function ModerationQueue({
     >
       {labelAr}
       <span className="ms-2 rounded bg-[#21262d] px-1.5 py-0.5 text-xs tabular-nums text-[#8b949e]">
-        {count.toLocaleString('ar-SA')}
+        {count.toLocaleString('ar-SA-u-nu-latn')}
       </span>
     </button>
   );
