@@ -6,7 +6,7 @@ import type { ApiEditorialCard, ApiHomeProjectCard, ApiSpotlightPayload } from '
 
 import { WathbaCardVideo, WathbaCardVideoGlyph } from './wathba-card-video';
 import { Icon, Num } from './wathba-icons';
-import { toArabicDigits } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
 import { HeroParallax, Reveal } from './wathba-motion';
 
 /**
@@ -323,9 +323,9 @@ function HeroCinematic({ p }: { p: ApiHomeProjectCard }) {
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginBottom: 30 }}>
-            <Stat value={`%${toArabicDigits(p.fundedPct)}`} label="مُموَّل" onArt />
+            <Stat value={`%${toDisplayDigits(p.fundedPct)}`} label="مُموَّل" onArt />
             <Divider onArt />
-            <Stat value={toArabicDigits(p.backersCount)} label="داعم" onArt />
+            <Stat value={toDisplayDigits(p.backersCount)} label="داعم" onArt />
           </div>
 
           <Link
@@ -456,10 +456,10 @@ function HeroTypographic({ p }: { p: ApiHomeProjectCard }) {
                 `ar-SA-u-nu-latn`). <Num> supplies the typeface and tabular
                 figures — it does NOT convert digits, which is what these three
                 sites assumed. The hero read «964 داعم» while the card beneath it
-                read «٨٤٧ داعم». */}
-            <Stat value={`%${toArabicDigits(p.fundedPct)}`} label="مُموَّل" />
+                read «847 داعم». */}
+            <Stat value={`%${toDisplayDigits(p.fundedPct)}`} label="مُموَّل" />
             <Divider />
-            <Stat value={toArabicDigits(p.backersCount)} label="داعم" />
+            <Stat value={toDisplayDigits(p.backersCount)} label="داعم" />
           </div>
 
           <Link
@@ -879,8 +879,8 @@ function Funded({ p, compact }: { p: ApiHomeProjectCard; compact?: boolean }) {
         <div style={{ height: '100%', width: `${pct}%`, background: 'var(--grad-bar)', borderRadius: 30 }} />
       </div>
       <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', marginTop: 5 }}>
-        <Num style={{ fontSize: 12, color: 'var(--accent-ink)', fontWeight: 700 }}>%{toArabicDigits(p.fundedPct)} مُموَّل</Num>
-        <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{toArabicDigits(p.backersCount)} داعم</Num>
+        <Num style={{ fontSize: 12, color: 'var(--accent-ink)', fontWeight: 700 }}>%{toDisplayDigits(p.fundedPct)} مُموَّل</Num>
+        <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>{toDisplayDigits(p.backersCount)} داعم</Num>
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import { WathbaLegacyTabRedirect, WathbaTabStory } from '@/components/ventures/w
 import { WathbaProjectsRail } from '@/components/ventures/wathba/wathba-similar-rail';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
 import { getProjectDetail, getSimilarProjects, listVentures } from '@/lib/api/wathba';
-import { toArabicDigits } from '@/components/ventures/wathba/discover-all-constants';
+import { toDisplayDigits } from '@/components/ventures/wathba/discover-all-constants';
 
 /**
  * STAKES/N6 — human-readable campaign URLs: /p/[slug] (the API detail
@@ -35,7 +35,7 @@ export async function generateMetadata({
     live.fundingGoalHalalas > 0 && (live.status === 'LIVE' || live.status === 'FUNDED')
       ? Math.round((live.raisedHalalas / live.fundingGoalHalalas) * 100)
       : null;
-  const description = pct !== null ? `مُموَّل ${toArabicDigits(pct)}٪ · ${baseDescription ?? ''}`.trim() : baseDescription;
+  const description = pct !== null ? `مُموَّل ${toDisplayDigits(pct)}٪ · ${baseDescription ?? ''}`.trim() : baseDescription;
   const ogImage = live.ogImage ?? live.mediaUrls?.[0] ?? '/og-default.png';
   const canonical = live.slug ? `/p/${live.slug}` : `/projects/${live.id}`;
   return {

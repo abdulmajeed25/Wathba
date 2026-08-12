@@ -43,7 +43,7 @@ export function PartnerRunner({ projectId }: { projectId: string }) {
         value={disclosure}
         onChange={(e) => setDisclosure(e.target.value)}
         rows={2}
-        placeholder="نص الإفصاح الإلزامي (٢٠ حرفاً على الأقل)"
+        placeholder="نص الإفصاح الإلزامي (20 حرفاً على الأقل)"
         aria-label="نص الإفصاح"
         className="w-full rounded border border-[#30363d] bg-[#161b22] px-3 py-2 text-sm outline-none focus:border-emerald-500"
       />

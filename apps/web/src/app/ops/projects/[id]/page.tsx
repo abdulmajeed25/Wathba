@@ -177,7 +177,7 @@ const SUB_ENDPOINT: Record<string, string> = {
 };
 
 function fmtDate(iso: string | null): string {
-  return iso ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+  return iso ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 }
 
 function Figure({ labelAr, value, muted = false }: { labelAr: string; value: string; muted?: boolean }) {
@@ -366,7 +366,7 @@ export default async function OpsProjectDetailPage({
             <Figure labelAr="الهدف" value={formatSar(d.goalHalalas)} />
             <Figure labelAr="المتعهَّد به (raised)" value={formatSar(d.raisedHalalas)} />
             <Figure labelAr="المحقَّق (realized)" value={formatSar(d.realizedHalalas)} />
-            <Figure labelAr="عدد الداعمين" value={d.backersCount.toLocaleString('ar-SA')} muted />
+            <Figure labelAr="عدد الداعمين" value={d.backersCount.toLocaleString('ar-SA-u-nu-latn')} muted />
           </dl>
           <p className="rounded border border-[#30363d] bg-[#0d1117] px-3 py-2.5 text-xs text-[#8b949e]">
             «المتعهَّد به» هو مجموع الحجوزات، و«المحقَّق» هو ما قُطف فعلاً بعد التسوية — الرسوم تُقتطع
@@ -462,7 +462,7 @@ export default async function OpsProjectDetailPage({
                         <td className="px-3 py-2">
                           <StatusBadge intent="muted">{p.status}</StatusBadge>
                         </td>
-                        <td className="px-3 py-2 tabular-nums">{p.count.toLocaleString('ar-SA')}</td>
+                        <td className="px-3 py-2 tabular-nums">{p.count.toLocaleString('ar-SA-u-nu-latn')}</td>
                         <td className="px-3 py-2 tabular-nums">{formatSar(p.grossHalalas)}</td>
                         <td className="px-3 py-2 tabular-nums">{formatSar(p.netHalalas)}</td>
                       </tr>
@@ -515,8 +515,8 @@ export default async function OpsProjectDetailPage({
                   </div>
                   {u.bodyAr ? <p className="text-[#8b949e]">{u.bodyAr}</p> : null}
                   <p className="text-xs text-[#484f58]">
-                    {u.likeCount.toLocaleString('ar-SA')} إعجاب ·{' '}
-                    {u.commentCount.toLocaleString('ar-SA')} تعليق
+                    {u.likeCount.toLocaleString('ar-SA-u-nu-latn')} إعجاب ·{' '}
+                    {u.commentCount.toLocaleString('ar-SA-u-nu-latn')} تعليق
                   </p>
                 </li>
               ))}
@@ -570,8 +570,8 @@ export default async function OpsProjectDetailPage({
                         </td>
                         <td className="px-3 py-2 tabular-nums">{formatSar(t.amountHalalas)}</td>
                         <td className="px-3 py-2 tabular-nums text-[#8b949e]">
-                          {t.claimedQty.toLocaleString('ar-SA')}
-                          {t.limitQty != null ? ` / ${t.limitQty.toLocaleString('ar-SA')}` : ' / ∞'}
+                          {t.claimedQty.toLocaleString('ar-SA-u-nu-latn')}
+                          {t.limitQty != null ? ` / ${t.limitQty.toLocaleString('ar-SA-u-nu-latn')}` : ' / ∞'}
                         </td>
                         <td className="px-3 py-2 text-xs text-[#8b949e]">
                           {t.requiresShipping ? 'يتطلّب شحناً' : t.includesPhysicalProduct ? 'منتج مادي' : 'رقمي'}
@@ -618,8 +618,8 @@ export default async function OpsProjectDetailPage({
                         </td>
                         <td className="px-3 py-2 tabular-nums">{formatSar(a.amountHalalas)}</td>
                         <td className="px-3 py-2 tabular-nums text-[#8b949e]">
-                          {a.claimedQty.toLocaleString('ar-SA')}
-                          {a.limitQty != null ? ` / ${a.limitQty.toLocaleString('ar-SA')}` : ' / ∞'}
+                          {a.claimedQty.toLocaleString('ar-SA-u-nu-latn')}
+                          {a.limitQty != null ? ` / ${a.limitQty.toLocaleString('ar-SA-u-nu-latn')}` : ' / ∞'}
                         </td>
                       </tr>
                     ))

@@ -415,7 +415,7 @@ function RoundCard({
         <span>عدد الفائزين: <strong>{contest.winnersCount}</strong></span>
         <span>الجائزة: <strong>{prizeLabel(contest)}</strong></span>
         {contest.announcedAt && (
-          <span>أُعلِنت: {new Date(contest.announcedAt).toLocaleDateString('ar-SA')}</span>
+          <span>أُعلِنت: {new Date(contest.announcedAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn')}</span>
         )}
       </div>
 

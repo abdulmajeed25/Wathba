@@ -91,13 +91,13 @@ const STATUS_TONE: Record<
 };
 
 function halalasToSar(h: number): string {
-  return (h / 100).toLocaleString('ar-SA', { maximumFractionDigits: 0 });
+  return (h / 100).toLocaleString('ar-SA-u-nu-latn', { maximumFractionDigits: 0 });
 }
 
 function formatDateAr(iso: string | null): string {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleDateString('ar-SA', {
+    return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

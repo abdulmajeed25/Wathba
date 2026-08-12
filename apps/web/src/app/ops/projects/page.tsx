@@ -100,12 +100,12 @@ export default async function OpsProjectsPage({
 
       {stats ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <StatTile label="إجمالي المشاريع" value={stats.total.toLocaleString('ar-SA')} />
+          <StatTile label="إجمالي المشاريع" value={stats.total.toLocaleString('ar-SA-u-nu-latn')} />
           {TILE_STATUSES.map((t) => (
             <StatTile
               key={t.key}
               label={statusLabel(t.key)}
-              value={(stats!.statusCounts[t.key] ?? 0).toLocaleString('ar-SA')}
+              value={(stats!.statusCounts[t.key] ?? 0).toLocaleString('ar-SA-u-nu-latn')}
               intent={(stats!.statusCounts[t.key] ?? 0) > 0 ? t.intent : 'default'}
               href={`/ops/projects${qs({ status: t.key })}`}
             />

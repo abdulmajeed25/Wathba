@@ -45,7 +45,7 @@ export function QueueCard({
         {badgeAr ? <StatusBadge intent={intent}>{badgeAr}</StatusBadge> : null}
       </div>
       <p className={`mt-2 text-3xl font-bold tabular-nums ${countColor}`}>
-        {count.toLocaleString('ar-SA')}
+        {count.toLocaleString('ar-SA-u-nu-latn')}
       </p>
       {children ? <div className="mt-2 text-xs text-[#8b949e]">{children}</div> : null}
     </a>

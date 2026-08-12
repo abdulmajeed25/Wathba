@@ -29,7 +29,7 @@ const columns: Column<CategoryRow>[] = [
     sortable: true,
     sortValue: (r) => r.projectCount,
     csv: (r) => String(r.projectCount),
-    render: (r) => <span className="tabular-nums">{r.projectCount.toLocaleString('ar-SA')}</span>,
+    render: (r) => <span className="tabular-nums">{r.projectCount.toLocaleString('ar-SA-u-nu-latn')}</span>,
   },
   {
     key: 'raisedHalalas',

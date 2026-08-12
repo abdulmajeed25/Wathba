@@ -4,7 +4,13 @@
  * displayed as SAR (halalas / 100) in the ar-SA locale. One helper so no
  * screen re-implements the division and risks a rounding drift.
  */
-const SAR = new Intl.NumberFormat('ar-SA', {
+// Batch ACCOUNT / U3 — `-u-nu-latn`, not bare 'ar-SA'. A bare Arabic locale
+// picks Arabic-Indic digits, which is why the vault rendered GMV as
+// ١٬٣٩٤٬٨٨٠٫٠٠ while the rest of the platform showed Latin. Operators reconcile
+// these figures against bank and PSP statements, which are Latin — a numeral
+// system nobody can paste into a spreadsheet is a reconciliation hazard, not a
+// style choice.
+const SAR = new Intl.NumberFormat('ar-SA-u-nu-latn', {
   style: 'currency',
   currency: 'SAR',
   minimumFractionDigits: 2,

@@ -28,7 +28,7 @@ export function WathbaTabCreator({ id, project }: { id: string; project?: Wathba
         <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 10 }}>عن المبدع</h3>
         <p style={{ fontSize: 14, color: 'var(--text-soft)', lineHeight: 1.75 }}>
           فريق وثبة يتحقّق من هوية كل مبدع عبر «نفاذ» قبل نشر أي حملة. الفريق هنا
-          أكمل خطوة التحقّق، له ثلاثة مشاريع سابقة، وله تقييم ٤.٨/٥ من داعميه.
+          أكمل خطوة التحقّق، له ثلاثة مشاريع سابقة، وله تقييم 4.8/5 من داعميه.
         </p>
       </div>
     </div>

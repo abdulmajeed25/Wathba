@@ -60,7 +60,7 @@ export default async function OpsReviewPage() {
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-[#8b949e]">
-            {rows.length.toLocaleString('ar-SA')} مشروع بانتظار المراجعة
+            {rows.length.toLocaleString('ar-SA-u-nu-latn')} مشروع بانتظار المراجعة
           </p>
           {rows.map((p) => (
             <ReviewCard key={p.id} project={p} />

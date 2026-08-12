@@ -110,14 +110,14 @@ export default async function OpsFulfillmentPage({
 
       {rows.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile label="مكافآت (هذه الصفحة)" value={rows.length.toLocaleString('ar-SA')} />
+          <StatTile label="مكافآت (هذه الصفحة)" value={rows.length.toLocaleString('ar-SA-u-nu-latn')} />
           {STATUS_FILTER.map((s, i) => {
             const tone = (['default', 'warn', 'ok'] as const)[i] ?? 'default';
             return (
               <StatTile
                 key={s}
                 label={rewardStatusLabel(s)}
-                value={(byStatus[s] ?? 0).toLocaleString('ar-SA')}
+                value={(byStatus[s] ?? 0).toLocaleString('ar-SA-u-nu-latn')}
                 intent={(byStatus[s] ?? 0) > 0 ? tone : 'default'}
                 href={`/ops/fulfillment${qs({ rewardStatus: s })}`}
               />

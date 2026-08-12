@@ -167,7 +167,7 @@ export function WathbaNotificationBell(): React.ReactElement | null {
               boxSizing: 'border-box',
             }}
           >
-            {unread > 9 ? '٩+' : String(unread).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]!)}
+            {unread > 9 ? '9+' : String(unread).replace(/\d/g, (d) => '0123456789'[Number(d)]!)}
           </span>
         )}
       </button>

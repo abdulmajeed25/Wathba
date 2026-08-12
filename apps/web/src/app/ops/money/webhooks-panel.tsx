@@ -115,7 +115,7 @@ export async function WebhooksPanel({
                   {e.outcome ? <StatusBadge intent={OUTCOME_INTENT[e.outcome] ?? 'muted'}>{e.outcome}</StatusBadge> : <span className="text-[#484f58]">—</span>}
                 </td>
                 <td className="px-3 py-2 text-[11px] text-[#8b949e]">
-                  {new Date(e.createdAt).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}
+                  {new Date(e.createdAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' })}
                 </td>
                 <td className="px-3 py-2">
                   {e.provider === 'moyasar' && (

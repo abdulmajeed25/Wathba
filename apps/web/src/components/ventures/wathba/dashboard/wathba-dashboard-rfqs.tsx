@@ -40,7 +40,7 @@ export function WathbaDashboardRfqs({
   async function createRfq(): Promise<void> {
     setError(null);
     if (specsAr.trim().length < 40) {
-      setError('المواصفات يجب أن تكون ٤٠ حرفاً على الأقل.');
+      setError('المواصفات يجب أن تكون 40 حرفاً على الأقل.');
       return;
     }
     if (!dueDate) {
@@ -147,7 +147,7 @@ export function WathbaDashboardRfqs({
       >
         <div style={{ fontSize: 15, fontWeight: 700 }}>نشر طلب توريد جديد</div>
         <label style={{ fontSize: 13, color: 'var(--muted)' }}>
-          المواصفات (٤٠ حرفاً على الأقل)
+          المواصفات (40 حرفاً على الأقل)
           <textarea
             value={specsAr}
             onChange={(e) => setSpecsAr(e.target.value)}

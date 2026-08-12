@@ -8,7 +8,7 @@ import { Icon, Num } from './wathba-icons';
 import { WathbaTabs, WathbaTabsContent } from './wathba-tabs';
 import type { ApiKycRow, ApiModerationQueue, ApiProjectDetail } from '@/lib/api/wathba';
 import { formatSarFromHalalas } from '@/lib/i18n/format';
-import { toArabicDigits } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
 
 /**
  * §7 admin console — Tier 2.7 rewrite.
@@ -208,7 +208,7 @@ function ReviewRow({ project }: { project: ApiProjectDetail }): React.ReactEleme
           >
             <span>الفئة: {project.category}</span>
             <span>الهدف: {formatSarFromHalalas('ar', Number(project.fundingGoalHalalas))}</span>
-            <span>عتبة: %{toArabicDigits(project.releaseThresholdPct)}</span>
+            <span>عتبة: %{toDisplayDigits(project.releaseThresholdPct)}</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>

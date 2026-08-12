@@ -42,7 +42,7 @@ export function Bar({
         <div className={`h-full rounded-full ${intentFill(intent)}`} style={{ width: `${pctWidth}%` }} />
       </div>
       <div className={`w-16 text-left text-xs font-bold tabular-nums ${intentText(intent)}`}>
-        {valueLabel ?? value.toLocaleString('ar-SA')}
+        {valueLabel ?? value.toLocaleString('ar-SA-u-nu-latn')}
       </div>
     </div>
   );

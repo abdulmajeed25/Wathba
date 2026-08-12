@@ -110,7 +110,7 @@ export default async function OpsAuditPage({
       {verdict ? (
         verdict.ok ? (
           <p className="rounded border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-300">
-            ✓ السلسلة سليمة — {verdict.checked.toLocaleString('ar-SA')} قيداً أُعيد حسابها الآن بلا
+            ✓ السلسلة سليمة — {verdict.checked.toLocaleString('ar-SA-u-nu-latn')} قيداً أُعيد حسابها الآن بلا
             كسر
           </p>
         ) : (
@@ -213,7 +213,7 @@ export default async function OpsAuditPage({
                 <tr key={r.id} className="align-top">
                   <td className="px-3 py-2 tabular-nums text-[#8b949e]">{r.chainSeq}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-[#8b949e]">
-                    {new Date(r.createdAt).toLocaleString('ar-SA', {
+                    {new Date(r.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                       dateStyle: 'short',
                       timeStyle: 'medium',
                     })}

@@ -91,7 +91,7 @@ export function AgentsManager({ initial }: { initial: AgentRow[] }) {
             {minted.token}
           </code>
           <p className="mt-2 text-xs text-[#8b949e]">
-            صالح حتى {new Date(minted.expires).toLocaleString('ar-SA')} — خزّنه في مدير أسرار ثم أغلق
+            صالح حتى {new Date(minted.expires).toLocaleString('ar-SA-u-nu-latn')} — خزّنه في مدير أسرار ثم أغلق
             هذه الرسالة.
           </p>
           <button
@@ -147,7 +147,7 @@ export function AgentsManager({ initial }: { initial: AgentRow[] }) {
           onChange={(e) => setReason(e.target.value)}
           required
           minLength={10}
-          placeholder="السبب (١٠ أحرف على الأقل — يُسجَّل في التدقيق)"
+          placeholder="السبب (10 أحرف على الأقل — يُسجَّل في التدقيق)"
           className="rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm sm:col-span-2"
         />
         <p className="text-xs text-[#8b949e] sm:col-span-2">
@@ -199,18 +199,18 @@ export function AgentsManager({ initial }: { initial: AgentRow[] }) {
                   </td>
                   <td className="px-3 py-2 text-xs text-[#8b949e]">
                     {a.tokenExpiresAt
-                      ? `ينتهي ${new Date(a.tokenExpiresAt).toLocaleString('ar-SA')}`
+                      ? `ينتهي ${new Date(a.tokenExpiresAt).toLocaleString('ar-SA-u-nu-latn')}`
                       : '—'}
                   </td>
                   <td className="px-3 py-2 text-xs text-[#8b949e]">
-                    {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString('ar-SA') : '—'}
+                    {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString('ar-SA-u-nu-latn') : '—'}
                   </td>
                   <td className="space-x-2 space-x-reverse px-3 py-2">
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => {
-                        const why = window.prompt('سبب التبديل (١٠ أحرف على الأقل):');
+                        const why = window.prompt('سبب التبديل (10 أحرف على الأقل):');
                         if (!why) return;
                         void run(async () => {
                           await op('agents.set-active', { agentId: a.id, isActive: !a.isActive }, why);
@@ -224,7 +224,7 @@ export function AgentsManager({ initial }: { initial: AgentRow[] }) {
                       type="button"
                       disabled={busy}
                       onClick={() => {
-                        const why = window.prompt('سبب تدوير الرمز (١٠ أحرف على الأقل):');
+                        const why = window.prompt('سبب تدوير الرمز (10 أحرف على الأقل):');
                         if (!why) return;
                         void run(async () => {
                           const out = (await op('agents.token.rotate', { agentId: a.id }, why)) as {

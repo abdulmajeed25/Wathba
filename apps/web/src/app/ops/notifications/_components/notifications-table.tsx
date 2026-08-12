@@ -41,7 +41,7 @@ function kindIntent(kind: string): StatusIntent {
 
 function fmtDate(iso: string | null): string {
   return iso
-    ? new Date(iso).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })
+    ? new Date(iso).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' })
     : '—';
 }
 

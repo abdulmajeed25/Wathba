@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { type ApiCreatorProfile } from '@/lib/api/wathba';
-import { arabicCount, toArabicDigits } from './discover-all-constants';
+import { displayCount, toDisplayDigits } from './discover-all-constants';
 
 /**
  * Public "المبدع" tab on the project page — avatar, verified badge, follow
@@ -412,7 +412,7 @@ function PastProjectCard({
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ fontSize: 12, color: 'var(--text-tertiary, #5d6b62)' }}>
-          %{toArabicDigits(p.fundedPct)} من الهدف
+          %{toDisplayDigits(p.fundedPct)} من الهدف
         </span>
         {p.delivered && (
           <span
@@ -434,12 +434,12 @@ function PastProjectCard({
 }
 
 /**
- * Counts are Arabic-Indic on this platform — `arabicCount` is
+ * Counts are Arabic-Indic on this platform — `displayCount` is
  * `toLocaleString('en-US')` plus the conversion this used to omit. It rendered
  * «224 متابِع» beside a project card reading «٨٤٧ داعم», and on the public
  * profile it sat next to an Intl-localised «يوليو ٢٠٢٦»: two numeral systems
  * on one surface, which is the one thing the RTL rule forbids outright.
  */
 function fmt(n: number): string {
-  return arabicCount(n);
+  return displayCount(n);
 }

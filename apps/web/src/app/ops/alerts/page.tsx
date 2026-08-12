@@ -88,7 +88,7 @@ export default async function OpsAlertsPage() {
             {alerts ? (
               <>
                 {' '}
-                · حُدِّث {new Date(alerts.generatedAt).toLocaleTimeString('ar-SA')}
+                · حُدِّث {new Date(alerts.generatedAt).toLocaleTimeString('ar-SA-u-nu-latn')}
               </>
             ) : null}
           </p>
@@ -159,7 +159,7 @@ export default async function OpsAlertsPage() {
                     <span
                       className={`shrink-0 rounded px-2.5 py-1 text-base font-bold tabular-nums ${g.count}`}
                     >
-                      {a.count.toLocaleString('ar-SA')}
+                      {a.count.toLocaleString('ar-SA-u-nu-latn')}
                     </span>
                   </Link>
                 </li>

@@ -121,17 +121,17 @@ export default async function OpsTrustPage({
       <section className="grid gap-3 sm:grid-cols-3">
         <StatTile
           label="إجمالي البلاغات المفتوحة"
-          value={(counts?.reportsOpen ?? 0).toLocaleString('ar-SA')}
+          value={(counts?.reportsOpen ?? 0).toLocaleString('ar-SA-u-nu-latn')}
           intent={counts && counts.reportsOpen > 0 ? 'warn' : 'default'}
         />
         <StatTile
           label="بلاغات على المشاريع"
-          value={(counts?.projectReportsOpen ?? 0).toLocaleString('ar-SA')}
+          value={(counts?.projectReportsOpen ?? 0).toLocaleString('ar-SA-u-nu-latn')}
           intent={counts && counts.projectReportsOpen > 0 ? 'warn' : 'default'}
         />
         <StatTile
           label="بلاغات على التعليقات"
-          value={(counts?.commentReportsOpen ?? 0).toLocaleString('ar-SA')}
+          value={(counts?.commentReportsOpen ?? 0).toLocaleString('ar-SA-u-nu-latn')}
           intent={counts && counts.commentReportsOpen > 0 ? 'warn' : 'default'}
         />
       </section>

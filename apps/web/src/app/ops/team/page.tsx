@@ -141,7 +141,7 @@ export default async function OpsTeamPage() {
         />
         <StatTile
           label="عدد المشرفين الماليين"
-          value={session ? session.moneyAdmins.toLocaleString('ar-SA') : '—'}
+          value={session ? session.moneyAdmins.toLocaleString('ar-SA-u-nu-latn') : '—'}
         />
         <StatTile
           label="دورك الحالي"

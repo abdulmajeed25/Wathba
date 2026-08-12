@@ -52,7 +52,7 @@ export async function ReconciliationPanel({ opsToken }: { opsToken: string }) {
           مطابقة دفتر الأستاذ مع مزوّد الدفع، وكشف انحراف العدّادات. في وضع التجربة (بلا مفتاح PSP) تُحتسب الصفوف كـ«متخطّاة» لا مطابِقة.
         </p>
         <div className="flex flex-wrap gap-1.5">
-          <OpRunner opKey="money.reconcile.run" input={{ windowDays: 7, limit: 200 }} triggerLabel="تشغيل مطابقة (٧ أيام)" riskTier="SENSITIVE" />
+          <OpRunner opKey="money.reconcile.run" input={{ windowDays: 7, limit: 200 }} triggerLabel="تشغيل مطابقة (7 أيام)" riskTier="SENSITIVE" />
         </div>
       </div>
 
@@ -89,7 +89,7 @@ export async function ReconciliationPanel({ opsToken }: { opsToken: string }) {
             {runs.map((r) => (
               <tr key={r.id}>
                 <td className="px-3 py-2 text-[11px] text-[#8b949e]">
-                  {new Date(r.createdAt).toLocaleString('ar-SA', { dateStyle: 'short', timeStyle: 'short' })}
+                  {new Date(r.createdAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' })}
                 </td>
                 <td className="px-3 py-2 tabular-nums">{r.windowDays} يوم</td>
                 <td className="px-3 py-2 tabular-nums">{r.scanned}</td>

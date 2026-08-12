@@ -1,7 +1,7 @@
 import { Num } from './wathba-icons';
 
 import type { HeroSlideData } from './wathba-hero-rotator';
-import { arabicCount, toArabicDigits } from './discover-all-constants';
+import { displayCount, toDisplayDigits } from './discover-all-constants';
 
 /**
  * Batch HERO — one slide's card body, as a SERVER component.
@@ -190,18 +190,18 @@ export function WathbaHeroSlideBody({ slide: p }: { slide: HeroSlideData }) {
         </div>
         <div style={{ textAlign: 'center' }}>
           <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--accent-ink)' }}>
-            %{toArabicDigits(p.fundedPct)}
+            %{toDisplayDigits(p.fundedPct)}
           </Num>
           <div style={{ fontSize: 11, color: 'var(--muted2)' }}>مُموَّل</div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>
-            {arabicCount(p.backersCount)}
+            {displayCount(p.backersCount)}
           </Num>
           <div style={{ fontSize: 11, color: 'var(--muted2)' }}>داعم</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{toArabicDigits(p.daysLeft)}</Num>
+          <Num style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{toDisplayDigits(p.daysLeft)}</Num>
           <div style={{ fontSize: 11, color: 'var(--muted2)' }}>يوم متبقٍ</div>
         </div>
       </div>

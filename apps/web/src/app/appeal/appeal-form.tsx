@@ -138,7 +138,7 @@ export function AppealForm({
     <form onSubmit={submit} className="space-y-3">
       <label className="block">
         <span className="mb-1 block text-sm font-medium text-neutral-700">
-          اشرح سبب تظلّمك (٢٠ حرفاً على الأقل)
+          اشرح سبب تظلّمك (20 حرفاً على الأقل)
         </span>
         <textarea
           value={reason}

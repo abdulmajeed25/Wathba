@@ -184,7 +184,7 @@ export default async function OpsUserDetailPage({
                 {user.suspension.suspendedKind === 'BANNED' ? 'حساب محظور نهائياً' : 'حساب موقوف'}
               </strong>
               {' — '}
-              {new Date(user.suspension.suspendedAt).toLocaleString('ar-SA')}
+              {new Date(user.suspension.suspendedAt).toLocaleString('ar-SA-u-nu-latn')}
               {user.suspension.suspendedReasonAr ? (
                 <span className="block text-xs opacity-90">
                   السبب: {user.suspension.suspendedReasonAr}
@@ -210,7 +210,7 @@ export default async function OpsUserDetailPage({
               <Field label="المدينة">{user.city || '—'}</Field>
               <Field label="مستوى السمعة">{user.reputationTier || '—'}</Field>
               <Field label="الانضمام">
-                {new Date(user.createdAt).toLocaleString('ar-SA', { dateStyle: 'medium' })}
+                {new Date(user.createdAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'medium' })}
               </Field>
               <Field label="الأدوار">
                 <span className="flex flex-wrap gap-1">
@@ -264,8 +264,8 @@ export default async function OpsUserDetailPage({
             <h2 className="text-sm font-bold text-[#8b949e]">
               تعهّدات هذا الحساب{' '}
               <span className="text-[11px] font-normal text-[#484f58]">
-                (أحدث {Math.min(pledges.length, 25).toLocaleString('ar-SA')} من{' '}
-                {user.pledgeCount.toLocaleString('ar-SA')})
+                (أحدث {Math.min(pledges.length, 25).toLocaleString('ar-SA-u-nu-latn')} من{' '}
+                {user.pledgeCount.toLocaleString('ar-SA-u-nu-latn')})
               </span>
             </h2>
             <div className="overflow-x-auto rounded-lg border border-[#21262d]">
@@ -309,7 +309,7 @@ export default async function OpsUserDetailPage({
                         <td className="px-3 py-2 text-xs text-[#8b949e]">{p.contractType ?? '—'}</td>
                         <td className="px-3 py-2 whitespace-nowrap text-xs text-[#8b949e]">
                           {p.createdAt
-                            ? new Date(p.createdAt).toLocaleDateString('ar-SA', {
+                            ? new Date(p.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
                                 dateStyle: 'medium',
                               })
                             : '—'}
@@ -327,7 +327,7 @@ export default async function OpsUserDetailPage({
             <h2 className="text-sm font-bold text-[#8b949e]">
               الجلسات والأجهزة{' '}
               <span className="text-[11px] font-normal text-[#484f58]">
-                (أحدث {Math.min(sessions.length, 25).toLocaleString('ar-SA')} — البصمات محجوبة)
+                (أحدث {Math.min(sessions.length, 25).toLocaleString('ar-SA-u-nu-latn')} — البصمات محجوبة)
               </span>
             </h2>
             <div className="overflow-x-auto rounded-lg border border-[#21262d]">
@@ -369,7 +369,7 @@ export default async function OpsUserDetailPage({
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-xs text-[#8b949e]">
                           {s.lastSeenAt
-                            ? new Date(s.lastSeenAt).toLocaleString('ar-SA', {
+                            ? new Date(s.lastSeenAt).toLocaleString('ar-SA-u-nu-latn', {
                                 dateStyle: 'short',
                                 timeStyle: 'short',
                               })
@@ -377,7 +377,7 @@ export default async function OpsUserDetailPage({
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-xs text-[#8b949e]">
                           {s.createdAt
-                            ? new Date(s.createdAt).toLocaleString('ar-SA', {
+                            ? new Date(s.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                                 dateStyle: 'short',
                                 timeStyle: 'short',
                               })
@@ -385,9 +385,9 @@ export default async function OpsUserDetailPage({
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-xs text-[#8b949e]">
                           {s.revokedAt
-                            ? new Date(s.revokedAt).toLocaleString('ar-SA', { dateStyle: 'short' })
+                            ? new Date(s.revokedAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short' })
                             : s.expiresAt
-                              ? new Date(s.expiresAt).toLocaleString('ar-SA', { dateStyle: 'short' })
+                              ? new Date(s.expiresAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short' })
                               : '—'}
                         </td>
                       </tr>
@@ -441,7 +441,7 @@ export default async function OpsUserDetailPage({
                         ) : null}
                       </div>
                       <time className="whitespace-nowrap text-[11px] text-[#8b949e]">
-                        {new Date(r.createdAt).toLocaleString('ar-SA', {
+                        {new Date(r.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                           dateStyle: 'short',
                           timeStyle: 'short',
                         })}

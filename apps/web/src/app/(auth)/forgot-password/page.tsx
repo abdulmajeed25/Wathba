@@ -36,7 +36,7 @@ export default async function ForgotPasswordPage({
       {sp.ok ? (
         <div className="rounded-lg border border-edge bg-elevated p-4 text-center text-sm text-brand-ink">
           إن كان البريد مسجلاً لدينا فستصلك رسالة تحوي رابط الاستعادة خلال دقائق.
-          الرابط صالح لمدة ٣٠ دقيقة.
+          الرابط صالح لمدة 30 دقيقة.
         </div>
       ) : (
         <form action={forgotPasswordAction} className="flex flex-col gap-4">

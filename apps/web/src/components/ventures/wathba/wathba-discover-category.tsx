@@ -19,7 +19,7 @@ const FILTERS: Array<{ key: string; ar: string }> = [
 ];
 
 function ar(n: number): string {
-  return String(n).replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]!);
+  return String(n).replace(/[0-9]/g, (d) => '0123456789'[Number(d)]!);
 }
 
 function pct(p: ApiDiscoverProject): number {

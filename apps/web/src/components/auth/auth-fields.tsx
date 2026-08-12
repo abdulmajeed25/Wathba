@@ -83,7 +83,7 @@ export function scorePassword(pw: string): number {
 }
 
 const STRENGTH: Array<{ label: string; color: string }> = [
-  { label: 'قصيرة جداً — ٨ أحرف على الأقل', color: '#dc2626' },
+  { label: 'قصيرة جداً — 8 أحرف على الأقل', color: '#dc2626' },
   { label: 'ضعيفة', color: '#dc2626' },
   { label: 'متوسطة', color: '#d97706' },
   { label: 'جيدة', color: '#059669' },
@@ -153,7 +153,7 @@ export function PasswordField({
       )}
       {tooShort && !withStrength && (
         <span role="alert" className="text-xs text-err">
-          كلمة المرور يجب أن تتكون من ٨ أحرف على الأقل.
+          كلمة المرور يجب أن تتكون من 8 أحرف على الأقل.
         </span>
       )}
       {hint && !tooShort && <span className="text-xs text-fg-muted">{hint}</span>}

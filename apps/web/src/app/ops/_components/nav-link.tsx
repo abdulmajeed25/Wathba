@@ -50,7 +50,7 @@ export function NavLink({
         // board that the link opens.
         <span
           aria-hidden="true"
-          title={`${badge.count.toLocaleString('ar-SA')} عنصرًا بانتظارك`}
+          title={`${badge.count.toLocaleString('ar-SA-u-nu-latn')} عنصرًا بانتظارك`}
           className={[
             'min-w-[1.25rem] rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold tabular-nums',
             badge.intent === 'danger'
@@ -58,7 +58,7 @@ export function NavLink({
               : 'border border-amber-500/50 bg-amber-500/15 text-amber-300',
           ].join(' ')}
         >
-          {badge.count.toLocaleString('ar-SA')}
+          {badge.count.toLocaleString('ar-SA-u-nu-latn')}
         </span>
       ) : null}
     </Link>

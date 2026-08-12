@@ -375,7 +375,7 @@ export function OpRunner(props: OpRunnerProps) {
                         <dt className="text-[#8b949e]" dir="ltr">
                           {k}
                         </dt>
-                        <dd className="mt-0.5 text-base font-bold tabular-nums">{v.toLocaleString('ar-SA')}</dd>
+                        <dd className="mt-0.5 text-base font-bold tabular-nums">{v.toLocaleString('ar-SA-u-nu-latn')}</dd>
                       </div>
                     ))}
                   </dl>
@@ -417,7 +417,7 @@ export function OpRunner(props: OpRunnerProps) {
                 {!blocked && needsReason ? (
                   <label className="block">
                     <span className="mb-1 block text-xs text-[#8b949e]">
-                      السبب (١٠ أحرف على الأقل — يُسجَّل في التدقيق)
+                      السبب (10 أحرف على الأقل — يُسجَّل في التدقيق)
                     </span>
                     <textarea
                       value={reason}

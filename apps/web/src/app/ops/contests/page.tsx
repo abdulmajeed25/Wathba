@@ -96,12 +96,12 @@ export default async function OpsContestsPage({
 
       {rows.length > 0 ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile label="مسابقات (هذه الصفحة)" value={rows.length.toLocaleString('ar-SA')} />
+          <StatTile label="مسابقات (هذه الصفحة)" value={rows.length.toLocaleString('ar-SA-u-nu-latn')} />
           {tileStatuses.map((s) => (
             <StatTile
               key={s}
               label={contestStatusLabel(s)}
-              value={(byStatus[s] ?? 0).toLocaleString('ar-SA')}
+              value={(byStatus[s] ?? 0).toLocaleString('ar-SA-u-nu-latn')}
               href={`/ops/contests${qs({ status: s })}`}
             />
           ))}

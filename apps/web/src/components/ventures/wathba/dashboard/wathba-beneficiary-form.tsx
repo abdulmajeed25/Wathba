@@ -25,7 +25,7 @@ export function WathbaBeneficiaryForm({ current }: { current: ApiBeneficiary | n
   async function save(): Promise<void> {
     setError(null);
     if (name.trim().length < 2 || !/^\+?\d{9,15}$/.test(mobile)) {
-      setError('أدخل الاسم كاملاً ورقم جوال صحيح (٩–١٥ رقماً).');
+      setError('أدخل الاسم كاملاً ورقم جوال صحيح (9–15 رقماً).');
       return;
     }
     if (type === 'BANK_ACCOUNT' && iban.replace(/\s/g, '').length < 15) {

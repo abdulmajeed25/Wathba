@@ -9,8 +9,8 @@ import { ReportProjectButton } from './wathba-report-project';
 import { ShareButton } from './wathba-share';
 import { Icon, Num } from './wathba-icons';
 import { formatSar } from '@/lib/i18n/format';
-import { toArabicDigits } from './discover-all-constants';
-import { arabicCount } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
+import { displayCount } from './discover-all-constants';
 
 const fmtSAR = (n: number): string => formatSar('ar', n);
 
@@ -62,7 +62,7 @@ export function WathbaCampaignRail({
     const livePct = goal > 0 ? Math.min(999, Math.round((raisedSAR / goal) * 100)) : 0;
     return {
       raisedFmt: fmtSAR(raisedSAR),
-      backersFmt: arabicCount(tick.backersCount),
+      backersFmt: displayCount(tick.backersCount),
       pct: livePct,
       pctW: `${Math.min(100, livePct)}%`,
     };
@@ -96,7 +96,7 @@ export function WathbaCampaignRail({
         >
           {showRaisedFmt}
         </Num>
-        <Num style={{ fontSize: 16, fontWeight: 700, color: pctColor }}>%{toArabicDigits(showPct)}</Num>
+        <Num style={{ fontSize: 16, fontWeight: 700, color: pctColor }}>%{toDisplayDigits(showPct)}</Num>
         {live && (
           <span
             aria-label="حيّ"
@@ -142,7 +142,7 @@ export function WathbaCampaignRail({
         <div style={{ fontSize: 12.5, lineHeight: 1.55, color: 'var(--text-soft)' }}>
           يُموَّل عند بلوغ{' '}
           <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
-            {formatSar('ar', thresholdAmount)} (%{toArabicDigits(releaseThresholdPct)})
+            {formatSar('ar', thresholdAmount)} (%{toDisplayDigits(releaseThresholdPct)})
           </Num>{' '}
           من الهدف قبل الموعد النهائي. وإلا، تُرَدّ كل الأموال تلقائياً.
         </div>
@@ -155,7 +155,7 @@ export function WathbaCampaignRail({
         </div>
         <div style={{ width: 1, background: 'rgba(var(--ink-rgb),.1)' }} />
         <div style={{ flex: 1, paddingInlineStart: 18 }}>
-          <Num style={{ fontSize: 22, fontWeight: 700 }}>{toArabicDigits(daysLeft)}</Num>
+          <Num style={{ fontSize: 22, fontWeight: 700 }}>{toDisplayDigits(daysLeft)}</Num>
           <div style={{ fontSize: 12, color: 'var(--muted2)' }}>يوم متبقٍ</div>
         </div>
       </div>

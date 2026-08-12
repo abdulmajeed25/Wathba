@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 import type { ApiPublicProfile } from '@/lib/api/wathba';
-import { arabicCount, toArabicDigits } from './discover-all-constants';
+import { displayCount, toDisplayDigits } from './discover-all-constants';
 import { Icon, Num } from './wathba-icons';
 
 /**
@@ -67,7 +67,7 @@ export function WathbaPublicProfile({
                 )}
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <Icon name="schedule" size={14} color="var(--muted2)" />
-                  انضم {new Date(profile.joinedAt).toLocaleDateString('ar-SA', { year: 'numeric', month: 'long' })}
+                  انضم {new Date(profile.joinedAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'long' })}
                 </span>
               </div>
             </div>
@@ -130,7 +130,7 @@ export function WathbaPublicProfile({
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Num style={{ fontSize: 12.5, color: p.fundedPct >= 100 ? 'var(--accent-ink)' : 'var(--muted2)' }}>
-                      %{toArabicDigits(p.fundedPct)}
+                      %{toDisplayDigits(p.fundedPct)}
                     </Num>
                     <span style={{ fontSize: 11, color: 'var(--muted2)' }}>{STATUS_LABELS[p.status] ?? p.status}</span>
                   </div>
@@ -175,7 +175,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div style={{ flex: 1, textAlign: 'center' }}>
       <Num style={{ display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--accent-ink)' }}>
-        {arabicCount(value)}
+        {displayCount(value)}
       </Num>
       <span style={{ fontSize: 12.5, color: 'var(--muted2)' }}>{label}</span>
     </div>

@@ -55,9 +55,9 @@ function ageLabel(createdAt: string): { text: string; overdue: boolean } {
   const hours = Math.floor(ms / 3_600_000);
   const overdue = hours >= 48;
   if (hours < 1) return { text: 'أقل من ساعة', overdue };
-  if (hours < 24) return { text: `${hours.toLocaleString('ar-SA')} ساعة`, overdue };
+  if (hours < 24) return { text: `${hours.toLocaleString('ar-SA-u-nu-latn')} ساعة`, overdue };
   const days = Math.floor(hours / 24);
-  return { text: `${days.toLocaleString('ar-SA')} يوم`, overdue };
+  return { text: `${days.toLocaleString('ar-SA-u-nu-latn')} يوم`, overdue };
 }
 
 export function ReviewCard({ project }: { project: ProjectRow }) {

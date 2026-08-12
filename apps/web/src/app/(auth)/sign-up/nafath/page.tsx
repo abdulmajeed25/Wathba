@@ -5,7 +5,7 @@ import { skipNafathAction, verifyNafathAction } from '@/lib/auth/actions';
 export const metadata: Metadata = { title: 'تحقّق نفاذ · وثبة' };
 
 const ERR: Record<string, string> = {
-  invalid: 'رقم الهوية يجب أن يتكون من ١٠ أرقام.',
+  invalid: 'رقم الهوية يجب أن يتكون من 10 أرقام.',
   denied:  'تعذّر التحقق من نفاذ. تأكد من قبول الطلب على تطبيق نفاذ ثم حاول مجدداً.',
   server:  'حدث خطأ في الخادم. حاول مجدداً.',
   network: 'تعذّر الاتصال بنفاذ. حاول لاحقاً.',
@@ -43,7 +43,7 @@ export default async function NafathStepPage({
       <form action={verifyNafathAction} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={next} />
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-medium">رقم الهوية الوطنية (١٠ أرقام)</span>
+          <span className="text-sm font-medium">رقم الهوية الوطنية (10 أرقام)</span>
           <input
             type="text"
             name="nationalId"

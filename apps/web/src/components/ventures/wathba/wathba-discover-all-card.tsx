@@ -6,7 +6,7 @@ import { useState } from 'react';
 
 import type { ApiDiscoverCard } from '@/lib/api/wathba';
 import { Icon, Num } from './wathba-icons';
-import { toArabicDigits } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
 
 /**
  * Batch DISC — the Wathba discover card: cover, staff-pick badge, title,
@@ -138,10 +138,10 @@ export function WathbaDiscoverAllCard({ p }: { p: ApiDiscoverCard }) {
           {p.shortDescAr}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
-          <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{toArabicDigits(pct)}</Num>
+          <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>%{toDisplayDigits(pct)}</Num>
           <span style={{ color: 'var(--muted2)' }}>مموَّل</span>
           <span style={{ color: 'var(--muted2)', marginInlineStart: 'auto' }}>
-            {toArabicDigits(p.backersCount)} داعم · {toArabicDigits(daysLeft)} يوم متبقٍ
+            {toDisplayDigits(p.backersCount)} داعم · {toDisplayDigits(daysLeft)} يوم متبقٍ
           </span>
         </div>
       </div>

@@ -134,7 +134,7 @@ export function CreatorCard({ projectId, name, loc }: { projectId: string; name:
         <div>
           <div style={{ fontSize: 15, fontWeight: 700 }}>{name}</div>
           <Num style={{ fontSize: 11.5, color: 'var(--muted2)' }}>
-            ٣ مشاريع · مبدع موثّق ✓
+            3 مشاريع · مبدع موثّق ✓
           </Num>
         </div>
       </div>

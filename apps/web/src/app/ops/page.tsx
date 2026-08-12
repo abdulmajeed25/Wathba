@@ -73,7 +73,7 @@ const pending = (n: number): 'muted' | 'warn' => (n > 0 ? 'warn' : 'muted');
 const escalate = (failed: number, total: number): 'muted' | 'warn' | 'danger' =>
   failed > 0 ? 'danger' : total > 0 ? 'warn' : 'muted';
 
-const ar = (n: number) => n.toLocaleString('ar-SA');
+const ar = (n: number) => n.toLocaleString('ar-SA-u-nu-latn');
 
 export default async function OpsHomePage() {
   await requireAdmin();
@@ -109,11 +109,11 @@ export default async function OpsHomePage() {
         <div>
           <h1 className="text-lg font-bold">الرئيسية — مركز القيادة</h1>
           <p className="mt-1 text-sm text-[#8b949e]">
-            {info.email} · دخلت {new Date(info.enteredAt).toLocaleTimeString('ar-SA')}
+            {info.email} · دخلت {new Date(info.enteredAt).toLocaleTimeString('ar-SA-u-nu-latn')}
             {data ? (
               <>
                 {' '}
-                · حُدِّثت {new Date(data.generatedAt).toLocaleTimeString('ar-SA')}
+                · حُدِّثت {new Date(data.generatedAt).toLocaleTimeString('ar-SA-u-nu-latn')}
               </>
             ) : null}
           </p>
@@ -197,7 +197,7 @@ export default async function OpsHomePage() {
                   <span
                     className={`shrink-0 rounded px-2 py-0.5 text-sm font-bold tabular-nums ${ALERT_COUNT[a.severity]}`}
                   >
-                    {a.count.toLocaleString('ar-SA')}
+                    {a.count.toLocaleString('ar-SA-u-nu-latn')}
                   </span>
                 </Link>
               </li>

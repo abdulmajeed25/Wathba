@@ -152,7 +152,7 @@ export default async function OpsTicketDetailPage({
           <dt className="text-xs text-[#8b949e]">وردت في</dt>
           <dd className="mt-0.5 text-sm">
             {ticket.createdAt
-              ? new Date(ticket.createdAt).toLocaleString('ar-SA', {
+              ? new Date(ticket.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                   dateStyle: 'medium',
                   timeStyle: 'short',
                 })
@@ -189,7 +189,7 @@ export default async function OpsTicketDetailPage({
                   <p className="mt-1 text-[11px] text-[#8b949e]">
                     <ActorName id={n.authorId} className="text-[11px] text-[#8b949e]" /> ·{' '}
                     {n.createdAt
-                      ? new Date(n.createdAt).toLocaleString('ar-SA', {
+                      ? new Date(n.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                           dateStyle: 'short',
                           timeStyle: 'short',
                         })
@@ -214,7 +214,7 @@ export default async function OpsTicketDetailPage({
                 <li key={a.id} className="flex flex-wrap items-baseline gap-2 text-xs">
                   <span className="tabular-nums text-[#484f58]">#{a.chainSeq}</span>
                   <span className="whitespace-nowrap text-[#8b949e]">
-                    {new Date(a.createdAt).toLocaleString('ar-SA', {
+                    {new Date(a.createdAt).toLocaleString('ar-SA-u-nu-latn', {
                       dateStyle: 'short',
                       timeStyle: 'short',
                     })}

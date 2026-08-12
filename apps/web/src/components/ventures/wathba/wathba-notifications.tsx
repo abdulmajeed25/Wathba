@@ -164,7 +164,7 @@ function formatRelativeAr(iso: string): string {
     if (h < 24) return `قبل ${h} ساعة`;
     const d = Math.round(h / 24);
     if (d < 7) return `قبل ${d} يوم`;
-    return new Date(iso).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { month: 'short', day: 'numeric' });
   } catch {
     return '';
   }

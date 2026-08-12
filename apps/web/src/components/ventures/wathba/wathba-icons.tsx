@@ -241,9 +241,9 @@ export function Icon({ name, size = 20, fill = false, color, style }: IconProps)
 /** Numeric wrapper — Space Grotesk + tabular-nums (the `.num` class).
  *
  *  IT DOES NOT CONVERT DIGITS. It is a TYPEFACE, and a Latin one: pass it
- *  Arabic-Indic where the platform wants them (`toArabicDigits`) and Latin
+ *  Arabic-Indic where the platform wants them (`toDisplayDigits`) and Latin
  *  where it does not. The platform's rule, in one place:
- *    · counts + percentages → Arabic-Indic (toArabicDigits / arabicCount)
+ *    · counts + percentages → Arabic-Indic (toDisplayDigits / displayCount)
  *    · money               → Latin, deliberately (formatSar pins ar-SA-u-nu-latn)
  *    · ids, refs, dates    → Latin / already localised
  *  A comment in discover-all-constants.ts claimed conversion happened "by the

@@ -18,7 +18,7 @@ import { ShareRow } from './wathba-share';
 import { TurnstileSlot } from '@/components/auth/turnstile-slot';
 import { createCardToken } from '@/lib/payments/moyasar-client';
 import type { ApiRewardTier } from '@/lib/api/wathba';
-import { toArabicDigits } from './discover-all-constants';
+import { toDisplayDigits } from './discover-all-constants';
 
 /**
  * Pledge wizard — 4 steps: tier → info → payment → success.
@@ -142,7 +142,7 @@ export function WathbaPledge({
     setPayError(null);
     // Batch PAY (Part 3) — server also enforces the 10 SAR minimum.
     if (noReward && total < 10) {
-      setPayError('الحد الأدنى للدعم ١٠ ريالات.');
+      setPayError('الحد الأدنى للدعم 10 ريالات.');
       return;
     }
     const [expMonth = '', expYear = ''] = cardExp.split('/').map((s) => s.trim());
@@ -278,7 +278,7 @@ export function WathbaPledge({
               <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
                 {formatSar('ar', Math.round((active.goal * active.releaseThresholdPct) / 100))}
               </Num>{' '}
-              (%{toArabicDigits(active.releaseThresholdPct)} من الهدف). إذا لم يبلغ ذلك بحلول الموعد
+              (%{toDisplayDigits(active.releaseThresholdPct)} من الهدف). إذا لم يبلغ ذلك بحلول الموعد
               النهائي، يُعاد كامل دعمك تلقائياً إلى بطاقتك خلال أيام عمل قليلة.
             </div>
           </div>
@@ -382,7 +382,7 @@ export function WathbaPledge({
               >
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>ادعم بدون مكافأة ❤</div>
                 <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: noReward ? 10 : 0 }}>
-                  أي مبلغ من ١٠ ريالات — كل داعم يُحتسب مهما كان مبلغه.
+                  أي مبلغ من 10 ريالات — كل داعم يُحتسب مهما كان مبلغه.
                 </div>
                 {noReward && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -417,7 +417,7 @@ export function WathbaPledge({
                     />
                     {freeAmountSar < 10 && (
                       <span role="alert" style={{ fontSize: 12, color: '#dc2626', fontWeight: 700 }}>
-                        الحد الأدنى للدعم ١٠ ريالات
+                        الحد الأدنى للدعم 10 ريالات
                       </span>
                     )}
                   </div>
@@ -474,7 +474,7 @@ export function WathbaPledge({
                         </h4>
                       </div>
                       <Num style={{ fontSize: 12, color: 'var(--muted2)' }}>
-                        {toArabicDigits(t.backers)} داعم
+                        {toDisplayDigits(t.backers)} داعم
                       </Num>
                     </div>
                     <p
@@ -585,7 +585,7 @@ export function WathbaPledge({
                   }}
                 >
                   <div style={{ fontWeight: 700 }}>
-                    ٤ دفعات × {Math.ceil((total || 0) / 4)} ر.س عبر {method === 'TABBY' ? 'تابي' : 'تمارا'}
+                    4 دفعات × {Math.ceil((total || 0) / 4)} ر.س عبر {method === 'TABBY' ? 'تابي' : 'تمارا'}
                   </div>
                   لن يُنشأ التقسيط إلا إذا نجحت الحملة — لا عقد ولا خصم قبل ذلك،
                   وإن لم تبلغ الحملة هدفها يُلغى الطلب تلقائياً دون أي أثر.

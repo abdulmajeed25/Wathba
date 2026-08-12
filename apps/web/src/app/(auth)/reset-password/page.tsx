@@ -7,7 +7,7 @@ import { resetPasswordAction } from '@/lib/auth/actions';
 export const metadata: Metadata = { title: 'تعيين كلمة مرور جديدة · وثبة' };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  short: 'كلمة المرور يجب أن تكون ٨ أحرف على الأقل.',
+  short: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.',
   mismatch: 'كلمتا المرور غير متطابقتين.',
   invalid: 'الرابط غير صالح أو منتهي الصلاحية — اطلب رابطاً جديداً.',
   network: 'تعذّر الاتصال بالخادم. حاول مرة أخرى.',
@@ -46,7 +46,7 @@ export default async function ResetPasswordPage({
             label="كلمة المرور الجديدة"
             autoComplete="new-password"
             withStrength
-            hint="٨ أحرف على الأقل — أضف أرقاماً ورموزاً لتقويتها."
+            hint="8 أحرف على الأقل — أضف أرقاماً ورموزاً لتقويتها."
           />
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium">تأكيد كلمة المرور</span>

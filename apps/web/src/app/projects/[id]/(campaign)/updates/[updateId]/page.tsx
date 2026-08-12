@@ -27,7 +27,7 @@ export async function generateMetadata({
 
 function formatDateAr(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('ar-SA', {
+    return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

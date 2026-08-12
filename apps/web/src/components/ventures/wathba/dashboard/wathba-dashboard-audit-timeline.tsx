@@ -252,7 +252,7 @@ function nowMs(): number {
 
 function absoluteAr(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { year: 'numeric', month: 'short', day: 'numeric' });
   } catch {
     return iso;
   }

@@ -155,11 +155,11 @@ function ComposeCardForm({ onDone }: { onDone: () => void }) {
         <input value={slug} onChange={(e) => setSlug(e.target.value)} dir="ltr" className={INPUT} />
       </label>
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs text-[#8b949e]">العنوان بالعربية (٣ أحرف على الأقل)</span>
+        <span className="text-xs text-[#8b949e]">العنوان بالعربية (3 أحرف على الأقل)</span>
         <input value={titleAr} onChange={(e) => setTitleAr(e.target.value)} className={INPUT} />
       </label>
       <label className="flex flex-col gap-1 sm:col-span-2">
-        <span className="text-xs text-[#8b949e]">النص المختصر (١٠ أحرف على الأقل)</span>
+        <span className="text-xs text-[#8b949e]">النص المختصر (10 أحرف على الأقل)</span>
         <textarea value={bodyAr} onChange={(e) => setBodyAr(e.target.value)} rows={2} className={INPUT} />
       </label>
       <label className="flex flex-col gap-1 sm:col-span-2">

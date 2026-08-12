@@ -132,7 +132,7 @@ export default async function OpsNotificationsPage({
           توزيع التسليم{' '}
           {stats ? (
             <span className="text-[11px] font-normal text-[#484f58]">
-              (آخر {stats.windowDays.toLocaleString('ar-SA')} يوماً)
+              (آخر {stats.windowDays.toLocaleString('ar-SA-u-nu-latn')} يوماً)
             </span>
           ) : null}
         </h2>
@@ -142,12 +142,12 @@ export default async function OpsNotificationsPage({
           </p>
         ) : stats && stats.countsByKind.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatTile label="إجمالي الإشعارات" value={stats.total.toLocaleString('ar-SA')} />
+            <StatTile label="إجمالي الإشعارات" value={stats.total.toLocaleString('ar-SA-u-nu-latn')} />
             {stats.countsByKind.slice(0, 7).map((c, i) => (
               <StatTile
                 key={c.kind}
                 label={c.kind}
-                value={c.count.toLocaleString('ar-SA')}
+                value={c.count.toLocaleString('ar-SA-u-nu-latn')}
                 intent={c.count > 0 ? STATS_INTENTS[i % STATS_INTENTS.length] : 'default'}
               />
             ))}

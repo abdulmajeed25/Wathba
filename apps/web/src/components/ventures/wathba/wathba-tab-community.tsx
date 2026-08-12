@@ -17,9 +17,9 @@ export function WathbaTabCommunity({ id, project }: { id: string; project?: Wath
       <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 18 }}>المجتمع</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 24 }}>
         <Stat label="إجمالي الداعمين" value={active.backersFmt} icon="favorite" />
-        <Stat label="داعمون عائدون" value="٤٢٪" icon="check_circle" />
-        <Stat label="داعمون جدد" value="٥٨٪" icon="lightbulb" />
-        <Stat label="أكبر مساهم" value="٢٤٬٠٠٠ ر.س" icon="workspace_premium" />
+        <Stat label="داعمون عائدون" value="42٪" icon="check_circle" />
+        <Stat label="داعمون جدد" value="58٪" icon="lightbulb" />
+        <Stat label="أكبر مساهم" value="24,000 ر.س" icon="workspace_premium" />
       </div>
       <div
         style={{
@@ -30,8 +30,8 @@ export function WathbaTabCommunity({ id, project }: { id: string; project?: Wath
       >
         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>التوزيع الجغرافي</h3>
         <p style={{ fontSize: 13.5, color: 'var(--muted)', lineHeight: 1.7 }}>
-          ٦٢٪ من الداعمين من السعودية، ١٨٪ من الإمارات، ٦٪ من قطر، ٤٪ من الكويت،
-          والباقي ١٠٪ موزّع على ١٤ دولة أخرى.
+          62٪ من الداعمين من السعودية، 18٪ من الإمارات، 6٪ من قطر، 4٪ من الكويت،
+          والباقي 10٪ موزّع على 14 دولة أخرى.
         </p>
       </div>
     </div>

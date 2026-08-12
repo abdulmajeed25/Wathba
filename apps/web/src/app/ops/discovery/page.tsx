@@ -69,7 +69,7 @@ const DIMENSION_AR: Record<string, string> = {
 const TH = 'border-b border-[#21262d] px-3 py-2 text-start text-xs font-bold text-[#8b949e]';
 const TD = 'border-b border-[#21262d] px-3 py-2 text-sm text-[#c9d1d9]';
 
-const arInt = (n: number): string => n.toLocaleString('ar-SA');
+const arInt = (n: number): string => n.toLocaleString('ar-SA-u-nu-latn');
 
 function Pill({ text, tone }: { text: string; tone: 'ok' | 'muted' | 'warn' }) {
   const cls =
@@ -158,7 +158,7 @@ export default async function OpsDiscoveryPage({
                   <tr key={`${p.key}:${p.value}`} data-facet={`${p.key}:${p.value}`}>
                     <td className={TD}>{p.labelAr}</td>
                     <td className={TD}>{DIMENSION_AR[p.key] ?? p.key}</td>
-                    {/* A seed has no events BY DEFINITION — «—», not «٠», which
+                    {/* A seed has no events BY DEFINITION — «—», not «0», which
                         would read as "measured zero" rather than "not measured". */}
                     <td className={`${TD} tabular-nums`}>{p.isSeed ? '—' : arInt(p.eventCount)}</td>
                     <td className={TD}>

@@ -122,7 +122,7 @@ export function SubmissionWizard({
         </h1>
         <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.65 }}>
           املأ {STEPS.length} خطوات سريعة. سيُنشأ المشروع كمسودّة ثم يُرسَل
-          مباشرةً للمراجعة (٥–٧ أيام عادةً).
+          مباشرةً للمراجعة (5–7 أيام عادةً).
         </p>
       </header>
 
@@ -137,7 +137,7 @@ export function SubmissionWizard({
             unfocused ones still ride the form payload, so the server sees the
             full draft at submit time. */}
         <div hidden={step.id !== 'basics'}>
-          <Field label="عنوان المشروع (٤–١٢٠ حرف)">
+          <Field label="عنوان المشروع (4–120 حرف)">
             <input
               name="titleAr"
               value={d.titleAr}
@@ -147,7 +147,7 @@ export function SubmissionWizard({
               placeholder="مثلاً: سِرب — درون التصوير الذكي"
             />
           </Field>
-          <Field label="وصف مختصر (٨–٢٤٠ حرف)">
+          <Field label="وصف مختصر (8–240 حرف)">
             <textarea
               name="shortDescAr"
               value={d.shortDescAr}
@@ -192,7 +192,7 @@ export function SubmissionWizard({
         </div>
 
         <div hidden={step.id !== 'story'}>
-          <Field label="قصة المشروع (≥ ٢٠٠ حرف — تُرسَل للمراجعة)">
+          <Field label="قصة المشروع (≥ 200 حرف — تُرسَل للمراجعة)">
             <textarea
               name="storyAr"
               value={d.storyAr}
@@ -218,9 +218,9 @@ export function SubmissionWizard({
               style={inputStyle}
               placeholder="مثلاً 400000"
             />
-            <Hint>المبلغ المطلوب لإنتاج المشروع. يُحفَظ كهالة (هلل = ١/١٠٠ ر.س) في الـAPI.</Hint>
+            <Hint>المبلغ المطلوب لإنتاج المشروع. يُحفَظ كهالة (هلل = 1/100 ر.س) في الـAPI.</Hint>
           </Field>
-          <Field label="عتبة الإفراج (٥٠–١٠٠٪)">
+          <Field label="عتبة الإفراج (50–100٪)">
             <input
               name="releaseThresholdPct"
               type="number"
@@ -232,11 +232,11 @@ export function SubmissionWizard({
               style={inputStyle}
             />
             <Hint>
-              نسبة الهدف اللي إذا وصلتوها يُسحب التمويل (الافتراضي ٨٠٪). أقل من
-              ١٠٠ يفعّل تنبيه "الهدف الممتدّ" في صفحة المشروع.
+              نسبة الهدف اللي إذا وصلتوها يُسحب التمويل (الافتراضي 80٪). أقل من
+              100 يفعّل تنبيه "الهدف الممتدّ" في صفحة المشروع.
             </Hint>
           </Field>
-          <Field label="مدة الحملة (٧–١٢٠ يوم)">
+          <Field label="مدة الحملة (7–120 يوم)">
             <input
               name="durationDays"
               type="number"
@@ -262,7 +262,7 @@ export function SubmissionWizard({
               nothing on screen explaining why.
             */}
             <Hint>
-              حتى ٦٠ يوماً تُعتمد مباشرة. من ٦١ إلى ١٢٠ يوماً تحتاج موافقة مسبقة من فريق
+              حتى 60 يوماً تُعتمد مباشرة. من 61 إلى 120 يوماً تحتاج موافقة مسبقة من فريق
               وثبة مع سبب مكتوب — اذكر السبب في قصة المشروع.{' '}
               <a href="/rules/projects" target="_blank" rel="noreferrer" style={{ color: 'var(--accent-ink)', fontWeight: 600 }}>
                 قواعد المدة

@@ -53,7 +53,7 @@ export function RfqsTable({ rows }: { rows: RfqRow[] }) {
       key: 'bidCount',
       label: 'العروض',
       align: 'center',
-      render: (r) => <span className="tabular-nums">{r.bidCount.toLocaleString('ar-SA')}</span>,
+      render: (r) => <span className="tabular-nums">{r.bidCount.toLocaleString('ar-SA-u-nu-latn')}</span>,
     },
     {
       key: 'dueDate',
@@ -61,7 +61,7 @@ export function RfqsTable({ rows }: { rows: RfqRow[] }) {
       render: (r) =>
         r.dueDate ? (
           <span className="whitespace-nowrap text-[#8b949e]">
-            {new Date(r.dueDate).toLocaleDateString('ar-SA', { dateStyle: 'medium' })}
+            {new Date(r.dueDate).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'medium' })}
           </span>
         ) : (
           <span className="text-[#484f58]">—</span>
@@ -73,7 +73,7 @@ export function RfqsTable({ rows }: { rows: RfqRow[] }) {
       render: (r) =>
         r.createdAt ? (
           <span className="whitespace-nowrap text-[#8b949e]">
-            {new Date(r.createdAt).toLocaleDateString('ar-SA', { dateStyle: 'short' })}
+            {new Date(r.createdAt).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn', { dateStyle: 'short' })}
           </span>
         ) : (
           <span className="text-[#484f58]">—</span>

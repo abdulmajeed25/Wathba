@@ -211,8 +211,8 @@ export default async function OpsAnalyticsPage({
     fin.data?.window ??
     (sp.from || sp.to ? { from: sp.from ?? null, to: sp.to ?? null, days: 0 } : null);
   const winLabel = win
-    ? `${win.from ? new Date(win.from).toLocaleDateString('ar-SA') : '—'} ← ${
-        win.to ? new Date(win.to).toLocaleDateString('ar-SA') : '—'
+    ? `${win.from ? new Date(win.from).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn') : '—'} ← ${
+        win.to ? new Date(win.to).toLocaleDateString('ar-SA-u-ca-gregory-nu-latn') : '—'
       }${win.days ? ` · ${arInt(win.days)} يوم` : ''}`
     : 'النطاق الافتراضي (كل الوقت)';
 
@@ -262,7 +262,7 @@ export default async function OpsAnalyticsPage({
           <p className="mt-1 text-sm text-[#8b949e]">
             صحّة المنصّة كاملة عبر خمس واجهات تجميع — مالية، قمع التحويل، المشاريع، المستخدمون،
             التشغيل. كل رقم مصدره الواجهة، والمفقود يُعرض «غير متاح» لا صفراً.
-            {fin.data ? ` · حُدِّثت ${new Date(fin.data.generatedAt).toLocaleString('ar-SA')}` : ''}
+            {fin.data ? ` · حُدِّثت ${new Date(fin.data.generatedAt).toLocaleString('ar-SA-u-nu-latn')}` : ''}
           </p>
         </div>
         <Link href="/ops" className="text-sm text-[#58a6ff] hover:underline">
