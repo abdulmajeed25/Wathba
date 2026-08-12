@@ -147,7 +147,11 @@ export default async function OpsAlertsPage() {
                   >
                     <span className="min-w-0">
                       <span className="font-bold">{a.titleAr}</span>
-                      <span className="mt-0.5 block text-xs opacity-80">{a.detailAr}</span>
+                      {/* Same as the dashboard's alert row — see ops/page.tsx.
+                          opacity-80 on the faint ink is 3.79:1 on white. Fixed
+                          here too rather than only where the spec sampled, or
+                          this board fails the moment its board list grows. */}
+                      <span className="mt-0.5 block text-xs">{a.detailAr}</span>
                       <code dir="ltr" className="mt-1 block text-[10px] opacity-60">
                         {a.key}
                       </code>

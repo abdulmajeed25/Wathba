@@ -186,7 +186,13 @@ export default async function OpsHomePage() {
                 >
                   <span className="min-w-0">
                     <span className="font-bold">{a.titleAr}</span>
-                    <span className="mt-0.5 block truncate text-xs opacity-80">{a.detailAr}</span>
+                    {/* NO opacity. The row colour is already the faint ink,
+                        and dimming it to 80% took this line to 3.79:1 on
+                        white — under AA for 12px text. The de-emphasis this
+                        was reaching for is the smaller size, which costs
+                        nothing. Caught only once the ops boards had real
+                        alerts to render. */}
+                    <span className="mt-0.5 block truncate text-xs">{a.detailAr}</span>
                   </span>
                   <span
                     className={`shrink-0 rounded px-2 py-0.5 text-sm font-bold tabular-nums ${ALERT_COUNT[a.severity]}`}

@@ -1,11 +1,20 @@
-// Minimal E2E seed (Sprint 4 / P1-007): the admin+creator the golden
-// journeys depend on. Idempotent. Run against a migrated DB.
+// The E2E seed: the accounts the golden journeys sign in as, PLUS the demo
+// catalogue the rest of the suite quietly assumes. Idempotent. Run against a
+// migrated DB.
+//
+// It was "minimal" for a long time — the admin and creator, nothing else — and
+// that was survivable only because the suite was silently running against the
+// DEMO database (#172). Pointed at a genuinely isolated database it produced 58
+// failures across ~20 spec files: a hero rotator with nothing to rotate, cards
+// with no covers or videos, a rules hub with no rules, /projects/sirb-drone
+// resolving to a 404. None of them were product defects.
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { seedCategories } from './seed-categories.mjs';
 import { seedCollections } from './seed-collections.mjs';
 import { seedTags } from './seed-tags.mjs';
 import { seedSearchFixtures } from './seed-e2e-search.mjs';
+import { seedCatalogue } from './seed-e2e-catalogue.mjs';
 
 const prisma = new PrismaClient();
 const EMAIL = 'smoke-s1@test.wathba.sa';
@@ -18,6 +27,10 @@ async function main() {
   // DISCOVERY-ENGINE Unit 1 — the curated tag vocabulary, which the tag facet
   // and the search suggest dropdown both read.
   await seedTags(prisma);
+  // The demo catalogue — the same tracked seeds the demo database is built
+  // from, so there is one definition of what a populated Wathba looks like
+  // rather than two that drift. ~45s.
+  await seedCatalogue();
 
   const passwordHash = await bcrypt.hash('Str0ngPass!x', 12);
   const admin = await prisma.user.upsert({
