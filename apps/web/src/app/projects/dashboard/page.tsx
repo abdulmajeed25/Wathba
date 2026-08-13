@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { WathbaDashboard } from '@/components/ventures/wathba/wathba-dashboard';
 import { WathbaShell } from '@/components/ventures/wathba/wathba-shell';
-import { listMyApplications, listMyBackings, listMyProjects } from '@/lib/api/wathba';
+import { listMyBackings, listMyProjects } from '@/lib/api/wathba';
 import { requireCreator } from '@/lib/auth/guard';
 
 export const metadata: Metadata = { title: 'لوحة التحكم · وثبة' };
@@ -21,14 +21,20 @@ export default async function DashboardPage() {
   await requireCreator();
   // The KPI tiles are computed from the creator's OWN campaigns; without this
   // read they were literals that contradicted the creator's real numbers.
-  const [backings, applications, myProjects] = await Promise.all([
+  // Batch ACCOUNT / U6 — listMyApplications() was a stub that returned null
+  // ("No /applications endpoint on Wathba apps/api yet") and there is no
+  // request/application model in the schema at all, so the dashboard was
+  // rendering an "applications" concept from nothing. Owner decision: read
+  // Project directly — UNDER_REVIEW is submitted, DRAFT + reviewFeedback is
+  // rejected — and delete the stub rather than keep a null-shaped placeholder
+  // that reads like a feature.
+  const [backings, myProjects] = await Promise.all([
     listMyBackings(),
-    listMyApplications(),
     listMyProjects(),
   ]);
   return (
     <WathbaShell>
-      <WathbaDashboard backings={backings} applications={applications} myProjects={myProjects} />
+      <WathbaDashboard backings={backings} applications={null} myProjects={myProjects} />
     </WathbaShell>
   );
 }

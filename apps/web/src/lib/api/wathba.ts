@@ -11,7 +11,6 @@
  *   getTrustScore       → null (no equivalent yet in Wathba apps/api)
  *   listForumThreads    → null (no forum endpoint yet)
  *   listMyBackings      → GET  /v1/pledges/me     — bearer-protected
- *   listMyApplications  → null (no applications endpoint yet)
  *
  * Every fetcher returns `null` on failure (network or non-2xx) so the caller
  * can render the bundled fixture instead of a 500.
@@ -291,13 +290,6 @@ export async function listMyBackings(token?: string | null): Promise<ApiBackingR
   }));
 }
 
-export async function listMyApplications(
-  _token?: string | null,
-): Promise<ApiApplicationRow[] | null> {
-  /* No /applications endpoint on Wathba apps/api yet (career/employment module
-   * not in scope). */
-  return null;
-}
 
 /* ---------- Live-bound v2 endpoints (transparency, milestones, RFQs) ------- */
 
@@ -394,6 +386,26 @@ export async function getProjectDetail(
   projectId: string,
 ): Promise<ApiProjectDetail | null> {
   return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`);
+}
+
+/**
+ * Batch ACCOUNT / U6 — the same read, UNCACHED, for decisions rather than
+ * display.
+ *
+ * fetchJson defaults to a 30-second ISR cache, which is right for rendering a
+ * campaign page and wrong for a GATE: the dashboard layout routes on
+ * project.status, so a cached payload routes on a status that is up to half a
+ * minute out of date. Measured — flipping a project to UNDER_REVIEW and loading
+ * its dashboard still showed the dashboard, and a plain DRAFT still rendered
+ * the previous rejection, because each read answered with the prior state.
+ *
+ * A creator who has just been rejected must not keep reaching a dashboard
+ * because a cache has not expired.
+ */
+export async function getProjectDetailLive(
+  projectId: string,
+): Promise<ApiProjectDetail | null> {
+  return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`, 0);
 }
 
 

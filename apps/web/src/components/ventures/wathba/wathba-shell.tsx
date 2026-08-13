@@ -388,6 +388,29 @@ export function WathbaShell({
             [data-pillar="ventures"] .wathba-follow-list li button:hover{background:rgba(var(--ink-rgb),.05)}
             [data-pillar="ventures"] .wathba-follow-list li button:disabled{opacity:.5;cursor:progress}
 
+            /* ── Batch ACCOUNT / U6 — the request status tracker ─────────── */
+            [data-pillar="ventures"] .wathba-request-page{max-width:620px;margin:0 auto;padding:32px 16px 64px}
+            [data-pillar="ventures"] .wathba-request-eyebrow{font-size:12.5px;color:var(--muted2);margin:0 0 6px}
+            [data-pillar="ventures"] .wathba-request-page h1{font-size:22px;font-weight:800;margin:0 0 18px}
+            [data-pillar="ventures"] .wathba-request-card{
+              border:1px solid rgba(var(--ink-rgb),.12);border-radius:14px;padding:18px 20px;
+            }
+            [data-pillar="ventures"] .wathba-request-card.is-rejected{border-color:rgba(220,38,38,.35)}
+            [data-pillar="ventures"] .wathba-request-card strong{display:block;font-weight:700;font-size:15px;margin-bottom:6px}
+            [data-pillar="ventures"] .wathba-request-card.is-rejected strong{color:var(--err,#dc2626)}
+            [data-pillar="ventures"] .wathba-request-card p{
+              font-size:13.5px;color:var(--muted2);line-height:1.9;margin:0;
+            }
+            [data-pillar="ventures"] .wathba-request-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+            [data-pillar="ventures"] .wathba-request-actions a{
+              border:1px solid rgba(var(--ink-rgb),.14);color:var(--text-soft);font-weight:600;
+              font-size:13.5px;padding:9px 18px;border-radius:11px;text-decoration:none;
+            }
+            [data-pillar="ventures"] .wathba-request-actions a.is-primary{
+              background:var(--grad);color:var(--on-accent);font-weight:700;border-color:transparent;
+            }
+            [data-pillar="ventures"] .wathba-request-actions a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
             /* Motion is a courtesy, not a requirement. */
             @media (prefers-reduced-motion: reduce){
               [data-pillar="ventures"] .wathba-account-panel{animation:none}
