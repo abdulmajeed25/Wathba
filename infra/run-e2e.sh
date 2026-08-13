@@ -124,6 +124,21 @@ wait_for "$API_PID" "http://localhost:${API_PORT}/v1/health/live" "API" || {
 # covers EVERY connection this step opens, including the catalogue seeds that
 # run as child processes with their own Prisma clients. A SET would have applied
 # to one pooled connection and silently missed the rest.
+# ── migrate BEFORE seeding ─────────────────────────────────────────────────
+# The runner booted the API against whatever schema this database happened to
+# have. On one box that was two migrations behind, so the suite died at startup
+# with "The column Project.settledAt does not exist" — a schema error wearing
+# the costume of a product failure, minutes into a run.
+#
+# A runner that starts against an unmigrated database is not testing the
+# branch; it is testing a database nobody described. `migrate deploy` is
+# idempotent, so this costs nothing when the schema is already current.
+echo "== migrate (e2e database) =="
+if ! pnpm --filter @wathba/api exec prisma migrate deploy; then
+  echo "FATAL: migrations failed — refusing to run the suite against a schema nobody can vouch for."
+  exit 6
+fi
+
 SEED_DATABASE_URL="${DATABASE_URL}$(case "$DATABASE_URL" in *\?*) echo '&';; *) echo '?';; esac)options=-c%20wathba.seeding%3Don"
 
 echo "== seed =="
