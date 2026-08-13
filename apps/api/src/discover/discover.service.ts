@@ -941,7 +941,19 @@ export class DiscoverService {
         },
       },
     });
-    return { items: rows.map((r) => ({ followedAt: r.createdAt, ...r.project })) };
+    // BigInt does not survive JSON.stringify — selecting these two raw made the
+    // endpoint throw "Do not know how to serialize a BigInt" and return 500,
+    // which the BFF then caught and turned into `{ items: [] }`, so /following
+    // rendered its empty state over rows that existed. Serialised as strings,
+    // the same way every other money field crosses this wire.
+    return {
+      items: rows.map((r) => ({
+        followedAt: r.createdAt,
+        ...r.project,
+        fundingGoalHalalas: String(r.project.fundingGoalHalalas),
+        raisedHalalas: String(r.project.raisedHalalas),
+      })),
+    };
   }
 
   /** Both private project relations for one project, for the campaign page. */
