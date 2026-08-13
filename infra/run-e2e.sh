@@ -115,13 +115,39 @@ wait_for "$API_PID" "http://localhost:${API_PORT}/v1/health/live" "API" || {
   tail -30 "${LOG_DIR}/e2e-api.log"; exit 2;
 }
 
+# The seed runs with the escape hatch ON (migration 0066). It builds a fixture
+# world the PRODUCT forbids — several concurrent campaigns per creator — and it
+# cannot use the isTestFixture exemption, because search excludes flagged rows
+# and those fixtures have to be findable.
+#
+# Passed through the libpq `options` parameter rather than a SET statement so it
+# covers EVERY connection this step opens, including the catalogue seeds that
+# run as child processes with their own Prisma clients. A SET would have applied
+# to one pooled connection and silently missed the rest.
+# ── migrate BEFORE seeding ─────────────────────────────────────────────────
+# The runner booted the API against whatever schema this database happened to
+# have. On one box that was two migrations behind, so the suite died at startup
+# with "The column Project.settledAt does not exist" — a schema error wearing
+# the costume of a product failure, minutes into a run.
+#
+# A runner that starts against an unmigrated database is not testing the
+# branch; it is testing a database nobody described. `migrate deploy` is
+# idempotent, so this costs nothing when the schema is already current.
+echo "== migrate (e2e database) =="
+if ! pnpm --filter @wathba/api exec prisma migrate deploy; then
+  echo "FATAL: migrations failed — refusing to run the suite against a schema nobody can vouch for."
+  exit 6
+fi
+
+SEED_DATABASE_URL="${DATABASE_URL}$(case "$DATABASE_URL" in *\?*) echo '&';; *) echo '?';; esac)options=-c%20wathba.seeding%3Don"
+
 echo "== seed =="
 # NOT `|| true`. A seed that fails here does not go away — it comes back
 # fifteen minutes later as content-shaped failures that read as product bugs,
 # which is the exact trade the catalogue file exists to stop making. Two places
 # had to agree to ignore it: this, and seed-e2e.mjs discarding seedCatalogue's
 # returned failure list. Both now refuse.
-if ! node apps/api/prisma/seed-e2e.mjs; then
+if ! DATABASE_URL="$SEED_DATABASE_URL" node apps/api/prisma/seed-e2e.mjs; then
   echo "FATAL: seed failed — refusing to run the suite against a dataset nobody can vouch for."
   exit 5
 fi

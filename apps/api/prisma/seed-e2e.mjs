@@ -44,6 +44,42 @@ async function main() {
   }
 
   const passwordHash = await bcrypt.hash('Str0ngPass!x', 12);
+
+  /**
+   * Batch ACCOUNT — a creator who owns NOTHING, for the golden journey.
+   *
+   * global-setup used to create the golden-journey project as smoke-s1, which
+   * is also the OWNER and the account the catalogue seeds hang their projects
+   * on. Once one-active-project landed, that creation was refused — correctly,
+   * because smoke-s1 permanently holds active campaigns — and the refusal was
+   * swallowed into a partial ids file that made five specs fail two hours later
+   * with «Validation failed (uuid is expected)» on /v1/projects/undefined.
+   *
+   * The debris purge cannot fix it: the blocker is a CATALOGUE project, not
+   * golden-journey debris, so it is never purged.
+   *
+   * This account exists to hold exactly one project at a time and nothing else.
+   * It is verified and Nafath-passed because submitForReview requires both, and
+   * it is deliberately NOT an admin — the review step stays on smoke-s1, so the
+   * journey still crosses a real authority boundary instead of approving itself.
+   */
+  const golden = await prisma.user.upsert({
+    where: { email: 'golden-journey@test.wathba.sa' },
+    update: { roles: ['BACKER', 'CREATOR'], nafathVerified: true, emailVerified: true },
+    create: {
+      name: 'مبدع الرحلة الذهبية',
+      email: 'golden-journey@test.wathba.sa',
+      passwordHash,
+      roles: ['BACKER', 'CREATOR'],
+      nafathVerified: true,
+      nafathVerifiedAt: new Date(),
+      emailVerified: true,
+      consentVersion: '2026-06-28',
+      consentAt: new Date(),
+    },
+  });
+  console.log(`[seed-e2e] golden-journey creator ready: ${golden.email}`);
+
   const admin = await prisma.user.upsert({
     where: { email: EMAIL },
     update: { roles: ['BACKER', 'ADMIN', 'CREATOR'], nafathVerified: true },

@@ -16,15 +16,33 @@ const PROJ = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const CREATOR = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 
 function makePrisma(over: Record<string, any> = {}): any {
-  return {
+  const base: Record<string, any> = {
     project: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      // Batch ACCOUNT — create() now runs the one-active-project /
+      // cooldown guard, which is why these two exist here. Defaulting to
+      // "this creator holds nothing" keeps every pre-existing case
+      // behaving exactly as before; the guard's own behaviour is
+      // asserted in cooldown-clocks.spec.ts, not smuggled in here.
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    user: {
+      findUnique: jest.fn().mockResolvedValue({ cooldownWaivedUntil: null }),
     },
     milestone: {
       count: jest.fn(),
     },
+  };
+  return {
+    ...base,
     ...over,
+    // `over` REPLACES a whole model rather than merging into it, so a test
+    // that overrides `project.create` silently dropped the findFirst/findMany
+    // defaults above and create()'s guard blew up on undefined. Merged here so
+    // an override adds to the double instead of hollowing it out.
+    project: { ...base.project, ...(over.project ?? {}) },
   };
 }
 
@@ -109,7 +127,14 @@ describe('ProjectsService.create — governed policy knobs', () => {
     ...over,
   });
   const settingsStub = (vals: Record<string, any>) => ({
-    get: jest.fn(async (k: string) => vals[k]),
+    // Batch ACCOUNT — the cooldown key answers with zeros unless a test says
+    // otherwise, so an unrelated create() test is never gated by a wait it did
+    // not ask about.
+    get: jest.fn(async (k: string) =>
+      k === 'projects.cooldownDays'
+        ? (vals[k] ?? { successful: 0, failed: 0, rejected: 0 })
+        : vals[k],
+    ),
   });
 
   it('rejects a funding goal below the configured minimum (setting non-default)', async () => {

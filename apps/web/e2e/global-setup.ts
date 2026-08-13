@@ -44,8 +44,25 @@ function purgePreviousRuns(): void {
 
 export default async function globalSetup(): Promise<void> {
   purgePreviousRuns();
-  const token = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
-  const auth = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+  /**
+   * Batch ACCOUNT — the golden journey is authored by a creator who owns
+   * NOTHING, and reviewed by the admin.
+   *
+   * Both roles used to be smoke-s1. That worked until one-active-project
+   * landed: smoke-s1 permanently holds catalogue campaigns, so creating another
+   * is refused — correctly — and the refusal used to be swallowed into a
+   * partial ids file that made five specs fail two hours downstream. The debris
+   * purge cannot help, because the blocker is a catalogue project, not
+   * golden-journey debris.
+   *
+   * Splitting them is also more honest about what the journey tests: a project
+   * that reaches LIVE has crossed a real authority boundary, rather than being
+   * approved by its own author.
+   */
+  const creatorToken = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
+  const auth = { authorization: `Bearer ${creatorToken}`, 'content-type': 'application/json' };
+  const adminToken = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const adminAuth = { authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' };
 
   // Batch CAT — attach the seeded project to technology → apps (a subcategory)
   // so the category-discovery journey has a result on the subcategory page.
@@ -78,7 +95,29 @@ export default async function globalSetup(): Promise<void> {
       fundingGoalHalalas: 100000,
       durationDays: 30,
     }),
-  }).then((r) => r.json())) as { id: string };
+  }).then((r) => r.json())) as { id: string; message?: string; code?: string };
+
+  /**
+   * Batch ACCOUNT — FAIL LOUDLY.
+   *
+   * This used to run on and, if creation had failed, write an ids file with a
+   * `slug` and no `projectId`. Every spec reading seededIds().projectId then
+   * PATCHed `/v1/projects/undefined` and got a 400 whose message said only
+   * "Validation failed (uuid is expected)". One clear setup failure became five
+   * misleading product failures two hours downstream — an artefact that looked
+   * valid because nothing checked that it was.
+   *
+   * The batch's own one-active-project rule is what surfaced this: the golden
+   * journey project is created through the API, where the seed's escape hatch
+   * does not apply, so a creator who already holds an active project is refused
+   * here and the refusal was swallowed.
+   */
+  if (!proj?.id) {
+    throw new Error(
+      `[global-setup] golden-journey project was NOT created — the suite would ` +
+        `run against an undefined id. API said: ${JSON.stringify(proj)}`,
+    );
+  }
 
   await fetch(`${API}/v1/projects/${proj.id}/reward-tiers`, {
     method: 'POST',
@@ -103,7 +142,7 @@ export default async function globalSetup(): Promise<void> {
   await fetch(`${API}/v1/projects/${proj.id}/submit`, { method: 'POST', headers: auth });
   await fetch(`${API}/v1/admin/projects/${proj.id}/review`, {
     method: 'POST',
-    headers: auth,
+    headers: adminAuth,
     body: JSON.stringify({ decision: 'approve' }),
   });
 
@@ -121,6 +160,11 @@ export default async function globalSetup(): Promise<void> {
   const fs = await import('node:fs');
   const os = await import('node:os');
   const path = await import('node:path');
+  // Same rule for the RFQ: a partial file is worse than no file, because the
+  // specs cannot tell one from the other.
+  if (!rfq?.id) {
+    throw new Error(`[global-setup] RFQ was NOT created. API said: ${JSON.stringify(rfq)}`);
+  }
   fs.writeFileSync(
     path.join(os.tmpdir(), 'wathba-e2e-ids.json'),
     JSON.stringify({ projectId: proj.id, rfqId: rfq.id, slug }),
