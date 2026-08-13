@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { signUpAndVerify, uniqueEmail } from './helpers';
+import { seededIds, signUpAndVerify, uniqueEmail } from './helpers';
 
 /**
  * Batch ACCOUNT / U7 — the three concepts, end to end.
@@ -26,20 +26,10 @@ const NEW_USER = (): { email: string; nid: string } => ({
 
 test.describe('account — follow and save are three separate acts', () => {
   /**
-   * FIXME — the CONTROLS THIS TESTS DO NOT EXIST YET.
-   *
-   * The campaign page still renders «ذكّرني»: a bell-icon button with no
-   * onClick and no handler (wathba-campaign-rail.tsx). Wiring it to
-   * ProjectFollow, beside a separate save, was listed as work to carry into the
-   * menu unit and was never actually carried — the API, the /following page and
-   * the menu all landed, and the one surface a reader would use to follow a
-   * project did not.
-   *
-   * Kept as fixme rather than deleted or left red: it is the executable
-   * description of the missing half, and it flips on the moment the controls
-   * ship. The other two tests in this file pass and are enforcing today.
+   * Batch ACCOUNT / U9 — the controls now exist, so this is enforcing again.
+   * It was fixme while the campaign page still rendered the dead «ذكّرني».
    */
-  test.fixme('follow a project, then save it, then unfollow: the save survives', async ({ page }) => {
+  test('follow a project, then save it, then unfollow: the save survives', async ({ page }) => {
     const { email, nid } = NEW_USER();
     await signUpAndVerify(page, 'داعم اختبار', email, nid);
 
@@ -50,10 +40,20 @@ test.describe('account — follow and save are three separate acts', () => {
     await expect(page.locator('.wathba-follow-empty')).toBeVisible();
 
     // Open a real campaign and use both controls.
-    await page.goto('/projects/discover-all');
-    const firstCard = page.locator('a[href^="/projects/"]').first();
-    await firstCard.click();
+    /**
+     * The seeded project by id — NOT "the first /projects/ link on discover".
+     * That selector matched the site's own navigation («كيف تعمل» at
+     * /projects/how) long before it matched a campaign card, so the test
+     * clicked a chrome link, never left the listing page, and then reported
+     * "element(s) not found" for controls that were rendering correctly on a
+     * page it had never opened. The failure message was accurate; the locator
+     * was pointed at the wrong document.
+     */
+    const { projectId } = seededIds();
+    await page.goto(`/projects/${projectId}`);
     await page.waitForLoadState('networkidle');
+    // Prove we are on a campaign page before hunting for anything on it.
+    await expect(page).toHaveURL(new RegExp(`/projects/${projectId}`));
 
     const follow = page.locator('button[aria-pressed]:not([aria-label])').first();
     const save = page.locator('button[aria-pressed][aria-label]').first();

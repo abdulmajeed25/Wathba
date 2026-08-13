@@ -411,6 +411,36 @@ export function WathbaShell({
             }
             [data-pillar="ventures"] .wathba-request-actions a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
+            /* ── Batch ACCOUNT / U9 — follow + save on the campaign rail ───
+               Follow is the WIDE control; save is the square secondary. Two
+               identical pills side by side is how a reader learns they are the
+               same act, which they are not. */
+            [data-pillar="ventures"] .wathba-proj-actions{position:relative;display:flex;gap:8px;margin-bottom:18px}
+            [data-pillar="ventures"] .wathba-proj-actions button{
+              cursor:pointer;font-family:inherit;font-weight:600;font-size:13px;
+              background:transparent;border:1px solid rgba(var(--ink-rgb),.16);
+              color:var(--text);padding:10px;border-radius:12px;
+              display:flex;align-items:center;justify-content:center;gap:6px;
+              transition:background var(--dur-hover) var(--ease-out),border-color var(--dur-hover) var(--ease-out);
+            }
+            [data-pillar="ventures"] .wathba-proj-actions button:first-child{flex:1}
+            [data-pillar="ventures"] .wathba-proj-save{width:44px;padding:0}
+            [data-pillar="ventures"] .wathba-proj-actions button:hover:not(:disabled){background:rgba(var(--ink-rgb),.05)}
+            [data-pillar="ventures"] .wathba-proj-actions button.is-on{
+              background:rgba(var(--accent-rgb),.12);border-color:var(--accent);color:var(--accent-ink);
+            }
+            [data-pillar="ventures"] .wathba-proj-actions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+            [data-pillar="ventures"] .wathba-proj-actions button:disabled{opacity:.6;cursor:progress}
+            [data-pillar="ventures"] .wathba-proj-tip{
+              position:absolute;inset-inline:0;top:calc(100% + 6px);z-index:5;
+              background:var(--card);border:1px solid rgba(var(--ink-rgb),.12);
+              border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.7;
+              color:var(--muted2);box-shadow:0 12px 24px -12px rgba(0,0,0,.4);
+            }
+            @media (prefers-reduced-motion: reduce){
+              [data-pillar="ventures"] .wathba-proj-actions button{transition:none}
+            }
+
             /* Motion is a courtesy, not a requirement. */
             @media (prefers-reduced-motion: reduce){
               [data-pillar="ventures"] .wathba-account-panel{animation:none}
