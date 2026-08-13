@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
 
+/*
+ * Batch ACCOUNT — these act AS THE PROJECT'S CREATOR, so they sign in as the
+ * golden-journey creator, not as smoke-s1.
+ *
+ * The golden project used to be authored by smoke-s1. One-active-project made
+ * that impossible — smoke-s1 permanently holds catalogue campaigns — so
+ * global-setup now authors it as a creator who owns nothing and leaves smoke-s1
+ * as the reviewing admin. A spec that keeps smoke-s1's token here is editing
+ * someone else's project and silently gets no effect.
+ */
+
 import { API, apiSignin, seededIds } from './helpers';
 
 /**
@@ -60,12 +71,15 @@ test('TG3: an empty query returns the head of the vocabulary, not nothing', asyn
 
 test('TG4: a creator sets the whole set, and unknown slugs are dropped not fatal', async () => {
   const { projectId } = seededIds();
-  const jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const jwt = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
 
   const res = await patch(jwt, projectId, { tagSlugs: ['saudi-heritage', 'handmade', 'no-such-tag'] });
   // A slug ops retired between page load and save must not fail the creator's
   // other edits — they cannot act on the error.
-  expect(res.status, `PATCH returned ${res.status}`).toBe(200);
+  // Batch ACCOUNT — the message carried only the STATUS, so a 400 said nothing
+  // about why. An identical hand-made request returned 200, which means the
+  // status alone cannot tell these two cases apart.
+  expect(res.status, `PATCH returned ${res.status}: ${await res.clone().text()}`).toBe(200);
   expect(await detailTags(jwt, projectId)).toEqual(['handmade', 'saudi-heritage']);
 
   // Whole-set semantics: sending a shorter list REMOVES, it does not merge.
@@ -79,7 +93,7 @@ test('TG4: a creator sets the whole set, and unknown slugs are dropped not fatal
 
 test('TG5: tags are editable on a LIVE project — they are discoverability, not terms', async () => {
   const { projectId } = seededIds();
-  const jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const jwt = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
 
   // The seeded project is LIVE. The pre-launch freeze exists to lock the
   // funding contract and the pitch a backer read before pledging; a tag is
@@ -97,7 +111,7 @@ test('TG5: tags are editable on a LIVE project — they are discoverability, not
 
 test('TG6: usageCount tracks the join table in both directions', async () => {
   const { projectId } = seededIds();
-  const jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const jwt = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
   const countOf = async (slug: string): Promise<number> => {
     const r = await fetch(`${API}/v1/tags`);
     const j = (await r.json()) as { items: Array<{ slug: string; usageCount: number }> };

@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
 
+/*
+ * Batch ACCOUNT — these act AS THE PROJECT'S CREATOR, so they sign in as the
+ * golden-journey creator, not as smoke-s1.
+ *
+ * The golden project used to be authored by smoke-s1. One-active-project made
+ * that impossible — smoke-s1 permanently holds catalogue campaigns — so
+ * global-setup now authors it as a creator who owns nothing and leaves smoke-s1
+ * as the reviewing admin. A spec that keeps smoke-s1's token here is editing
+ * someone else's project and silently gets no effect.
+ */
+
 import { API, apiSignin, seededIds } from './helpers';
 
 /**
@@ -19,7 +30,7 @@ import { API, apiSignin, seededIds } from './helpers';
  * raw video, because that is what the campaign page plays and what the creator
  * edits.
  *
- * Runs against the golden-journey project: LIVE, owned by smoke-s1, and
+ * Runs against the golden-journey project: LIVE, owned by the golden-journey creator, and
  * deliberately not fixture-flagged (it is public on purpose — see
  * batch-polish-fixtures.spec.ts, which asserts the fixture rule it is exempt
  * from). Its state is restored at the end of each test.
@@ -42,7 +53,7 @@ async function detail(jwt: string, id: string) {
 
 test('CM1: a LIVE creator can change the card media — the pre-launch freeze does not apply', async () => {
   const { projectId } = seededIds();
-  const jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const jwt = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
 
   // This is the assertion that would have failed before the carve-out. The
   // PATCH endpoint rejects every edit once a project leaves DRAFT/UNDER_REVIEW,
@@ -61,7 +72,7 @@ test('CM1: a LIVE creator can change the card media — the pre-launch freeze do
 
 test('CM2: choosing POSTER does not destroy the campaign video', async () => {
   const { projectId } = seededIds();
-  const jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const jwt = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
 
   await patch(jwt, projectId, { videoUrl: CLIP, cardMedia: 'VIDEO' });
   await patch(jwt, projectId, { cardMedia: 'POSTER' });
@@ -81,7 +92,7 @@ test('CM2: choosing POSTER does not destroy the campaign video', async () => {
 
 test('CM3: the flag round-trips independently of the video', async () => {
   const { projectId } = seededIds();
-  const jwt = await apiSignin('smoke-s1@test.wathba.sa', 'Str0ngPass!x');
+  const jwt = await apiSignin('golden-journey@test.wathba.sa', 'Str0ngPass!x');
 
   await patch(jwt, projectId, { videoUrl: null, cardMedia: 'POSTER' });
   let d = await detail(jwt, projectId);

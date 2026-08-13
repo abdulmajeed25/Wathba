@@ -135,6 +135,22 @@ export class ProjectsService {
     if (dto.durationDays > hardMaxDays) {
       throw new BadRequestException(`أقصى مدة مسموح بها للحملة هي ${hardMaxDays} يوماً`);
     }
+    /**
+     * Batch ACCOUNT — the one-active-project rule applies HERE, not only at
+     * submit.
+     *
+     * It was on submitForReview alone, so creation went straight to the DB, the
+     * 0064 trigger raised check_violation, Prisma surfaced it unmapped and Nest
+     * served a 500. A creator who already has an active campaign and presses
+     * "create" got «internal server error» — no reason, nothing to act on —
+     * which is the exact failure the API-layer guard exists to prevent. I put
+     * it on the wrong endpoint.
+     *
+     * The empty projectId is deliberate: nothing exists yet to exclude from the
+     * search, and passing '' matches no row.
+     */
+    await this.assertMaySubmitAnother(creatorId, '');
+
     // Provisional deadline; admin sets the real one on publish.
     const deadline = new Date(Date.now() + dto.durationDays * 86_400_000);
     const cat = await this.resolveCategory(dto.categoryId, dto.category, true);
@@ -393,6 +409,10 @@ export class ProjectsService {
    * A NULL clock means the row predates the rule and is grandfathered.
    */
   private async assertMaySubmitAnother(creatorId: string, projectId: string): Promise<void> {
+    // On CREATE there is no row yet to exclude, and `id: { not: '' }` against a
+    // uuid column makes Postgres throw — which surfaced as the very 500 this
+    // guard was added to replace. An empty id means "exclude nothing".
+    const excludeSelf = projectId ? { id: { not: projectId } } : {};
     const NON_TERMINAL: ProjectStatus[] = [
       ProjectStatus.DRAFT,
       ProjectStatus.UNDER_REVIEW,
@@ -406,7 +426,7 @@ export class ProjectsService {
     const blocking = await this.prisma.project.findFirst({
       where: {
         createdById: creatorId,
-        id: { not: projectId },
+        ...excludeSelf,
         isTestFixture: false,
         status: { in: NON_TERMINAL },
       },
@@ -437,7 +457,7 @@ export class ProjectsService {
     const prior = await this.prisma.project.findMany({
       where: {
         createdById: creatorId,
-        id: { not: projectId },
+        ...excludeSelf,
         isTestFixture: false,
         OR: [
           { status: ProjectStatus.SUCCESSFUL, settledAt: { not: null } },
