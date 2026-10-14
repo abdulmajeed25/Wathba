@@ -105,6 +105,13 @@ export class OpsAuthController {
     };
   }
 
+  @Get('roles')
+  @UseGuards(OpsSessionGuard)
+  @ApiOperation({ summary: 'Live role catalogue without account memberships' })
+  roleCatalogue() {
+    return this.rbac.roleCatalogue();
+  }
+
   @Post('step-up')
   @HttpCode(200)
   @UseGuards(OpsSessionGuard)

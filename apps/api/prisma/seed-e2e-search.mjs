@@ -84,7 +84,6 @@ export async function seedSearchFixtures(prisma) {
     status: 'LIVE',
     isTestFixture: false,
     hiddenAt: null,
-    createdById: creator.id,
     fundingGoalHalalas: h(50_000_00),
     raisedHalalas: h(12_500_00),
     realizedHalalas: h(12_500_00),
@@ -139,13 +138,25 @@ export async function seedSearchFixtures(prisma) {
 
   for (const p of projects) {
     const { id, ...rest } = p;
+    // Keep the production one-active-campaign invariant in test fixtures too.
+    // AS7 retains its original creator; the other campaigns get separate owners.
+    const projectCreator = id === PALMS_ID ? creator : await prisma.user.upsert({
+      where: { email: `e2e-search-${id}@test.wathba.sa` },
+      update: {},
+      create: {
+        email: `e2e-search-${id}@test.wathba.sa`,
+        name: `ناشر ${p.titleAr}`,
+        roles: ['BACKER', 'CREATOR'], passwordHash, ...verified,
+      },
+    });
     await prisma.project.upsert({
       where: { id },
       // UPDATE the text too, not just create. These strings ARE the assertions;
       // if someone edits a title here the seed has to carry it to an existing
       // database, or the spec fails against stale rows and the diff looks fine.
       update: { ...rest, ...base },
-      create: { id, ...rest, ...base },
+      // Re-running must not transfer an existing campaign to another account.
+      create: { id, ...rest, ...base, createdById: projectCreator.id },
     });
   }
 

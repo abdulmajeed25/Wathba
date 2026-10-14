@@ -1,121 +1,38 @@
 import Link from 'next/link';
 
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
+import { RetryRead } from '../_components/retry-read';
 import { StatTile } from '../_components/stat-tile';
 import { TeamManager, type DirUser } from './team-manager';
 
-/**
- * OPS Phase 2 — «فريق العمل والأدوار» (section 16). The RBAC control surface:
- *  · a READ-ONLY mirror of the 8-role × permission matrix (source of truth is
- *    apps/api/src/ops/permissions.ts ROLE_MATRIX — mirrored here as static
- *    data; parity is asserted server-side by ops-rbac.spec.ts).
- *  · the live four-eyes state (from /v1/ops/auth/session).
- *  · a governed grant/revoke surface for ops + product roles (client island).
- * OWNER-only actions are gated by the session's own permissions.
- */
-
-/** Permission keys in catalog order — mirrors ALL_PERMISSIONS. */
-const PERMISSION_KEYS = [
-  'projects.review',
-  'projects.feature',
-  'projects.lifecycle',
-  'moderation.queue',
-  'users.lifecycle',
-  'users.pii.unmask',
-  'users.roles.assign',
-  'money.execute',
-  'money.approve',
-  'content.editorial',
-  'content.collections',
-  'content.categories',
-  'agents.manage',
-  'settings.write',
-  'support.tickets',
-  'analytics.read',
-  'audit.read',
-] as const;
-
-/** The 8 seeded roles — mirror of ROLE_MATRIX ('*' = OWNER, matches all). */
-const ROLE_MATRIX: Array<{ key: string; nameAr: string; permissions: readonly string[] }> = [
-  { key: 'OWNER', nameAr: 'المالك', permissions: ['*'] },
-  {
-    key: 'OPS_MANAGER',
-    nameAr: 'مدير العمليات',
-    permissions: [
-      'projects.review',
-      'projects.feature',
-      'projects.lifecycle',
-      'moderation.queue',
-      'users.lifecycle',
-      'content.editorial',
-      'content.collections',
-      'content.categories',
-      'support.tickets',
-      'analytics.read',
-      'audit.read',
-    ],
-  },
-  { key: 'REVIEWER', nameAr: 'مراجع مشاريع', permissions: ['projects.review'] },
-  {
-    key: 'FINANCE',
-    nameAr: 'المالية',
-    permissions: ['money.execute', 'money.approve', 'analytics.read', 'audit.read'],
-  },
-  {
-    key: 'SUPPORT',
-    nameAr: 'الدعم',
-    permissions: ['users.lifecycle', 'users.pii.unmask', 'support.tickets'],
-  },
-  { key: 'MODERATOR', nameAr: 'الثقة والسلامة', permissions: ['moderation.queue'] },
-  {
-    key: 'CONTENT_EDITOR',
-    nameAr: 'محرر المحتوى',
-    permissions: ['content.editorial', 'content.collections', 'content.categories'],
-  },
-  { key: 'ANALYST', nameAr: 'محلل بيانات', permissions: ['analytics.read', 'audit.read'] },
-];
-
+interface RoleCatalogue {
+  roles: Array<{ key: string; nameAr: string; permissions: string[] }>;
+  permissions: string[];
+}
 function roleHas(perms: readonly string[], key: string): boolean {
   return perms.includes('*') || perms.includes(key);
 }
 
-interface SessionInfo {
-  fourEyes: boolean;
-  moneyAdmins: number;
-  roleKeys: string[];
-  permissions: string[];
-}
-
 export default async function OpsTeamPage() {
   await requireAdmin();
-  const { opsToken } = await requireOpsSession();
-
-  let users: DirUser[] = [];
-  let usersRefused = false;
-  let session: SessionInfo | null = null;
-
-  try {
-    const [usersRes, sessionRes] = await Promise.all([
-      fetch(`${API_BASE}/v1/ops/users?limit=100`, {
-        headers: { 'x-ops-token': opsToken },
-        cache: 'no-store',
-      }),
-      fetch(`${API_BASE}/v1/ops/auth/session`, {
-        headers: { 'x-ops-token': opsToken },
-        cache: 'no-store',
-      }),
-    ]);
-    if (usersRes.status === 403) usersRefused = true;
-    if (usersRes.ok) users = ((await usersRes.json()) as { items: DirUser[] }).items;
-    if (sessionRes.ok) session = (await sessionRes.json()) as SessionInfo;
-  } catch {
-    /* API unreachable — refused/empty states render below */
-  }
-
-  const perms = session?.permissions ?? [];
-  const isOwner = (session?.roleKeys ?? []).includes('OWNER') || perms.includes('*');
-  const canGrantOps = perms.includes('*') || perms.includes('users.roles.assign');
-  const canGrantProduct = perms.includes('*') || perms.includes('users.lifecycle');
+  const { opsToken, info: session } = await requireOpsSession();
+  const read = async (path: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/v1/ops/${path}`, {
+        headers: { 'x-ops-token': opsToken }, cache: 'no-store',
+      });
+      return { status: response.status, data: response.ok ? await response.json() : null };
+    } catch { return { status: 0, data: null }; }
+  };
+  const [usersResult, catalogueResult] = await Promise.all([read('users?limit=100'), read('auth/roles')]);
+  const users: DirUser[] | null = Array.isArray(usersResult.data?.items) ? usersResult.data.items : null;
+  const usersRefused = usersResult.status === 403;
+  const catalogue: RoleCatalogue | null = Array.isArray(catalogueResult.data?.roles) &&
+    Array.isArray(catalogueResult.data?.permissions) ? catalogueResult.data : null;
+  const perms = session.permissions ?? [];
+  const isOwner = (session.roleKeys ?? []).includes('OWNER');
+  const canGrantOps = isOwner && roleHas(perms, 'users.roles.assign') && catalogue !== null;
+  const canGrantProduct = roleHas(perms, 'users.lifecycle');
 
   return (
     <div className="space-y-6">
@@ -159,14 +76,14 @@ export default async function OpsTeamPage() {
       {/* role × permission matrix (read-only) */}
       <section className="space-y-2">
         <h2 className="text-base font-bold">مصفوفة الأدوار × الصلاحيات (للاطلاع)</h2>
-        <div className="overflow-x-auto rounded-lg border border-[#21262d]">
+        {catalogue ? <div className="overflow-x-auto rounded-lg border border-[#21262d]">
           <table className="w-full min-w-[900px] text-xs">
             <thead className="bg-[#161b22] text-[#8b949e]">
               <tr>
                 <th className="sticky right-0 z-10 bg-[#161b22] px-3 py-2 text-right font-medium">
                   الصلاحية
                 </th>
-                {ROLE_MATRIX.map((r) => (
+                {catalogue.roles.map((r) => (
                   <th key={r.key} className="px-2 py-2 text-center font-medium" title={r.nameAr}>
                     {r.key}
                   </th>
@@ -174,12 +91,12 @@ export default async function OpsTeamPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#21262d] bg-[#0d1117]">
-              {PERMISSION_KEYS.map((pk) => (
+              {catalogue.permissions.map((pk) => (
                 <tr key={pk}>
                   <td className="sticky right-0 z-10 bg-[#0d1117] px-3 py-1.5 font-mono" dir="ltr">
                     {pk}
                   </td>
-                  {ROLE_MATRIX.map((r) => (
+                  {catalogue.roles.map((r) => (
                     <td key={r.key} className="px-2 py-1.5 text-center">
                       {roleHas(r.permissions, pk) ? (
                         <span className="text-emerald-400" aria-label="ممنوحة">
@@ -197,10 +114,11 @@ export default async function OpsTeamPage() {
             </tbody>
           </table>
         </div>
-        <p className="text-[11px] text-[#484f58]">
-          المصدر الأوحد: apps/api/src/ops/permissions.ts (ROLE_MATRIX) — يُطابَق مع قاعدة البيانات عبر
-          ops-rbac.spec.ts. علامة ✓ للمالك تعني «*» (يطابق كل الصلاحيات).
-        </p>
+        : <div role="alert" className="rounded border border-amber-500/40 p-4 text-sm">
+          تعذر تحميل الأدوار الفعلية؛ لا نعرض مصفوفة بديلة أو نسمح بمنح دور غير مؤكد.
+          <RetryRead label="إعادة تحميل الأدوار" />
+        </div>}
+        <p className="text-xs text-[#8b949e]">تعرض المصفوفة الصلاحيات المسجلة حاليًا، وتخضع كل عملية لشروطها الإضافية. منح أدوار الإدارة وسحبها يتطلبان عضوية المالك الفعلية، حتى لمن لديه صلاحية تعيين الأدوار. المنح والسحب يمران بالمراجعة والتوثيق.</p>
       </section>
 
       {/* grant / revoke */}
@@ -210,8 +128,13 @@ export default async function OpsTeamPage() {
           <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
             تفتقد صلاحية users.lifecycle لعرض دليل المستخدمين.
           </p>
+        ) : users === null ? (
+          <div role="alert" className="rounded border border-amber-500/40 p-4 text-sm">
+            تعذرت قراءة المستخدمين؛ لا يمكن تأكيد أعضاء الفريق الحاليين.
+            <RetryRead label="إعادة تحميل الفريق" />
+          </div>
         ) : (
-          <TeamManager users={users} canGrantOps={canGrantOps} canGrantProduct={canGrantProduct} />
+          <TeamManager users={users} canGrantOps={canGrantOps} canGrantProduct={canGrantProduct} opsRoles={catalogue?.roles ?? []} />
         )}
       </section>
     </div>
