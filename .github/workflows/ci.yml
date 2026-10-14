@@ -14,8 +14,21 @@ jobs:
     name: typecheck · lint · test · build · audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: wathba_test
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: wathba_audit
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U wathba_test -d wathba_audit" --health-interval 10s
+          --health-timeout 5s --health-retries 5
     env:
       NEXT_PUBLIC_API_URL: http://localhost:4001
+      DATABASE_URL: postgresql://wathba_test:local-test-only@127.0.0.1:55432/wathba_audit?schema=public&connection_limit=5
+      WATHBA_CONSENT_DB_TESTS: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -33,6 +46,9 @@ jobs:
       - name: Prisma generate (API client types)
         run: pnpm --filter @wathba/api prisma:generate
 
+      - name: Migrate isolated verification database
+        run: pnpm --filter @wathba/api exec prisma migrate deploy
+
       - name: Typecheck API
         run: pnpm --filter @wathba/api exec tsc --noEmit
 
@@ -46,7 +62,7 @@ jobs:
         run: pnpm --filter @wathba/web lint
 
       - name: Test API
-        run: pnpm --filter @wathba/api test
+        run: pnpm --filter @wathba/api test -- --runInBand
 
       - name: Build Web
         env:
@@ -86,6 +102,12 @@ jobs:
       AUTH_SIGNUP_THROTTLE_LIMIT: 10000
       AUTH_SIGNIN_THROTTLE_LIMIT: 10000
       OPS_AUTH_THROTTLE_LIMIT: 10000
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+      NEXT_PUBLIC_MEDIA_URL: http://127.0.0.1:9000
+      MINIO_ACCESS_KEY: wathba-ci-media
+      MINIO_SECRET_KEY: isolated-ci-media-only
+      MEDIA_BUCKET: wathba-ci-media
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -97,6 +119,15 @@ jobs:
       - run: pnpm --filter @wathba/api prisma:generate
       - run: pnpm --filter @wathba/api exec prisma migrate deploy
       - run: pnpm --filter @wathba/web exec playwright install --with-deps chromium
+      - name: Prepare isolated media fixtures
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          docker run -d --name wathba-ci-media -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
+            minio/minio:latest server /data
+          curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://127.0.0.1:9000/minio/health/ready
+          node apps/api/prisma/prepare-ci-media.mjs
       - name: Build API + Web
         run: pnpm --filter @wathba/api build && pnpm --filter @wathba/web build
       - name: Boot API + Web, seed, run journeys

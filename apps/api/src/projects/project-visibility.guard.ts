@@ -2,6 +2,7 @@ import { ExecutionContext, ForbiddenException, Injectable, NotFoundException } f
 import type { Request } from 'express';
 import { OptionalJwtAuthGuard } from '../identity/optional-jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
+import { isUpdateEditor } from '../collaborators/content-access';
 
 /** Private campaign subresources must not bypass the project-detail boundary. */
 @Injectable()
@@ -22,7 +23,13 @@ export class ProjectVisibilityGuard extends OptionalJwtAuthGuard {
     if (!project) throw new NotFoundException('project not found');
     if (!project.hiddenAt && project.status !== 'DRAFT' && project.status !== 'UNDER_REVIEW') return true;
     await super.canActivate(context);
-    if (req.user?.sub !== project.createdById) throw new NotFoundException('project not found');
+    if (req.user?.sub !== project.createdById) {
+      // A content collaborator can reach only updates, never the private full
+      // project record, rewards, finances or owner-managed team endpoints.
+      const updatesPath = /^\/v1\/projects\/[^/]+\/updates(?:\/|$)/.test(req.path);
+      if (updatesPath && await isUpdateEditor(this.prisma, projectId, project, req.user?.sub)) return true;
+      throw new NotFoundException('project not found');
+    }
     if (managementWrite && !project.applicationApprovedAt && (project.status === 'DRAFT' || project.status === 'UNDER_REVIEW')) {
       throw new ForbiddenException('تُفتح أدوات تجهيز الحملة بعد اعتماد الطلب الأولي');
     }

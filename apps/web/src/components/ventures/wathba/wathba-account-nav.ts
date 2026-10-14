@@ -59,6 +59,7 @@ export const ACCOUNT_GROUPS: readonly (readonly AccountNavItem[])[] = [
     { href: '/saved', label: 'المشاريع المحفوظة', icon: 'bookmark' },
     { href: '/following', label: 'متابَعاتي', icon: 'person' },
     { href: '/activity', label: 'النشاط', icon: 'history' },
+    { href: '/projects/dashboard/collaborations', label: 'مساحات أشارك فيها', icon: 'group' },
   ],
   [{ href: '/recommendations', label: 'مقترَح لك', icon: 'query_stats' }],
   [

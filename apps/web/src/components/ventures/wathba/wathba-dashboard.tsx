@@ -12,7 +12,10 @@ export function WathbaDashboard({ myProjects }: { myProjects: ApiMyProject[] | n
       <header className={styles.header}>
         <div><p className={styles.eyebrow}>مساحة صاحب المشروع</p><h1>مشاريعي وطلباتي</h1>
           <p>تابع طلبك، واستكمل التجهيز، ثم انتقل إلى إدارة مشروعك.</p></div>
-        <Link className={styles.secondary} href="/projects/me/pledges">تعهداتي كداعم</Link>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <Link className={styles.secondary} href="/projects/dashboard/collaborations">مساحات أشارك فيها</Link>
+          <Link className={styles.secondary} href="/projects/me/pledges">تعهداتي كداعم</Link>
+        </div>
       </header>
       {myProjects === null ? (
         <section className={styles.card} role="alert"><h2>تعذّر تحميل مشاريعك</h2>

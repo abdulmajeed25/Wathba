@@ -79,6 +79,7 @@ describe('UpdatesService.create', () => {
       },
     });
     const svc = new UpdatesService(prisma, makeNotifications());
+    jest.spyOn(svc, 'fanOutUpdatePosted').mockResolvedValue({ notified: 0 });
     await svc.create(CREATOR, PROJ, { titleAr: 't', bodyAr: 'b' } as any);
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({ orderNum: 1 }),
@@ -108,6 +109,7 @@ describe('UpdatesService.create', () => {
       },
     });
     const svc = new UpdatesService(prisma, makeNotifications());
+    jest.spyOn(svc, 'fanOutUpdatePosted').mockResolvedValue({ notified: 0 });
     await svc.create(CREATOR, PROJ, { titleAr: 't', bodyAr: 'b' } as any);
     expect(create.mock.calls[0][0].data.orderNum).toBe(5);
   });
@@ -125,6 +127,7 @@ describe('UpdatesService.create', () => {
 
 describe('UpdatesService.fanOutUpdatePosted (CC-01)', () => {
   const FOLLOWER = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  const pendingUpdate = { id: UPD, titleAr: 't', visibility: 'PUBLIC', publishAt: new Date(0), notifiedAt: null };
 
   it('dedupes backers ∪ followers, excludes the creator, one batched createMany', async () => {
     const createMany = jest.fn().mockResolvedValue({ count: 2 });
@@ -146,6 +149,7 @@ describe('UpdatesService.fanOutUpdatePosted (CC-01)', () => {
       notification: { createMany },
     });
     const svc = new UpdatesService(prisma, makeNotifications());
+    prisma.projectUpdate.findFirst.mockResolvedValue(pendingUpdate);
     const res = await svc.fanOutUpdatePosted(PROJ, { id: UPD, titleAr: 't' } as any);
 
     expect(createMany).toHaveBeenCalledTimes(1);
@@ -173,6 +177,7 @@ describe('UpdatesService.fanOutUpdatePosted (CC-01)', () => {
       notification: { createMany },
     });
     const svc = new UpdatesService(prisma, makeNotifications());
+    prisma.projectUpdate.findFirst.mockResolvedValue(pendingUpdate);
     const res = await svc.fanOutUpdatePosted(PROJ, { id: UPD, titleAr: 't' } as any);
     expect(createMany).not.toHaveBeenCalled();
     expect(res.notified).toBe(0);

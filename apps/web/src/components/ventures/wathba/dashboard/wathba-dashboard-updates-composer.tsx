@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { ApiUpdateRow } from '../wathba-updates';
 import { useConfirm } from '../wathba-feedback';
@@ -25,6 +25,10 @@ export function DashboardUpdatesComposer({
   const [publishAt, setPublishAt] = useState(''); // datetime-local; empty = now
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const titleInput = useRef<HTMLInputElement>(null);
 
   const reset = (): void => {
     setTitleAr('');
@@ -32,6 +36,7 @@ export function DashboardUpdatesComposer({
     setVisibility('PUBLIC');
     setPublishAt('');
     setError(null);
+    setEditingId(null);
   };
 
   const onSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -42,24 +47,26 @@ export function DashboardUpdatesComposer({
     }
     setSubmitting(true);
     setError(null);
+    setNotice(null);
     try {
-      const res = await fetch(`/api/updates/${projectId}`, {
-        method: 'POST',
+      const res = await fetch(`/api/updates/${projectId}${editingId ? `/${editingId}` : ''}`, {
+        method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           titleAr: titleAr.trim(),
           bodyAr: bodyAr.trim(),
           visibility,
-          ...(publishAt ? { publishAt: new Date(publishAt).toISOString() } : {}),
+          ...(!editingId && publishAt ? { publishAt: new Date(publishAt).toISOString() } : {}),
         }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
-        setError(body?.message ?? 'تعذّر نشر التحديث.');
+        setError(body?.message ?? 'تعذّر حفظ التحديث. تحقق من اتصالك وصلاحية التحرير ثم حاول مجددًا.');
         return;
       }
       const next = (await res.json()) as ApiUpdateRow;
-      setRows((prev) => [next, ...prev]);
+      setRows((prev) => editingId ? prev.map(row => row.id === editingId ? next : row) : [next, ...prev]);
+      setNotice(editingId ? 'حُفظ تعديل التحديث.' : 'حُفظ التحديث بنجاح.');
       reset();
     } catch {
       setError('تعذّر الاتصال بالخادم.');
@@ -69,33 +76,37 @@ export function DashboardUpdatesComposer({
   };
 
   const onDelete = async (id: string): Promise<void> => {
+    if (submitting || actionBusy) return;
     if (!(await confirmDlg({ title: 'حذف هذا التحديث؟', confirmLabel: 'حذف', danger: true }))) return;
-    const snapshot = rows;
-    setRows((prev) => prev.filter((r) => r.id !== id));
+    setActionBusy(true); setError(null); setNotice(null);
     try {
       const res = await fetch(`/api/updates/${projectId}/${id}`, {
         method: 'DELETE',
       });
-      if (!res.ok) setRows(snapshot);
+      if (!res.ok) { setError('تعذّر حذف التحديث. قد يكون وصولك تغير؛ بقي المحتوى ظاهرًا حتى نتأكد.'); return; }
+      setRows(prev => prev.filter(row => row.id !== id));
+      if (editingId === id) reset();
+      setNotice('حُذف التحديث.');
     } catch {
-      setRows(snapshot);
-    }
+      setError('تعذّر تأكيد الحذف. أعد تحميل الصفحة للتحقق من النتيجة.');
+    } finally { setActionBusy(false); }
   };
 
   const onPin = async (id: string): Promise<void> => {
-    const snapshot = rows;
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, pinned: !r.pinned } : r)));
+    if (submitting || actionBusy) return;
+    setActionBusy(true); setError(null); setNotice(null);
     try {
       const res = await fetch(`/api/updates/${projectId}/${id}/pin`, { method: 'PATCH' });
       if (!res.ok) {
-        setRows(snapshot);
+        setError('تعذّر تغيير التثبيت. تحقق من صلاحية التحرير ثم حاول مجددًا.');
       } else {
         const next = (await res.json()) as ApiUpdateRow;
         setRows((prev) => prev.map((r) => (r.id === id ? next : r)));
+        setNotice(next.pinned ? 'ثُبّت التحديث.' : 'أُلغي تثبيت التحديث.');
       }
     } catch {
-      setRows(snapshot);
-    }
+      setError('تعذّر تأكيد التثبيت. أعد تحميل الصفحة للتحقق من النتيجة.');
+    } finally { setActionBusy(false); }
   };
 
   return (
@@ -125,24 +136,30 @@ export function DashboardUpdatesComposer({
           gap: 12,
         }}
       >
+        <h2 style={{ fontSize: 18, fontWeight: 700 }}>{editingId ? 'تعديل التحديث' : 'تحديث جديد'}</h2>
+        <label htmlFor="campaign-update-title">عنوان التحديث</label>
         <input
+          id="campaign-update-title"
+          ref={titleInput}
           type="text"
           required
           maxLength={200}
           placeholder="عنوان التحديث"
           value={titleAr}
           onChange={(e) => setTitleAr(e.target.value)}
-          disabled={submitting}
+          disabled={submitting || actionBusy}
           style={inputStyle}
         />
+        <label htmlFor="campaign-update-body">محتوى التحديث</label>
         <textarea
+          id="campaign-update-body"
           required
           rows={6}
           maxLength={20_000}
           placeholder="اكتب محتوى التحديث هنا…"
           value={bodyAr}
           onChange={(e) => setBodyAr(e.target.value)}
-          disabled={submitting}
+          disabled={submitting || actionBusy}
           style={{ ...inputStyle, resize: 'vertical', minHeight: 140, fontFamily: 'inherit' }}
         />
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -151,26 +168,28 @@ export function DashboardUpdatesComposer({
             <select
               value={visibility}
               onChange={(e) => setVisibility(e.target.value as 'PUBLIC' | 'BACKERS_ONLY')}
-              disabled={submitting}
+              disabled={submitting || actionBusy}
               style={{ ...inputStyle, padding: '8px 10px' }}
             >
               <option value="PUBLIC">الجميع (عام)</option>
               <option value="BACKERS_ONLY">الداعمون فقط</option>
             </select>
           </label>
-          <label style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {!editingId && <label style={{ fontSize: 12.5, color: 'var(--text-secondary, #3b4942)', display: 'flex', flexDirection: 'column', gap: 4 }}>
             جدولة النشر (اختياري)
             <input
               type="datetime-local"
               value={publishAt}
               onChange={(e) => setPublishAt(e.target.value)}
-              disabled={submitting}
+              disabled={submitting || actionBusy}
               style={{ ...inputStyle, padding: '8px 10px' }}
             />
-          </label>
+          </label>}
         </div>
+        {editingId && <p style={{ fontSize: 13 }}>تعديل النص والجمهور يحافظ على موعد النشر الحالي.</p>}
         {error && (
           <div
+            role="alert"
             style={{
               fontSize: 13,
               color: 'var(--err-ink)',
@@ -183,29 +202,32 @@ export function DashboardUpdatesComposer({
             {error}
           </div>
         )}
-        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+        {notice && <p role="status">{notice}</p>}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || actionBusy}
             style={{
               background: 'var(--brand-primary, #05a661)',
               color: 'var(--on-brand, #08130d)',
               border: 'none',
               borderRadius: 10,
               padding: '10px 20px',
+              minHeight: 44,
               fontSize: 13,
               fontWeight: 700,
               fontFamily: 'inherit',
               cursor: submitting ? 'progress' : 'pointer',
             }}
           >
-            {submitting ? 'جاري النشر…' : 'نشر التحديث'}
+            {submitting ? 'جارٍ الحفظ…' : editingId ? 'حفظ التعديل' : 'نشر التحديث'}
           </button>
+          {editingId && <button type="button" disabled={submitting || actionBusy} onClick={reset} style={{ minHeight: 44, padding: '10px 16px', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>إلغاء التعديل</button>}
         </div>
       </form>
 
       <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
-        التحديثات المنشورة
+        التحديثات المحفوظة والمجدولة
       </h2>
       {rows.length === 0 ? (
         <div
@@ -227,6 +249,8 @@ export function DashboardUpdatesComposer({
             <UpdateAdminRow
               key={u.id}
               row={u}
+              busy={submitting || actionBusy}
+              onEdit={() => { setEditingId(u.id); setTitleAr(u.titleAr); setBodyAr(u.bodyAr ?? ''); setVisibility(u.visibility ?? 'PUBLIC'); setError(null); setNotice(null); titleInput.current?.focus(); }}
               onDelete={() => {
                 void onDelete(u.id);
               }}
@@ -255,10 +279,14 @@ function UpdateAdminRow({
   row,
   onDelete,
   onPin,
+  onEdit,
+  busy,
 }: {
   row: ApiUpdateRow;
   onDelete: () => void;
   onPin: () => void;
+  onEdit: () => void;
+  busy: boolean;
 }): React.ReactElement {
   const dateAr = formatDateAr(row.date);
   return (
@@ -313,6 +341,7 @@ function UpdateAdminRow({
           display: 'flex',
           alignItems: 'center',
           gap: 18,
+          flexWrap: 'wrap',
           fontSize: 12.5,
           color: 'var(--text-tertiary, var(--muted2))',
           marginTop: 4,
@@ -320,12 +349,15 @@ function UpdateAdminRow({
       >
         <span>❤ {row.likeCount.toLocaleString('en-US')}</span>
         <span>💬 {row.commentCount.toLocaleString('en-US')}</span>
+        <button type="button" disabled={busy} onClick={onEdit} style={{ minHeight: 44, padding: '5px 12px', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>تعديل</button>
         <button
           type="button"
+          disabled={busy}
           onClick={onPin}
           style={{
             marginInlineStart: 'auto',
             fontSize: 12, fontWeight: 600, padding: '5px 12px', borderRadius: 8,
+            minHeight: 44,
             color: row.pinned ? 'var(--brand-ink, var(--pos-ink))' : 'var(--text-primary, var(--text-primary))',
             background: row.pinned ? 'rgba(5,166,97,0.10)' : 'transparent',
             border: `1px solid ${row.pinned ? 'rgba(5,166,97,0.4)' : 'rgba(18,33,26,0.16)'}`,
@@ -336,9 +368,11 @@ function UpdateAdminRow({
         </button>
         <button
           type="button"
+          disabled={busy}
           onClick={onDelete}
           style={{
             fontSize: 12,
+            minHeight: 44,
             fontWeight: 600,
             padding: '5px 12px',
             borderRadius: 8,
