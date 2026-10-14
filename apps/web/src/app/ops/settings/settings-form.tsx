@@ -98,7 +98,8 @@ function MaxHalalasRow({ item }: { item: SettingItem }) {
   const [noCap, setNoCap] = useState<boolean>(initial === null);
   const [v, setV] = useState<string>(initial === null ? '' : String(initial));
   const n = Number(v);
-  const valueValid = noCap || (v !== '' && Number.isInteger(n) && n > 0);
+  const minimum = item.key === 'rewards.shippingMaxHalalas' ? 0 : 1;
+  const valueValid = noCap || (v !== '' && Number.isSafeInteger(n) && n >= minimum);
   const value = noCap ? null : valueValid ? n : null;
   return (
     <Shell item={item} value={value} disabled={!valueValid}>
@@ -113,7 +114,7 @@ function MaxHalalasRow({ item }: { item: SettingItem }) {
       </label>
       <input
         type="number"
-        min={1}
+        min={minimum}
         step={1}
         value={v}
         disabled={noCap}
@@ -175,8 +176,13 @@ function EmailRow({ item }: { item: SettingItem }) {
 export function SettingRow({ item }: { item: SettingItem }) {
   switch (item.key) {
     case 'pledges.minHalalas':
+    case 'projects.fundingGoalMinHalalas':
+    case 'rewards.minHalalas':
       return <MinHalalasRow item={item} />;
     case 'pledges.maxHalalas':
+    case 'projects.fundingGoalMaxHalalas':
+    case 'rewards.maxHalalas':
+    case 'rewards.shippingMaxHalalas':
       return <MaxHalalasRow item={item} />;
     case 'payments.methodsEnabled':
       return <MethodsRow item={item} />;

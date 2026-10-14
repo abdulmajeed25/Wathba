@@ -24,17 +24,6 @@ export interface DirUser {
   opsRoleKeys?: string[];
 }
 
-const OPS_ROLES = [
-  'OWNER',
-  'OPS_MANAGER',
-  'REVIEWER',
-  'FINANCE',
-  'SUPPORT',
-  'MODERATOR',
-  'CONTENT_EDITOR',
-  'ANALYST',
-] as const;
-
 const PRODUCT_ROLES = ['CREATOR', 'BACKER', 'SUPPLIER'] as const;
 
 const INPUT =
@@ -46,13 +35,15 @@ export function TeamManager({
   users,
   canGrantOps,
   canGrantProduct,
+  opsRoles,
 }: {
   users: DirUser[];
   canGrantOps: boolean;
   canGrantProduct: boolean;
+  opsRoles: Array<{ key: string; nameAr: string }>;
 }) {
   const [userId, setUserId] = useState('');
-  const [opsRoleKey, setOpsRoleKey] = useState<string>('REVIEWER');
+  const [opsRoleKey, setOpsRoleKey] = useState<string>(opsRoles.find(role => role.key === 'REVIEWER')?.key ?? opsRoles[0]?.key ?? '');
   const [productRole, setProductRole] = useState<string>('CREATOR');
 
   const reload = () => window.location.reload();
@@ -173,13 +164,14 @@ export function TeamManager({
           {canGrantOps ? (
             <>
               <select
+                aria-label="دور العمليات المطلوب"
                 value={opsRoleKey}
                 onChange={(e) => setOpsRoleKey(e.target.value)}
                 className={`${INPUT} w-full`}
               >
-                {OPS_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                {opsRoles.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.nameAr} ({r.key})
                   </option>
                 ))}
               </select>
@@ -191,7 +183,7 @@ export function TeamManager({
                   riskTier="SENSITIVE"
                   requiresReason
                   variant="primary"
-                  disabled={!userValid}
+                  disabled={!userValid || !opsRoles.some(role => role.key === opsRoleKey)}
                   onDone={reload}
                 />
                 <OpRunner
@@ -201,7 +193,7 @@ export function TeamManager({
                   riskTier="SENSITIVE"
                   requiresReason
                   variant="danger"
-                  disabled={!userValid}
+                  disabled={!userValid || !opsRoles.some(role => role.key === opsRoleKey)}
                   onDone={reload}
                 />
               </div>
@@ -219,6 +211,7 @@ export function TeamManager({
           {canGrantProduct ? (
             <>
               <select
+                aria-label="دور المنتج المطلوب"
                 value={productRole}
                 onChange={(e) => setProductRole(e.target.value)}
                 className={`${INPUT} w-full`}

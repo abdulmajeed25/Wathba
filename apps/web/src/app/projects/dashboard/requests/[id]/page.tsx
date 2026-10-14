@@ -39,6 +39,7 @@ export default async function RequestStatusPage({
   if (!project) notFound();
   // Ownership, same as the dashboard: a review decision is private to its author.
   if (!me || me.id !== project.createdBy) redirect('/projects/dashboard');
+  if (project.applicationApprovedAt) redirect(`/projects/dashboard/${encodeURIComponent(project.id)}`);
 
   const rejected = project.status === 'DRAFT' && Boolean(project.reviewFeedback);
   const underReview = project.status === 'UNDER_REVIEW';

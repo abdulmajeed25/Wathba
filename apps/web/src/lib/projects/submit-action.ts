@@ -3,101 +3,52 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-/**
- * Server action behind the /projects/submit wizard.
- *
- *   1. Read the form payload (already client-validated, but trust nothing).
- *   2. POST /v1/projects (creates DRAFT).
- *   3. POST /v1/projects/:id/submit (DRAFT → UNDER_REVIEW).
- *   4. Redirect to the per-project dashboard.
- *
- * Errors bounce back to /projects/submit?err=<code> so the wizard surfaces
- * an inline Arabic message — same pattern as the auth actions.
- */
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? process.env.API_BASE_URL ?? 'http://localhost:4000';
+export interface SubmissionResult { draftId?: string; error?: string; saved?: boolean }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-const SESSION_COOKIE = 'wathba_session';
-
-interface ApiProject {
-  id: string;
-  status: string;
-}
-
-interface ApiError {
-  statusCode?: number;
-  message?: string | string[];
-}
-
-export async function submitProjectAction(formData: FormData): Promise<void> {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  if (!token) redirect('/sign-in?next=/projects/submit');
-
-  const get = (k: string): string => String(formData.get(k) ?? '').trim();
-  const num = (k: string): number => {
-    const v = formData.get(k);
-    if (v === null || v === '') return NaN;
-    const n = Number(v);
-    return Number.isFinite(n) ? n : NaN;
-  };
-
+/** A failed review submission keeps the saved draft and never creates a second project. */
+export async function submitProjectAction(previous: SubmissionResult, formData: FormData): Promise<SubmissionResult> {
+  const token = (await cookies()).get('wathba_session')?.value;
+  if (!token) return { ...previous, error: 'انتهت جلستك. سجّل الدخول في تبويب آخر ثم أعد المحاولة.' };
+  const get = (key: string) => String(formData.get(key) ?? '').trim();
+  let draftId = previous.draftId || get('draftId') || undefined;
+  if (draftId && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(draftId)) return { error: 'رابط المسودة غير صالح.' };
+  const saving = get('intent') === 'save';
+  if (!saving && get('rulesAck') !== 'on') return { draftId, error: 'اقرأ القواعد وأكّد موافقتك قبل الإرسال.' };
   const body = {
-    titleAr: get('titleAr'),
-    shortDescAr: get('shortDescAr'),
-    // Batch CAT — the two-level wizard sends categoryId; legacy enum optional.
-    categoryId: get('categoryId') || undefined,
-    category: get('category') || undefined,
-    // Batch DISCOVERY-ENGINE — the location facet counted 2% of the catalogue
-    // because nothing ever sent this. The wizard now requires it.
-    region: get('region') || undefined,
-    storyAr: get('storyAr'),
-    fundingGoalHalalas: Math.round(num('fundingGoalSar') * 100),
-    releaseThresholdPct: num('releaseThresholdPct') || 80,
-    durationDays: num('durationDays'),
+    titleAr: get('titleAr'), shortDescAr: get('shortDescAr'),
+    categoryId: get('categoryId') || undefined, region: get('region') || undefined,
+    storyAr: get('storyAr'), fundingGoalHalalas: Math.round(Number(get('fundingGoalSar')) * 100),
+    releaseThresholdPct: Number(get('releaseThresholdPct')), durationDays: Number(get('durationDays')),
     productSpecAr: get('productSpecAr') || undefined,
     expectedDeliveryDate: get('expectedDeliveryDate') || undefined,
   };
-
-  // ── 1) Create DRAFT ─────────────────────────────────────────────────────
-  let created: ApiProject;
+  const headers = { 'content-type': 'application/json', Authorization: `Bearer ${token}` };
   try {
-    const r = await fetch(`${API_BASE}/v1/projects`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
+    const response = await fetch(`${API_BASE}/v1/projects${draftId ? `/${draftId}` : ''}`, {
+      method: draftId ? 'PATCH' : 'POST', headers, body: JSON.stringify(body), cache: 'no-store',
     });
-    if (!r.ok) {
-      const j = (await r.json().catch(() => ({}))) as ApiError;
-      const msg = Array.isArray(j.message) ? j.message.join(' · ') : j.message ?? 'create-failed';
-      redirect(`/projects/submit?err=${encodeURIComponent(msg)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return { draftId, error: message(data.message, 'تعذّر حفظ الطلب. راجع الحقول ثم أعد المحاولة.') };
+    draftId = data.id;
+    if (!draftId) return { error: 'لم يصل تأكيد الحفظ. افتح مشاريعي للتحقق قبل إعادة الإرسال.' };
+    if (saving) return { draftId, saved: true };
+    const submitted = await fetch(`${API_BASE}/v1/projects/${draftId}/submit`, { method: 'POST', headers, cache: 'no-store' });
+    if (!submitted.ok) {
+      const failure = await submitted.json().catch(() => ({}));
+      return { draftId, error: message(failure.message, 'حُفظت المسودة، لكن تعذّر إرسالها للمراجعة. يمكنك إعادة المحاولة.') };
     }
-    created = (await r.json()) as ApiProject;
-  } catch (e) {
-    if (e instanceof Error && e.message === 'NEXT_REDIRECT') throw e;
-    redirect('/projects/submit?err=network');
+  } catch {
+    return { draftId, error: 'تعذّر الاتصال. بيانات النموذج باقية؛ أعد المحاولة بعد عودة الاتصال.' };
   }
+  redirect(`/projects/dashboard/requests/${draftId}`);
+}
 
-  // ── 2) Submit for review ────────────────────────────────────────────────
-  try {
-    const r = await fetch(`${API_BASE}/v1/projects/${created.id}/submit`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    });
-    if (!r.ok) {
-      // Create succeeded but submit didn't — send them to the project dashboard
-      // so they can fix what the server flagged and submit from there.
-      const j = (await r.json().catch(() => ({}))) as ApiError;
-      const msg = Array.isArray(j.message) ? j.message.join(' · ') : j.message ?? 'submit-failed';
-      redirect(`/projects/dashboard/${created.id}/settings?err=${encodeURIComponent(msg)}`);
-    }
-  } catch (e) {
-    if (e instanceof Error && e.message === 'NEXT_REDIRECT') throw e;
-    redirect(`/projects/dashboard/${created.id}/settings?err=network`);
+function message(value: unknown, fallback: string): string {
+  if (typeof value === 'string') {
+    if (value.includes('KYC required')) return 'حُفظت المسودة. أكمل توثيق هويتك عبر نفاذ قبل إرسال الطلب للمراجعة.';
+    return value;
   }
-
-  redirect(`/projects/dashboard/${created.id}?ok=submitted`);
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string')) return value.join(' · ');
+  return fallback;
 }

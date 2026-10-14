@@ -11,7 +11,9 @@ interface PayoutRow {
   projectId: string;
   // The read API joins the creator nested (ops-read.service.ts:467).
   creator?: { id: string; name: string | null; handle: string | null } | null;
-  amountHalalas: string;
+  grossHalalas: string;
+  providerRef?: string | null;
+  providerStatus?: string | null;
   netHalalas: string | null;
   feeWithheldHalalas: string | null;
   status: string;
@@ -19,6 +21,10 @@ interface PayoutRow {
   zatcaInvoiceId?: string | null;
   sentAt?: string | null;
 }
+
+const STATUS_LABEL: Record<string, string> = { SENT: 'مكتملة', PENDING: 'بانتظار الإرسال', SENDING: 'بانتظار التأكيد', FAILED: 'فاشلة' };
+const PROVIDER_LABEL: Record<string, string> = { queued: 'في طابور المزود', initiated: 'قيد المعالجة لدى البنك', paid: 'أكد المزود الدفع', failed: 'رفض المزود التحويل', canceled: 'ألغى المزود التحويل', returned: 'أُعيد التحويل؛ يلزم التحقيق' };
+const FAILURE_LABEL: Record<string, string> = { 'insufficient-unreserved-funds': 'الرصيد المتاح لا يغطي الالتزامات؛ الصرف موقوف للمطابقة.', 'configuration-incomplete': 'أكمل إعدادات التحويل قبل إعادة المحاولة.', 'provider-outcome-needs-reconciliation': 'النتيجة غير مؤكدة؛ لا تعِد إرسال المبلغ.', 'provider-rejected': 'رفض المزود التحويل؛ راجع المرجع قبل أي إجراء مالي جديد.', 'provider-returned-needs-reconciliation': 'يلزم مطابقة التحويل المعاد.', 'awaiting-provider-confirmation': 'لم يكتمل التحويل بعد.' };
 
 const STATUS_INTENT: Record<string, 'ok' | 'warn' | 'danger' | 'info' | 'muted'> = {
   SENT: 'ok',
@@ -44,6 +50,7 @@ export async function PayoutsPanel({
   let rows: PayoutRow[] = [];
   let nextCursor: string | null = null;
   let refused = false;
+  let unavailable = false;
   try {
     const res = await fetch(
       `${API_BASE}/v1/ops/money/payouts${qs({ status, cursor, limit: '50' })}`,
@@ -54,18 +61,25 @@ export async function PayoutsPanel({
       const b = (await res.json()) as { items: PayoutRow[]; nextCursor: string | null };
       rows = b.items;
       nextCursor = b.nextCursor;
-    }
+    } else unavailable = true;
   } catch {
-    /* tolerated */
+    unavailable = true;
   }
 
   if (refused) {
     return (
-      <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+      <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
         تفتقد صلاحية <code dir="ltr">money.execute</code> لعرض الدفعات.
       </p>
     );
   }
+
+  if (unavailable) return (
+    <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">
+      <p>تعذر تحميل الدفعات. لا يمكن تأكيد حالة العمليات الآن.</p>
+      <Link href={`/ops/money${qs({ tab: 'payouts', status, cursor })}`} className="mt-2 inline-block underline">إعادة تحميل الدفعات</Link>
+    </div>
+  );
 
   return (
     <section className="space-y-4">
@@ -73,6 +87,7 @@ export async function PayoutsPanel({
         <form method="get" className="flex items-center gap-2">
           <input type="hidden" name="tab" value="payouts" />
           <select
+            aria-label="حالة الدفعات"
             name="status"
             defaultValue={status ?? ''}
             className="rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3]"
@@ -97,6 +112,7 @@ export async function PayoutsPanel({
         />
       </div>
 
+      <p className="text-xs text-[#8b949e]">الصافي والعمولة يوضحان حساب الدفعة. لا يُعد الصرف مكتملًا حتى يؤكد مزود التحويل الدفع. التحقق يقرأ التحويل المحفوظ دون إرسال مبلغ جديد.</p>
       <div className="overflow-x-auto rounded-lg border border-[#21262d]">
         <table className="w-full min-w-[880px] text-sm">
           <thead className="bg-[#161b22] text-right text-[#8b949e]">
@@ -125,12 +141,14 @@ export async function PayoutsPanel({
                     {p.creator?.name ?? p.creator?.handle ?? `${p.projectId.slice(0, 8)}…`}
                   </Link>
                 </td>
-                <td className="px-3 py-2 tabular-nums">{formatSar(p.amountHalalas)}</td>
+                <td className="px-3 py-2 tabular-nums">{formatSar(p.grossHalalas)}</td>
                 <td className="px-3 py-2 tabular-nums">{formatSar(p.netHalalas)}</td>
                 <td className="px-3 py-2 tabular-nums">{formatSar(p.feeWithheldHalalas)}</td>
                 <td className="px-3 py-2">
-                  <StatusBadge intent={STATUS_INTENT[p.status] ?? 'muted'}>{p.status}</StatusBadge>
-                  {p.failureReason && <span className="block text-[11px] text-red-300">{p.failureReason}</span>}
+                  <StatusBadge intent={STATUS_INTENT[p.status] ?? 'muted'}>{STATUS_LABEL[p.status] ?? p.status}</StatusBadge>
+                  {p.providerStatus && <span className="block text-xs text-[#8b949e]">{PROVIDER_LABEL[p.providerStatus] ?? 'حالة مزود غير معروفة'}</span>}
+                  {p.providerRef && <span dir="ltr" className="block max-w-52 break-all text-[11px] text-[#8b949e]">{p.providerRef}</span>}
+                  {p.failureReason && <span className="block text-[11px] text-red-300">{FAILURE_LABEL[p.failureReason] ?? 'تحتاج الدفعة إلى مراجعة الإدارة.'}</span>}
                 </td>
                 <td className="px-3 py-2">
                   {p.status === 'SENT' && !p.zatcaInvoiceId ? (
@@ -145,7 +163,7 @@ export async function PayoutsPanel({
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1.5">
-                    {p.status === 'FAILED' && (
+                    {p.status === 'FAILED' && !p.providerRef && (
                       <OpRunner
                         opKey="money.payout.retry"
                         input={{ payoutId: p.id }}
@@ -155,6 +173,10 @@ export async function PayoutsPanel({
                         variant="danger"
                       />
                     )}
+                    {p.status === 'SENDING' && p.providerRef && (
+                      <OpRunner opKey="money.payout.reconcile" input={{ payoutId: p.id }} triggerLabel="التحقق من التحويل" riskTier="MONEY" requiresReason />
+                    )}
+                    {p.status === 'SENDING' && !p.providerRef && <span className="text-xs text-amber-300">يلزم العثور على مرجع التحويل ومطابقته قبل المتابعة.</span>}
                     {p.status === 'SENT' && !p.zatcaInvoiceId && (
                       <OpRunner
                         opKey="money.zatca.retry"

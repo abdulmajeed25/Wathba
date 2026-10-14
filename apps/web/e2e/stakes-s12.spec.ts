@@ -191,7 +191,7 @@ test('F-08: a refund webhook lands the in-app notification + email', async ({ pa
   const pledge = (await fetch(`${API}/v1/pledges`, {
     method: 'POST',
     headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ projectId, tierId: tiers[0]!.id, amountHalalas: 5000, source: 'tok_sandbox_refund' }),
+    body: JSON.stringify({ requestKey: crypto.randomUUID(), projectId, tierId: tiers[0]!.id, amountHalalas: 5000, source: 'tok_sandbox_refund' }),
   }).then((r) => r.json())) as { paymentRef?: string; pledge?: { paymentRef?: string } };
   const paymentRef = pledge.paymentRef ?? pledge.pledge?.paymentRef;
   expect(paymentRef).toBeTruthy();

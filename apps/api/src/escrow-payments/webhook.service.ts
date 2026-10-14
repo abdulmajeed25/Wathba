@@ -1,5 +1,12 @@
+import { verifyHeldEvidence } from './held-payment-action';
+import { canRecoverAuthorization, verifyAuthorizationEvidence } from './authorization-evidence';
+import { finalizeRefund } from './refund-finalization';
+import { verifyRefundEvidence } from './refund-evidence';
+import { finalizeUncountedVoid, verifyVoidEvidence } from './uncounted-void';
+import { completeProjectRefund } from '../funding/refund-completion';
 import {
   Injectable,
+  ConflictException,
   Logger,
   NotFoundException,
   ServiceUnavailableException,
@@ -13,7 +20,7 @@ import { EscrowService } from './escrow.service';
 import { AuditService } from '../identity/audit.service';
 import { EmailService } from '../email/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { LedgerEntryType, NotificationKind, PledgeStatus, Prisma } from '@prisma/client';
+import { LedgerEntryType, NotificationKind, PledgeStatus, Prisma, type Pledge } from '@prisma/client';
 
 /**
  * Moyasar webhook processor (Sprint 1 / P0-003).
@@ -28,9 +35,9 @@ import { LedgerEntryType, NotificationKind, PledgeStatus, Prisma } from '@prisma
  *    retries happen exactly when they can help.
  *
  * Event mapping onto the pledge FSM (paymentRef = Moyasar payment id):
- *   payment_authorized → HELD          (confirm; no state change)
+ *   payment_authorized → recover PENDING_AUTH using authoritative GET; confirm HELD
  *   payment_paid       → HELD→CAPTURED (capture confirmed by PSP)
- *   payment_failed     → HELD→FAILED
+ *   payment_failed     → recover an initial uncounted attempt; counted conflicts require review
  *   payment_voided     → HELD→REFUNDED (voided hold = our pre-capture refund)
  *   payment_refunded   → CAPTURED→REFUNDED
  * Anything else is recorded and ignored.
@@ -53,7 +60,7 @@ export class WebhookService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ledger: LedgerService,
+    _ledger: LedgerService,
     private readonly escrow: EscrowService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
@@ -109,16 +116,25 @@ export class WebhookService {
   }
 
   async process(payload: MoyasarWebhookPayload): Promise<{ outcome: WebhookOutcome }> {
-    const eventType = String(payload.type ?? 'unknown');
-    const pspRef = String(payload.data?.id ?? '');
+    let eventType = String(payload.type ?? 'unknown');
+    let pspRef = String(payload.data?.id ?? '');
+    // Store only the financial proof for capture/refund/void events, never their shared
+    // secret or card/source data. Historical rows remain untouched.
+    const storedPayload = ['payment_refunded', 'payment_voided', 'payment_paid'].includes(eventType) ? {
+      id: payload.id ?? null, type: eventType,
+      data: Object.fromEntries(['id', 'status', 'amount', 'captured', 'refunded', 'currency']
+        .filter(key => payload.data?.[key] !== undefined).map(key => [key, payload.data![key]])),
+    } : payload;
+    let paymentEvidence: unknown = storedPayload.data;
     const dedupKey =
       payload.id != null
         ? `moyasar:${String(payload.id)}`
         : `moyasar:${createHash('sha256')
-            .update(`${eventType}|${pspRef}|${String(payload.data?.status ?? '')}`)
+            .update(`${eventType}|${pspRef}|${String(payload.data?.status ?? '')}${['payment_refunded', 'payment_voided', 'payment_paid'].includes(eventType) ? `|${JSON.stringify(storedPayload.data)}` : ''}`)
             .digest('hex')}`;
 
-    // Idempotency claim — unique(dedupKey) makes the second delivery lose.
+    // A receipt is not proof of completion. A failed application leaves the
+    // saved event unfinished so ordinary provider redelivery can recover it.
     let eventRowId: string;
     try {
       const row = await this.prisma.webhookEvent.create({
@@ -126,23 +142,26 @@ export class WebhookService {
           eventType,
           pspRef,
           dedupKey,
-          payload: payload as unknown as Prisma.InputJsonValue,
+          payload: storedPayload as unknown as Prisma.InputJsonValue,
         },
       });
       eventRowId = row.id;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        this.logger.log(`webhook duplicate dedupKey=${dedupKey}`);
-        return { outcome: 'duplicate' };
-      }
-      throw err;
+        const saved = await this.prisma.webhookEvent.findUnique({ where: { dedupKey } });
+        if (!saved) throw err; // Do not swallow an unrelated uniqueness failure.
+        if (saved.processedAt !== null) return { outcome: 'duplicate' };
+        eventRowId = saved.id;
+        // Reuse the original immutable routing fields, never a replacement
+        // body submitted with an already-used provider event ID.
+        eventType = saved.eventType;
+        pspRef = saved.pspRef;
+        paymentEvidence = (saved.payload as MoyasarWebhookPayload | null)?.data;
+      } else throw err;
     }
 
-    const outcome = await this.apply(eventType, pspRef);
-    await this.prisma.webhookEvent.update({
-      where: { id: eventRowId },
-      data: { processedAt: new Date(), outcome },
-    });
+    const outcome = await this.apply(eventType, pspRef, paymentEvidence);
+    await this.recordOutcome(eventRowId, outcome);
     if (outcome === 'mismatch') {
       this.logger.error(
         `WEBHOOK MISMATCH type=${eventType} pspRef=${pspRef} — no matching pledge/transition; needs reconciliation`,
@@ -168,11 +187,8 @@ export class WebhookService {
   async replayStored(webhookEventId: string): Promise<{ outcome: WebhookOutcome }> {
     const row = await this.prisma.webhookEvent.findUnique({ where: { id: webhookEventId } });
     if (!row) throw new NotFoundException('webhook event not found');
-    const outcome = await this.apply(row.eventType, row.pspRef);
-    await this.prisma.webhookEvent.update({
-      where: { id: row.id },
-      data: { processedAt: new Date(), outcome },
-    });
+    const outcome = await this.apply(row.eventType, row.pspRef, (row.payload as MoyasarWebhookPayload | null)?.data);
+    await this.recordOutcome(row.id, outcome);
     if (outcome === 'mismatch') {
       this.logger.error(
         `WEBHOOK REPLAY still mismatched id=${row.id} type=${row.eventType} pspRef=${row.pspRef} — no valid transition even on replay`,
@@ -181,19 +197,56 @@ export class WebhookService {
     return { outcome };
   }
 
-  private async apply(eventType: string, pspRef: string): Promise<WebhookOutcome> {
+  private async recordOutcome(id: string, outcome: WebhookOutcome): Promise<void> {
+    // Concurrent delivery/replay can observe the completed pledge and report
+    // ignored/mismatch. It must not erase an already-recorded application.
+    await this.prisma.webhookEvent.updateMany({
+      where: { id, ...(outcome === 'applied' ? {} : {
+        OR: [{ outcome: null }, { outcome: { not: 'applied' } }],
+      }) },
+      data: { processedAt: new Date(), outcome },
+    });
+  }
+
+  private async racedTransition(pledge: Pledge, target: PledgeStatus): Promise<WebhookOutcome> {
+    const current = await this.prisma.pledge.findUnique({ where: { id: pledge.id } });
+    return current?.status === target && current.paymentRef === pledge.paymentRef &&
+      current.amountHalalas === pledge.amountHalalas && current.addOnsHalalas === pledge.addOnsHalalas
+      ? 'ignored' : 'mismatch';
+  }
+
+  private async apply(eventType: string, pspRef: string, paymentEvidence?: unknown): Promise<WebhookOutcome> {
     if (!pspRef) return 'ignored';
     const pledge = await this.prisma.pledge.findFirst({ where: { paymentRef: pspRef } });
     if (!pledge) return 'mismatch';
 
+    // Events are hints to fetch the current payment, not permission to create
+    // a payment or to replace accepted financial terms. This also works when
+    // the backer closes the bank page before returning to Wathba.
+    if (pledge.status === PledgeStatus.PENDING_AUTH && ['payment_authorized', 'payment_failed'].includes(eventType)) {
+      if (!canRecoverAuthorization(pledge)) return 'mismatch';
+      try {
+        const result = await this.escrow.reconcileInitialAuthorization(pledge.id);
+        if (result.outcome === 'confirmed' || result.outcome === 'uncharged') return result.applied ? 'applied' : 'ignored';
+        return 'mismatch';
+      } catch (error) {
+        if (error instanceof ConflictException) return 'mismatch';
+        throw error; // A transient GET/DB failure leaves the receipt retryable.
+      }
+    }
+
     switch (eventType) {
       case 'payment_authorized':
-        // Hold confirmed; our pledge is already HELD from the sync path.
-        return pledge.status === PledgeStatus.HELD ? 'applied' : 'ignored';
+        if (pledge.status !== PledgeStatus.HELD) return 'ignored';
+        try { return verifyAuthorizationEvidence(paymentEvidence, pledge).outcome === 'authorized' ? 'applied' : 'mismatch'; }
+        catch { return 'mismatch'; }
 
       case 'payment_paid': {
         if (pledge.status === PledgeStatus.CAPTURED) return 'ignored';
-        if (pledge.status !== PledgeStatus.HELD) return 'mismatch';
+        if (!([PledgeStatus.HELD, PledgeStatus.PENDING_REAUTH,
+          PledgeStatus.CAPTURE_GRACE, PledgeStatus.FAILED_CAPTURE] as PledgeStatus[]).includes(pledge.status)) return 'mismatch';
+        try { if (verifyHeldEvidence(paymentEvidence, pledge, 'CAPTURE').outcome !== 'confirmed') return 'mismatch'; }
+        catch { return 'mismatch'; }
         // OPS-0 correction #1 — a webhook-confirmed capture goes through the
         // SAME markCaptured chokepoint as the sync path: realizedHalalas is
         // credited and the ledger row written once. Before this fix, captures
@@ -220,38 +273,29 @@ export class WebhookService {
 
       case 'payment_failed': {
         if (pledge.status === PledgeStatus.FAILED) return 'ignored';
-        if (pledge.status !== PledgeStatus.HELD) return 'mismatch';
-        await this.prisma.pledge.update({
-          where: { id: pledge.id },
-          data: { status: PledgeStatus.FAILED },
-        });
-        // MONEY-AUDIT — HELD→FAILED (authorization declined by the PSP).
-        // Guarded by the status checks (already-FAILED → 'ignored'). Never throws.
-        await this.audit.log({
-          actorId: null,
-          action: 'system.webhook.failed',
-          entity: 'Pledge',
-          entityId: pledge.id,
-          detail: { pspRef, projectId: pledge.projectId },
-        });
-        return 'applied';
+        // A failure label cannot revoke an already-counted commitment while
+        // leaving its funding, stock and user totals intact. Reconcile the
+        // financial attempt through its owned transition instead.
+        return 'mismatch';
       }
 
       case 'payment_voided': {
         if (pledge.status === PledgeStatus.REFUNDED) return 'ignored';
-        if (pledge.status !== PledgeStatus.HELD) return 'mismatch';
-        await this.prisma.pledge.update({
-          where: { id: pledge.id },
-          data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
-        });
-        await this.ledger.record({
-          entryType: LedgerEntryType.VOID,
-          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
-          pspRef,
-          pledgeId: pledge.id,
-          projectId: pledge.projectId,
-          source: 'webhook',
-        });
+        if (pledge.status === PledgeStatus.PENDING_AUTH) {
+          try { if (verifyVoidEvidence(paymentEvidence, pledge).outcome !== 'confirmed') return 'mismatch'; }
+          catch { return 'mismatch'; }
+          const result = await this.prisma.$transaction(async tx => {
+            const applied = await finalizeUncountedVoid(tx, pledge, 'webhook');
+            if (applied !== 'mismatch') await completeProjectRefund(tx, pledge.projectId);
+            return applied;
+          });
+          return result === 'applied' ? 'applied' : result === 'duplicate' ? 'ignored' : 'mismatch';
+        }
+        if (pledge.status !== PledgeStatus.HELD && pledge.status !== PledgeStatus.PENDING_REAUTH) return 'mismatch';
+        try { if (verifyVoidEvidence(paymentEvidence, pledge).outcome !== 'confirmed') return 'mismatch'; }
+        catch { return 'mismatch'; }
+        const result = await this.prisma.$transaction(tx => finalizeRefund(tx, pledge, { source: 'webhook' }));
+        if (result !== 'applied') return result === 'duplicate' ? 'ignored' : 'mismatch';
         // MONEY-AUDIT — voided hold = pre-capture refund (HELD→REFUNDED).
         // Status-guarded (already-REFUNDED → 'ignored'), so replay-safe. Never throws.
         await this.audit.log({
@@ -273,18 +317,14 @@ export class WebhookService {
       case 'payment_refunded': {
         if (pledge.status === PledgeStatus.REFUNDED) return 'ignored';
         if (pledge.status !== PledgeStatus.CAPTURED) return 'mismatch';
-        await this.prisma.pledge.update({
-          where: { id: pledge.id },
-          data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
+        try { if (verifyRefundEvidence(paymentEvidence, pledge).outcome !== 'confirmed') return 'mismatch'; }
+        catch { return 'mismatch'; }
+        const result = await this.prisma.$transaction(async tx => {
+          const applied = await finalizeRefund(tx, pledge, { source: 'webhook' });
+          if (applied === 'applied') await completeProjectRefund(tx, pledge.projectId);
+          return applied;
         });
-        await this.ledger.record({
-          entryType: LedgerEntryType.REFUND,
-          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
-          pspRef,
-          pledgeId: pledge.id,
-          projectId: pledge.projectId,
-          source: 'webhook',
-        });
+        if (result !== 'applied') return result === 'duplicate' ? 'ignored' : 'mismatch';
         // MONEY-AUDIT — post-capture refund (CAPTURED→REFUNDED). Status-guarded
         // (already-REFUNDED → 'ignored'), so replay-safe. Never throws.
         await this.audit.log({
@@ -310,18 +350,21 @@ export class WebhookService {
         // truth, flip the pledge to DISPUTED, and raise an audit + alert.
         if (pledge.status === PledgeStatus.DISPUTED) return 'ignored';
         if (pledge.status !== PledgeStatus.CAPTURED) return 'mismatch';
-        await this.prisma.pledge.update({
-          where: { id: pledge.id },
-          data: { status: PledgeStatus.DISPUTED },
+        const applied = await this.prisma.$transaction(async tx => {
+          const changed = await tx.pledge.updateMany({
+            where: { id: pledge.id, paymentRef: pspRef, status: PledgeStatus.CAPTURED,
+              amountHalalas: pledge.amountHalalas, addOnsHalalas: pledge.addOnsHalalas },
+            data: { status: PledgeStatus.DISPUTED },
+          });
+          if (changed.count !== 1) return false;
+          await tx.ledgerEntry.create({ data: {
+            entryType: LedgerEntryType.DISPUTE,
+            amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
+            pspRef, pledgeId: pledge.id, projectId: pledge.projectId, source: 'webhook',
+          } });
+          return true;
         });
-        await this.ledger.record({
-          entryType: LedgerEntryType.DISPUTE,
-          amountHalalas: pledge.amountHalalas + pledge.addOnsHalalas,
-          pspRef,
-          pledgeId: pledge.id,
-          projectId: pledge.projectId,
-          source: 'webhook',
-        });
+        if (!applied) return this.racedTransition(pledge, PledgeStatus.DISPUTED);
         await this.audit.log({
           action: 'pledge.disputed',
           entity: 'Pledge',

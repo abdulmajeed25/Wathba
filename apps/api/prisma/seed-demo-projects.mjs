@@ -332,10 +332,19 @@ async function main() {
     { n: 7, slug: 'ufuq-photobook',     titleAr: 'أفق — كتاب تصوير الصحراء',           shortDescAr: 'كتاب تصوير فوتوغرافي لصحارى الجزيرة.',                  story: 'أفق كتاب تصوير فوتوغرافي يوثّق صحارى الجزيرة عبر أربعة فصول، بطباعة متحفية وورق مؤرشف.', cat: 'photography', legacy: null,        region: 'NAJRAN',  goal: 6_000_000,  raised: 900_000,    backers: 78,  creator: 'sirb', pct: 15 },
   ];
 
-  const creatorOf = { sirb: sirb.id, c2: creator2.id };
   for (const p of extras) {
     const pid = `33333333-0000-4000-8000-00000000000${p.n}`;
     const cid = await catId(p.cat);
+    // Each new LIVE fixture obeys the same one-active-campaign constraint as
+    // real creators. Never reassign an existing project's owner on a rerun.
+    const creator = p.n === 1 ? creator2 : await prisma.user.upsert({
+      where: { email: `catalogue-${p.slug}@wathba.demo` },
+      update: {},
+      create: {
+        email: `catalogue-${p.slug}@wathba.demo`, name: `فريق ${p.titleAr}`,
+        roles: ['BACKER', 'CREATOR'], passwordHash: demoHash, ...verified,
+      },
+    });
     await upsertProject(prisma, {
       where: { id: pid },
       update: {},
@@ -357,7 +366,7 @@ async function main() {
         publishedAt: daysAgo(p.n * 2),
         slug: p.slug,
         isStaffPick: p.n === 2 || p.n === 6,
-        createdById: creatorOf[p.creator],
+        createdById: creator.id,
         // one featured + one standard tier each
         rewardTiers: {
           create: [

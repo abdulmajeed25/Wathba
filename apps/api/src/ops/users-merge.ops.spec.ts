@@ -55,6 +55,7 @@ function buildPrisma(): { proxy: PrismaService; m: (name: string) => Model } {
     {
       get(_t, prop) {
         if (typeof prop !== 'string') return undefined;
+        if (prop === '$queryRaw') return jest.fn().mockResolvedValue([]);
         if (prop === '$transaction') {
           return (fn: (tx: unknown) => unknown) => fn(proxy);
         }

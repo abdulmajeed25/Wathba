@@ -17,6 +17,16 @@ export function DashboardOverview({
   if (!project) {
     return <SectionHeader title="نظرة عامة" subtitle="تعذّر تحميل بيانات المشروع." />;
   }
+  if (project.status === 'DRAFT' || project.status === 'UNDER_REVIEW') {
+    const base = `/projects/dashboard/${encodeURIComponent(project.id)}`;
+    return <>
+      <SectionHeader title="تجهيز الحملة" subtitle="أكمل المحتوى وخطة التنفيذ قبل طلب موافقة النشر. يبدأ عدّاد التمويل عند النشر فقط." />
+      <PanelLink href={`${base}/story`} label="القصة والصور — عرّف بفكرتك وكيف ستنفذها" cta="تحرير القصة ←" />
+      <PanelLink href={`${base}/rewards`} label="المكافآت — حدّد ما سيحصل عليه الداعم" cta="إدارة المكافآت ←" />
+      <PanelLink href={`${base}/milestones`} label="المراحل — وضّح أدلة الإنجاز والصرف" cta="خطة التنفيذ ←" />
+      <PanelLink href={`${base}/settings`} label={project.status === 'UNDER_REVIEW' ? 'أُرسلت الحملة لمراجعة النشر' : 'راجع التفاصيل وأرسل الحملة لموافقة النشر'} cta="الإعدادات ←" />
+    </>;
+  }
 
   const goal = project.fundingGoalHalalas;
   const raised = project.raisedHalalas;

@@ -15,7 +15,6 @@ import {
 import { categoryCount, categoryHref, categoryIcon, type HomeCategory } from './wathba-categories';
 import type { ApiPopularFacet } from '@/lib/api/wathba';
 import { toDisplayDigits } from './discover-all-constants';
-import { WathbaHomeStats } from './wathba-home-stats';
 import { WathbaHomeTrending } from './wathba-home-trending';
 import { Icon, Num } from './wathba-icons';
 
@@ -719,7 +718,7 @@ export function wathbaHomeRenderers(
                 margin: '0 auto 30px',
               }}
             >
-              انضم لآلاف المبدعين الذين حوّلوا أفكارهم إلى مشاريع ناجحة على وثبة.
+              قدّم فكرتك، جهّز حملتك، وابنِ مجتمعًا يدعم خطوات تنفيذها.
             </p>
             <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Link
@@ -813,9 +812,12 @@ export function WathbaHome({
   // code-owned key the API did not mention is appended in its own order, so
   // the worst case is a stale sequence rather than a missing page.
   const fromApi = order?.length ? order : [];
-  const keys = fromApi.length
+  const requestedKeys = fromApi.length
     ? [...fromApi, ...OWN_ORDER.filter((k) => !fromApi.includes(k))]
     : OWN_ORDER;
+  // These prototype sections contain invented transactions and spending splits.
+  // Restore them only when they have an actual, scoped data source.
+  const keys = requestedKeys.filter((key) => key !== 'live_ticker' && key !== 'transparency');
 
   return (
     <div className="wathba-fade">
@@ -907,7 +909,7 @@ export function WathbaHome({
                 animation: 'wathba-pulsering 2s infinite',
               }}
             />
-            منصة الدعم الجماعي الأولى عربياً
+            منصة دعم جماعي للمشاريع الإبداعية
           </div>
           {/* Arabic display type, so two Latin-typography habits had to go.
               -1.5px tracking pulls cursive joins apart — Arabic letter-spacing
@@ -1031,7 +1033,7 @@ export function WathbaHome({
           {/* The credibility row sits on the column's bottom edge, so its
               distance from the fold is --hero-col-h and nothing else. */}
           <div style={{ marginTop: 'auto' }}>
-            <WathbaHomeStats />
+            <p style={{ lineHeight: 1.8, color: 'var(--muted)' }}>تمويل بالمكافآت · مراجعة الحملات قبل النشر · متابعة مراحل التنفيذ</p>
           </div>
         </div>
 

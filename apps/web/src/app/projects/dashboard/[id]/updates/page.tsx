@@ -13,7 +13,8 @@ export default async function UpdatesPage({
 }): Promise<React.ReactElement> {
   const { id } = await params;
   const page = await listProjectUpdates(id, { take: 50 });
-  const items = page?.items ?? [];
+  if (!page || !Array.isArray(page.items)) throw new Error('تعذر تحميل تحديثات الحملة');
+  const items = page.items;
 
   return <DashboardUpdatesComposer projectId={id} initial={items} />;
 }

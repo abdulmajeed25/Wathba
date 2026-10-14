@@ -177,12 +177,20 @@ export function CommandPalette() {
 
   return (
     <>
+      <button type="button" aria-haspopup="dialog" onClick={() => setOpen(true)}
+        className="flex min-h-[44px] items-center gap-3 rounded-lg border border-[#30363d] bg-[#161b22] px-3 text-sm text-[#e6edf3] focus-visible:outline-2 focus-visible:outline-[#58a6ff]">
+        بحث سريع
+        <kbd aria-hidden="true" className="hidden text-[11px] text-[#8b949e] sm:inline" dir="ltr">Ctrl K</kbd>
+      </button>
       {open ? (
         <div
           className="fixed inset-0 z-40 flex items-start justify-center bg-black/50 p-4 pt-[12vh]"
           role="dialog"
           aria-modal="true"
           aria-label="لوحة الأوامر"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') { event.preventDefault(); setOpen(false); }
+          }}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}
@@ -192,16 +200,21 @@ export function CommandPalette() {
             dir="rtl"
             className="w-full max-w-xl overflow-hidden rounded-lg border border-[#30363d] bg-[#161b22] shadow-2xl"
           >
+            <div className="flex items-center justify-between border-b border-[#30363d] px-4">
+              <span className="text-sm font-bold">الانتقال إلى قسم أو إجراء</span>
+              <button type="button" onClick={() => setOpen(false)} aria-label="إغلاق البحث"
+                className="min-h-[44px] min-w-[44px] rounded text-xl focus-visible:outline-2 focus-visible:outline-[#58a6ff]">×</button>
+            </div>
             <input
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onKeyDown}
-              placeholder="قسم، عملية، أو معرّف سجل (UUID)… (Ctrl+K)"
+              placeholder="ابحث عن قسم أو إجراء…"
               aria-label="ابحث في الأقسام والعمليات"
               className="w-full border-b border-[#30363d] bg-transparent px-4 py-3 text-sm outline-none placeholder:text-[#484f58]"
             />
-            <ul role="listbox" className="max-h-[50vh] overflow-y-auto py-1">
+            <ul role="listbox" aria-label="نتائج البحث السريع" className="max-h-[50vh] overflow-y-auto py-1">
               {entries.length === 0 ? (
                 <li className="px-4 py-6 text-center text-sm text-[#8b949e]">لا نتائج مطابقة</li>
               ) : (
@@ -211,11 +224,11 @@ export function CommandPalette() {
                       type="button"
                       onMouseEnter={() => setActive(i)}
                       onClick={() => choose(e)}
-                      className={`flex w-full items-center justify-between gap-3 px-4 py-2 text-right text-sm ${
+                      className={`flex min-h-[44px] w-full items-center justify-between gap-3 px-4 py-2 text-right text-sm ${
                         i === active ? 'bg-[#21262d]' : 'hover:bg-[#1c2128]'
                       }`}
                     >
-                      <span className="flex items-center gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
                         <span
                           className={`rounded px-1.5 py-0.5 text-[10px] ${
                             e.kind === 'section'
@@ -229,11 +242,11 @@ export function CommandPalette() {
                                     : 'border border-sky-500/40 text-sky-300'
                           }`}
                         >
-                          {e.kind === 'section' ? 'قسم' : e.kind === 'jump' ? 'انتقال' : e.op.riskTier}
+                          {e.kind === 'section' ? 'قسم' : e.kind === 'jump' ? 'انتقال' : ({ MONEY: 'مالي', SENSITIVE: 'حساس', STANDARD: 'إداري', CONTENT: 'محتوى' })[e.op.riskTier]}
                         </span>
                         {e.labelAr}
                       </span>
-                      <span className="truncate text-[11px] text-[#484f58]" dir="ltr">
+                      <span className="hidden truncate text-[11px] text-[#8b949e] sm:block" dir="auto">
                         {e.hintAr}
                       </span>
                     </button>

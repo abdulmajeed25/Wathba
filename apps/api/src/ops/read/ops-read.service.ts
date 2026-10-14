@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { canRecoverAuthorization } from '../../escrow-payments/authorization-evidence';
 import {
   Prisma,
   type AppealKind,
@@ -25,6 +26,7 @@ import { SettingsService } from '../../settings/settings.service';
 import { OpsAuditService } from '../ops-audit.service';
 import { permissionMatches } from '../permissions';
 import { maskEmail, maskPhone } from '../pii';
+import { affectedPledgeStatuses, consentTermsCurrent } from '../../projects/change-consent.service';
 
 /**
  * Batch OPS-PRO Phase 2 — the OPS READ surface. The registry owns every
@@ -447,6 +449,37 @@ export class OpsReadService {
 
   /* ── 2. PROJECTS (projects.review) ─────────────────────────────────────── */
 
+  async listProjectChanges(f: CursorFilter & { status?: import('@prisma/client').ProjectChangeStatus }) {
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.projectChangeRequest.findMany({
+      where: { ...(f.status ? { status: f.status } : {}) },
+      ...extra,
+      include: { project: { select: { id: true, titleAr: true } } },
+    });
+    return this.slice(rows, take, row => row);
+  }
+
+  async projectChangeResponses(requestId: string, f: CursorFilter) {
+    const request = await this.prisma.projectChangeRequest.findUnique({ where: { id: requestId }, include: { project: true } });
+    if (!request) throw new NotFoundException('الطلب غير موجود');
+    const { take, extra } = this.pageArgs(f);
+    const rows = await this.prisma.pledge.findMany({
+      where: { projectId: request.projectId, OR: [{ status: { in: affectedPledgeStatuses } }, { changeResponses: { some: { requestId } } }] },
+      ...extra,
+      include: { changeResponses: { where: { requestId }, orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    return this.slice(rows, take, pledge => {
+      const response = pledge.changeResponses[0];
+      const snapshot = response?.pledgeSnapshot as Record<string, unknown> | undefined;
+      const matches = !!snapshot && snapshot.amountHalalas === pledge.amountHalalas.toString()
+        && snapshot.addOnsHalalas === pledge.addOnsHalalas.toString() && snapshot.status === pledge.status
+        && snapshot.tierId === pledge.tierId && snapshot.contractType === pledge.contractType;
+      return { id: pledge.id, backerNo: pledge.backerNo, amountHalalas: (pledge.amountHalalas + pledge.addOnsHalalas).toString(),
+        pledgeStatus: pledge.status, decision: response?.decision ?? null, respondedAt: iso(response?.createdAt),
+        responseCurrent: matches && request.status === 'CONSENT_OPEN' && affectedPledgeStatuses.includes(pledge.status) && consentTermsCurrent(request, request.project) };
+    });
+  }
+
   async listProjects(f: ProjectListFilter): Promise<Page<ReturnType<OpsReadService['projectRow']>>> {
     const where: Prisma.ProjectWhereInput = {
       ...(f.status ? { status: f.status as ProjectStatus } : {}),
@@ -492,6 +525,7 @@ export class OpsReadService {
       id: r.id,
       titleAr: r.titleAr,
       status: r.status,
+      applicationApprovedAt: iso(r.applicationApprovedAt),
       categoryId: r.categoryId,
       categoryNameAr: r.categoryRef?.nameAr ?? null,
       goalHalalas: h(r.fundingGoalHalalas),
@@ -532,6 +566,7 @@ export class OpsReadService {
         createdBy: { select: { id: true, handle: true, name: true } },
         categoryRef: { select: { id: true, nameAr: true } },
         milestones: { orderBy: { order: 'asc' } },
+        changeRequests: { orderBy: { createdAt: 'desc' }, take: 100 },
       },
     });
     if (!p) throw new NotFoundException('المشروع غير موجود');
@@ -568,6 +603,8 @@ export class OpsReadService {
       deadline: iso(p.deadline),
       publishedAt: iso(p.publishedAt),
       reviewedAt: iso(p.reviewedAt),
+      applicationApprovedAt: iso(p.applicationApprovedAt),
+      changeRequests: p.changeRequests,
       reviewFeedback: p.reviewFeedback,
       hiddenAt: iso(p.hiddenAt),
       hiddenReasonAr: p.hiddenReasonAr,
@@ -722,7 +759,8 @@ export class OpsReadService {
     const where: Prisma.PledgeWhereInput = {
       ...(f.projectId ? { projectId: f.projectId } : {}),
       ...(f.backerId ? { backerId: f.backerId } : {}),
-      ...(f.status ? { status: f.status as PledgeStatus } : {}),
+      ...(f.status === 'REFUND_PENDING' ? { refundReservedHalalas: { gt: 0n } }
+        : f.status ? { status: f.status as PledgeStatus } : {}),
     };
     const { take, extra } = this.pageArgs(f);
     const rows = await this.prisma.pledge.findMany({
@@ -744,6 +782,11 @@ export class OpsReadService {
       addOnsHalalas: h(r.addOnsHalalas),
       status: r.status,
       paymentMethod: r.paymentMethod,
+      authorizationIssue: r.authorizationIssue,
+      authorizationRecoverable: canRecoverAuthorization(r),
+      refundRequestedAt: iso(r.refundRequestedAt),
+      refundReservedHalalas: h(r.refundReservedHalalas),
+      refundIssue: r.refundIssue,
       contractType: r.contractType,
       graceStartedAt: iso(r.graceStartedAt),
       graceExpiresAt: iso(r.graceExpiresAt),
@@ -782,6 +825,9 @@ export class OpsReadService {
       feeWithheldHalalas: h(r.feeWithheldHalalas),
       status: r.status,
       failureReason: r.failureReason,
+      providerRef: r.providerRef,
+      providerStatus: r.providerStatus,
+      providerCheckedAt: iso(r.providerCheckedAt),
       zatcaInvoiceId: r.zatcaInvoiceId,
       sentAt: iso(r.sentAt),
       createdAt: iso(r.createdAt),
@@ -1220,6 +1266,7 @@ export class OpsReadService {
       descAr: snippet(r.descAr),
       includesPhysicalProduct: r.includesPhysicalProduct,
       requiresShipping: r.requiresShipping,
+      shippingHalalas: h(r.shippingHalalas),
       estDeliveryDate: iso(r.estDeliveryDate),
       limitQty: r.limitQty,
       claimedQty: r.claimedQty,
@@ -1418,7 +1465,7 @@ export class OpsReadService {
    */
   async listWebhookEvents(f: WebhookListFilter) {
     const where: Prisma.WebhookEventWhereInput = {
-      ...(f.outcome ? { outcome: f.outcome } : {}),
+      ...(f.outcome === 'pending' ? { processedAt: null } : f.outcome ? { outcome: f.outcome } : {}),
       ...(f.provider ? { provider: f.provider } : {}),
     };
     const { take, extra } = this.pageArgs(f);

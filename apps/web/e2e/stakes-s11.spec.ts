@@ -48,6 +48,15 @@ test('F-05 + D3: follower is notified on publish; bell marks all read', async ({
       durationDays: 30,
     }),
   }).then((r) => r.json())) as { id: string };
+  // Initial approval opens preparation, before configuring rewards.
+  const applicationSubmission = await fetch(`${API}/v1/projects/${proj.id}/submit`, { method: 'POST', headers: smokeAuth });
+  if (!applicationSubmission.ok) throw new Error(`application submission failed: ${applicationSubmission.status}`);
+  const initialApproval = await fetch(`${API}/v1/admin/projects/${proj.id}/review`, {
+    method: 'POST', headers: smokeAuth,
+    body: JSON.stringify({ decision: 'approve' }),
+  });
+  if (!initialApproval.ok) throw new Error(`application approval failed: ${initialApproval.status}`);
+
   await fetch(`${API}/v1/projects/${proj.id}/submit`, { method: 'POST', headers: smokeAuth });
   const approve = await fetch(`${API}/v1/admin/projects/${proj.id}/review`, {
     method: 'POST',
@@ -135,6 +144,7 @@ test('F-18 (C10): comment-reply notification links the actor profile', async ({ 
     body: JSON.stringify({
       projectId,
       tierId: tiers[0]!.id,
+      requestKey: crypto.randomUUID(),
       amountHalalas: 5000,
       source: 'tok_sandbox_e2e',
     }),

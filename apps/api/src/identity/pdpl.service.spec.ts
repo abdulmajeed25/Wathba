@@ -25,7 +25,14 @@ const USER = {
 
 function makePrisma(over: Record<string, any> = {}): any {
   const prisma: any = {
+    $queryRaw: jest.fn().mockResolvedValue([]),
+    opsRoleGrant: { findFirst: jest.fn().mockResolvedValue(null) },
+    refreshToken: { updateMany: jest.fn() },
+    opsSession: { updateMany: jest.fn() },
+    passwordResetToken: { updateMany: jest.fn() },
+    emailVerifyToken: { updateMany: jest.fn() },
     user: {
+      findFirst: jest.fn().mockResolvedValue(null),
       findUnique: jest.fn().mockResolvedValue(USER),
       update: jest.fn().mockResolvedValue({}),
     },

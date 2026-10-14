@@ -44,13 +44,13 @@ export default async function DashboardProjectLayout({
    * rather than to the editor, which would drop the reason on the floor.
    */
   const rejected = project.status === 'DRAFT' && Boolean(project.reviewFeedback);
-  if (rejected || project.status === 'UNDER_REVIEW') {
+  if (!project.applicationApprovedAt && (rejected || project.status === 'UNDER_REVIEW')) {
     // OUTSIDE the [id] tree deliberately — a tracker nested under the layout
     // that redirects to it would redirect to itself forever, and the gate would
     // present as a hang rather than a refusal.
     redirect(`/projects/dashboard/requests/${encodeURIComponent(project.id)}`);
   }
-  if (project.status === 'DRAFT') {
+  if (!project.applicationApprovedAt && project.status === 'DRAFT') {
     redirect(`/projects/submit?draft=${encodeURIComponent(project.id)}`);
   }
 
@@ -60,6 +60,14 @@ export default async function DashboardProjectLayout({
       projectTitle={project.titleAr}
       projectStatus={project.status}
     >
+      {project.applicationApprovedAt && ['DRAFT', 'UNDER_REVIEW'].includes(project.status) && (
+        <section role="status" style={{ padding: 20, marginBottom: 20, border: '1px solid var(--border-subtle)', borderRadius: 12 }}>
+          <h2 style={{ fontWeight: 700 }}>{project.status === 'DRAFT' ? 'اعتُمد طلبك — جهّز حملتك' : 'الحملة بانتظار موافقة النشر'}</h2>
+          <p>الحملة غير منشورة ولا تستقبل تمويلاً. بعد تجهيز التفاصيل أرسلها من الإعدادات لموافقة النشر.</p>
+          {project.reviewFeedback && <p>{project.reviewFeedback}</p>}
+          <a href={`/projects/dashboard/${encodeURIComponent(project.id)}/settings`}>إعدادات الحملة ومراجعة النشر</a>
+        </section>
+      )}
       {children}
     </DashboardShell>
   );

@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from './audit.service';
 import { PledgeStatus, ProjectStatus } from '@prisma/client';
+import { protectAdministrativeIdentity, revokeIdentityCredentials } from './administrative-identity';
 
 /**
  * PDPL data-subject rights (Sprint 2 / P0-702).
@@ -104,6 +105,8 @@ export class PdplService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      await protectAdministrativeIdentity(tx, [userId]);
+      await revokeIdentityCredentials(tx, userId);
       // Anonymize the identity row; financial rows keep their FK to the
       // now-anonymous shell (AML/commercial retention).
       await tx.user.update({

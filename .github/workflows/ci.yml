@@ -14,6 +14,21 @@ jobs:
     name: typecheck · lint · test · build · audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: wathba_test
+          POSTGRES_PASSWORD: local-test-only
+          POSTGRES_DB: wathba_audit
+        ports: ['55432:5432']
+        options: >-
+          --health-cmd "pg_isready -U wathba_test -d wathba_audit" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:4001
+      DATABASE_URL: postgresql://wathba_test:local-test-only@127.0.0.1:55432/wathba_audit?schema=public&connection_limit=5
+      WATHBA_CONSENT_DB_TESTS: '1'
     steps:
       - uses: actions/checkout@v4
 
@@ -31,11 +46,14 @@ jobs:
       - name: Prisma generate (API client types)
         run: pnpm --filter @wathba/api prisma:generate
 
+      - name: Migrate isolated verification database
+        run: pnpm --filter @wathba/api exec prisma migrate deploy
+
       - name: Typecheck API
         run: pnpm --filter @wathba/api exec tsc --noEmit
 
       - name: Typecheck Web
-        run: pnpm --filter @wathba/web exec tsc --noEmit
+        run: pnpm --filter @wathba/web typecheck
 
       - name: Lint API
         run: pnpm --filter @wathba/api lint
@@ -44,9 +62,11 @@ jobs:
         run: pnpm --filter @wathba/web lint
 
       - name: Test API
-        run: pnpm --filter @wathba/api test
+        run: pnpm --filter @wathba/api test -- --runInBand
 
       - name: Build Web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4001
         run: pnpm --filter @wathba/web build
 
       # Gate on critical advisories today; tighten to `high` once the
@@ -57,7 +77,7 @@ jobs:
   e2e:
     name: playwright golden journeys
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -78,6 +98,16 @@ jobs:
       JWT_SECRET: e2e-ci-secret-value-not-a-placeholder-000
       NEXT_PUBLIC_API_URL: http://localhost:4001
       API_BASE_URL: http://localhost:4001
+      THROTTLE_LIMIT: 10000
+      AUTH_SIGNUP_THROTTLE_LIMIT: 10000
+      AUTH_SIGNIN_THROTTLE_LIMIT: 10000
+      OPS_AUTH_THROTTLE_LIMIT: 10000
+      MINIO_ENDPOINT: http://127.0.0.1:9000
+      MINIO_PUBLIC_ENDPOINT: http://127.0.0.1:9000
+      NEXT_PUBLIC_MEDIA_URL: http://127.0.0.1:9000
+      MINIO_ACCESS_KEY: wathba-ci-media
+      MINIO_SECRET_KEY: isolated-ci-media-only
+      MEDIA_BUCKET: wathba-ci-media
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -89,6 +119,22 @@ jobs:
       - run: pnpm --filter @wathba/api prisma:generate
       - run: pnpm --filter @wathba/api exec prisma migrate deploy
       - run: pnpm --filter @wathba/web exec playwright install --with-deps chromium
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.8'
+          cache: false
+      - name: Prepare isolated media fixtures
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          # The upstream Docker distribution is no longer available. Build a
+          # pinned official source release for this loopback-only test fixture.
+          GOBIN="$RUNNER_TEMP/wathba-ci-bin" go install github.com/minio/minio@RELEASE.2025-10-15T17-29-55Z
+          MINIO_ROOT_USER="$MINIO_ACCESS_KEY" MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
+            "$RUNNER_TEMP/wathba-ci-bin/minio" server "$RUNNER_TEMP/wathba-ci-media" \
+            --address 127.0.0.1:9000 --console-address 127.0.0.1:9001 > "$RUNNER_TEMP/wathba-ci-media.log" 2>&1 &
+          curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://127.0.0.1:9000/minio/health/ready
+          node apps/api/prisma/prepare-ci-media.mjs
       - name: Build API + Web
         run: pnpm --filter @wathba/api build && pnpm --filter @wathba/web build
       - name: Boot API + Web, seed, run journeys
@@ -96,7 +142,7 @@ jobs:
           PORT=4001 node apps/api/dist/main.js & echo $! > /tmp/api.pid
           npx --yes wait-on http://localhost:4001/v1/health/live -t 60000
           # minimal seed: an admin/creator the journeys rely on
-          node apps/api/prisma/seed-e2e.mjs || true
+          node apps/api/prisma/seed-e2e.mjs
           (cd apps/web && PORT=3123 node .next/standalone/apps/web/server.js) & echo $! > /tmp/web.pid
           npx --yes wait-on http://localhost:3123/projects -t 60000
           cd apps/web && E2E_WEB_URL=http://localhost:3123 E2E_API_URL=http://localhost:4001 pnpm exec playwright test

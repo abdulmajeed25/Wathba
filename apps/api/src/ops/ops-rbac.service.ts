@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ALL_PERMISSIONS,
   MONEY_PERMISSIONS,
   holdsMoneyPermission,
   permissionMatches,
@@ -41,6 +42,16 @@ export class OpsRbacService implements PermissionPort, FourEyesPort {
   ) {}
 
   /* ── PermissionPort ──────────────────────────────────────────────────── */
+
+  /** Read the same persisted roles used when resolving an operator's grants. */
+  async roleCatalogue() {
+    const roles = await this.prisma.opsRole.findMany({
+      select: { key: true, nameAr: true, permissions: true }, orderBy: { key: 'asc' },
+    });
+    const permissions = [...new Set([...ALL_PERMISSIONS, ...roles.flatMap(role => role.permissions)])]
+      .filter(permission => permission !== '*').sort();
+    return { roles, permissions };
+  }
 
   has(actor: OperationActor, permission: string): boolean {
     if (actor.permissions) {

@@ -39,7 +39,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: 'وثبة', template: '%s' },
-  description: 'وثبة — منصة دعم المشاريع الإبداعية بضمان التنفيذ',
+  description: 'وثبة — منصة دعم المشاريع الإبداعية ومتابعة تنفيذها',
   alternates: { canonical: './' },
   // STAKES/S-15 (Q1) — apple-touch-icon for iOS homescreen installs.
   icons: { apple: '/apple-touch-icon.png' },

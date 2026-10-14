@@ -329,6 +329,9 @@ const ROLE_GATES: Array<{
 }> = [
   { prefix: '/projects/admin', check: (me) => me.roles.includes('ADMIN'), deny: '/projects' },
   { prefix: '/projects/supplier', check: (me) => me.roles.includes('SUPPLIER'), deny: '/projects' },
+  // Content editors need no global CREATOR role. Authentication is checked
+  // above; the workspace API enforces current per-project membership.
+  { prefix: '/projects/dashboard/collaborations', check: () => true, deny: '/projects' },
   {
     prefix: '/projects/dashboard',
     check: (me) => me.roles.includes('CREATOR') || (me.createdProjectsCount ?? 0) > 0,

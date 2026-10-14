@@ -28,6 +28,13 @@ function fundingWith(overrides: { pledge?: any; prisma?: any; escrow?: any } = {
     user: { update: jest.fn().mockResolvedValue({}) },
     ...overrides.prisma,
   };
+  prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+  prisma.project.findUniqueOrThrow = jest.fn().mockResolvedValue({ raisedHalalas: 0n, backersCount: 0 });
+  prisma.project.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.user.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.rewardTier.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.pledgeAddOn = { findMany: jest.fn().mockResolvedValue([]) };
+  prisma.pledge.updateMany.mockResolvedValue({ count: 1 });
   prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
   const escrow = {
     voidPledge: jest.fn().mockResolvedValue(true),
@@ -66,6 +73,7 @@ function fundingWith(overrides: { pledge?: any; prisma?: any; escrow?: any } = {
 function cancellablePledge(over: Record<string, unknown> = {}) {
   return {
     id: 'pl-1',
+    projectId: 'proj-1',
     backerId: 'backer-1',
     tierId: 'tier-1',
     status: PledgeStatus.HELD,
@@ -84,21 +92,13 @@ function cancellablePledge(over: Record<string, unknown> = {}) {
 }
 
 describe('Batch PAY — cancelPledge (48h lock)', () => {
-  it('cancels a HELD pledge before the lock: voids + decrements counters', async () => {
+  it('delegates the HELD cancellation and never compensates a second time in FundingService', async () => {
     const { svc, prisma, escrow } = fundingWith({ pledge: cancellablePledge() });
     await expect(svc.cancelPledge('backer-1', 'pl-1')).resolves.toEqual({ ok: true });
-    expect(escrow.voidPledge).toHaveBeenCalled();
-    expect(prisma.project.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          raisedHalalas: { decrement: 12_000n },
-          backersCount: { decrement: 1 }, // no other active pledge
-        }),
-      }),
-    );
-    expect(prisma.rewardTier.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { claimedQty: { decrement: 1 } } }),
-    );
+    expect(escrow.voidPledge).toHaveBeenCalledTimes(1);
+    expect(prisma.project.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+    expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled();
   });
 
   it('refuses inside the final 48 hours with the Arabic lock message', async () => {
@@ -117,7 +117,7 @@ describe('Batch PAY — cancelPledge (48h lock)', () => {
     const { svc, prisma, escrow } = fundingWith({ pledge: bnpl });
     await expect(svc.cancelPledge('backer-1', 'pl-1')).resolves.toEqual({ ok: true });
     expect(escrow.voidPledge).not.toHaveBeenCalled();
-    expect(prisma.pledge.update).toHaveBeenCalledWith(
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: PledgeStatus.REFUNDED }) }),
     );
   });
@@ -132,10 +132,10 @@ describe('Batch PAY — cancelPledge (48h lock)', () => {
   });
 
   it('keeps the backer counter when another active pledge remains', async () => {
-    const { svc, prisma } = fundingWith({ pledge: cancellablePledge() });
+    const { svc, prisma } = fundingWith({ pledge: cancellablePledge({ status: PledgeStatus.PENDING_BNPL }) });
     (prisma.pledge.count as jest.Mock).mockResolvedValue(1);
     await svc.cancelPledge('backer-1', 'pl-1');
-    const data = (prisma.project.update as jest.Mock).mock.calls[0][0].data;
+    const data = (prisma.project.updateMany as jest.Mock).mock.calls[0][0].data;
     expect(data.backersCount).toBeUndefined();
   });
 });
@@ -173,7 +173,7 @@ describe('Batch PAY — grace machine (72h)', () => {
       rewardTier: { update: jest.fn().mockResolvedValue({}) },
     };
     prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
-    const escrow = { markCaptured: jest.fn().mockResolvedValue(undefined) };
+    const escrow = { captureGracePledge: jest.fn().mockResolvedValue(captureOk), expireGracePledge: jest.fn().mockResolvedValue(true) };
     const moyasar = { capture: jest.fn().mockResolvedValue({ ok: captureOk }) };
     const email = { captureFailed: jest.fn().mockResolvedValue({}) };
     const notifications = { create: jest.fn().mockResolvedValue(null) };
@@ -192,18 +192,15 @@ describe('Batch PAY — grace machine (72h)', () => {
   it('retries a due CARD row and captures on success', async () => {
     const { sched, escrow, moyasar } = schedulerWith({ inGrace: [graceRow()] });
     const r = await sched.run();
-    expect(moyasar.capture).toHaveBeenCalledWith('ref-g');
-    expect(escrow.markCaptured).toHaveBeenCalled();
+    expect(moyasar.capture).not.toHaveBeenCalled();
+    expect(escrow.captureGracePledge).toHaveBeenCalledWith(expect.objectContaining({ id: 'pl-g' }));
     expect(r.retried).toBe(1);
   });
 
-  it('bumps the attempt counter when the retry declines again', async () => {
+  it('delegates unknown outcomes without independently changing attempts or inventory', async () => {
     const { sched, prisma, escrow } = schedulerWith({ inGrace: [graceRow()] }, false);
-    await sched.run();
-    expect(escrow.markCaptured).not.toHaveBeenCalled();
-    expect(prisma.pledge.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { captureAttempts: { increment: 1 } } }),
-    );
+    await sched.run(); expect(escrow.captureGracePledge).toHaveBeenCalled();
+    expect(prisma.pledge.update).not.toHaveBeenCalled(); expect(prisma.rewardTier.update).not.toHaveBeenCalled();
   });
 
   it('BNPL rows get reminders, never auto-capture', async () => {
@@ -216,29 +213,20 @@ describe('Batch PAY — grace machine (72h)', () => {
     );
   });
 
-  it('expiry → FAILED_CAPTURE: idempotent claim + tier stock released + both sides told', async () => {
+  it('notifies only after the service confirms expiry and inventory release', async () => {
     const dead = graceRow({ graceExpiresAt: new Date(Date.now() - HOUR) });
-    const { sched, prisma, email, notifications } = schedulerWith({ dead: [dead] });
-    const r = await sched.run();
-    expect(r.expired).toBe(1);
-    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'pl-g', status: PledgeStatus.CAPTURE_GRACE }, // status-guarded
-        data: { status: PledgeStatus.FAILED_CAPTURE },
-      }),
-    );
-    expect(prisma.rewardTier.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { claimedQty: { decrement: 1 } } }),
-    );
-    expect(email.captureFailed).toHaveBeenCalled();
-    expect(notifications.create).toHaveBeenCalled();
+    const { sched, prisma, escrow, email, notifications } = schedulerWith({ dead: [dead] });
+    expect((await sched.run()).expired).toBe(1);
+    expect(escrow.expireGracePledge).toHaveBeenCalledWith(dead, expect.any(Date));
+    expect(prisma.pledge.updateMany).not.toHaveBeenCalled(); expect(prisma.rewardTier.update).not.toHaveBeenCalled();
+    expect(email.captureFailed).toHaveBeenCalled(); expect(notifications.create).toHaveBeenCalled();
   });
 
   it('a lost expiry race (claim count 0) sends nothing', async () => {
     const dead = graceRow({ graceExpiresAt: new Date(Date.now() - HOUR) });
-    const { sched, prisma, email } = schedulerWith({ dead: [dead] });
-    (prisma.pledge.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
-    await sched.run();
+    const { sched, escrow, email } = schedulerWith({ dead: [dead] });
+    escrow.expireGracePledge.mockResolvedValue(false);
+    expect((await sched.run()).expired).toBe(0);
     expect(email.captureFailed).not.toHaveBeenCalled();
   });
 });
@@ -301,5 +289,30 @@ describe('Batch PAY — fee math (BigInt, no floats)', () => {
     const tabby = feeFor('TABBY', 100_000n);
     expect(tabby.processorHalalas).toBe(6_500n + 150n); // BNPL costs more
     expect(tabby.netHalalas).toBeLessThan(card.netHalalas);
+  });
+});
+
+
+describe('Backer replacement card ownership and outcomes', () => {
+  const pledge = { id: 'pl-1', backerId: 'backer-1', status: 'CAPTURE_GRACE', paymentMethod: 'CARD', project: { titleAr: 'اختبار' } };
+  it('refuses another backer before invoking any financial operation', async () => {
+    const { svc, escrow } = fundingWith({ pledge });
+    await expect(svc.retryCapture('another-user', 'pl-1', 'token')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(escrow.captureWithNewSource).not.toHaveBeenCalled();
+  });
+  it.each([{ status: 'CAPTURED' }, { status: 'FAILED_CAPTURE' }, { paymentMethod: 'TABBY' }])('refuses an ineligible pledge %#', async over => {
+    const { svc, escrow } = fundingWith({ pledge: { ...pledge, ...over } });
+    await expect(svc.retryCapture('backer-1', 'pl-1', 'token')).rejects.toBeInstanceOf(BadRequestException);
+    expect(escrow.captureWithNewSource).not.toHaveBeenCalled();
+  });
+  it('unknown recovery cannot return success or instruct a blind retry', async () => {
+    const { svc } = fundingWith({ pledge, escrow: { captureWithNewSource: jest.fn().mockResolvedValue(false) } });
+    await expect(svc.retryCapture('backer-1', 'pl-1', 'token')).rejects.toThrow('قبل أي دفع جديد');
+  });
+  it('confirmed owner recovery delegates the same pledge and token once', async () => {
+    const { svc, escrow } = fundingWith({ pledge });
+    expect(await svc.retryCapture('backer-1', 'pl-1', 'token')).toEqual({ ok: true });
+    expect(escrow.captureWithNewSource).toHaveBeenCalledTimes(1);
+    expect(escrow.captureWithNewSource).toHaveBeenCalledWith(pledge, 'token', expect.any(String));
   });
 });

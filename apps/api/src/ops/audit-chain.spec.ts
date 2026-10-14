@@ -9,19 +9,29 @@ import { PrismaClient } from '@prisma/client';
  *  · UPDATE / DELETE / TRUNCATE raise 'AuditLog is append-only'
  *  · the verifier walks the whole chain and reports intact
  *
- * DATABASE_URL comes from apps/api/.env (same DB the dev server uses).
+ * Requires the explicitly enabled isolated audit database. Never use a
+ * developer's default database for destructive-operation rejection tests.
  */
 
-const prisma = new PrismaClient();
+const enabled = process.env.WATHBA_CONSENT_DB_TESTS === '1';
+if (enabled) {
+  const url = new URL(process.env.DATABASE_URL ?? '');
+  if (url.hostname !== '127.0.0.1' || url.port !== '55432' || url.pathname !== '/wathba_audit') {
+    throw new Error('Audit-chain fixtures require the isolated local audit database');
+  }
+}
+const suite = enabled ? describe : describe.skip;
 
-beforeAll(async () => {
-  await prisma.$connect();
-});
-afterAll(async () => {
-  await prisma.$disconnect();
-});
+suite('AuditLog — hash chain (DB-enforced)', () => {
+  const prisma = new PrismaClient();
 
-describe('AuditLog — hash chain (DB-enforced)', () => {
+  beforeAll(async () => {
+    await prisma.$connect();
+  });
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
   it('chains consecutive inserts: prevHash links and the SQL hash recomputes', async () => {
     const a = await prisma.auditLog.create({
       data: { action: 'test.chain.a', entity: 'Test', entityId: 'chain-a', actorType: 'SYSTEM' },

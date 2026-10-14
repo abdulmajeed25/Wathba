@@ -4,10 +4,32 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRewardTierDto, UpdateRewardTierDto } from './dto/reward.dto';
 import { Prisma, ProjectStatus, type RewardTier } from '@prisma/client';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class RewardsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly settings: SettingsService) {}
+
+  private async validateShipping(required: boolean, amount: number | null | undefined): Promise<number> {
+    if (!required) {
+      if (amount != null && amount !== 0) throw new BadRequestException('لا تضاف تكلفة شحن لمكافأة لا تتطلب الشحن');
+      return 0;
+    }
+    if (amount == null || !Number.isSafeInteger(amount) || amount < 0) {
+      throw new BadRequestException('حدد تكلفة الشحن صراحةً؛ أدخل صفرًا إذا كان مشمولًا في السعر');
+    }
+    const max = await this.settings.get('rewards.shippingMaxHalalas');
+    if (max != null && amount > max) throw new BadRequestException('تكلفة الشحن تتجاوز الحد المعتمد من الإدارة');
+    return amount;
+  }
+
+  private async validatePrice(amount: number): Promise<void> {
+    const min = await this.settings.get('rewards.minHalalas');
+    const max = await this.settings.get('rewards.maxHalalas');
+    if (!Number.isSafeInteger(amount) || amount < min || (max != null && amount > max)) {
+      throw new BadRequestException(`سعر المكافأة خارج حدود المنصة: ${min / 100} ريال كحد أدنى${max == null ? '' : ` و${max / 100} ريال كحد أقصى`}`);
+    }
+  }
 
   async create(
     userId: string,
@@ -18,6 +40,12 @@ export class RewardsService {
     if (proj.status !== ProjectStatus.DRAFT && proj.status !== ProjectStatus.UNDER_REVIEW) {
       throw new BadRequestException(`cannot add tiers in status ${proj.status}`);
     }
+    await this.validatePrice(dto.amountHalalas);
+    const shippingHalalas = await this.validateShipping(dto.requiresShipping ?? false, dto.shippingHalalas);
+    if (dto.earlyBirdAmountHalalas !== undefined) {
+      await this.validatePrice(dto.earlyBirdAmountHalalas);
+      if (dto.earlyBirdAmountHalalas >= dto.amountHalalas) throw new BadRequestException('سعر التسعير المبكر يجب أن يكون أقلّ من سعر المكافأة');
+    }
     return this.prisma.rewardTier.create({
       data: {
         projectId,
@@ -26,6 +54,7 @@ export class RewardsService {
         descAr: dto.descAr,
         includesPhysicalProduct: dto.includesPhysicalProduct ?? false,
         requiresShipping: dto.requiresShipping ?? false,
+        shippingHalalas: BigInt(shippingHalalas),
         estDeliveryDate: new Date(dto.estDeliveryDate),
         limitQty: dto.limitQty ?? null,
         popular: dto.popular ?? false,
@@ -64,11 +93,24 @@ export class RewardsService {
     if (!tier || tier.projectId !== projectId) throw new NotFoundException('tier not found');
 
     const hasBackers = tier.claimedQty > 0;
+    const shippingChanged = dto.shippingHalalas !== undefined || dto.requiresShipping !== undefined;
+    const shippingHalalas = shippingChanged ? await this.validateShipping(
+      dto.requiresShipping ?? tier.requiresShipping,
+      dto.requiresShipping === false ? dto.shippingHalalas ?? 0 : dto.shippingHalalas ?? (tier.shippingHalalas == null ? null : Number(tier.shippingHalalas)),
+    ) : undefined;
+    if (dto.amountHalalas !== undefined && BigInt(dto.amountHalalas) !== tier.amountHalalas) await this.validatePrice(dto.amountHalalas);
+    if (dto.earlyBirdAmountHalalas != null && BigInt(dto.earlyBirdAmountHalalas) !== tier.earlyBirdAmountHalalas) await this.validatePrice(dto.earlyBirdAmountHalalas);
 
     // Policy §3 — a tier WITH backers is locked to protect the deal they bought:
     // only a limit INCREASE, copy (title/desc) fixes, and close/reopen are
     // allowed. Price, contents, delivery and early-bird are frozen.
     if (hasBackers) {
+      if (dto.shipsTo !== undefined && (tier.shipsTo ?? []).some(country => !dto.shipsTo!.includes(country))) {
+        throw new BadRequestException('لا يمكن سحب وجهة شحن من مكافأة لها داعمون قبل اعتماد تغيير الاتفاق');
+      }
+      if (shippingHalalas !== undefined && BigInt(shippingHalalas) !== tier.shippingHalalas) {
+        throw new BadRequestException('لا يمكن تغيير تكلفة شحن مكافأة لها داعمون قبل اعتماد تغيير الاتفاق');
+      }
       if (dto.amountHalalas !== undefined && BigInt(dto.amountHalalas) !== tier.amountHalalas) {
         throw new BadRequestException('لا يمكن تغيير سعر مكافأة لها داعمون');
       }
@@ -107,7 +149,7 @@ export class RewardsService {
     }
 
     const updated = await this.prisma.rewardTier.update({
-      where: { id: tierId },
+      where: { id: tierId, claimedQty: tier.claimedQty },
       data: {
         ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
         ...(dto.amountHalalas !== undefined && { amountHalalas: BigInt(dto.amountHalalas) }),
@@ -116,6 +158,7 @@ export class RewardsService {
           includesPhysicalProduct: dto.includesPhysicalProduct,
         }),
         ...(dto.requiresShipping !== undefined && { requiresShipping: dto.requiresShipping }),
+        ...(shippingHalalas !== undefined && { shippingHalalas: BigInt(shippingHalalas) }),
         ...(dto.estDeliveryDate !== undefined && {
           estDeliveryDate: new Date(dto.estDeliveryDate),
         }),
@@ -192,6 +235,7 @@ export class RewardsService {
       descAr: t.descAr,
       includesPhysicalProduct: t.includesPhysicalProduct,
       requiresShipping: t.requiresShipping,
+      shippingHalalas: t.requiresShipping ? (t.shippingHalalas == null ? null : Number(t.shippingHalalas)) : 0,
       estDeliveryDate: t.estDeliveryDate.toISOString(),
       limitQty: t.limitQty,
       claimedQty: t.claimedQty,

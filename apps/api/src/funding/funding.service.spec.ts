@@ -65,7 +65,7 @@ describe('FundingService.settleProject (§5 FSM)', () => {
       materializeFromPledge: jest.fn().mockResolvedValue(undefined),
     } as unknown as import('../community/community.service').CommunityService;
     const email = { projectFunded: jest.fn(), projectFailed: jest.fn() } as any;
-    const notifications = { create: jest.fn() } as any;
+    const notifications = { create: jest.fn(), filterAllowed: jest.fn().mockResolvedValue([]) } as any;
     return { svc: new FundingService(prisma, escrow, contracts, gateway, community, { record: jest.fn() } as any, { log: jest.fn() } as any, email, notifications, { assertHuman: jest.fn().mockResolvedValue(undefined) } as never, settingsStub()), prisma, escrow };
   };
 
@@ -87,6 +87,30 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     expect(escrow.refundAllHeld).not.toHaveBeenCalled();
   });
 
+  it('requires the next whole halala when the success threshold is fractional', async () => {
+    const below = buildService(buildProject({ fundingGoalHalalas: 101n, raisedHalalas: 80n }));
+    expect((await below.svc.settleProject('p1')).transition).toBe('refunded');
+    expect(below.escrow.captureAllHeld).not.toHaveBeenCalled();
+    const above = buildService(buildProject({ fundingGoalHalalas: 101n, raisedHalalas: 81n }));
+    expect((await above.svc.settleProject('p1')).transition).toBe('funded');
+  });
+
+  it.each(['raisedHalalas', 'fundingGoalHalalas', 'releaseThresholdPct', 'deadline', 'status'] as const)(
+    'does not move money when %s changes between the read and settlement claim', async field => {
+      const snapshot = buildProject();
+      const current = { ...snapshot, [field]: field === 'deadline' ? new Date(Date.now() + 60000)
+        : field === 'status' ? ProjectStatus.PAUSED : field === 'releaseThresholdPct' ? 90
+          : (snapshot[field] as bigint) + 1n };
+      const { svc, prisma, escrow } = buildService(snapshot);
+      (prisma.project.updateMany as jest.Mock).mockImplementation(({ where }) => ({
+        count: Object.entries(where).every(([key, value]) => current[key as keyof typeof current] === value) ? 1 : 0,
+      }));
+      expect((await svc.settleProject('p1')).transition).toBe('noop');
+      expect(escrow.captureAllHeld).not.toHaveBeenCalled();
+      expect(escrow.refundAllHeld).not.toHaveBeenCalled();
+    },
+  );
+
   it('refunds when raised is 1 halala below the threshold', async () => {
     const { svc, escrow } = buildService(buildProject({ raisedHalalas: 79_999_999n }));
     const res = await svc.settleProject('p1');
@@ -104,12 +128,18 @@ describe('FundingService.settleProject (§5 FSM)', () => {
     expect(sCalls[0][0].data.status).toBe('CAPTURE_GRACE');
     expect(sCalls[0][0].data.graceExpiresAt).toBeInstanceOf(Date);
 
-    // Failure path — the intent is simply discarded (nothing was charged).
+    // Failure path uses the shared sweep: a bulk status flip would leak stock.
     const fail = buildService(buildProject({ raisedHalalas: 1n }));
     await fail.svc.settleProject('p1');
-    const fCalls = (fail.prisma.pledge.updateMany as jest.Mock).mock.calls;
-    expect(fCalls[0][0].where).toEqual({ projectId: 'p1', status: 'PENDING_BNPL' });
-    expect(fCalls[0][0].data.status).toBe('REFUNDED');
+    expect(fail.prisma.pledge.updateMany).not.toHaveBeenCalled();
+    expect(fail.escrow.refundAllHeld).toHaveBeenCalledWith('p1');
+  });
+
+  it('failed settlement reports refund_pending when the database completion condition is not met', async () => {
+    const { svc, prisma } = buildService(buildProject({ raisedHalalas: 1n }));
+    (prisma.project.updateMany as jest.Mock).mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    expect((await svc.settleProject('p1')).transition).toBe('refund_pending');
+    expect(prisma.project.update).not.toHaveBeenCalled();
   });
 
   it('OPS-GAPS Y2 — the BNPL grace window follows funding.graceWindowHours (default 72h, editable)', async () => {
@@ -148,7 +178,7 @@ describe('FundingService.settleProject (§5 FSM)', () => {
         prisma, escrow, {} as ContractsService, { emitTick: jest.fn() } as never,
         {} as never, { record: jest.fn() } as never, { log: jest.fn() } as never,
         { projectFunded: jest.fn(), projectFailed: jest.fn() } as never,
-        { create: jest.fn() } as never,
+        { create: jest.fn(), filterAllowed: jest.fn().mockResolvedValue([]) } as never,
         { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
         settingsFor(graceHours),
       );
@@ -229,6 +259,7 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     limitQty: null,
     claimedQty: 0,
     requiresShipping: false,
+    shippingHalalas: 0n,
     includesPhysicalProduct: false,
     // CC-13 — pledge guard reads these; default to an open tier, no early-bird.
     isActive: true,
@@ -245,19 +276,28 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     tierRow?: Record<string, unknown> | null;
     holdResult?: { paymentRef: string; status: 'authorized' | 'failed' };
     holdThrows?: boolean;
+    maxPledge?: number;
   }) {
     const prisma: Record<string, unknown> = {
+      notification: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      $queryRaw: jest.fn().mockResolvedValue([]),
       project: {
         findUnique: jest.fn().mockResolvedValue(opts.project === undefined ? liveProject() : opts.project),
         update: jest.fn().mockResolvedValue({ raisedHalalas: 60_000n, backersCount: 1 }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ raisedHalalas: 60_000n, backersCount: 1 }),
       },
       rewardTier: {
         findUnique: jest.fn().mockResolvedValue(opts.tierRow === undefined ? tier() : opts.tierRow),
         update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
-      addOn: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
+      addOn: { findMany: jest.fn().mockResolvedValue([]), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       pledge: {
-        aggregate: jest.fn().mockResolvedValue({ _max: { backerNo: 4 } }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'pl-1', paymentRef: 'pay_ok', status: 'HELD' }),
+        count: jest.fn().mockResolvedValue(0),
+      aggregate: jest.fn().mockResolvedValue({ _max: { backerNo: 4 } }),
         create: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
           Promise.resolve({ id: 'pl-1', ...data })),
         update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
@@ -275,7 +315,8 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     const escrow = {
       hold: opts.holdThrows
         ? jest.fn().mockRejectedValue(new Error('psp down'))
-        : jest.fn().mockResolvedValue(opts.holdResult ?? { paymentRef: 'pay_ok', status: 'authorized' }),
+        : jest.fn().mockImplementation(async (req: { givenId: string; amountHalalas: bigint }) => ({ paymentRef: req.givenId, status: opts.holdResult?.status ?? 'authorized', raw: { id: req.givenId, status: opts.holdResult?.status ?? 'authorized', amount: Number(req.amountHalalas), currency: 'SAR', captured: 0, refunded: 0 } })),
+      recordInitialAuthorization: jest.fn().mockResolvedValue(undefined),
       captureAllHeld: jest.fn(),
       refundAllHeld: jest.fn(),
     };
@@ -285,18 +326,21 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     const ledger = { record: jest.fn().mockResolvedValue(undefined) };
     const email = { pledgeReceipt: jest.fn().mockResolvedValue({}), projectFunded: jest.fn(), projectFailed: jest.fn() };
     const notifications = { create: jest.fn().mockResolvedValue({}) };
+    const pledgeSettings = opts.maxPledge === undefined ? settingsStub() : { get: jest.fn(async (key: string) =>
+      key === 'pledges.maxHalalas' ? opts.maxPledge : ({ 'pledges.minHalalas': 1000, 'payments.methodsEnabled': { card: true, bnpl: true } } as Record<string, unknown>)[key]) };
     const svc = new FundingService(
       prisma as never, escrow as never, contracts as never,
       gateway as never, community as never, ledger as never,
       { log: jest.fn() } as never,
       email as never, notifications as never,
       { assertHuman: jest.fn().mockResolvedValue(undefined) } as never,
-      settingsStub(),
+      pledgeSettings as never,
     );
     type MockedTables = {
-      project: { findUnique: jest.Mock; update: jest.Mock };
-      rewardTier: { findUnique: jest.Mock; update: jest.Mock };
-      pledge: { aggregate: jest.Mock; create: jest.Mock; update: jest.Mock };
+      notification: { createMany: jest.Mock };
+      project: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+      rewardTier: { findUnique: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+      pledge: { aggregate: jest.Mock; create: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
       user: { update: jest.Mock };
     };
     return { svc, prisma: prisma as never as MockedTables, escrow, gateway, ledger, email, notifications };
@@ -312,10 +356,11 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
   });
 
   it('STAKES/F2 — fires a pledge-receipt email + notification on success', async () => {
-    const { svc, email, notifications } = build({});
+    const { svc, email, notifications, prisma } = build({});
     await svc.pledge(BACKER, dto());
     expect(email.pledgeReceipt).toHaveBeenCalledWith('backer@test.sa', expect.objectContaining({ projectTitle: expect.any(String) }));
-    expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'PLEDGE_RECEIVED' }));
+    expect(prisma.notification.createMany).toHaveBeenCalledWith(expect.objectContaining({ data: [expect.objectContaining({ kind: 'PLEDGE_RECEIVED', dedupKey: 'pledge-receipt:pl-1' })] }));
+    expect(notifications.create).not.toHaveBeenCalled();
   });
 
   it('rejects a non-LIVE project', async () => {
@@ -348,13 +393,13 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/shipping address is required/);
   });
 
-  it('marks the pledge FAILED and throws 400 when the PSP hold throws — counters untouched', async () => {
+  it('keeps an ambiguous authorization uncounted and pending reconciliation', async () => {
     const { svc, prisma, ledger } = build({ holdThrows: true });
-    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/authorization failed/);
-    expect(prisma.pledge.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
+    await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/تعذر التأكد/);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ authorizationIssue: 'authorization-outcome-unknown' }) }),
     );
-    expect(prisma.project.update).not.toHaveBeenCalled();
+    expect(prisma.project.updateMany).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
     expect(ledger.record).not.toHaveBeenCalled();
   });
@@ -362,14 +407,14 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
   it('marks the pledge FAILED when the PSP declines the hold', async () => {
     const { svc, prisma } = build({ holdResult: { paymentRef: 'pay_declined', status: 'failed' } });
     await expect(svc.pledge(BACKER, dto())).rejects.toThrow(/not authorized/);
-    expect(prisma.pledge.update).toHaveBeenCalledWith(
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'FAILED' }) }),
     );
-    expect(prisma.project.update).not.toHaveBeenCalled();
+    expect(prisma.project.updateMany).not.toHaveBeenCalled();
   });
 
   it('holds tier + add-ons at the PSP (Sprint 2 undercharge regression)', async () => {
-    const { svc, prisma, escrow, ledger } = build({});
+    const { svc, prisma, escrow } = build({});
     (prisma as unknown as { addOn: { findMany: jest.Mock } }).addOn.findMany.mockResolvedValue([
       { id: 'addon-1', projectId: PROJ, titleAr: 'إضافة', amountHalalas: 15_000n, limitQty: null, claimedQty: 0 },
     ]);
@@ -378,21 +423,46 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
     expect(escrow.hold).toHaveBeenCalledWith(
       expect.objectContaining({ amountHalalas: 90_000n }),
     );
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'HOLD_AUTHORIZED', amountHalalas: 90_000n }),
+    expect(escrow.recordInitialAuthorization).toHaveBeenCalledWith(
+      expect.objectContaining({ amountHalalas: 60_000n, addOnsHalalas: 30_000n }),
     );
   });
 
+  it('applies the configured pledge cap to the full contribution including add-ons', async () => {
+    const { svc, prisma, escrow } = build({ maxPledge: 70000 });
+    (prisma as unknown as { addOn: { findMany: jest.Mock } }).addOn.findMany.mockResolvedValue([
+      { id: 'addon-1', projectId: PROJ, titleAr: 'إضافة', amountHalalas: 15000n, limitQty: null, claimedQty: 0 },
+    ]);
+    await expect(svc.pledge(BACKER, dto({ addOns: [{ addOnId: 'addon-1', qty: 1 }] }))).rejects.toThrow(/الإضافات/);
+    expect(escrow.hold).not.toHaveBeenCalled();
+    expect(prisma.pledge.create).not.toHaveBeenCalled();
+  });
+
+  it('does not accept duplicate add-on lines that could bypass stock validation', async () => {
+    const { svc, escrow } = build({});
+    await expect(svc.pledge(BACKER, dto({ addOns: [{ addOnId: 'addon-1', qty: 1 }, { addOnId: 'addon-1', qty: 1 }] }))).rejects.toThrow(/تكرار/);
+    expect(escrow.hold).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unsafe total before converting to the payment provider number format', async () => {
+    const { svc, prisma, escrow } = build({});
+    (prisma as unknown as { addOn: { findMany: jest.Mock } }).addOn.findMany.mockResolvedValue([
+      { id: 'addon-1', projectId: PROJ, titleAr: 'إضافة', amountHalalas: BigInt(Number.MAX_SAFE_INTEGER), limitQty: null, claimedQty: 0 },
+    ]);
+    await expect(svc.pledge(BACKER, dto({ addOns: [{ addOnId: 'addon-1', qty: 1 }] }))).rejects.toThrow(/الدقة المالية/);
+    expect(escrow.hold).not.toHaveBeenCalled();
+  });
+
   it('happy path: HELD pledge + atomic counters + ledger + live tick', async () => {
-    const { svc, prisma, gateway, ledger } = build({});
+    const { svc, prisma, gateway, escrow } = build({});
     const out = (await svc.pledge(BACKER, dto())) as unknown as { paymentRef: string };
     expect(out.paymentRef).toBe('pay_ok');
-    // pledge row created HELD with backerNo = max+1
+    // Pending authorization is excluded from settlement until finalization.
     expect(prisma.pledge.create).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'HELD', backerNo: 5 }) }),
+      expect.objectContaining({ data: expect.objectContaining({ status: 'PENDING_AUTH', backerNo: 5 }) }),
     );
     // counters bumped in the tx
-    expect(prisma.project.update).toHaveBeenCalledWith(
+    expect(prisma.project.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           raisedHalalas: { increment: 60_000n },
@@ -400,7 +470,7 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
         }),
       }),
     );
-    expect(prisma.rewardTier.update).toHaveBeenCalledWith(
+    expect(prisma.rewardTier.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: { claimedQty: { increment: 1 } } }),
     );
     expect(prisma.user.update).toHaveBeenCalledWith(
@@ -409,8 +479,8 @@ describe('FundingService.pledge (money-in entry point — Sprint 1 / P1-902)', (
       }),
     );
     // money journal + realtime tick
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'HOLD_AUTHORIZED', pspRef: 'pay_ok' }),
+    expect(escrow.recordInitialAuthorization).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentRef: expect.stringMatching(/^[0-9a-f-]{36}$/) }),
     );
     expect(gateway.emitTick).toHaveBeenCalled();
   });
@@ -471,8 +541,12 @@ describe('FundingService.cancelCampaign (Sprint 3 / P1-209)', () => {
     const r = await svc.cancelCampaign('creator-1', 'p1');
     expect(r.outcome).toBe('refunded');
     expect(escrow.refundAllHeld).toHaveBeenCalledWith('p1');
-    expect(prisma.project!.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { status: ProjectStatus.REFUNDED } }),
+    expect(prisma.project!.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ raisedHalalas: 0n, realizedHalalas: 0n, backersCount: 0,
+          pledges: { none: { status: { not: 'REFUNDED' } } } }),
+        data: { status: ProjectStatus.REFUNDED },
+      }),
     );
   });
 

@@ -1,5 +1,8 @@
+import { heldAction } from '../escrow-payments/held-payment-action';
+import { completeProjectRefund } from './refund-completion';
+import { finalizeRefund } from '../escrow-payments/refund-finalization';
 import {
-  BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException,
+  BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { CaptchaService } from '../common/captcha.service';
@@ -16,6 +19,10 @@ import { SettingsService } from '../settings/settings.service';
 import {
   NotificationKind, Prisma, PledgeStatus, ProjectStatus, type Pledge } from '@prisma/client';
 import { CreatePledgeDto } from './dto/pledge.dto';
+import { finalizePledge, type PricedAddOn } from './pledge-finalization';
+import { pledgeRequestHash } from './pledge-request';
+import { authorizationContext } from './authorization-context';
+import { canRecoverAuthorization, verifyAuthorizationEvidence } from '../escrow-payments/authorization-evidence';
 
 /**
  * Funding bounded context — §5 FSM, exactly:
@@ -27,7 +34,7 @@ import { CreatePledgeDto } from './dto/pledge.dto';
  * All money BigInt halalas. Pledges are HELD (authorize only) while LIVE.
  * raisedHalalas + backersCount + tier.claimedQty + user.totalPledgedHalalas
  * are denormalized counters maintained in the same transaction as the
- * pledge insert.
+ * successful authorization finalization. PENDING_AUTH intents are uncounted.
  */
 @Injectable()
 export class FundingService {
@@ -42,7 +49,7 @@ export class FundingService {
     private readonly contracts: ContractsService,
     private readonly gateway: FundingGateway,
     private readonly community: CommunityService,
-    private readonly ledger: LedgerService,
+    _ledger: LedgerService,
     private readonly audit: AuditService,
     private readonly email: EmailService,
     private readonly notifications: NotificationsService,
@@ -61,15 +68,8 @@ export class FundingService {
     tierTitle: string | null,
   ): Promise<void> {
     try {
-      await this.notifications.create({
-        userId: backer.id,
-        kind: 'PLEDGE_RECEIVED',
-        payload: {
-          projectId: project.id,
-          title: `تأكيد تعهّدك لمشروع «${project.titleAr}»`,
-          body: `سجّلنا تعهّدك بمبلغ ${(amountHalalas / 100).toFixed(0)} ر.س.`,
-        },
-      });
+      // The in-app receipt commits in finalizePledge. Email remains a
+      // best-effort separate channel until durable delivery is introduced.
       await this.email.pledgeReceipt(backer.email, {
         projectTitle: project.titleAr,
         amountHalalas,
@@ -89,7 +89,7 @@ export class FundingService {
       const pledges = await this.prisma.pledge.findMany({
         where: {
           projectId: project.id,
-          status: { in: [PledgeStatus.CAPTURED, PledgeStatus.REFUNDED, PledgeStatus.HELD] },
+          status: { in: funded ? [PledgeStatus.CAPTURED] : [PledgeStatus.REFUNDED, PledgeStatus.HELD] },
         },
         select: { amountHalalas: true, addOnsHalalas: true, backer: { select: { id: true, email: true } } },
       });
@@ -126,7 +126,22 @@ export class FundingService {
     }
   }
 
-  async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge> {
+  async pledge(backerId: string, dto: CreatePledgeDto): Promise<Pledge & { replayed?: boolean }> {
+    const requestHash = pledgeRequestHash(dto);
+    const replay = async () => {
+      if (!dto.requestKey) return null;
+      const existing = await this.prisma.pledge.findUnique({
+        where: { backerId_requestKey: { backerId, requestKey: dto.requestKey } },
+      });
+      if (!existing) return null;
+      if (existing.requestHash !== requestHash) {
+        throw new ConflictException('هذه المحاولة مرتبطة بتفاصيل دعم مختلفة؛ راجع تعهداتك قبل بدء محاولة أخرى');
+      }
+      return { ...existing, replayed: true };
+    };
+    // Authenticated replay remains available after campaign closure or captcha expiry.
+    const previous = await replay();
+    if (previous) return previous;
     // STAKES/S-14 P3 — env-flagged bot gate (no-op until the key is set).
     await this.captcha.assertHuman(dto.captchaToken, 'pledge');
     const project = await this.prisma.project.findUnique({ where: { id: dto.projectId } });
@@ -157,6 +172,11 @@ export class FundingService {
     if (dto.tierId && (!tier || tier.projectId !== dto.projectId)) {
       throw new BadRequestException('invalid tier for this project');
     }
+    const shippingHalalas = tier?.requiresShipping ? tier.shippingHalalas : 0n;
+    if (shippingHalalas == null) throw new BadRequestException('لم يحدد مدير الحملة تكلفة شحن هذه المكافأة بعد');
+    if (BigInt(dto.shippingHalalas ?? 0) !== shippingHalalas) {
+      throw new ConflictException('تغيرت تكلفة الشحن؛ راجع التكلفة المعروضة قبل تأكيد الدعم');
+    }
     // Batch OPS (registry completion) — pledge bounds + payment-method
     // availability are governed platform settings (SETTINGS_CATALOG), read
     // through the cached SettingsService. The former static env constant
@@ -175,7 +195,7 @@ export class FundingService {
     }
     if (!tier) {
       if (dto.amountHalalas < minPledgeHalalas) {
-        throw new BadRequestException('الحد الأدنى للدعم ١٠ ريالات');
+        throw new BadRequestException(`الحد الأدنى للدعم ${minPledgeHalalas / 100} ريال`);
       }
     } else {
       // CC-13 — a closed tier accepts no new pledges.
@@ -190,7 +210,7 @@ export class FundingService {
         tier.earlyBirdUntil.getTime() > Date.now() &&
         (tier.limitQty === null || tier.claimedQty < tier.limitQty);
       const minHalalas = earlyBirdActive ? tier.earlyBirdAmountHalalas! : tier.amountHalalas;
-      if (Number(minHalalas) > dto.amountHalalas) {
+      if (minHalalas + shippingHalalas > BigInt(dto.amountHalalas)) {
         throw new BadRequestException(
           `amount ${dto.amountHalalas} is below the tier minimum ${Number(minHalalas)}`,
         );
@@ -201,13 +221,22 @@ export class FundingService {
       if (tier.requiresShipping && !dto.shipping) {
         throw new BadRequestException('shipping address is required for this tier');
       }
+      if (tier.requiresShipping) {
+        if (!tier.shipsTo?.length) throw new BadRequestException('لم يحدد مدير الحملة وجهات شحن هذه المكافأة بعد');
+        if (!tier.shipsTo.includes(dto.shipping!.country)) {
+          throw new BadRequestException('هذه المكافأة لا تُشحن إلى الدولة المختارة');
+        }
+      }
     }
 
     // Validate + price-resolve any add-ons. Sold-out add-ons reject the
     // pledge before we authorize anything against the PSP.
     const addOnRequests = dto.addOns ?? [];
+    if (new Set(addOnRequests.map(a => a.addOnId)).size !== addOnRequests.length) {
+      throw new BadRequestException('لا يمكن تكرار الإضافة؛ حدد الكمية في بند واحد');
+    }
     let addOnsSubtotal = 0n;
-    const resolvedAddOns: Array<{ addOnId: string; qty: number; amountHalalas: bigint }> = [];
+    const resolvedAddOns: PricedAddOn[] = [];
     if (addOnRequests.length > 0) {
       const fetched = await this.prisma.addOn.findMany({
         where: { id: { in: addOnRequests.map((a) => a.addOnId) } },
@@ -224,15 +253,23 @@ export class FundingService {
         }
         const subtotal = a.amountHalalas * BigInt(qty);
         addOnsSubtotal += subtotal;
-        resolvedAddOns.push({ addOnId: a.id, qty, amountHalalas: subtotal });
+        resolvedAddOns.push({ addOnId: a.id, qty, amountHalalas: subtotal, unitPrice: a.amountHalalas, limitQty: a.limitQty });
       }
+    }
+
+    const requestedTotal = BigInt(dto.amountHalalas) + addOnsSubtotal;
+    if (requestedTotal > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new BadRequestException('المبلغ الإجمالي يتجاوز الدقة المالية المدعومة');
+    }
+    if (maxPledgeHalalas !== null && requestedTotal > BigInt(maxPledgeHalalas)) {
+      throw new BadRequestException('قيمة التعهد مع الإضافات تتجاوز الحد الأقصى');
     }
 
     const contractType =
       dto.contractType ??
       this.contracts.inferType({ includesPhysicalProduct: tier?.includesPhysicalProduct ?? false });
 
-    // 1) Insert the pledge in HELD state, paymentRef='pending'. backerNo is
+    // 1) Keep the uncounted intent outside all HELD settlement queries. backerNo is
     //    NOT NULL (since migration 0002), so we assign it here from the current
     //    max for this project. The @@unique([projectId, backerNo]) constraint
     //    is the safety net against the rare two-concurrent-inserts race —
@@ -249,23 +286,29 @@ export class FundingService {
     // succeeds at its deadline. Strictly safer for the backer than a card
     // authorization.
     const isBnpl = dto.paymentMethod === 'TABBY' || dto.paymentMethod === 'TAMARA';
-    const pledge = await this.prisma.pledge.create({
+    let pledge: Pledge;
+    try {
+      pledge = await this.prisma.pledge.create({
       data: {
         backerId,
+        requestKey: dto.requestKey,
+        requestHash: dto.requestKey ? requestHash : undefined,
         projectId: dto.projectId,
         tierId: dto.tierId ?? null,
         amountHalalas: BigInt(dto.amountHalalas),
+        shippingHalalas,
         addOnsHalalas: addOnsSubtotal,
         contractType,
         paymentMethod: dto.paymentMethod ?? 'CARD',
         shipping: dto.shipping
           ? (dto.shipping as unknown as Prisma.InputJsonValue)
           : Prisma.JsonNull,
-        status: isBnpl ? PledgeStatus.PENDING_BNPL : PledgeStatus.HELD,
+        status: PledgeStatus.PENDING_AUTH,
+        authorizationContext: isBnpl ? Prisma.DbNull : authorizationContext(project, tier, BigInt(dto.amountHalalas), resolvedAddOns),
         backerNo: assignedBackerNo,
         paymentRef: isBnpl
-          ? `bnpl-intent-${Date.now()}-${backerId.slice(0, 8)}`
-          : `pending-${Date.now()}-${backerId.slice(0, 8)}`,
+          ? `bnpl-intent-${randomUUID()}`
+          : randomUUID(),
         addOns: resolvedAddOns.length > 0
           ? { create: resolvedAddOns.map((r) => ({
               addOnId: r.addOnId,
@@ -276,14 +319,24 @@ export class FundingService {
       },
     });
 
-    // 2) Authorize-only hold against the PSP (outside the DB tx — if it
-    //    fails we mark the pledge FAILED and skip counter increments).
+    } catch (error) {
+      // Both the request-key and backer-number constraints may race. Only
+      // return a replay if our exact scoped key actually exists; otherwise fail.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const winner = await replay();
+        if (winner) return winner;
+      }
+      throw error;
+    }
+
+    // 2) Authorize outside the DB transaction. An ambiguous response stays
+    //    PENDING_AUTH for reconciliation; only an explicit decline is FAILED.
     //    Sprint 2: the hold MUST cover tier + add-ons — before this fix the
     //    PSP authorized only the tier amount while raisedHalalas credited
     //    the full contribution (systematic undercharge, surfaced by the
     //    Sprint-1 ledger).
     const chargeHalalas = pledge.amountHalalas + addOnsSubtotal;
-    let payment: { paymentRef: string; status: 'authorized' | 'failed' };
+    let payment: { paymentRef: string; status: 'authorized' | 'failed'; raw?: Record<string, unknown> };
     if (isBnpl) {
       // No authorization for BNPL — the intent itself is the record.
       payment = { paymentRef: pledge.paymentRef, status: 'authorized' };
@@ -291,74 +344,71 @@ export class FundingService {
     try {
       payment = await this.escrow.hold({
         pledgeId: pledge.id,
+        givenId: pledge.paymentRef,
         amountHalalas: chargeHalalas,
         source: dto.source,
         description: `وثبة — دعم لمشروع ${project.titleAr}`,
         // 3DS hop returns the shopper's browser to the payment-return screen.
-        callbackUrl: `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/projects/${dto.projectId}/back/success`,
+        callbackUrl: `${process.env.WEB_BASE_URL ?? 'http://localhost:3000'}/projects/${dto.projectId}/back/success?pledge=${pledge.id}`,
       });
     } catch (err) {
-      this.logger.error(`hold failed for pledge=${pledge.id}`, err as Error);
-      await this.prisma.pledge.update({
-        where: { id: pledge.id },
-        data: { status: PledgeStatus.FAILED, paymentRef: `failed-${pledge.id}` },
+      this.logger.warn(`authorization requires verification pledge=${pledge.id}`);
+      await this.prisma.pledge.updateMany({
+        where: { id: pledge.id, status: 'PENDING_AUTH', authorizationIssue: null },
+        data: { authorizationIssue: 'authorization-outcome-unknown' },
       });
-      throw new BadRequestException('payment authorization failed');
+      throw new ServiceUnavailableException('تعذر التأكد من نتيجة حجز الدفع؛ راجع حالة التعهد قبل إعادة المحاولة');
     }
 
-    if (payment.status === 'authorized') {
-      await this.ledger.record({
-        entryType: 'HOLD_AUTHORIZED',
-        amountHalalas: chargeHalalas,
-        pspRef: payment.paymentRef,
-        pledgeId: pledge.id,
-        projectId: dto.projectId,
-      });
+    // given_id is saved before POST. Never replace it with an unexpected response.
+    const authorized = pledge;
+    if (!isBnpl) {
+      let proof: ReturnType<typeof verifyAuthorizationEvidence>;
+      try { proof = verifyAuthorizationEvidence(payment.raw, pledge); }
+      catch {
+        await this.prisma.pledge.updateMany({ where: { id: pledge.id, status: 'PENDING_AUTH', authorizationIssue: null }, data: { authorizationIssue: 'authorization-outcome-unknown' } });
+        throw new ServiceUnavailableException('لم تثبت نتيجة الحجز؛ راجع حالة التعهد قبل أي دفع جديد');
+      }
+      if (proof.outcome === 'challenge') {
+        await this.prisma.pledge.updateMany({ where: { id: pledge.id, status: 'PENDING_AUTH', authorizationIssue: null }, data: { authorizationIssue: 'authorization-challenge' } });
+        return this.prisma.pledge.findUniqueOrThrow({ where: { id: pledge.id } });
+      }
+      if (proof.outcome === 'uncharged') {
+        await this.prisma.pledge.updateMany({ where: { id: pledge.id, status: 'PENDING_AUTH', authorizationIssue: null }, data: { status: 'FAILED' } });
+        throw new BadRequestException('payment was not authorized');
+      }
+      await this.escrow.recordInitialAuthorization(pledge);
     }
 
-    if (payment.status !== 'authorized') {
-      await this.prisma.pledge.update({
-        where: { id: pledge.id },
-        data: { status: PledgeStatus.FAILED, paymentRef: payment.paymentRef },
-      });
-      throw new BadRequestException('payment was not authorized');
-    }
-
-    // 3) Commit paymentRef + bump counters atomically. backerNo was assigned
-    //    at insert time (step 1); this tx only finalises the paymentRef + the
-    //    funded counters.
     const totalContribution = pledge.amountHalalas + addOnsSubtotal;
-    const { updated, totals } = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.pledge.update({
-        where: { id: pledge.id },
-        data: { paymentRef: payment.paymentRef },
-      });
-      const proj = await tx.project.update({
-        where: { id: dto.projectId },
-        data: {
-          raisedHalalas: { increment: totalContribution },
-          backersCount: { increment: 1 },
-        },
-        select: { raisedHalalas: true, backersCount: true },
-      });
-      if (dto.tierId) {
-        await tx.rewardTier.update({
-          where: { id: dto.tierId },
-          data: { claimedQty: { increment: 1 } },
-        });
+    let committed: Awaited<ReturnType<typeof finalizePledge>>;
+    try {
+      committed = await this.prisma.$transaction(tx => finalizePledge(tx, {
+        pledgeId: pledge.id, backerId, paymentRef: pledge.paymentRef, total: totalContribution,
+        project, tier, amountHalalas: dto.amountHalalas, addOns: resolvedAddOns, isBnpl,
+      }));
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        const current = await this.prisma.pledge.findUnique({ where: { id: pledge.id } });
+        if (current?.status === (isBnpl ? 'PENDING_BNPL' : 'HELD') && current.paymentRef === pledge.paymentRef &&
+            current.amountHalalas === pledge.amountHalalas && current.addOnsHalalas === pledge.addOnsHalalas)
+          return { ...current, replayed: true };
+        if (isBnpl) {
+          await this.prisma.pledge.updateMany({ where: { id: pledge.id, status: PledgeStatus.PENDING_AUTH },
+            data: { status: PledgeStatus.FAILED, authorizationIssue: 'terms-changed-before-finalization' } });
+        } else {
+          const voided = await this.escrow.voidUncountedAuthorization(authorized);
+          if (!voided) throw new ServiceUnavailableException('لم يُحتسب الدعم، وتعذر التأكد من فك الحجز؛ حالة التعهد قيد المراجعة');
+        }
+        throw error;
       }
-      for (const r of resolvedAddOns) {
-        await tx.addOn.update({
-          where: { id: r.addOnId },
-          data: { claimedQty: { increment: r.qty } },
-        });
-      }
-      await tx.user.update({
-        where: { id: backerId },
-        data: { totalPledgedHalalas: { increment: totalContribution } },
-      });
-      return { updated, totals: proj };
-    });
+      // Unknown commit outcome: NEVER void blindly, because the transaction
+      // might have committed. Keep the durable reference for reconciliation.
+      await this.prisma.pledge.updateMany({ where: { id: pledge.id, status: PledgeStatus.PENDING_AUTH, authorizationIssue: null },
+        data: { authorizationIssue: 'finalization-outcome-unknown' } }).catch(() => {});
+      throw error;
+    }
+    const { updated, totals } = committed;
 
     this.gateway.emitTick({
       projectId: dto.projectId,
@@ -374,7 +424,7 @@ export class FundingService {
       .materializeFromPledge(updated.id)
       .catch((err) => this.logger.warn(`community.materialize failed: ${err}`));
 
-    // STAKES/S-3 (F2/F4) — pledge-receipt notification + email (best-effort).
+    // In-app receipt is already committed; email is best-effort.
     await this.notifyPledgeReceipt(
       backer,
       project,
@@ -416,45 +466,16 @@ export class FundingService {
     if (pledge.status === PledgeStatus.HELD) {
       // Void the authorization first — the DB flip rides on PSP success.
       const ok = await this.escrow.voidPledge(pledge);
-      if (!ok) throw new BadRequestException('تعذّر الإلغاء حالياً — حاول بعد قليل');
+      if (!ok) throw new BadRequestException('لم يتأكد الإلغاء. حدّث صفحة تعهداتك لمراجعة الحالة قبل أي محاولة أخرى.');
     } else {
       // BNPL intent — no contract exists; discard.
-      await this.prisma.pledge.update({
-        where: { id: pledge.id },
-        data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
-      });
+      const result = await this.prisma.$transaction(tx => finalizeRefund(tx, pledge, { source: 'backer-cancel' }));
+      if (result === 'mismatch') throw new ConflictException('تغيرت حالة التعهد؛ يلزم تحديث الصفحة ومراجعة نتيجة الدفع');
     }
 
     const total = pledge.amountHalalas + pledge.addOnsHalalas;
-    const totals = await this.prisma.$transaction(async (tx) => {
-      // Only decrement the backer counter when this was their LAST active pledge.
-      const remaining = await tx.pledge.count({
-        where: {
-          projectId: proj.id,
-          backerId,
-          status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_BNPL, PledgeStatus.CAPTURED] },
-        },
-      });
-      const p2 = await tx.project.update({
-        where: { id: proj.id },
-        data: {
-          raisedHalalas: { decrement: total },
-          ...(remaining === 0 ? { backersCount: { decrement: 1 } } : {}),
-        },
-        select: { raisedHalalas: true, backersCount: true },
-      });
-      if (pledge.tierId) {
-        await tx.rewardTier.update({
-          where: { id: pledge.tierId },
-          data: { claimedQty: { decrement: 1 } },
-        });
-      }
-      await tx.user.update({
-        where: { id: backerId },
-        data: { totalPledgedHalalas: { decrement: total } },
-      });
-      return p2;
-    });
+    const totals = await this.prisma.project.findUniqueOrThrow({ where: { id: proj.id },
+      select: { raisedHalalas: true, backersCount: true } });
 
     this.gateway.emitTick({
       projectId: proj.id,
@@ -503,7 +524,7 @@ export class FundingService {
       source,
       `وثبة — استكمال دعم مشروع ${pledge.project.titleAr}`,
     );
-    if (!ok) throw new BadRequestException('تعذّر السحب من البطاقة الجديدة — تحقق منها وحاول مجدداً');
+    if (!ok) throw new BadRequestException('لم يتأكد إتمام الدفع. حدّث صفحة تعهداتك للتحقق من النتيجة قبل أي دفع جديد.');
     return { ok: true };
   }
 
@@ -530,6 +551,7 @@ export class FundingService {
     opts: { take?: number; cursor?: string; phase?: 'active' | 'past' } = {},
   ): Promise<{ items: Pledge[]; nextCursor: string | null }> {
     const ACTIVE: PledgeStatus[] = [
+      PledgeStatus.PENDING_AUTH,
       PledgeStatus.HELD,
       PledgeStatus.PENDING_BNPL,
       PledgeStatus.CAPTURE_GRACE,
@@ -559,6 +581,29 @@ export class FundingService {
     return { items: items.slice(0, take), nextCursor };
   }
 
+  async myResult(backerId: string, query: { pledgeId?: string; paymentRef?: string }): Promise<Pledge> {
+    if (!query.pledgeId && !query.paymentRef) throw new BadRequestException('حدد التعهد أو مرجع الدفع');
+    const pledge = await this.prisma.pledge.findFirst({
+      where: { backerId, ...(query.pledgeId ? { id: query.pledgeId } : { paymentRef: query.paymentRef }) },
+    });
+    if (!pledge) throw new NotFoundException('لم يُعثر على التعهد');
+    return pledge;
+  }
+
+  async verifyAuthorization(backerId: string, pledgeId: string) {
+    const p = await this.myResult(backerId, { pledgeId }); // ownership before PSP access
+    const result = await this.escrow.reconcileInitialAuthorization(p.id);
+    if (result.outcome === 'confirmed' && result.applied) {
+      try {
+        const backer = await this.prisma.user.findUniqueOrThrow({ where: { id: backerId } });
+        const project = await this.prisma.project.findUniqueOrThrow({ where: { id: p.projectId } });
+        await this.notifyPledgeReceipt(backer, project, Number(p.amountHalalas + p.addOnsHalalas), null);
+        await this.community.materializeFromPledge(p.id);
+      } catch { this.logger.warn(`recovered authorization notification pending pledge=${p.id}`); }
+    }
+    return result;
+  }
+
   toPublic(p: Pledge): Record<string, unknown> {
     return {
       id: p.id,
@@ -567,8 +612,11 @@ export class FundingService {
       tierId: p.tierId,
       amountHalalas: Number(p.amountHalalas),
       addOnsHalalas: Number(p.addOnsHalalas),
+      shippingHalalas: p.shippingHalalas == null ? null : Number(p.shippingHalalas),
       backerNo: p.backerNo,
       status: p.status,
+      authorizationRecoverable: canRecoverAuthorization(p),
+      paymentVerificationPending: ['HELD', 'PENDING_REAUTH', 'CAPTURE_GRACE'].includes(p.status) && heldAction(p.authorizationIssue) !== null,
       shipping: p.shipping,
       contractType: p.contractType,
       paymentRef: p.paymentRef,
@@ -585,6 +633,7 @@ export class FundingService {
           ).toISOString()
         : null,
       projectStatus: (p as Pledge & { project?: { status: string } }).project?.status ?? null,
+      projectTitleAr: (p as Pledge & { project?: { titleAr: string } }).project?.titleAr ?? null,
       projectDeadline:
         (p as Pledge & { project?: { deadline: Date } }).project?.deadline.toISOString() ?? null,
     };
@@ -598,7 +647,7 @@ export class FundingService {
    */
   async settleProject(projectId: string): Promise<{
     projectId: string;
-    transition: 'noop' | 'funded' | 'refunded';
+    transition: 'noop' | 'funded' | 'refunded' | 'refund_pending';
   }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('project not found');
@@ -610,7 +659,9 @@ export class FundingService {
     if (project.deadline.getTime() > Date.now()) return { projectId, transition: 'noop' };
 
     const goal = project.fundingGoalHalalas;
-    const threshold = (goal * BigInt(project.releaseThresholdPct)) / BigInt(100);
+    // A fractional halala must round UP: falling short of the published
+    // percentage must not trigger capture merely because integer division floors.
+    const threshold = (goal * BigInt(project.releaseThresholdPct) + 99n) / 100n;
     const successful = project.raisedHalalas >= threshold;
 
     this.logger.log(
@@ -620,7 +671,16 @@ export class FundingService {
     // Sprint 1 / P1-306: atomic claim — only the updateMany that still sees
     // LIVE wins; a concurrent settler (double cron / manual trigger) no-ops.
     const claimed = await this.prisma.project.updateMany({
-      where: { id: projectId, status: { in: [ProjectStatus.LIVE, ProjectStatus.PAUSED] } },
+      where: {
+        id: projectId, status: project.status,
+        // Claim exactly the financial snapshot used for the decision. A pledge,
+        // withdrawal or approved terms change may have committed after our read.
+        // The next scheduler tick recalculates rather than moving money on stale data.
+        raisedHalalas: project.raisedHalalas,
+        fundingGoalHalalas: project.fundingGoalHalalas,
+        releaseThresholdPct: project.releaseThresholdPct,
+        deadline: project.deadline,
+      },
       data: { status: successful ? ProjectStatus.SUCCESSFUL : ProjectStatus.FAILED },
     });
     if (claimed.count === 0) return { projectId, transition: 'noop' };
@@ -686,13 +746,8 @@ export class FundingService {
       return { projectId, transition: 'funded' };
     }
 
-    // Batch PAY (Part 4) — failed campaign: BNPL intents are simply
-    // discarded. Nothing was ever charged; nothing to void or refund.
-    await this.prisma.pledge.updateMany({
-      where: { projectId, status: PledgeStatus.PENDING_BNPL },
-      data: { status: PledgeStatus.REFUNDED, refundedAt: new Date() },
-    });
-
+    // The sweep releases both authorized holds and uncharged BNPL intents,
+    // including their counted balances and inventory in the same transaction.
     const ref1 = await this.escrow.refundAllHeld(projectId);
     const straggler = await this.escrow.refundAllHeld(projectId);
     const residue = await this.countHeld(projectId);
@@ -702,13 +757,9 @@ export class FundingService {
           `retry via POST /v1/admin/projects/${projectId}/settle`,
       );
     }
-    await this.prisma.project.update({
-      where: { id: projectId },
-      data: { status: ProjectStatus.REFUNDED },
-    });
-    // MONEY-AUDIT — record the FAILED→REFUNDED money flip. Same atomic-claim
-    // idempotency as the funded branch: only the winning settler reaches here,
-    // so this row is written exactly once per settlement. Never throws.
+    const refundsComplete = await completeProjectRefund(this.prisma, projectId);
+    // Record the failed campaign and whether refunds actually completed.
+    // Only the winning settler reaches this branch; pending work remains FAILED.
     await this.audit.log({
       actorId: null,
       action: 'system.settle.failed',
@@ -720,12 +771,12 @@ export class FundingService {
         thresholdHalalas: threshold.toString(),
         releaseThresholdPct: project.releaseThresholdPct,
         refundedCount: ref1.refunded + straggler.refunded,
-        residueHeld: residue,
+        residueHeld: residue, refundsComplete,
       },
     });
     // STAKES/S-3 (F2/F4) — tell backers the campaign failed + refunds are underway.
     await this.notifyBackersOfOutcome(project, false);
-    return { projectId, transition: 'refunded' };
+    return { projectId, transition: refundsComplete ? 'refunded' : 'refund_pending' };
   }
 
   /** Batch PAY (Part 2/4) — the 72h grace call-to-action, per method. */
@@ -768,7 +819,7 @@ export class FundingService {
 
   private async countHeld(projectId: string): Promise<number> {
     return this.prisma.pledge.count({
-      where: { projectId, status: PledgeStatus.HELD },
+      where: { projectId, status: { in: [PledgeStatus.HELD, PledgeStatus.PENDING_REAUTH, PledgeStatus.PENDING_BNPL] } },
     });
   }
 
@@ -780,6 +831,7 @@ export class FundingService {
   async resettleResidue(projectId: string): Promise<{
     projectId: string;
     swept: { ok: number; failed: number };
+    refundsComplete?: boolean;
   }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('project not found');
@@ -789,7 +841,8 @@ export class FundingService {
     }
     if (project.status === ProjectStatus.REFUNDED || project.status === ProjectStatus.FAILED) {
       const r = await this.escrow.refundAllHeld(projectId);
-      return { projectId, swept: { ok: r.refunded, failed: r.failed } };
+      return { projectId, swept: { ok: r.refunded, failed: r.failed },
+        refundsComplete: await completeProjectRefund(this.prisma, projectId) };
     }
     throw new BadRequestException(
       `project is ${project.status} — residue sweep only applies after settlement`,
@@ -806,7 +859,7 @@ export class FundingService {
   async cancelCampaign(
     creatorId: string,
     projectId: string,
-  ): Promise<{ projectId: string; outcome: 'deleted' | 'withdrawn' | 'refunded' }> {
+  ): Promise<{ projectId: string; outcome: 'deleted' | 'withdrawn' | 'refunded' | 'refund_pending' }> {
     const project = await this.prisma.project.findUnique({ where: { id: projectId } });
     if (!project) throw new NotFoundException('project not found');
     if (project.createdById !== creatorId) {
@@ -870,7 +923,7 @@ export class FundingService {
         entityId: projectId,
         detail: {
           projectId,
-          outcome: 'refunded',
+          outcome: 'refund_started',
           correlationId,
           backersCount: project.backersCount,
           raisedHalalas: project.raisedHalalas.toString(),
@@ -887,20 +940,17 @@ export class FundingService {
             `retry via POST /v1/admin/projects/${projectId}/settle`,
         );
       }
-      await this.prisma.project.update({
-        where: { id: projectId },
-        data: { status: ProjectStatus.REFUNDED },
-      });
+      const refundsComplete = await completeProjectRefund(this.prisma, projectId);
       // System-executed refunds — actorId null = النظام in the audit view.
       await this.audit.log({
         actorId: null,
         action: 'system.refund.cancel',
         entity: 'Project',
         entityId: projectId,
-        detail: { projectId, correlationId, refundedCount, residueHeld: residue },
+        detail: { projectId, correlationId, refundedCount, residueHeld: residue, refundsComplete },
       });
-      this.logger.log(`Creator cancelled LIVE project=${projectId} — all holds voided`);
-      return { projectId, outcome: 'refunded' };
+      this.logger.log(`Creator cancelled project=${projectId} refundsComplete=${refundsComplete}`);
+      return { projectId, outcome: refundsComplete ? 'refunded' : 'refund_pending' };
     }
 
     throw new BadRequestException(

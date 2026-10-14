@@ -29,19 +29,22 @@ export function WathbaCategoryPicker({
   const [tree, setTree] = useState<CatNode[] | null>(null);
   const [topId, setTopId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    setFailed(false);
     fetch('/api/categories')
       .then((r) => (r.ok ? r.json() : null))
       .then((d: CatNode[] | null) => {
-        if (alive && Array.isArray(d)) setTree(d);
+        if (alive) { if (Array.isArray(d)) setTree(d); else setFailed(true); }
       })
-      .catch(() => {});
+      .catch(() => { if (alive) setFailed(true); });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [attempt]);
 
   // If a value is already set (edit flow), resolve which top-level owns it.
   useEffect(() => {
@@ -67,6 +70,7 @@ export function WathbaCategoryPicker({
   }, [tree, value]);
 
   if (!tree) {
+    if (failed) return <div role="alert" style={boxStyle}>تعذّر تحميل الفئات. <button type="button" onClick={() => setAttempt(x => x + 1)}>إعادة المحاولة</button></div>;
     return <div style={{ ...boxStyle, color: 'var(--muted2)' }}>جارٍ تحميل الفئات…</div>;
   }
 
@@ -140,6 +144,7 @@ export function WathbaCategoryPicker({
             aria-selected={false}
             data-cat-slug={t.slug}
             onClick={() => {
+              if (t.children.length === 0) { onSelect(t.id, t.nameAr); return; }
               setTopId(t.id);
               setQuery('');
             }}

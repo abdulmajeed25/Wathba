@@ -1,253 +1,120 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { PayoutStatus } from '@prisma/client';
 import { PayoutDisburser, buildPayoutRequest, sequenceNumberFor } from './payout.disburser';
 
-
-
 afterEach(() => jest.restoreAllMocks());
-
-/**
- * PayoutDisburser — Sprint 1 / P0-301 + OPS-0 corrections #2/#3.
- *   - stub mode: atomic PENDING→SENDING claim → SENT + net/withheld persisted
- *     + TWO ledger legs (PAYOUT_SENT net, COMMISSION withheld) summing to gross
- *   - a transient failure releases the claim back to PENDING; later ones send
- *   - a provider-terminal rejection writes FAILED + failureReason
- *   - a lost claim race (count=0) never reaches the provider
- *   - empty queue → 0/0
- */
-
-function payout(id: string): any {
-  return {
-    id,
-    projectId: 'proj-1',
-    creatorId: 'creator-1',
-    milestoneId: `m-${id}`,
-    amountHalalas: BigInt(5_000_000),
-    status: PayoutStatus.PENDING,
-    zatcaInvoiceId: null,
-    sentAt: null,
-    createdAt: new Date(),
-  };
-}
-
-function cfg(key = '', sourceId = ''): any {
-  return {
-    get: jest.fn((k: string) => {
-      if (k === 'PAYOUT_PROVIDER_KEY') return key;
-      if (k === 'MOYASAR_PAYOUT_SOURCE_ID') return sourceId;
-      return undefined;
+function database(count = 1): any {
+  const rows = Array.from({ length: count }, (_, i) => ({ id: `po-${i}`, projectId: 'project', creatorId: 'creator',
+    milestoneId: `m-${i}`, amountHalalas: 5_000_000n, status: 'PENDING', providerRef: null }));
+  const db: any = { rows, payout: {
+    findMany: jest.fn(async ({ where }: any) => rows.filter(p => p.status === where.status).map(p => ({ ...p }))),
+    findUniqueOrThrow: jest.fn(async ({ where }: any) => ({ ...rows.find(p => p.id === where.id) })),
+    updateMany: jest.fn(async ({ where, data }: any) => {
+      const row = rows.find(p => p.id === where.id && p.status === where.status);
+      if (!row) return { count: 0 };
+      Object.assign(row, data); return { count: 1 };
     }),
-  };
+  }, project: { updateMany: jest.fn(), findUnique: jest.fn(async () => ({ titleAr: 'مشروع' })) },
+    user: { findUnique: jest.fn(async () => ({ email: 'local@test.sa' })) },
+    ledgerEntry: { create: jest.fn(async () => ({})) }, $queryRaw: jest.fn() };
+  db.project.findUniqueOrThrow = jest.fn(async () => ({ realizedHalalas: 10000000n }));
+  db.milestone = { aggregate: jest.fn(async () => ({ _sum: { releasedHalalas: 0n } })) };
+  db.payout.aggregate = jest.fn(async () => ({ _sum: { amountHalalas: 0n } }));
+  db.pledge = { aggregate: jest.fn(async () => ({ _sum: { refundReservedHalalas: 0n } })) };
+  db.$transaction = jest.fn(async (fn: any) => fn(db));
+  return db;
+}
+function worker(db: any, key = 'test-key', source = 'source', destination: any = { type: 'wallet', mobile: '0500000000' }) {
+  const notifications = { create: jest.fn() }, email = { payoutSent: jest.fn() };
+  const invoice = { generateForPayout: jest.fn(async () => ({ invoiceNumber: 'local' })) };
+  const audit = { log: jest.fn() };
+  const disburser = new PayoutDisburser(db, {} as any, invoice as any, { beat: jest.fn() } as any,
+    { resolveDestination: jest.fn(async () => destination) } as any,
+    { get: (k: string) => k === 'PAYOUT_PROVIDER_KEY' ? key : k === 'MOYASAR_PAYOUT_SOURCE_ID' ? source : undefined } as any,
+    email as any, notifications as any, audit as any);
+  return { disburser, notifications, email, invoice, audit };
+}
+function provider(status: string, overrides = {}) {
+  return jest.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => ({ ok: true,
+    json: async () => ({ ...JSON.parse(String(init?.body)), id: 'provider-ref', status, ...overrides }),
+  }) as Response);
 }
 
-function beneficiaryMock(dest: unknown = null): any {
-  return { resolveDestination: jest.fn().mockResolvedValue(dest) };
-}
-
-function mockFetchOk(id: string, status = 'queued'): jest.SpyInstance {
-  return jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-    ok: true, status: 201, json: async () => ({ id, status }),
-  } as unknown as Response);
-}
-
-function zatcaMock(): any {
-  return { generateForPayout: jest.fn().mockResolvedValue({ invoiceNumber: 'WTB-2026-000001' }) };
-}
-
-function heartbeatMock(): any {
-  return { beat: jest.fn() };
-}
-
-function ledgerMock(): any {
-  return { record: jest.fn().mockResolvedValue(undefined) };
-}
-
-function makePrisma(pending: any[]): any {
-  return {
-    payout: {
-      // First findMany each tick is the stuck-SENDING sweep; the second is
-      // the PENDING queue (OPS-0 #3).
-      findMany: jest.fn((args: any) =>
-        Promise.resolve(args?.where?.status === PayoutStatus.SENDING ? [] : pending),
-      ),
-      update: jest.fn().mockResolvedValue({}),
-      // Atomic claim (PENDING→SENDING) + transient release both land here.
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-    },
-    // STAKES follow-up — creator + project lookups for the payout-sent comms.
-    user: { findUnique: jest.fn().mockResolvedValue({ email: 'creator@test.sa' }) },
-    project: {
-      findUnique: jest.fn().mockResolvedValue({ titleAr: 'مشروع' }),
-      // Batch ACCOUNT — the disburser now stamps Project.settledAt when a
-      // payout reaches SENT. Added to the double because the double must
-      // mirror the client the code actually calls; without it the suite failed
-      // on a missing method and said nothing about the behaviour.
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-    },
-  };
-}
-
-// STAKES follow-up (F2/F4) — stubs for the payout-sent email + notification.
-const makeEmail = (): any => ({ payoutSent: jest.fn().mockResolvedValue({ sent: false, stubbed: true }) });
-const makeNotif = (): any => ({ create: jest.fn().mockResolvedValue({}) });
-// MONEY-AUDIT — AuditService stub for the payout SENT/FAILED audit rows.
-const makeAudit = (): any => ({ log: jest.fn().mockResolvedValue(undefined) });
-
-describe('PayoutDisburser.disbursePending', () => {
-  it('returns 0/0 on an empty queue', async () => {
-    const prisma = makePrisma([]);
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 0 });
-    expect(prisma.payout.update).not.toHaveBeenCalled();
+describe('Payout confirmation and ambiguous outcomes', () => {
+  it('returns an empty summary for an empty queue', async () => {
+    expect(await worker(database(0)).disburser.disbursePending()).toEqual({ sent: 0, failed: 0, pending: 0 });
   });
-
-  it('stub mode: claims atomically, sends the NET, persists withheld/net, journals BOTH legs', async () => {
-    const prisma = makePrisma([payout('a'), payout('b')]);
-    const ledger = ledgerMock();
-    const email = makeEmail();
-    const notif = makeNotif();
-    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), email, notif, makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 2, failed: 0 });
-    // OPS-0 #3 — every send starts with the atomic PENDING→SENDING claim.
-    expect(prisma.payout.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: PayoutStatus.PENDING }),
-        data: expect.objectContaining({ status: PayoutStatus.SENDING }),
-      }),
-    );
-    // STAKES follow-up — each sent payout emails + notifies the creator.
-    expect(email.payoutSent).toHaveBeenCalledTimes(2);
-    expect(notif.create).toHaveBeenCalledWith(expect.objectContaining({ kind: 'PAYOUT_SENT' }));
-    // OPS-0 #2 — gross 5,000,000: commission 250,000 (5%) + VAT 37,500 (15%)
-    // = 287,500 withheld → 4,712,500 net. The row persists both.
-    expect(prisma.payout.update).toHaveBeenCalledTimes(2);
-    expect(prisma.payout.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: PayoutStatus.SENT,
-          feeWithheldHalalas: 287_500n,
-          netHalalas: 4_712_500n,
-        }),
-      }),
-    );
-    // Two ledger legs per payout: PAYOUT_SENT (net) + COMMISSION (withheld),
-    // summing exactly to the gross release.
-    expect(ledger.record).toHaveBeenCalledTimes(4);
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entryType: 'PAYOUT_SENT',
-        amountHalalas: 4_712_500n,
-        source: 'disburser',
-      }),
-    );
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({
-        entryType: 'COMMISSION',
-        amountHalalas: 287_500n,
-        source: 'disburser',
-      }),
-    );
-    expect(4_712_500n + 287_500n).toBe(BigInt(5_000_000));
+  it('stub confirms exactly one net transfer and commission, then notifies and invoices', async () => {
+    const db = database(), w = worker(db, '');
+    expect(await w.disburser.disbursePending()).toEqual({ sent: 1, failed: 0, pending: 0 });
+    const entries = db.ledgerEntry.create.mock.calls.map(([arg]: any) => arg.data);
+    expect(entries.map((e: any) => e.entryType)).toEqual(['PAYOUT_SENT', 'COMMISSION']);
+    expect(entries[0].amountHalalas + entries[1].amountHalalas).toBe(5_000_000n);
+    expect(w.notifications.create).toHaveBeenCalledTimes(1);
+    expect(w.email.payoutSent).toHaveBeenCalledTimes(1);
+    expect(w.invoice.generateForPayout).toHaveBeenCalledTimes(1);
+    await w.disburser.disbursePending();
+    expect(db.ledgerEntry.create).toHaveBeenCalledTimes(2);
   });
-
-  it('OPS-0 #3: a lost claim race (updateMany count=0) never reaches the provider', async () => {
-    const spy = jest.spyOn(globalThis, 'fetch');
-    const prisma = makePrisma([payout('raced')]);
-    prisma.payout.updateMany = jest.fn().mockResolvedValue({ count: 0 });
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
-    expect(prisma.payout.update).not.toHaveBeenCalled();
-    expect(spy).not.toHaveBeenCalled();
+  it('a lost queue claim never calls the provider', async () => {
+    const db = database(), send = provider('paid');
+    db.payout.updateMany.mockResolvedValueOnce({ count: 0 });
+    await worker(db).disburser.disbursePending();
+    expect(send).not.toHaveBeenCalled();
   });
-
-  it('OPS-0 #3: a provider-terminal rejection writes FAILED + failureReason', async () => {
-    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true, status: 201,
-      json: async () => ({ id: 'py_x', status: 'failed', failure_reason: 'invalid IBAN' }),
-    } as unknown as Response);
-    const prisma = makePrisma([payout('t')]);
-    const bene = beneficiaryMock({ type: 'bank_account', iban: 'SA03', name: 'X', mobile: '0555000000' });
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), bene, cfg('real-key', 'src_123'), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
-    expect(prisma.payout.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: PayoutStatus.FAILED,
-          failureReason: expect.stringContaining('invalid IBAN'),
-        }),
-      }),
-    );
+  it.each(['queued', 'initiated', 'returned'])('%s is not sent or automatically resent', async status => {
+    const db = database(), send = provider(status), w = worker(db);
+    expect(await w.disburser.disbursePending()).toEqual({ sent: 0, failed: 0, pending: 1 });
+    expect(db.rows[0]).toMatchObject({ status: 'SENDING', providerRef: 'provider-ref', providerStatus: status });
+    await w.disburser.disbursePending();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(db.ledgerEntry.create).not.toHaveBeenCalled();
+    expect(w.notifications.create).not.toHaveBeenCalled();
+    expect(w.invoice.generateForPayout).not.toHaveBeenCalled();
   });
-
-  it('OPS-0 #3: a transient provider error (5xx) releases the claim back to PENDING', async () => {
-    jest.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: false, status: 503, json: async () => ({ message: 'down' }),
-    } as unknown as Response);
-    const prisma = makePrisma([payout('t')]);
-    const bene = beneficiaryMock({ type: 'bank_account', iban: 'SA03', name: 'X', mobile: '0555000000' });
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), bene, cfg('real-key', 'src_123'), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
-    // never FAILED — released back to PENDING for the next tick
-    expect(prisma.payout.update).not.toHaveBeenCalled();
-    expect(prisma.payout.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: PayoutStatus.SENDING }),
-        data: expect.objectContaining({ status: PayoutStatus.PENDING }),
-      }),
-    );
+  it.each(['failed', 'canceled'])('verified %s retains its reference and cannot be auto retried', async status => {
+    const db = database(), send = provider(status), w = worker(db);
+    expect(await w.disburser.disbursePending()).toEqual({ sent: 0, failed: 1, pending: 0 });
+    expect(db.rows[0]).toMatchObject({ status: 'FAILED', providerRef: 'provider-ref' });
+    await w.disburser.disbursePending();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(w.audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'system.payout.failed' }));
+    expect(db.ledgerEntry.create).not.toHaveBeenCalled();
   });
-
-  it('a transiently-failing payout returns to PENDING and later ones still send', async () => {
-    const prisma = makePrisma([payout('x'), payout('y')]);
-    // First update throws (provider ok but DB write fails) → failed++,
-    // second payout still processed.
-    prisma.payout.update = jest
-      .fn()
-      .mockRejectedValueOnce(new Error('db down'))
-      .mockResolvedValueOnce({});
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg(), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 1, failed: 1 });
+  it.each([400, 409, 503])('HTTP %s cannot prove that no money moved', async status => {
+    const db = database(), w = worker(db);
+    const send = jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: false, status } as Response);
+    expect(await w.disburser.disbursePending()).toEqual({ sent: 0, failed: 0, pending: 1 });
+    expect(db.rows[0].status).toBe('SENDING');
+    await w.disburser.disbursePending();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(db.ledgerEntry.create).not.toHaveBeenCalled();
   });
-
-  it('real mode without MOYASAR_PAYOUT_SOURCE_ID → stays PENDING (never SENT)', async () => {
-    const spy = jest.spyOn(globalThis, 'fetch');
-    const prisma = makePrisma([payout('z')]);
-    // provider key set, but no source account configured
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg('real-key', ''), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
-    expect(prisma.payout.update).not.toHaveBeenCalled();
-    expect(spy).not.toHaveBeenCalled(); // fails before the HTTP call
+  it('a connection timeout remains blocked for reconciliation', async () => {
+    const db = database(), w = worker(db);
+    const send = jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('timeout'));
+    await w.disburser.disbursePending(); await w.disburser.disbursePending();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(db.rows[0]).toMatchObject({ status: 'SENDING', failureReason: 'provider-outcome-needs-reconciliation' });
   });
-
-  it('real mode with source + beneficiary → SENT, real Moyasar payout id in ledger, contract body (Sprint 5 / #4 #7)', async () => {
-    mockFetchOk('py_live_77', 'queued');
-    const prisma = makePrisma([payout('z')]);
-    const ledger = ledgerMock();
-    const bene = beneficiaryMock({ type: 'bank_account', iban: 'SA0380000000608010167519', name: 'X', mobile: '0555000000', country: 'SA' });
-    const d = new PayoutDisburser(prisma, ledger, zatcaMock(), heartbeatMock(), bene, cfg('real-key', 'src_123'), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 1, failed: 0 });
-    const [url, init] = (globalThis.fetch as unknown as jest.Mock).mock.calls[0];
-    expect(String(url)).toContain('/payouts');
-    const body = JSON.parse((init as { body: string }).body);
-    expect(body.source_id).toBe('src_123');
-    // OPS-0 #2 — the wire amount is the NET (gross 5,000,000 − 287,500 withheld).
-    expect(body.amount).toBe(4_712_500);
-    expect(body.destination.iban).toBe('SA0380000000608010167519');
-    expect(String(body.sequence_number)).toMatch(/^\d{16}$/);
-    expect((init as { headers: Record<string,string> }).headers['idempotency-key']).toBeUndefined();
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'PAYOUT_SENT', pspRef: 'py_live_77' }),
-    );
+  it.each([{ amount: 1 }, { currency: 'USD' }, { sequence_number: 'other' }, { source_id: 'other' },
+    { id: '' }, { status: '' }])('unmatched evidence %j cannot settle', async evidence => {
+    const db = database(), w = worker(db); provider('paid', evidence);
+    await w.disburser.disbursePending();
+    expect(db.rows[0].status).toBe('SENDING'); expect(db.ledgerEntry.create).not.toHaveBeenCalled();
   });
-
-  it('real mode with source but no creator beneficiary → stays PENDING (Sprint 5 / #4)', async () => {
-    const spy = jest.spyOn(globalThis, 'fetch');
-    const prisma = makePrisma([payout('z')]);
-    // source configured, but the platform has no beneficiary for the creator yet
-    const d = new PayoutDisburser(prisma, ledgerMock(), zatcaMock(), heartbeatMock(), beneficiaryMock(null), cfg('real-key', 'src_123'), makeEmail(), makeNotif(), makeAudit());
-    expect(await d.disbursePending()).toEqual({ sent: 0, failed: 1 });
-    expect(prisma.payout.update).not.toHaveBeenCalled();
-    expect(spy).not.toHaveBeenCalled(); // beneficiary guard trips before HTTP
+  it('paid evidence uses Basic auth and bank destination with the frozen net amount', async () => {
+    const db = database(), send = provider('paid');
+    const w = worker(db, 'test-key', 'source', { type: 'bank_account', iban: 'test-iban', name: 'Test', mobile: '0500000000', city: 'Riyadh', country: 'SA' });
+    expect((await w.disburser.disbursePending()).sent).toBe(1);
+    const init = send.mock.calls[0]![1]!; const body = JSON.parse(String(init.body));
+    expect(new Headers(init.headers).get('authorization')).toBe(`Basic ${Buffer.from('test-key:').toString('base64')}`);
+    expect(body.destination.type).toBe('bank');
+    expect(BigInt(body.amount)).toBe(db.rows[0].netHalalas);
+  });
+  it.each(['source', 'beneficiary'])('missing %s is stopped before HTTP and remains eligible after configuration', async missing => {
+    const db = database(), send = provider('paid');
+    await worker(db, 'test-key', missing === 'source' ? '' : 'source', missing === 'beneficiary' ? null : { type: 'wallet', mobile: '0500000000' }).disburser.disbursePending();
+    expect(send).not.toHaveBeenCalled(); expect(db.rows[0].status).toBe('PENDING');
   });
 });
 

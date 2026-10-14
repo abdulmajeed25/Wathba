@@ -312,12 +312,12 @@ export const emailTemplates = {
         <strong>${d.projectTitle}</strong> إلى حسابك المسجّل.</p>`, { showPrefs: true }),
     };
   },
-  projectReviewed(d: { projectTitle: string; approved: boolean; feedback?: string | null }): EmailContent {
+  projectReviewed(d: { projectTitle: string; approved: boolean; feedback?: string | null; preparationOnly?: boolean }): EmailContent {
     return d.approved
       ? {
           subject: `${BRAND} — تمت الموافقة على «${d.projectTitle}» ✅`,
           html: layout(`<h1 style="font-size:19px;margin:0 0 10px">تمت الموافقة على مشروعك</h1>
-            <p>راجع فريقنا مشروع <strong>${d.projectTitle}</strong> ووافق على نشره. يمكنك الآن إطلاق حملته.</p>`, { showPrefs: true }),
+            <p>راجع فريقنا مشروع <strong>${d.projectTitle}</strong>. ${d.preparationOnly ? 'اعتُمد الطلب وفُتحت مساحة تجهيز المشروع. الحملة غير منشورة؛ أكمل تجهيزها ثم أرسلها لموافقة النشر.' : 'تمت الموافقة على نشر الحملة وفق موعد الإطلاق المسجل. راجع لوحة المشروع لمعرفة حالتها.'}</p>`, { showPrefs: true }),
         }
       : {
           subject: `${BRAND} — يحتاج «${d.projectTitle}» إلى تعديلات`,

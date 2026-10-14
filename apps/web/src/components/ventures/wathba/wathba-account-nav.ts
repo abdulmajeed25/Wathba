@@ -59,6 +59,7 @@ export const ACCOUNT_GROUPS: readonly (readonly AccountNavItem[])[] = [
     { href: '/saved', label: 'المشاريع المحفوظة', icon: 'bookmark' },
     { href: '/following', label: 'متابَعاتي', icon: 'person' },
     { href: '/activity', label: 'النشاط', icon: 'history' },
+    { href: '/projects/dashboard/collaborations', label: 'مساحات أشارك فيها', icon: 'group' },
   ],
   [{ href: '/recommendations', label: 'مقترَح لك', icon: 'query_stats' }],
   [
@@ -104,7 +105,9 @@ export const PROJECT_STATUS_AR: Readonly<Record<string, string>> = {
  * Mirrors the server-side gate; the menu and a pasted URL must not disagree
  * about where a draft belongs.
  */
-export function projectRowHref(p: { id: string; status: string }): string {
+export function projectRowHref(p: { id: string; status: string; reviewFeedback?: string | null; applicationApprovedAt?: string | null }): string {
+  if (p.applicationApprovedAt) return `/projects/dashboard/${encodeURIComponent(p.id)}`;
+  if (p.status === 'DRAFT' && p.reviewFeedback) return `/projects/dashboard/requests/${encodeURIComponent(p.id)}`;
   if (p.status === 'DRAFT') return `/projects/submit?draft=${encodeURIComponent(p.id)}`;
   if (p.status === 'UNDER_REVIEW') return `/projects/dashboard/requests/${encodeURIComponent(p.id)}`;
   return `/projects/dashboard/${encodeURIComponent(p.id)}`;

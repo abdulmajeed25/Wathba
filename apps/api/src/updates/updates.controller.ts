@@ -77,7 +77,7 @@ export class UpdatesController {
   @Post(':updateId/like')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Like an update (any logged-in user; no dedupe v1)' })
+  @ApiOperation({ summary: 'Toggle like on an accessible update (respects campaign visibility, audience and schedule)' })
   async like(
     @CurrentUser() jwt: JwtPayload,
     @Param('projectId', new ParseUUIDPipe()) projectId: string,

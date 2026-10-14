@@ -29,6 +29,7 @@ import { OpsImpersonationController } from './impersonation/impersonation.contro
 import { OpsOperationsGuard } from './ops-agents.guard';
 import { OpsIpAllowlistGuard, OpsSessionGuard } from './ops-session.guard';
 import { projectsOps } from './operations/projects.ops';
+import { projectChangesOps } from './operations/project-changes.ops';
 import { moderationOps } from './operations/moderation.ops';
 import { usersOps } from './operations/users.ops';
 import { moneyOps } from './operations/money.ops';
@@ -129,6 +130,7 @@ export class OpsModule implements OnModuleInit {
     // Part 4 — the no-blind-writes gate reads the durable AgentDryRun ledger.
     this.registry.agentGatePort = this.agents;
     const defs = [
+      ...projectChangesOps(),
       ...projectsOps({
         prisma: this.prisma,
         notifications: this.notifications,

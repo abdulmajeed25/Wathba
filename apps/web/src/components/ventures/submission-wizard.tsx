@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useActionState, useState } from 'react';
+import type { ApiProjectDetail } from '@/lib/api/wathba';
 
 import { submitProjectAction } from '@/lib/projects/submit-action';
 import { WathbaCategoryPicker } from '@/components/ventures/wathba/wathba-category-picker';
@@ -90,9 +91,12 @@ function stepValid(s: StepId, d: Draft): boolean {
 
 export function SubmissionWizard({
   initialError,
+  initialProject,
 }: {
   initialError?: string;
+  initialProject?: ApiProjectDetail;
 }): React.ReactElement {
+  const [result, formAction, pending] = useActionState(submitProjectAction, { draftId: initialProject?.id });
   const [stepIdx, setStepIdx] = useState(0);
   /**
    * Batch CONTENT — the creator must acknowledge the rules before submitting.
@@ -100,7 +104,13 @@ export function SubmissionWizard({
    * is re-affirmed on every submission rather than remembered from a past one.
    */
   const [rulesAck, setRulesAck] = useState(false);
-  const [d, setD] = useState<Draft>(EMPTY);
+  const [d, setD] = useState<Draft>(() => initialProject ? {
+    ...EMPTY, titleAr: initialProject.titleAr, shortDescAr: initialProject.shortDescAr,
+    categoryId: initialProject.categoryId ?? '', region: initialProject.region ?? '',
+    storyAr: initialProject.storyAr, fundingGoalSar: String(initialProject.fundingGoalHalalas / 100),
+    releaseThresholdPct: String(initialProject.releaseThresholdPct), durationDays: String(initialProject.durationDays),
+    productSpecAr: initialProject.productSpecAr ?? '', expectedDeliveryDate: initialProject.expectedDeliveryDate?.slice(0, 10) ?? '',
+  } : EMPTY);
   const step = STEPS[stepIdx]!;
   const canAdvance = stepValid(step.id, d);
 
@@ -118,21 +128,24 @@ export function SubmissionWizard({
             marginBottom: 6,
           }}
         >
-          أطلق مشروعك على وثبة
+          {initialProject ? 'استكمل طلب مشروعك' : 'قدّم طلب مشروعك'}
         </h1>
         <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.65 }}>
-          املأ {STEPS.length} خطوات سريعة. سيُنشأ المشروع كمسودّة ثم يُرسَل
-          مباشرةً للمراجعة (5–7 أيام عادةً).
+          قدّم فكرتك للمراجعة. بعد اعتماد الطلب تُفتح مساحة تجهيز المشروع؛ ولا تُنشر الحملة إلا بعد موافقة مستقلة على النشر.
         </p>
       </header>
 
       <StepBar idx={stepIdx} />
 
       {initialError && (
-        <ErrorBanner message={decodeURIComponent(initialError)} />
+        <ErrorBanner message={initialError} />
       )}
+      {result.error && <ErrorBanner message={result.error} />}
+      {result.saved && <p role="status">حُفظت المسودة. <a href={`/projects/submit?draft=${result.draftId}`}>رابط استكمال الطلب</a></p>}
 
-      <form action={submitProjectAction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form action={formAction} style={{ display: 'flex', flexDirection: 'column', gap: 16 }} aria-busy={pending}>
+        <input type="hidden" name="draftId" value={result.draftId ?? initialProject?.id ?? ''} />
+        <input type="hidden" name="rulesAck" value={rulesAck ? 'on' : ''} />
         {/* All step fields are mounted; only the visible one is editable. The
             unfocused ones still ride the form payload, so the server sees the
             full draft at submit time. */}
@@ -218,7 +231,7 @@ export function SubmissionWizard({
               style={inputStyle}
               placeholder="مثلاً 400000"
             />
-            <Hint>المبلغ المطلوب لإنتاج المشروع. يُحفَظ كهالة (هلل = 1/100 ر.س) في الـAPI.</Hint>
+            <Hint>حدّد المبلغ الذي تحتاجه لتنفيذ المشروع بالريال، مع احتساب تكاليف المكافآت والشحن والرسوم.</Hint>
           </Field>
           <Field label="عتبة الإفراج (50–100٪)">
             <input
@@ -364,11 +377,15 @@ export function SubmissionWizard({
               التالي →
             </button>
           ) : (
-            <button type="submit" disabled={!rulesAck} style={btnPrimary(!rulesAck)}>
-              إرسال للمراجعة
+            <button type="submit" name="intent" value="submit" disabled={!rulesAck || pending} style={btnPrimary(!rulesAck || pending)}>
+              {pending ? 'جارٍ الحفظ والإرسال…' : 'إرسال للمراجعة'}
             </button>
           )}
         </nav>
+        <button type="submit" name="intent" value="save" disabled={pending || !stepValid('basics', d) || !stepValid('story', d) || !stepValid('funding', d)} style={btnGhost(pending)}>
+          حفظ مسودة دون إرسال
+        </button>
+        <p style={{ fontSize: 12 }}>لحفظ المسودة، أكمل الأساسيات والقصة وبيانات التمويل.</p>
       </form>
     </div>
   );

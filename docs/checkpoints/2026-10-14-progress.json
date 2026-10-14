@@ -1,0 +1,22 @@
+{
+  "numTotalTests": 1313,
+  "numPassedTests": 1313,
+  "numFailedTests": 0,
+  "numPendingTests": 0,
+  "numTotalTestSuites": 97,
+  "numPassedTestSuites": 97,
+  "success": true,
+  "checkpoint": "2026-10-14",
+  "scope": "Local progress backup, not production readiness",
+  "frontendBrowserChecks": 106,
+  "moneyFormattingChecks": 20,
+  "backendReportSha256": "3661c8a8711b228431dfdea84f3c7b3033297a65c0bd9528692587d0f3cead40",
+  "canonicalPlan": "docs/wathba-complete-plan-and-evidence-2026-10-14.html",
+  "canonicalPlanSha256": "d4e09d90453c085b3a47c6e5a888132a9b36bedb1f71bc9fb45d5d4f5e737230",
+  "limitations": [
+    "Browser suites use a mock API",
+    "Financial provider is mocked in database tests",
+    "Live deployment and production data changes are not authorized",
+    "Collaborator workspace is the next phase; not implemented in this checkpoint"
+  ]
+}

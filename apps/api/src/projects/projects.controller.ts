@@ -64,7 +64,7 @@ export class ProjectsController {
     // Batch OPS — the viewer (when present) lets the creator keep seeing
     // their own moderation-hidden project; everyone else gets the 404.
     const p = await this.projects.findByIdOrSlug(id, jwt?.sub);
-    return this.projects.toPublic(p);
+    return this.projects.toPublic(p, p.createdById === jwt?.sub);
   }
 
   @Post(':id/report')

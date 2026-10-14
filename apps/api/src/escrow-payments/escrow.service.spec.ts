@@ -51,10 +51,26 @@ function makePrisma(pledges: any[] = []): any {
     pledge: {
       findMany: jest.fn().mockResolvedValue(pledges),
       update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUnique: jest.fn(),
     },
+    ledgerEntry: { create: jest.fn().mockResolvedValue({}) },
     // Batch PAY — markCaptured maintains the REALIZED counter in a tx.
     project: { update: jest.fn().mockResolvedValue({}) },
   };
+  prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+  prisma.project.findUniqueOrThrow = jest.fn().mockResolvedValue({ realizedHalalas: 1000000n });
+  prisma.milestone = { aggregate: jest.fn().mockResolvedValue({ _sum: { releasedHalalas: 0n } }) };
+  prisma.payout = { aggregate: jest.fn().mockResolvedValue({ _sum: { amountHalalas: 0n } }) };
+  prisma.pledge.aggregate = jest.fn().mockResolvedValue({ _sum: { refundReservedHalalas: 0n } });
+  prisma.pledge.count ??= jest.fn().mockResolvedValue(0);
+  prisma.project ??= {};
+  prisma.project.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.user ??= {};
+  prisma.user.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.rewardTier ??= { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+  prisma.pledgeAddOn = { findMany: jest.fn().mockResolvedValue([]) };
+  prisma.addOn = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
   prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
   return prisma;
 }
@@ -85,14 +101,13 @@ describe('EscrowService.captureAllHeld', () => {
     const svc = newSvc(prisma, moyasar);
     const r = await svc.captureAllHeld('proj');
     expect(r).toEqual({ captured: 2, failed: 2 });
-    // Batch PAY — every pledge gets an update: 2 CAPTURED + 2 into
-    // CAPTURE_GRACE (failed captures no longer stay silently HELD).
-    expect(prisma.pledge.update).toHaveBeenCalledTimes(4);
-    const graceCalls = (prisma.pledge.update as jest.Mock).mock.calls.filter(
+    // Four durable claims, two confirmed captures. No ambiguous payment retry.
+    expect(moyasar.capture).toHaveBeenCalledTimes(4);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledTimes(6);
+    const graceCalls = (prisma.pledge.updateMany as jest.Mock).mock.calls.filter(
       (c: any[]) => c[0].data.status === 'CAPTURE_GRACE',
     );
-    expect(graceCalls).toHaveLength(2);
-    expect(graceCalls[0][0].data.graceExpiresAt).toBeInstanceOf(Date);
+    expect(graceCalls).toHaveLength(0);
   });
 
   it('runs in BATCH_CONCURRENCY-sized slices (50 pledges → 2 batches of 25)', async () => {
@@ -106,7 +121,7 @@ describe('EscrowService.captureAllHeld', () => {
     const r = await svc.captureAllHeld('proj');
     expect(r).toEqual({ captured: 50, failed: 0 });
     expect(moyasar.capture).toHaveBeenCalledTimes(50);
-    expect(prisma.pledge.update).toHaveBeenCalledTimes(50);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledTimes(100);
   });
 });
 
@@ -126,7 +141,7 @@ describe('EscrowService.refundAllHeld', () => {
     const svc = newSvc(prisma, moyasar);
     const r = await svc.refundAllHeld('proj');
     expect(r).toEqual({ refunded: 2, failed: 1 });
-    expect(prisma.pledge.update).toHaveBeenCalledTimes(2);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledTimes(5);
   });
 });
 
@@ -137,6 +152,7 @@ function makeOpsPrisma(): any {
   const prisma: any = {
     pledge: {
       findUnique: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn().mockResolvedValue({}),
       count: jest.fn().mockResolvedValue(0),
@@ -151,6 +167,19 @@ function makeOpsPrisma(): any {
     ledgerEntry: { create: jest.fn().mockResolvedValue({}) },
     webhookEvent: { create: jest.fn().mockResolvedValue({}) },
   };
+  prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+  prisma.project.findUniqueOrThrow = jest.fn().mockResolvedValue({ realizedHalalas: 1000000n });
+  prisma.milestone = { aggregate: jest.fn().mockResolvedValue({ _sum: { releasedHalalas: 0n } }) };
+  prisma.payout = { aggregate: jest.fn().mockResolvedValue({ _sum: { amountHalalas: 0n } }) };
+  prisma.pledge.aggregate = jest.fn().mockResolvedValue({ _sum: { refundReservedHalalas: 0n } });
+  prisma.pledge.count ??= jest.fn().mockResolvedValue(0);
+  prisma.project ??= {};
+  prisma.project.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.user ??= {};
+  prisma.user.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.rewardTier ??= { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+  prisma.pledgeAddOn = { findMany: jest.fn().mockResolvedValue([]) };
+  prisma.addOn = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
   prisma.$transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
   return prisma;
 }
@@ -167,12 +196,11 @@ function adminPledge(over: any = {}): any {
 
 /** Second findUnique inside notifyAdminRefund resolves backer + project. */
 function stubNotifyLookup(prisma: any, p: any): void {
-  prisma.pledge.findUnique
-    .mockResolvedValueOnce(p) // adminRefundPledge load
-    .mockResolvedValueOnce({
-      backer: { id: p.backerId, email: 'backer@example.com' },
-      project: { id: p.projectId, titleAr: 'مشروع' },
-    });
+  prisma.pledge.findUnique.mockResolvedValueOnce(p);
+  if (p.status === 'CAPTURED') prisma.pledge.findUnique.mockResolvedValueOnce(p);
+  prisma.pledge.findUnique.mockResolvedValueOnce({
+    backer: { id: p.backerId, email: 'backer@example.com' }, project: { id: p.projectId, titleAr: 'مشروع' },
+  });
 }
 
 function buildSvc(prisma: any, moyasar: any) {
@@ -195,10 +223,10 @@ describe('EscrowService.adminRefundPledge', () => {
     const r = await svc.adminRefundPledge('pl-1');
 
     expect(r).toEqual({ ok: true, mode: 'void', amountHalalas: 12_000n });
-    expect(moyasar.void).toHaveBeenCalledWith('ref-pl-1');
+    expect(moyasar.void).toHaveBeenCalledWith('ref-pl-1', 12000n);
     expect(moyasar.refund).not.toHaveBeenCalled();
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'pl-1', status: p.status, paymentRef: p.paymentRef }),
       data: expect.objectContaining({ status: PledgeStatus.REFUNDED }),
     });
     expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
@@ -208,8 +236,8 @@ describe('EscrowService.adminRefundPledge', () => {
       }),
     });
     // Held money never entered REALIZED — the void must not touch it.
-    expect(prisma.project.update).toHaveBeenCalledWith({
-      where: { id: 'proj-1' },
+    expect(prisma.project.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'proj-1', raisedHalalas: { gte: 12_000n } }),
       data: {
         raisedHalalas: { decrement: 12_000n },
         backersCount: { decrement: 1 },
@@ -219,8 +247,8 @@ describe('EscrowService.adminRefundPledge', () => {
       where: { id: 'tier-1', claimedQty: { gt: 0 } },
       data: { claimedQty: { decrement: 1 } },
     });
-    expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 'backer-1' },
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: 'backer-1', totalPledgedHalalas: { gte: 12_000n } },
       data: { totalPledgedHalalas: { decrement: 12_000n } },
     });
     expect(notifications.create).toHaveBeenCalledWith(
@@ -243,14 +271,14 @@ describe('EscrowService.adminRefundPledge', () => {
     const r = await svc.adminRefundPledge('pl-1');
 
     expect(r).toEqual({ ok: true, mode: 'refund', amountHalalas: 12_000n });
-    expect(moyasar.refund).toHaveBeenCalledWith('ref-pl-1');
+    expect(moyasar.refund).toHaveBeenCalledWith('ref-pl-1', 12_000n);
     expect(moyasar.void).not.toHaveBeenCalled();
     expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ entryType: 'REFUND', source: 'ops-refund' }),
     });
     // The live correctness gap: captured refunds must leave REALIZED.
-    expect(prisma.project.update).toHaveBeenCalledWith({
-      where: { id: 'proj-1' },
+    expect(prisma.project.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'proj-1', raisedHalalas: { gte: 12_000n } }),
       data: {
         raisedHalalas: { decrement: 12_000n },
         realizedHalalas: { decrement: 12_000n },
@@ -268,10 +296,10 @@ describe('EscrowService.adminRefundPledge', () => {
     const r = await svc.adminRefundPledge('pl-1');
     expect(r.ok).toBe(true);
     expect(r.mode).toBe('void');
-    expect(moyasar.void).toHaveBeenCalledWith('ref-pl-1');
+    expect(moyasar.void).toHaveBeenCalledWith('ref-pl-1', 12000n);
   });
 
-  it('PSP refusal mutates NOTHING and reports the failure', async () => {
+  it('unconfirmed PSP response retains the reservation without a refund journal', async () => {
     const p = adminPledge({ status: PledgeStatus.CAPTURED });
     const prisma = makeOpsPrisma();
     prisma.pledge.findUnique.mockResolvedValue(p);
@@ -281,11 +309,12 @@ describe('EscrowService.adminRefundPledge', () => {
     const r = await svc.adminRefundPledge('pl-1');
 
     expect(r).toEqual({
-      ok: false, mode: 'refund', amountHalalas: 12_000n, failureReason: 'psp-refund-declined',
+      ok: false, mode: 'refund', amountHalalas: 12_000n, failureReason: 'refund-outcome-unknown',
     });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
-    expect(prisma.pledge.update).not.toHaveBeenCalled();
-    expect(prisma.project.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ refundReservedHalalas: 12000n }) }));
+    expect(moyasar.refund).toHaveBeenCalledTimes(1);
+    expect(prisma.project.updateMany).not.toHaveBeenCalled();
     expect(prisma.ledgerEntry.create).not.toHaveBeenCalled();
     expect(notifications.create).not.toHaveBeenCalled();
     expect(email.refundCompleted).not.toHaveBeenCalled();
@@ -350,147 +379,32 @@ describe('EscrowService.adminRefundProject', () => {
 });
 
 describe('EscrowService.retryCaptureCohort', () => {
-  it('CAPTURE_GRACE success lands on markCaptured (CAPTURED + REALIZED + CAPTURE ledger); FAILED_CAPTURE untouched without includeFailed', async () => {
+  it.each([true, false])('delegates grace recovery and aggregates confirmed=%s without direct provider calls', async ok => {
     const p = adminPledge({ status: PledgeStatus.CAPTURE_GRACE });
-    const prisma = makeOpsPrisma();
-    prisma.pledge.findMany.mockResolvedValueOnce([p]);
-    const moyasar = {
-      capture: jest.fn().mockResolvedValue({ ok: true }),
-      reauthorize: jest.fn(),
-    } as any;
-    const { svc, ledger } = buildSvc(prisma, moyasar);
-
-    const r = await svc.retryCaptureCohort('proj-1', { includeFailed: false });
-
-    expect(r).toEqual({ attempted: 1, captured: 1, stillFailed: 0 });
-    expect(moyasar.capture).toHaveBeenCalledWith('ref-pl-1');
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
-      data: expect.objectContaining({ status: PledgeStatus.CAPTURED }),
-    });
-    expect(prisma.project.update).toHaveBeenCalledWith({
-      where: { id: 'proj-1' },
-      data: { realizedHalalas: { increment: 12_000n } },
-    });
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'CAPTURE', amountHalalas: 12_000n }),
-    );
-    // Scope respected: only the CAPTURE_GRACE query ran.
-    expect(prisma.pledge.findMany).toHaveBeenCalledTimes(1);
-    expect(moyasar.reauthorize).not.toHaveBeenCalled();
+    const prisma = makeOpsPrisma(); prisma.pledge.findMany.mockResolvedValueOnce([p]);
+    const provider = { capture: jest.fn(), reauthorize: jest.fn() };
+    const { svc } = buildSvc(prisma, provider);
+    const recovery = jest.spyOn(svc, 'captureGracePledge').mockResolvedValue(ok);
+    expect(await svc.retryCaptureCohort('proj-1', { includeFailed: false })).toEqual({ attempted: 1, captured: ok ? 1 : 0, stillFailed: ok ? 0 : 1 });
+    expect(recovery).toHaveBeenCalledWith(p); expect(prisma.pledge.findMany).toHaveBeenCalledTimes(1);
+    expect(provider.capture).not.toHaveBeenCalled(); expect(provider.reauthorize).not.toHaveBeenCalled();
   });
-
-  it('CAPTURE_GRACE failure bumps captureAttempts only', async () => {
-    const p = adminPledge({ status: PledgeStatus.CAPTURE_GRACE });
-    const prisma = makeOpsPrisma();
-    prisma.pledge.findMany.mockResolvedValueOnce([p]);
-    const moyasar = { capture: jest.fn().mockResolvedValue({ ok: false }) } as any;
-    const { svc } = buildSvc(prisma, moyasar);
-
-    const r = await svc.retryCaptureCohort('proj-1', { includeFailed: false });
-
-    expect(r).toEqual({ attempted: 1, captured: 0, stillFailed: 1 });
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
-      data: { captureAttempts: { increment: 1 } },
-    });
-    expect(prisma.project.update).not.toHaveBeenCalled();
-  });
-
-  it('includeFailed: reauthorize→capture after an ATOMIC tier-stock re-claim (guarded by limitQty)', async () => {
+  it.each([true, false])('explicit includeFailed delegates stock-safe revival confirmed=%s', async ok => {
     const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
-    const prisma = makeOpsPrisma();
-    prisma.pledge.findMany
-      .mockResolvedValueOnce([]) // CAPTURE_GRACE bucket empty
-      .mockResolvedValueOnce([p]); // FAILED_CAPTURE bucket
-    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
-    prisma.rewardTier.updateMany.mockResolvedValue({ count: 1 }); // re-claim wins
-    const moyasar = {
-      capture: jest.fn().mockResolvedValue({ ok: true }),
-      reauthorize: jest.fn().mockResolvedValue({ ok: true }),
-    } as any;
-    const { svc } = buildSvc(prisma, moyasar);
-
-    const r = await svc.retryCaptureCohort('proj-1', { includeFailed: true });
-
-    expect(r).toEqual({ attempted: 1, captured: 1, stillFailed: 0 });
-    // Stock re-claimed BEFORE any PSP call, with the sold-out guard.
-    expect(prisma.rewardTier.updateMany).toHaveBeenCalledWith({
-      where: { id: 'tier-1', claimedQty: { lt: 5 } },
-      data: { claimedQty: { increment: 1 } },
-    });
-    expect(moyasar.reauthorize).toHaveBeenCalledWith('ref-pl-1');
-    expect(moyasar.capture).toHaveBeenCalledWith('ref-pl-1');
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
-      data: expect.objectContaining({ status: PledgeStatus.CAPTURED }),
-    });
+    const prisma = makeOpsPrisma(); prisma.pledge.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([p]);
+    const { svc } = buildSvc(prisma, {});
+    const revive = jest.spyOn(svc, 'reviveFailedPledge').mockResolvedValue({ ok, status: ok ? 'CAPTURED' : 'CAPTURE_GRACE' });
+    expect(await svc.retryCaptureCohort('proj-1', { includeFailed: true })).toEqual({ attempted: 1, captured: ok ? 1 : 0, stillFailed: ok ? 0 : 1 });
+    expect(revive).toHaveBeenCalledWith(p.id); expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled();
   });
-
-  it('includeFailed: exhausted tier stock skips the pledge — NO PSP call, no rollback', async () => {
-    const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
-    const prisma = makeOpsPrisma();
-    prisma.pledge.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([p]);
-    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
-    prisma.rewardTier.updateMany.mockResolvedValue({ count: 0 }); // sold out
-    const moyasar = { capture: jest.fn(), reauthorize: jest.fn() } as any;
-    const { svc } = buildSvc(prisma, moyasar);
-
-    const r = await svc.retryCaptureCohort('proj-1', { includeFailed: true });
-
-    expect(r).toEqual({ attempted: 1, captured: 0, stillFailed: 1 });
-    expect(moyasar.reauthorize).not.toHaveBeenCalled();
-    expect(moyasar.capture).not.toHaveBeenCalled();
-    // Exactly one updateMany (the failed claim) — never a rollback decrement.
-    expect(prisma.rewardTier.updateMany).toHaveBeenCalledTimes(1);
-  });
-
-  it('includeFailed: PSP failure after the re-claim rolls the stock back', async () => {
-    const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
-    const prisma = makeOpsPrisma();
-    prisma.pledge.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([p]);
-    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
-    prisma.rewardTier.updateMany.mockResolvedValue({ count: 1 });
-    const moyasar = {
-      capture: jest.fn(),
-      reauthorize: jest.fn().mockResolvedValue({ ok: false }), // issuer refuses
-    } as any;
-    const { svc } = buildSvc(prisma, moyasar);
-
-    const r = await svc.retryCaptureCohort('proj-1', { includeFailed: true });
-
-    expect(r).toEqual({ attempted: 1, captured: 0, stillFailed: 1 });
-    expect(moyasar.capture).not.toHaveBeenCalled();
-    // Claim then rollback, in that order.
-    expect(prisma.rewardTier.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { id: 'tier-1', claimedQty: { lt: 5 } },
-      data: { claimedQty: { increment: 1 } },
-    });
-    expect(prisma.rewardTier.updateMany).toHaveBeenNthCalledWith(2, {
-      where: { id: 'tier-1', claimedQty: { gt: 0 } },
-      data: { claimedQty: { decrement: 1 } },
-    });
-  });
-
-  it('includeFailed: an unlimited tier (limitQty null) re-claims without a guard', async () => {
-    const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
-    const prisma = makeOpsPrisma();
-    prisma.pledge.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([p]);
-    prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: null });
-    const moyasar = {
-      capture: jest.fn().mockResolvedValue({ ok: true }),
-      reauthorize: jest.fn().mockResolvedValue({ ok: true }),
-    } as any;
-    const { svc } = buildSvc(prisma, moyasar);
-
-    const r = await svc.retryCaptureCohort('proj-1', { includeFailed: true });
-
-    expect(r).toEqual({ attempted: 1, captured: 1, stillFailed: 0 });
-    expect(prisma.rewardTier.update).toHaveBeenCalledWith({
-      where: { id: 'tier-1' },
-      data: { claimedQty: { increment: 1 } },
-    });
-    expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled();
+  it.each(['CAPTURE_GRACE', 'FAILED_CAPTURE'])('isolates one %s recovery failure and continues the cohort', async status => {
+    const prisma = makeOpsPrisma(); const rows = [adminPledge({ status }), adminPledge({ id: 'pl-2', status })];
+    if (status === 'CAPTURE_GRACE') prisma.pledge.findMany.mockResolvedValueOnce(rows);
+    else prisma.pledge.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce(rows);
+    const { svc } = buildSvc(prisma, {});
+    if (status === 'CAPTURE_GRACE') jest.spyOn(svc, 'captureGracePledge').mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(true);
+    else jest.spyOn(svc, 'reviveFailedPledge').mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce({ ok: true, status: 'CAPTURED' });
+    expect(await svc.retryCaptureCohort('proj-1', { includeFailed: status === 'FAILED_CAPTURE' })).toEqual({ attempted: 2, captured: 1, stillFailed: 1 });
   });
 });
 
@@ -512,8 +426,8 @@ describe('EscrowService.resolveDispute', () => {
       status: PledgeStatus.CAPTURED,
       amountHalalas: 12_000n,
     });
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'pl-1', status: p.status, paymentRef: p.paymentRef }),
       data: expect.objectContaining({
         status: PledgeStatus.CAPTURED,
         disputeOutcome: 'WON',
@@ -529,8 +443,8 @@ describe('EscrowService.resolveDispute', () => {
       }),
     });
     // Funds retained — the webhook never decremented, so WON must not either.
-    expect(prisma.project.update).not.toHaveBeenCalled();
-    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.project.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
     expect(prisma.rewardTier.updateMany).not.toHaveBeenCalled();
     // Chargeback already moved money externally — never a PSP call.
     expect(moyasar.void).not.toHaveBeenCalled();
@@ -553,8 +467,8 @@ describe('EscrowService.resolveDispute', () => {
       status: PledgeStatus.REFUNDED,
       amountHalalas: 12_000n,
     });
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'pl-1', status: p.status, paymentRef: p.paymentRef }),
       data: expect.objectContaining({
         status: PledgeStatus.REFUNDED,
         disputeOutcome: 'LOST',
@@ -565,8 +479,8 @@ describe('EscrowService.resolveDispute', () => {
       data: expect.objectContaining({ entryType: 'REFUND', source: 'dispute-lost' }),
     });
     // Captured money left externally: BOTH raised and realized decrement.
-    expect(prisma.project.update).toHaveBeenCalledWith({
-      where: { id: 'proj-1' },
+    expect(prisma.project.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'proj-1', raisedHalalas: { gte: 12_000n } }),
       data: {
         raisedHalalas: { decrement: 12_000n },
         realizedHalalas: { decrement: 12_000n },
@@ -577,8 +491,8 @@ describe('EscrowService.resolveDispute', () => {
       where: { id: 'tier-1', claimedQty: { gt: 0 } },
       data: { claimedQty: { decrement: 1 } },
     });
-    expect(prisma.user.update).toHaveBeenCalledWith({
-      where: { id: 'backer-1' },
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: 'backer-1', totalPledgedHalalas: { gte: 12_000n } },
       data: { totalPledgedHalalas: { decrement: 12_000n } },
     });
     expect(moyasar.void).not.toHaveBeenCalled();
@@ -595,8 +509,8 @@ describe('EscrowService.resolveDispute', () => {
 
     await svc.resolveDispute('pl-1', 'LOST');
 
-    expect(prisma.project.update).toHaveBeenCalledWith({
-      where: { id: 'proj-1' },
+    expect(prisma.project.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'proj-1', raisedHalalas: { gte: 12_000n } }),
       data: {
         raisedHalalas: { decrement: 12_000n },
         realizedHalalas: { decrement: 12_000n },
@@ -613,7 +527,7 @@ describe('EscrowService.reviveFailedPledge', () => {
     prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
     prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
     prisma.rewardTier.updateMany.mockResolvedValue({ count: 1 }); // re-claim wins
-    const moyasar = {
+    const moyasar = { assertReauthorizationAvailable: jest.fn(),
       reauthorize: jest.fn().mockResolvedValue({ ok: true }),
       capture: jest.fn().mockResolvedValue({ ok: true }),
     } as any;
@@ -628,18 +542,19 @@ describe('EscrowService.reviveFailedPledge', () => {
       data: { claimedQty: { increment: 1 } },
     });
     expect(moyasar.reauthorize).toHaveBeenCalledWith('ref-pl-1');
-    expect(moyasar.capture).toHaveBeenCalledWith('ref-pl-1');
-    expect(prisma.pledge.update).toHaveBeenCalledWith({
-      where: { id: 'pl-1' },
+    expect(moyasar.capture).toHaveBeenCalledWith('ref-pl-1', 12_000n);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ id: 'pl-1', capturedAt: null, paymentRef: p.paymentRef }),
       data: expect.objectContaining({ status: PledgeStatus.CAPTURED }),
     });
     expect(prisma.project.update).toHaveBeenCalledWith({
       where: { id: 'proj-1' },
       data: { realizedHalalas: { increment: 12_000n } },
     });
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'CAPTURE', amountHalalas: 12_000n }),
-    );
+    expect(prisma.ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ entryType: 'CAPTURE', amountHalalas: 12_000n }),
+    });
+    expect(ledger.record).not.toHaveBeenCalled();
   });
 
   it('tier-stock-exhausted: short-circuits with NO PSP call and NO rollback', async () => {
@@ -648,7 +563,7 @@ describe('EscrowService.reviveFailedPledge', () => {
     prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
     prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
     prisma.rewardTier.updateMany.mockResolvedValue({ count: 0 }); // sold out
-    const moyasar = { reauthorize: jest.fn(), capture: jest.fn() } as any;
+    const moyasar = { assertReauthorizationAvailable: jest.fn(), reauthorize: jest.fn(), capture: jest.fn() } as any;
     const { svc } = buildSvc(prisma, moyasar);
 
     const r = await svc.reviveFailedPledge('pl-1');
@@ -664,13 +579,13 @@ describe('EscrowService.reviveFailedPledge', () => {
     expect(prisma.rewardTier.updateMany).toHaveBeenCalledTimes(1);
   });
 
-  it('PSP refusal after the re-claim rolls the stock back and leaves FAILED_CAPTURE', async () => {
+  it('unknown PSP outcome retains reserved stock and the durable grace attempt', async () => {
     const p = adminPledge({ status: PledgeStatus.FAILED_CAPTURE });
     const prisma = makeOpsPrisma();
     prisma.pledge.findUniqueOrThrow = jest.fn().mockResolvedValue(p);
     prisma.rewardTier.findUnique.mockResolvedValue({ limitQty: 5 });
     prisma.rewardTier.updateMany.mockResolvedValue({ count: 1 });
-    const moyasar = {
+    const moyasar = { assertReauthorizationAvailable: jest.fn(),
       reauthorize: jest.fn().mockResolvedValue({ ok: false }), // issuer refuses
       capture: jest.fn(),
     } as any;
@@ -680,17 +595,15 @@ describe('EscrowService.reviveFailedPledge', () => {
 
     expect(r).toEqual({
       ok: false,
-      reason: 'psp-declined',
-      status: PledgeStatus.FAILED_CAPTURE,
+      reason: 'payment-action-needs-verification',
+      status: PledgeStatus.CAPTURE_GRACE,
     });
     expect(moyasar.capture).not.toHaveBeenCalled();
     expect(prisma.rewardTier.updateMany).toHaveBeenNthCalledWith(1, {
       where: { id: 'tier-1', claimedQty: { lt: 5 } },
       data: { claimedQty: { increment: 1 } },
     });
-    expect(prisma.rewardTier.updateMany).toHaveBeenNthCalledWith(2, {
-      where: { id: 'tier-1', claimedQty: { gt: 0 } },
-      data: { claimedQty: { decrement: 1 } },
-    });
+    expect(prisma.rewardTier.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'CAPTURE_GRACE', authorizationIssue: expect.stringContaining('payment:REAUTHORIZE:') }) }));
   });
 });

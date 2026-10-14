@@ -17,10 +17,11 @@ export async function GET(
   const { projectId } = await ctx.params;
   const url = new URL(req.url);
   const qs = url.searchParams.toString();
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   try {
     const res = await fetch(
       `${API_BASE}/v1/projects/${projectId}/updates${qs ? `?${qs}` : ''}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}) },
     );
     const text = await res.text();
     return new NextResponse(text, {

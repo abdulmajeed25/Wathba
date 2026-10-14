@@ -1,15 +1,17 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { ForbiddenException } from '@nestjs/common';
 import { NotificationKind, PledgeStatus, ProjectStatus } from '@prisma/client';
 import { z } from 'zod';
 import type { UserRole } from '@prisma/client';
 
-import type { OperationDef } from '../operation.types';
+import type { OperationContext, OperationDef, PreconditionDef, ReadOnlyDb } from '../operation.types';
 import { MONEY_PERMISSIONS } from '../permissions';
 import { UNMASKABLE_FIELDS, maskEmail, maskPhone } from '../pii';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { NotificationsService } from '../../notifications/notifications.service';
 import type { EmailService } from '../../email/email.service';
 import type { PdplService } from '../../identity/pdpl.service';
+import { ADMIN_IDENTITY_PROTECTED, hasAdministrativeIdentity, protectAdministrativeIdentity, revokeIdentityCredentials } from '../../identity/administrative-identity';
 
 /**
  * OPS Part 0 — identity operations (SENSITIVE tier: written reason always,
@@ -17,7 +19,7 @@ import type { PdplService } from '../../identity/pdpl.service';
  *
  * Part 2 adds: users.role.revoke (the census's additive-only gap),
  * users.ops-role.grant/revoke (RBAC grants — users.roles.assign, held by
- * OWNER only via the seeded matrix; granting a money role to a SECOND user
+ * OWNER only by a live membership check; granting a money role to a SECOND user
  * flips FOUR_EYES_MONEY on automatically and the dryRun preview says so),
  * and users.pii.unmask (PDPL: revealing a masked field is itself an audited
  * operation; the execution ledger stores a redacted result, never the value).
@@ -216,6 +218,26 @@ const opsRoleGrantInput = z.object({
   roleKey: z.string().min(2).max(40),
 });
 
+// The owner chose to reserve ALL operator-role grants/revocations to OWNER.
+// users.roles.assign still authorizes other operations; changing that shared
+// permission would unintentionally remove the manager's unrelated duties.
+const ownerRoleAdministration: PreconditionDef<z.infer<typeof opsRoleGrantInput>> = {
+  code: 'owner-required',
+  reasonAr: 'منح وسحب أدوار الإدارة متاح للمالك فقط',
+  check: async (db, _input, ctx) => ctx.actor.type === 'HUMAN' && Boolean(await db.opsRoleGrant.findFirst({
+    where: { userId: ctx.actor.id, role: { key: 'OWNER' } }, select: { id: true },
+  })),
+};
+
+async function lockOwnerRoleAdministration(tx: ReadOnlyDb, ctx: OperationContext) {
+  // Serialize role administration and recheck ownership inside the write
+  // transaction, including last-owner protection under concurrent revocation.
+  await tx.$queryRaw`SELECT "id" FROM "OpsRole" WHERE "key" = 'OWNER' FOR UPDATE`;
+  if (!await ownerRoleAdministration.check(tx, {} as never, ctx)) {
+    throw new ForbiddenException(ownerRoleAdministration.reasonAr);
+  }
+}
+
 const opsRoleGrant: OperationDef<
   z.infer<typeof opsRoleGrantInput>,
   { roleKeys: string[]; fourEyesNowOn: boolean }
@@ -231,6 +253,7 @@ const opsRoleGrant: OperationDef<
   compensatingKey: 'users.ops-role.revoke',
   requiresReason: true,
   preconditions: [
+    ownerRoleAdministration,
     {
       code: 'user-missing',
       reasonAr: 'المستخدم غير موجود',
@@ -282,6 +305,7 @@ const opsRoleGrant: OperationDef<
     };
   },
   async execute(tx, input, ctx) {
+    await lockOwnerRoleAdministration(tx, ctx);
     const role = await tx.opsRole.findUniqueOrThrow({ where: { key: input.roleKey } });
     await tx.opsRoleGrant.upsert({
       where: { userId_roleId: { userId: input.userId, roleId: role.id } },
@@ -316,6 +340,7 @@ const opsRoleRevoke: OperationDef<
   compensatingKey: 'users.ops-role.grant',
   requiresReason: true,
   preconditions: [
+    ownerRoleAdministration,
     {
       code: 'grant-missing',
       reasonAr: 'المستخدم لا يحمل هذا الدور',
@@ -356,8 +381,12 @@ const opsRoleRevoke: OperationDef<
       after: { roleKeys: beforeKeys.filter((k) => k !== input.roleKey) },
     };
   },
-  async execute(tx, input) {
+  async execute(tx, input, ctx) {
+    await lockOwnerRoleAdministration(tx, ctx);
     const role = await tx.opsRole.findUniqueOrThrow({ where: { key: input.roleKey } });
+    if (role.key === 'OWNER' && !await tx.opsRoleGrant.findFirst({
+      where: { roleId: role.id, userId: { not: input.userId } }, select: { id: true },
+    })) throw new ForbiddenException('لا يمكن سحب آخر مالك للمنصة');
     await tx.opsRoleGrant.deleteMany({ where: { userId: input.userId, roleId: role.id } });
     const grants = await tx.opsRoleGrant.findMany({
       where: { userId: input.userId },
@@ -449,9 +478,6 @@ const MERGE_SIMPLE: ReadonlyArray<readonly [model: string, field: string]> = [
   ['faqQuestion', 'askerId'],
   ['notification', 'userId'],
   ['address', 'userId'],
-  ['refreshToken', 'userId'],
-  ['passwordResetToken', 'userId'],
-  ['emailVerifyToken', 'userId'],
   ['analyticsEvent', 'userId'],
   ['supportTicket', 'userId'],
   ['supportTicket', 'assignedToId'],
@@ -475,7 +501,6 @@ const MERGE_GUARDED: ReadonlyArray<
   ['creatorFollow', 'followerId', 'creatorProfileId'],
   ['updateLike', 'userId', 'updateId'],
   ['savedProject', 'userId', 'projectId'],
-  ['opsRoleGrant', 'userId', 'roleId'],
   ['projectCollaborator', 'userId', 'projectId'],
 ];
 
@@ -856,6 +881,10 @@ export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<
     orchestrated: true,
     preconditions: [
       {
+        code: 'administrative-identity', reasonAr: ADMIN_IDENTITY_PROTECTED,
+        check: async (db, input) => !await hasAdministrativeIdentity(db, [input.userId]),
+      },
+      {
         code: 'user-missing',
         reasonAr: 'المستخدم غير موجود',
         check: async (db, input) =>
@@ -947,6 +976,10 @@ export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<
     // own tx — so this op orchestrates rather than riding the registry's tx.
     orchestrated: true,
     preconditions: [
+      {
+        code: 'administrative-identity', reasonAr: ADMIN_IDENTITY_PROTECTED,
+        check: async (db, input) => !await hasAdministrativeIdentity(db, [input.sourceUserId, input.targetUserId]),
+      },
       {
         code: 'same-user',
         reasonAr: 'المصدر والهدف هما الحساب نفسه — لا شيء يُدمج',
@@ -1052,6 +1085,8 @@ export function usersOps(deps: UsersOpsDeps = UNWIRED_DEPS): Array<OperationDef<
       const target = input.targetUserId;
       // One multi-table transaction: the whole repoint commits or none of it.
       const repointed = await deps.prisma.$transaction(async (tx) => {
+        await protectAdministrativeIdentity(tx, [source, target]);
+        await revokeIdentityCredentials(tx, source);
         const db = tx as unknown as RepointClient;
         const counts: Record<string, number> = {};
         for (const [model, field] of MERGE_SIMPLE) {

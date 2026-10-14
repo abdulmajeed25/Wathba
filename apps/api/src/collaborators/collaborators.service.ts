@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { contentWorkspaceOpen, isUpdateEditor } from './content-access';
 
 /**
  * Per-project collaborators (Creator-CC / CC-24) — REAL, owner-managed access,
@@ -18,13 +19,34 @@ import { PrismaService } from '../prisma/prisma.service';
 export class CollaboratorsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async requireOwned(ownerId: string, projectId: string): Promise<void> {
-    const p = await this.prisma.project.findUnique({
+  private async requireOwned(ownerId: string, projectId: string, db: Prisma.TransactionClient = this.prisma) {
+    const p = await db.project.findUnique({
       where: { id: projectId },
-      select: { createdById: true },
+      select: { createdById: true, status: true, applicationApprovedAt: true },
     });
     if (!p) throw new NotFoundException('project not found');
     if (p.createdById !== ownerId) throw new ForbiddenException('not your project');
+    return p;
+  }
+
+  async workspaces(userId: string) {
+    const rows = await this.prisma.projectCollaborator.findMany({
+      where: { userId, role: 'EDITOR', project: { hiddenAt: null, OR: [
+        { applicationApprovedAt: { not: null } }, { status: { notIn: ['DRAFT', 'UNDER_REVIEW'] } },
+      ] } },
+      select: { project: { select: { id: true, titleAr: true, status: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { items: rows.map(row => ({ ...row.project, role: 'EDITOR' as const })) };
+  }
+
+  async workspace(userId: string, projectId: string) {
+    const project = await this.prisma.project.findUnique({ where: { id: projectId },
+      select: { id: true, titleAr: true, createdById: true, status: true, hiddenAt: true, applicationApprovedAt: true } });
+    if (!project || !await isUpdateEditor(this.prisma, projectId, project, userId)) {
+      throw new NotFoundException('مساحة المحتوى غير متاحة؛ ربما سُحب الوصول أو تغيرت حالة الحملة');
+    }
+    return { id: project.id, titleAr: project.titleAr, status: project.status, role: 'EDITOR' as const };
   }
 
   async list(ownerId: string, projectId: string): Promise<{ items: Array<Record<string, unknown>> }> {
@@ -58,7 +80,12 @@ export class CollaboratorsService {
     if (!user) throw new NotFoundException('لا يوجد مستخدم بهذا البريد على وثبة');
     if (user.id === ownerId) throw new BadRequestException('أنت صاحب المشروع بالفعل');
     try {
-      await this.prisma.projectCollaborator.create({ data: { projectId, userId: user.id } });
+      await this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR UPDATE`;
+        const project = await this.requireOwned(ownerId, projectId, tx);
+        if (!contentWorkspaceOpen(project)) throw new ForbiddenException('تُفتح إدارة الفريق بعد اعتماد الطلب الأولي');
+        await tx.projectCollaborator.create({ data: { projectId, userId: user.id, role: 'EDITOR' } });
+      });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new BadRequestException('هذا المتعاون مُضاف بالفعل');
@@ -69,8 +96,11 @@ export class CollaboratorsService {
   }
 
   async remove(ownerId: string, projectId: string, userId: string): Promise<{ removed: true }> {
-    await this.requireOwned(ownerId, projectId);
-    await this.prisma.projectCollaborator.deleteMany({ where: { projectId, userId } });
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR UPDATE`;
+      await this.requireOwned(ownerId, projectId, tx);
+      await tx.projectCollaborator.deleteMany({ where: { projectId, userId } });
+    });
     return { removed: true };
   }
 }

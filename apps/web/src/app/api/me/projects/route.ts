@@ -28,7 +28,7 @@ export async function GET(): Promise<Response> {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
     });
-    if (!res.ok) return NextResponse.json({ items: [], canCreate: true, blockedReasonAr: null });
+    if (!res.ok) return NextResponse.json({ items: null, canCreate: false, blockedReasonAr: 'تعذّر تحميل المشاريع. أعد المحاولة.' }, { status: res.status });
     const body = (await res.json()) as { items?: MyProject[] };
     const items = body.items ?? [];
     const active = items.find((p) => NON_TERMINAL.includes(p.status));

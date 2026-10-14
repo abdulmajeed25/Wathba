@@ -4,6 +4,7 @@ import { StatTile } from '../_components/stat-tile';
 import { FilterForm, qs } from '../_lib/filters';
 import { API_BASE, requireAdmin, requireOpsSession } from '../_lib/guard';
 import { ProjectsTable } from './_components/projects-table';
+import { RetryRead } from '../_components/retry-read';
 import { STATUS_LABEL_AR, statusLabel, type ProjectRow } from './_components/status';
 
 /**
@@ -53,29 +54,34 @@ export default async function OpsProjectsPage({
   let rows: ProjectRow[] = [];
   let nextCursor: string | null = null;
   let refused = false;
-  let stats: ProjectStats | null = null;
+  let unavailable = false;
 
-  try {
-    const [res, statsRes] = await Promise.all([
-      fetch(`${API_BASE}/v1/ops/projects${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`, {
+  const [, stats] = await Promise.all([
+    (async (): Promise<void> => { try {
+      const res = await fetch(`${API_BASE}/v1/ops/projects${qs({ ...filters, cursor: sp.cursor, limit: '50' })}`, {
         headers: { 'x-ops-token': opsToken },
         cache: 'no-store',
-      }),
-      fetch(`${API_BASE}/v1/ops/projects/stats${qs({ categoryId: filters.categoryId })}`, {
+      });
+      if (res.status === 403) refused = true;
+      else if (!res.ok) unavailable = true;
+      else {
+        const body = (await res.json()) as { items: ProjectRow[]; nextCursor: string | null };
+        if (!Array.isArray(body.items)) unavailable = true;
+        else { rows = body.items; nextCursor = body.nextCursor; }
+      }
+    } catch { unavailable = true; } })(),
+    (async (): Promise<ProjectStats | null> => { try {
+      const statsRes = await fetch(`${API_BASE}/v1/ops/projects/stats${qs({ categoryId: filters.categoryId })}`, {
         headers: { 'x-ops-token': opsToken },
         cache: 'no-store',
-      }),
-    ]);
-    if (res.status === 403) refused = true;
-    if (res.ok) {
-      const body = (await res.json()) as { items: ProjectRow[]; nextCursor: string | null };
-      rows = body.items;
-      nextCursor = body.nextCursor;
-    }
-    if (statsRes.ok) stats = (await statsRes.json()) as ProjectStats;
-  } catch {
-    /* API unreachable — the empty/refused states render below */
-  }
+      });
+      if (!statsRes.ok) return null;
+      const value = await statsRes.json() as ProjectStats;
+      if (!Number.isSafeInteger(value.total) || value.total < 0 || !value.statusCounts || typeof value.statusCounts !== 'object' ||
+          Object.values(value.statusCounts).some(count => !Number.isSafeInteger(count) || count < 0)) return null;
+      return value;
+    } catch { return null; } })(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -93,12 +99,21 @@ export default async function OpsProjectsPage({
       </div>
 
       {refused ? (
-        <p className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        <p role="alert" className="rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
           تفتقد صلاحية projects.review — اطلب دور REVIEWER أو أعلى من المالك.
         </p>
       ) : null}
 
-      {stats ? (
+      <Link href="/ops/project-changes" className="inline-block rounded border border-[#30363d] px-4 py-3 text-[#58a6ff]">مراجعة طلبات تغيير الأهداف والمدد</Link>
+
+      {unavailable && <div role="alert" className="rounded border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-300">
+        <p>تعذر تحميل المشاريع. لا يمكن تأكيد القائمة الآن.</p>
+        <RetryRead label="إعادة تحميل المشاريع" />
+      </div>}
+
+      {!refused && !unavailable && !stats && <div role="alert" className="rounded border border-amber-500/40 p-4 text-sm text-amber-300"><p>تعذر تحميل إحصاءات المشاريع؛ القائمة أدناه متاحة، والأعداد الإجمالية غير مؤكدة.</p><RetryRead label="إعادة تحميل الإحصاءات" /></div>}
+
+      {!refused && !unavailable && stats ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <StatTile label="إجمالي المشاريع" value={stats.total.toLocaleString('ar-SA-u-nu-latn')} />
           {TILE_STATUSES.map((t) => (
@@ -138,7 +153,7 @@ export default async function OpsProjectsPage({
         values={sp}
       />
 
-      <ProjectsTable rows={rows} />
+      {!refused && !unavailable && <ProjectsTable rows={rows} />}
 
       {nextCursor ? (
         <div className="text-center">

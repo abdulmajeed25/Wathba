@@ -4,9 +4,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { NotificationKind, PledgeStatus, UpdateVisibility, type ProjectUpdate } from '@prisma/client';
+import { NotificationKind, PledgeStatus, UpdateVisibility, type ProjectUpdate, type Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { contentWorkspaceOpen, isUpdateEditor } from '../collaborators/content-access';
 import {
   CreateUpdateDto,
   ListUpdatesQueryDto,
@@ -66,12 +67,12 @@ export class UpdatesService {
   ): Promise<{ items: PublicUpdate[] }> {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { id: true, createdById: true },
+      select: { id: true, createdById: true, status: true, hiddenAt: true, applicationApprovedAt: true },
     });
     if (!project) throw new NotFoundException('project not found');
 
-    const isOwner = viewerId === project.createdById;
-    const canSeeBackerOnly = await this.isBacker(projectId, viewerId, project.createdById);
+    const isOwner = viewerId === project.createdById || await isUpdateEditor(this.prisma, projectId, project, viewerId);
+    const canSeeBackerOnly = isOwner || await this.isBacker(projectId, viewerId, project.createdById);
     const take = Math.min(Math.max(q.take ?? 20, 1), 100);
 
     const items = await this.prisma.projectUpdate.findMany({
@@ -90,16 +91,16 @@ export class UpdatesService {
   async getOne(projectId: string, updateId: string, viewerId?: string): Promise<PublicUpdate> {
     const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      select: { createdById: true },
+      select: { createdById: true, status: true, hiddenAt: true, applicationApprovedAt: true },
     });
     if (!project) throw new NotFoundException('project not found');
     const u = await this.prisma.projectUpdate.findFirst({ where: { id: updateId, projectId } });
     if (!u) throw new NotFoundException('update not found');
 
-    const isOwner = viewerId === project.createdById;
+    const isOwner = viewerId === project.createdById || await isUpdateEditor(this.prisma, projectId, project, viewerId);
     // A scheduled (not-yet-due) update is invisible to non-owners.
     if (!isOwner && u.publishAt.getTime() > Date.now()) throw new NotFoundException('update not found');
-    const canSeeBackerOnly = await this.isBacker(projectId, viewerId, project.createdById);
+    const canSeeBackerOnly = isOwner || await this.isBacker(projectId, viewerId, project.createdById);
     return this.toPublic(u, { isOwner, canSeeBackerOnly });
   }
 
@@ -108,28 +109,27 @@ export class UpdatesService {
     projectId: string,
     dto: CreateUpdateDto,
   ): Promise<PublicUpdate> {
-    await this.requireCreator(creatorId, projectId);
-
-    const top = await this.prisma.projectUpdate.findFirst({
-      where: { projectId },
-      orderBy: { orderNum: 'desc' },
-      select: { orderNum: true },
-    });
-    const orderNum = (top?.orderNum ?? 0) + 1;
     const publishAt = dto.publishAt ? new Date(dto.publishAt) : new Date();
     const immediate = publishAt.getTime() <= Date.now();
-
-    const created = await this.prisma.projectUpdate.create({
-      data: {
-        projectId,
-        titleAr: dto.titleAr,
-        bodyAr: dto.bodyAr,
-        orderNum,
-        visibility: dto.visibility ?? UpdateVisibility.PUBLIC,
-        publishAt,
-        // Immediate updates are notified now; scheduled ones by the tick.
-        notifiedAt: immediate ? new Date() : null,
-      },
+    const created = await this.withCreator(creatorId, projectId, async tx => {
+      const top = await tx.projectUpdate.findFirst({
+        where: { projectId },
+        orderBy: { orderNum: 'desc' },
+        select: { orderNum: true },
+      });
+      const orderNum = (top?.orderNum ?? 0) + 1;
+      return tx.projectUpdate.create({
+        data: {
+          projectId,
+          titleAr: dto.titleAr,
+          bodyAr: dto.bodyAr,
+          orderNum,
+          visibility: dto.visibility ?? UpdateVisibility.PUBLIC,
+          publishAt,
+          // Delivery is stamped with the notification transaction, never before it.
+          notifiedAt: null,
+        },
+      });
     });
 
     // CC-01/CC-12 — fan out only when the update is actually live. Scheduled
@@ -149,35 +149,37 @@ export class UpdatesService {
     updateId: string,
     dto: UpdateUpdateDto,
   ): Promise<PublicUpdate> {
-    await this.requireCreator(creatorId, projectId);
-    const existing = await this.prisma.projectUpdate.findFirst({
-      where: { id: updateId, projectId },
-      select: { id: true },
-    });
-    if (!existing) throw new NotFoundException('update not found');
+    const updated = await this.withCreator(creatorId, projectId, async tx => {
+      const existing = await tx.projectUpdate.findFirst({
+        where: { id: updateId, projectId },
+        select: { id: true },
+      });
+      if (!existing) throw new NotFoundException('update not found');
 
-    const updated = await this.prisma.projectUpdate.update({
-      where: { id: updateId },
-      data: {
-        ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
-        ...(dto.bodyAr !== undefined && { bodyAr: dto.bodyAr }),
-        ...(dto.visibility !== undefined && { visibility: dto.visibility }),
-      },
+      return tx.projectUpdate.update({
+        where: { id: updateId },
+        data: {
+          ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
+          ...(dto.bodyAr !== undefined && { bodyAr: dto.bodyAr }),
+          ...(dto.visibility !== undefined && { visibility: dto.visibility }),
+        },
+      });
     });
     return this.toPublic(updated, { isOwner: true, canSeeBackerOnly: true });
   }
 
   /** CC-12 — toggle the pinned flag (only one meaningfully floats to top). */
   async togglePin(creatorId: string, projectId: string, updateId: string): Promise<PublicUpdate> {
-    await this.requireCreator(creatorId, projectId);
-    const existing = await this.prisma.projectUpdate.findFirst({
-      where: { id: updateId, projectId },
-      select: { id: true, pinned: true },
-    });
-    if (!existing) throw new NotFoundException('update not found');
-    const updated = await this.prisma.projectUpdate.update({
-      where: { id: updateId },
-      data: { pinned: !existing.pinned, pinnedAt: !existing.pinned ? new Date() : null },
+    const updated = await this.withCreator(creatorId, projectId, async tx => {
+      const existing = await tx.projectUpdate.findFirst({
+        where: { id: updateId, projectId },
+        select: { id: true, pinned: true },
+      });
+      if (!existing) throw new NotFoundException('update not found');
+      return tx.projectUpdate.update({
+        where: { id: updateId },
+        data: { pinned: !existing.pinned, pinnedAt: !existing.pinned ? new Date() : null },
+      });
     });
     return this.toPublic(updated, { isOwner: true, canSeeBackerOnly: true });
   }
@@ -187,13 +189,33 @@ export class UpdatesService {
     projectId: string,
     updateId: string,
   ): Promise<PublicUpdate & { liked: boolean }> {
-    const existing = await this.prisma.projectUpdate.findFirst({
-      where: { id: updateId, projectId },
-      select: { id: true },
-    });
-    if (!existing) throw new NotFoundException('update not found');
-
-    const { row, liked } = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
+      // Keep campaign visibility stable, then serialize this update's reactions
+      // with edits/deletion. Reading before the lock can leak an update whose
+      // visibility changed while this request waited to increment the counter.
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR SHARE`;
+      const project = await tx.project.findUnique({
+        where: { id: projectId },
+        select: { createdById: true, status: true, hiddenAt: true },
+      });
+      if (!project) throw new NotFoundException('project not found');
+      const isOwner = project.createdById === userId;
+      if (!isOwner && (project.hiddenAt || project.status === 'DRAFT' || project.status === 'UNDER_REVIEW')) {
+        throw new NotFoundException('project not found');
+      }
+      await tx.$queryRaw`SELECT "id" FROM "ProjectUpdate" WHERE "id" = ${updateId}::uuid AND "projectId" = ${projectId}::uuid FOR UPDATE`;
+      const existing = await tx.projectUpdate.findFirst({ where: { id: updateId, projectId } });
+      if (!existing || (!isOwner && existing.publishAt.getTime() > Date.now())) {
+        throw new NotFoundException('update not found');
+      }
+      const canSeeBackerOnly = isOwner || (existing.visibility === UpdateVisibility.BACKERS_ONLY &&
+        Boolean(await tx.pledge.findFirst({
+          where: { projectId, backerId: userId, status: PledgeStatus.CAPTURED }, select: { id: true },
+        })));
+      if (existing.visibility === UpdateVisibility.BACKERS_ONLY && !canSeeBackerOnly) {
+        throw new ForbiddenException('هذا التحديث متاح للداعمين المؤهلين فقط');
+      }
+      const context = { isOwner, canSeeBackerOnly };
       const had = await tx.updateLike.findUnique({
         where: { updateId_userId: { updateId, userId } },
         select: { updateId: true },
@@ -212,16 +234,15 @@ export class UpdatesService {
             data: { likeCount: 0 },
           });
         }
-        return { row: r, liked: false };
+        return { ...this.toPublic(r, context), liked: false };
       }
       await tx.updateLike.create({ data: { updateId, userId } });
       const r = await tx.projectUpdate.update({
         where: { id: updateId },
         data: { likeCount: { increment: 1 } },
       });
-      return { row: r, liked: true };
+      return { ...this.toPublic(r, context), liked: true };
     });
-    return { ...this.toPublic(row, { isOwner: true, canSeeBackerOnly: true }), liked };
   }
 
   async remove(
@@ -229,13 +250,14 @@ export class UpdatesService {
     projectId: string,
     updateId: string,
   ): Promise<{ ok: true }> {
-    await this.requireCreator(creatorId, projectId);
-    const existing = await this.prisma.projectUpdate.findFirst({
-      where: { id: updateId, projectId },
-      select: { id: true },
+    await this.withCreator(creatorId, projectId, async tx => {
+      const existing = await tx.projectUpdate.findFirst({
+        where: { id: updateId, projectId },
+        select: { id: true },
+      });
+      if (!existing) throw new NotFoundException('update not found');
+      await tx.projectUpdate.delete({ where: { id: updateId } });
     });
-    if (!existing) throw new NotFoundException('update not found');
-    await this.prisma.projectUpdate.delete({ where: { id: updateId } });
     return { ok: true };
   }
 
@@ -249,64 +271,72 @@ export class UpdatesService {
   async fanOutUpdatePosted(
     projectId: string,
     update: Pick<ProjectUpdate, 'id' | 'titleAr' | 'visibility'>,
-  ): Promise<{ notified: number }> {
-    const project = await this.prisma.project.findUnique({
-      where: { id: projectId },
-      select: { titleAr: true, createdById: true },
+  ): Promise<{ notified: number; deferred?: boolean }> {
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR SHARE`;
+      const project = await tx.project.findUnique({
+        where: { id: projectId },
+        select: { titleAr: true, createdById: true, status: true, hiddenAt: true },
+      });
+      if (!project || project.hiddenAt || ['DRAFT', 'UNDER_REVIEW'].includes(project.status)) return { notified: 0, deferred: true };
+      await tx.$queryRaw`SELECT "id" FROM "ProjectUpdate" WHERE "id" = ${update.id}::uuid AND "projectId" = ${projectId}::uuid FOR UPDATE`;
+      const current = await tx.projectUpdate.findFirst({ where: { id: update.id, projectId } });
+      if (!current || current.publishAt.getTime() > Date.now()) return { notified: 0, deferred: true };
+      if (current.notifiedAt) return { notified: 0 };
+      // The queued hint may predate an edit; audience/title come from the locked row.
+      update = current;
+
+      const backerStatuses =
+        update.visibility === UpdateVisibility.BACKERS_ONLY
+          ? [PledgeStatus.CAPTURED]
+          : [PledgeStatus.CAPTURED, PledgeStatus.HELD];
+
+      const backers = await tx.pledge.findMany({
+        where: { projectId, status: { in: backerStatuses } },
+        select: { backerId: true },
+        distinct: ['backerId'],
+      });
+      const followers =
+        update.visibility === UpdateVisibility.BACKERS_ONLY
+          ? []
+          : await tx.creatorFollow.findMany({
+              where: { creatorProfile: { userId: project.createdById } },
+              select: { followerId: true },
+            });
+
+      const recipients = new Set<string>();
+      for (const b of backers) recipients.add(b.backerId);
+      for (const f of followers) recipients.add(f.followerId);
+      recipients.delete(project.createdById);
+
+      // STAKES/E2 — drop recipients who opted out of project-update notifications.
+      const allowed = await this.notifications.filterAllowed(
+        [...recipients],
+        'projectUpdates',
+      );
+
+      const deepLink = `/projects/${projectId}/updates/${update.id}`;
+      const data = allowed.map((userId) => ({
+        userId,
+        kind: NotificationKind.UPDATE_POSTED,
+        payload: {
+          projectId,
+          projectTitleAr: project.titleAr,
+          updateId: update.id,
+          updateTitleAr: update.titleAr,
+          deepLink,
+        },
+        dedupKey: `update:${update.id}:${userId}`,
+      }));
+
+      const { count } = data.length ? await tx.notification.createMany({
+        data,
+        skipDuplicates: true,
+      }) : { count: 0 };
+      await tx.projectUpdate.update({ where: { id: update.id }, data: { notifiedAt: new Date() } });
+      this.logger.log(`update=${update.id} fan-out notified=${count} recipients=${recipients.size} optedIn=${allowed.length}`);
+      return { notified: count };
     });
-    if (!project) return { notified: 0 };
-
-    const backerStatuses =
-      update.visibility === UpdateVisibility.BACKERS_ONLY
-        ? [PledgeStatus.CAPTURED]
-        : [PledgeStatus.CAPTURED, PledgeStatus.HELD];
-
-    const backers = await this.prisma.pledge.findMany({
-      where: { projectId, status: { in: backerStatuses } },
-      select: { backerId: true },
-      distinct: ['backerId'],
-    });
-    const followers =
-      update.visibility === UpdateVisibility.BACKERS_ONLY
-        ? []
-        : await this.prisma.creatorFollow.findMany({
-            where: { creatorProfile: { userId: project.createdById } },
-            select: { followerId: true },
-          });
-
-    const recipients = new Set<string>();
-    for (const b of backers) recipients.add(b.backerId);
-    for (const f of followers) recipients.add(f.followerId);
-    recipients.delete(project.createdById);
-    if (recipients.size === 0) return { notified: 0 };
-
-    // STAKES/E2 — drop recipients who opted out of project-update notifications.
-    const allowed = await this.notifications.filterAllowed(
-      [...recipients],
-      'projectUpdates',
-    );
-    if (allowed.length === 0) return { notified: 0 };
-
-    const deepLink = `/projects/${projectId}/updates/${update.id}`;
-    const data = allowed.map((userId) => ({
-      userId,
-      kind: NotificationKind.UPDATE_POSTED,
-      payload: {
-        projectId,
-        projectTitleAr: project.titleAr,
-        updateId: update.id,
-        updateTitleAr: update.titleAr,
-        deepLink,
-      },
-      dedupKey: `update:${update.id}:${userId}`,
-    }));
-
-    const { count } = await this.prisma.notification.createMany({
-      data,
-      skipDuplicates: true,
-    });
-    this.logger.log(`update=${update.id} fan-out notified=${count} recipients=${recipients.size} optedIn=${allowed.length}`);
-    return { notified: count };
   }
 
   /**
@@ -316,19 +346,15 @@ export class UpdatesService {
    */
   async publishDueUpdates(): Promise<{ published: number }> {
     const due = await this.prisma.projectUpdate.findMany({
-      where: { notifiedAt: null, publishAt: { lte: new Date() } },
+      where: { notifiedAt: null, publishAt: { lte: new Date() }, project: { hiddenAt: null, status: { notIn: ['DRAFT', 'UNDER_REVIEW'] } } },
       select: { id: true, projectId: true, titleAr: true, visibility: true },
       take: 100,
     });
     let published = 0;
     for (const u of due) {
       try {
-        await this.fanOutUpdatePosted(u.projectId, u);
-        await this.prisma.projectUpdate.update({
-          where: { id: u.id },
-          data: { notifiedAt: new Date() },
-        });
-        published++;
+        const result = await this.fanOutUpdatePosted(u.projectId, u);
+        if (!result.deferred) published++;
       } catch (err) {
         this.logger.warn(`scheduled fan-out failed for update=${u.id}: ${String(err)}`);
       }
@@ -336,19 +362,26 @@ export class UpdatesService {
     return { published };
   }
 
-  private async requireCreator(creatorId: string, projectId: string): Promise<void> {
-    const project = await this.prisma.project.findUnique({
+  private async withCreator<T>(creatorId: string, projectId: string, action: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(async tx => {
+      // Membership grants/revocations use the same project lock. An edit that
+      // follows a completed removal must recheck authorization before writing.
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR UPDATE`;
+      await this.requireCreator(creatorId, projectId, tx);
+      return action(tx);
+    });
+  }
+
+  private async requireCreator(creatorId: string, projectId: string, tx: Prisma.TransactionClient): Promise<void> {
+    const project = await tx.project.findUnique({
       where: { id: projectId },
-      select: { createdById: true },
+      select: { createdById: true, status: true, hiddenAt: true, applicationApprovedAt: true },
     });
     if (!project) throw new NotFoundException('project not found');
+    if (!contentWorkspaceOpen(project)) throw new ForbiddenException('تُفتح أدوات تجهيز الحملة بعد اعتماد الطلب الأولي');
     if (project.createdById === creatorId) return;
     // CC-24 — a project collaborator also gets content access to updates.
-    const collab = await this.prisma.projectCollaborator.findUnique({
-      where: { projectId_userId: { projectId, userId: creatorId } },
-      select: { id: true },
-    });
-    if (!collab) throw new ForbiddenException('not your project');
+    if (!await isUpdateEditor(tx, projectId, project, creatorId)) throw new ForbiddenException('لا تملك صلاحية تحرير تحديثات هذه الحملة');
   }
 
   private toPublic(

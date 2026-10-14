@@ -119,6 +119,15 @@ export default async function globalSetup(): Promise<void> {
     );
   }
 
+  // Initial approval opens preparation, before configuring rewards.
+  const applicationSubmission = await fetch(`${API}/v1/projects/${proj.id}/submit`, { method: 'POST', headers: auth });
+  if (!applicationSubmission.ok) throw new Error(`application submission failed: ${applicationSubmission.status}`);
+  const initialApproval = await fetch(`${API}/v1/admin/projects/${proj.id}/review`, {
+    method: 'POST', headers: adminAuth,
+    body: JSON.stringify({ decision: 'approve' }),
+  });
+  if (!initialApproval.ok) throw new Error(`application approval failed: ${initialApproval.status}`);
+
   await fetch(`${API}/v1/projects/${proj.id}/reward-tiers`, {
     method: 'POST',
     headers: auth,

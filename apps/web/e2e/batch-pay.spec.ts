@@ -40,6 +40,15 @@ async function createLiveProject(auth: Record<string, string>, goalHalalas: numb
       durationDays: 30,
     }),
   }).then((r) => r.json())) as { id: string };
+  // Initial approval opens preparation, before configuring rewards.
+  const applicationSubmission = await fetch(`${API}/v1/projects/${proj.id}/submit`, { method: 'POST', headers: auth });
+  if (!applicationSubmission.ok) throw new Error(`application submission failed: ${applicationSubmission.status}`);
+  const initialApproval = await fetch(`${API}/v1/admin/projects/${proj.id}/review`, {
+    method: 'POST', headers: auth,
+    body: JSON.stringify({ decision: 'approve' }),
+  });
+  if (!initialApproval.ok) throw new Error(`application approval failed: ${initialApproval.status}`);
+
   const tier = (await fetch(`${API}/v1/projects/${proj.id}/reward-tiers`, {
     method: 'POST',
     headers: auth,
@@ -75,6 +84,7 @@ async function pledge(auth: Record<string, string>, projectId: string, opts: { t
     body: JSON.stringify({
       projectId,
       ...(opts.tierId ? { tierId: opts.tierId } : {}),
+      requestKey: crypto.randomUUID(),
       amountHalalas: opts.amount,
       source: 'tok_sandbox_pay',
       ...(opts.method ? { paymentMethod: opts.method } : {}),
@@ -214,7 +224,7 @@ test('Part 3: a tierless pledge under 10 SAR is rejected; 10 SAR passes and coun
   const tooSmall = await fetch(`${API}/v1/pledges`, {
     method: 'POST',
     headers: b,
-    body: JSON.stringify({ projectId, amountHalalas: 999, source: 'tok_sandbox_pay' }),
+    body: JSON.stringify({ requestKey: crypto.randomUUID(), projectId, amountHalalas: 999, source: 'tok_sandbox_pay' }),
   });
   expect(tooSmall.status).toBe(400);
   expect(JSON.stringify(await tooSmall.json())).toContain('١٠ ريالات');

@@ -5,6 +5,7 @@ import { qs } from '../_lib/filters';
 import { formatSar, isNonZeroHalalas } from '../_lib/money';
 import { StatTile } from '../_components/stat-tile';
 import { StatusBadge } from '../_components/badge';
+import { RetryRead } from '../_components/retry-read';
 import { PayoutsPanel } from './payouts-panel';
 import { RefundsPanel } from './refunds-panel';
 import { LedgerBrowser } from './ledger-browser';
@@ -93,7 +94,7 @@ export default async function MoneyVaultPage({
 
   if (dash.refused) {
     return (
-      <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+      <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
         تفتقد صلاحية <code dir="ltr">money.execute</code> أو <code dir="ltr">analytics.read</code> — اطلب دور FINANCE أو أعلى لعرض الخزنة.
       </div>
     );
@@ -103,10 +104,12 @@ export default async function MoneyVaultPage({
   const vit = dash.data?.vitals ?? {};
   // Money-relevant firing alerts (from the Unit-2 anomaly center) — surface
   // DISPUTED / PENDING_REAUTH / stuck-SENDING / ZATCA orphans right in the vault.
-  const moneyAlerts = (alertsRes.data?.items ?? []).filter(
+  const alertsAvailable = alertsRes.ok && Array.isArray(alertsRes.data?.items);
+  const moneyAlerts = (alertsAvailable ? alertsRes.data!.items : []).filter(
     (a) => a.key.startsWith('payouts.') || a.key.startsWith('pledges.') || a.key.startsWith('zatca.') || a.key.startsWith('webhooks.'),
   );
-  const alertCount = (k: string): number => moneyAlerts.find((a) => a.key === k)?.count ?? 0;
+  const alertCount = (k: string): number | null => alertsAvailable ? moneyAlerts.find((a) => a.key === k)?.count ?? 0 : null;
+  const countLabel = (value: unknown): string => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? String(value) : 'غير متاح';
 
   return (
     <div className="space-y-6">
@@ -152,6 +155,12 @@ export default async function MoneyVaultPage({
         })}
       </nav>
 
+      {(!dash.ok || !alertsAvailable) && <section role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-300">
+        {!dash.ok && <p>تعذر تحميل الملخص المالي. القيم غير المتاحة لا تعني صفرًا.</p>}
+        {!alertsAvailable && <p>تعذرت قراءة التنبيهات المالية؛ لا يمكن تأكيد خلو العمليات من المشكلات.</p>}
+        <RetryRead />
+      </section>}
+
       {tab === 'overview' && (
         <section className="space-y-4">
           {moneyAlerts.length > 0 && (
@@ -178,15 +187,15 @@ export default async function MoneyVaultPage({
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <StatTile
               label="نزاعات مفتوحة (DISPUTED)"
-              value={String(alertCount('pledges.disputed'))}
+              value={countLabel(alertCount('pledges.disputed'))}
               href="/ops/money?tab=refunds&status=DISPUTED"
-              intent={alertCount('pledges.disputed') > 0 ? 'danger' : 'default'}
+              intent={(alertCount('pledges.disputed') ?? 0) > 0 ? 'danger' : 'default'}
             />
             <StatTile
               label="بانتظار إعادة التفويض"
-              value={String(alertCount('pledges.pending_reauth'))}
+              value={countLabel(alertCount('pledges.pending_reauth'))}
               href="/ops/money?tab=refunds&status=PENDING_REAUTH"
-              intent={alertCount('pledges.pending_reauth') > 0 ? 'warn' : 'default'}
+              intent={(alertCount('pledges.pending_reauth') ?? 0) > 0 ? 'warn' : 'default'}
             />
             <StatTile label="إجمالي المبيعات (GMV)" value={formatSar(vit.gmvHalalas)} />
             <StatTile
@@ -194,28 +203,28 @@ export default async function MoneyVaultPage({
               value={formatSar(vit.pendingPayoutLiabilityHalalas)}
               intent={isNonZeroHalalas(vit.pendingPayoutLiabilityHalalas) ? 'warn' : 'default'}
             />
-            <StatTile label="عدد الاستردادات" value={String(vit.refundCount ?? 0)} />
+            <StatTile label="عدد الاستردادات" value={countLabel(vit.refundCount)} />
             <StatTile
               label="معالم بانتظار الاعتماد"
-              value={String(wq.milestonesSubmitted ?? 0)}
+              value={countLabel(wq.milestonesSubmitted)}
               href="/ops/money?tab=milestones"
               intent={(wq.milestonesSubmitted ?? 0) > 0 ? 'warn' : 'default'}
             />
             <StatTile
               label="دفعات معلّقة / فاشلة"
-              value={`${wq.payoutsPending ?? 0} / ${wq.payoutsFailed ?? 0}`}
+              value={`${countLabel(wq.payoutsPending)} / ${countLabel(wq.payoutsFailed)}`}
               href="/ops/money?tab=payouts"
               intent={(wq.payoutsFailed ?? 0) > 0 ? 'danger' : (wq.payoutsPending ?? 0) > 0 ? 'warn' : 'default'}
             />
             <StatTile
               label="التقاطات متعثرة (مهلة/فاشلة)"
-              value={`${wq.pledgesCaptureGrace ?? 0} / ${wq.pledgesFailedCapture ?? 0}`}
+              value={`${countLabel(wq.pledgesCaptureGrace)} / ${countLabel(wq.pledgesFailedCapture)}`}
               href="/ops/money?tab=refunds"
               intent={(wq.pledgesFailedCapture ?? 0) > 0 ? 'danger' : (wq.pledgesCaptureGrace ?? 0) > 0 ? 'warn' : 'default'}
             />
           </div>
           <p className="text-xs text-[#8b949e]">
-            الأرقام لقطة حيّة من لوحة القيادة. تفاصيل كل بند في تبويبه. التقارير المالية المفصّلة (العمولة، ضريبة القيمة المضافة،
+            الأرقام المتاحة من لوحة القيادة، والقيمة المفقودة تظهر «غير متاح». تفاصيل كل بند في تبويبه. التقارير المالية المفصّلة (العمولة، ضريبة القيمة المضافة،
             صافي الالتزام) مبنية من دفتر الأستاذ والمطابقة أدناه.
           </p>
         </section>

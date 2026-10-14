@@ -1,0 +1,34 @@
+{
+  "phase": "owner-role-governance",
+  "decision": "All administrative role grant/revoke requires live OWNER membership",
+  "api": {
+    "passed": 1346,
+    "suites": 99,
+    "failed": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "passed": 135,
+    "suites": 11,
+    "mockApi": true
+  },
+  "build": {
+    "api": true,
+    "web": true,
+    "next": "15.5.27"
+  },
+  "auditProduction": {
+    "info": 0,
+    "low": 1,
+    "moderate": 6,
+    "high": 11,
+    "critical": 0
+  },
+  "canonicalPlanSha256": "d4e09d90453c085b3a47c6e5a888132a9b36bedb1f71bc9fb45d5d4f5e737230",
+  "capabilities": {
+    "complete": 0,
+    "partial": 10,
+    "unresolved": 90
+  },
+  "ci": "Awaiting remote verification of this checkpoint; previous run blocked in search seed and critical audit"
+}

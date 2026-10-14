@@ -40,6 +40,14 @@ export function formatSarFromHalalas(locale: Locale, halalas: number | bigint): 
   return formatSar(locale, Number(halalas) / 100);
 }
 
+/** Full precision for prices and payment confirmation; keep compact statistics separate. */
+export function formatSarExact(locale: Locale, amount: number): string {
+  const value = new Intl.NumberFormat(locale === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US', {
+    maximumFractionDigits: 2,
+  }).format(amount);
+  return locale === 'ar' ? `${value} ر.س` : `SAR ${value}`;
+}
+
 /**
  * Batch POLISH Unit 5 — compact SAR for stat tiles and card ribbons, where the
  * full grouped number is too long to sit next to a label.

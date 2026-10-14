@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 
 import { adaptDiscoverProject } from '@/components/ventures/wathba/wathba-data';
@@ -43,6 +44,15 @@ export default async function ProjectsPage() {
     // whose LCP budget is 704ms, and [] on failure means the row just vanishes.
     getPopularFacets().catch(() => []),
   ]);
+  if (!live || live.items.length === 0) {
+    return <WathbaShell><main style={{ maxWidth: 900, margin: 'auto', padding: '64px 24px' }}>
+      <h1 style={{ fontSize: 32, fontWeight: 700 }}>{live ? 'المشاريع على وثبة' : 'تعذّر تحميل المشاريع'}</h1>
+      <p style={{ marginBlock: 24 }}>{live ? 'لا توجد حملات متاحة حاليًا. يمكنك التعرف على آلية التمويل أو تقديم مشروعك.' : 'الخدمة غير متاحة مؤقتًا. أعد المحاولة لعرض الحملات وبياناتها الفعلية.'}</p>
+      {!live && <Link href="/projects" prefetch={false} className="btnp">إعادة المحاولة</Link>}
+      <Link href="/projects/how" style={{ marginInline: 16 }}>كيف تعمل وثبة</Link>
+      <Link href="/projects/start" prefetch={false}>قدّم مشروعك</Link>
+    </main></WathbaShell>;
+  }
   const catNameById = new Map<string, string>();
   for (const top of cats ?? []) {
     catNameById.set(top.id, top.nameAr);

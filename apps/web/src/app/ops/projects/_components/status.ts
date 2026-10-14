@@ -60,6 +60,7 @@ export interface ProjectRow {
   id: string;
   titleAr: string;
   status: string;
+  applicationApprovedAt?: string | null;
   categoryId: string | null;
   categoryNameAr: string | null;
   goalHalalas: string | null;

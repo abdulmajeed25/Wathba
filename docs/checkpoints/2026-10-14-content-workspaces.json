@@ -1,0 +1,25 @@
+{
+  "phase": "content-workspaces",
+  "api": {
+    "passed": 1327,
+    "suites": 98,
+    "failed": 0,
+    "skipped": 0
+  },
+  "browser": {
+    "passed": 125,
+    "suites": 10,
+    "mockApi": true
+  },
+  "build": {
+    "api": true,
+    "web": true
+  },
+  "canonicalPlanSha256": "d4e09d90453c085b3a47c6e5a888132a9b36bedb1f71bc9fb45d5d4f5e737230",
+  "ci": "repairs pending remote validation",
+  "capabilities": {
+    "complete": 0,
+    "partial": 9,
+    "unresolved": 91
+  }
+}

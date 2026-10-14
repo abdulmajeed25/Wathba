@@ -18,7 +18,8 @@ export async function POST(req: Request): Promise<Response> {
   });
   const text = await r.text();
   // STAKES/O1 — funnel event on a successful pledge (fire-and-forget).
-  if (r.ok) {
+  const outcome = r.ok ? JSON.parse(text) as { replayed?: boolean; status?: string } : null;
+  if (outcome && !outcome.replayed && ['HELD', 'PENDING_BNPL'].includes(outcome.status ?? '')) {
     void fetch(`${API_BASE}/v1/events`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'content-type': 'application/json' },

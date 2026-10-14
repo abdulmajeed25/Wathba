@@ -105,6 +105,7 @@ export interface OpRunnerProps {
   disabled?: boolean;
   /** Fired after a successful execute with the API result. */
   onDone?: (result: unknown) => void;
+  summarizeResult?: (result: unknown) => { message: string; intent: 'ok' | 'warn' };
   /** Open the flow immediately on mount (used by the command palette). */
   autoStart?: boolean;
   /** Notified whenever the dialog closes (for controlled unmounting). */
@@ -123,7 +124,7 @@ function uuid(): string {
 }
 
 export function OpRunner(props: OpRunnerProps) {
-  const { opKey, input, triggerLabel, variant = 'primary', disabled = false, onDone } = props;
+  const { opKey, input, triggerLabel, variant = 'primary', disabled = false, onDone, summarizeResult } = props;
 
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -131,6 +132,7 @@ export function OpRunner(props: OpRunnerProps) {
   const [reason, setReason] = useState('');
   const [confirmText, setConfirmText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [completion, setCompletion] = useState<{ message: string; intent: 'ok' | 'warn' } | null>(null);
   const [reAuthHref, setReAuthHref] = useState<string | null>(null);
   const [meta, setMeta] = useState<{ requiresReason: boolean; riskTier: RiskTier }>({
     requiresReason: props.requiresReason ?? false,
@@ -147,6 +149,7 @@ export function OpRunner(props: OpRunnerProps) {
   const reset = useCallback(() => {
     setPhase('idle');
     setDry(null);
+    setCompletion(null);
     setReason('');
     setConfirmText('');
     setError(null);
@@ -162,6 +165,7 @@ export function OpRunner(props: OpRunnerProps) {
   const start = useCallback(async () => {
     setOpen(true);
     setPhase('loading');
+    setCompletion(null);
     setError(null);
     setReAuthHref(null);
     idemRef.current = uuid();
@@ -232,13 +236,15 @@ export function OpRunner(props: OpRunnerProps) {
         setPhase('error');
         return;
       }
+      const result = (body as { result?: unknown }).result ?? body;
+      setCompletion(summarizeResult?.(result) ?? null);
       setPhase('done');
-      onDone?.((body as { result?: unknown }).result ?? body);
+      onDone?.(result);
     } catch {
       setError('تعذّر الوصول إلى الخادم');
       setPhase('error');
     }
-  }, [opKey, input, reason, needsReason, onDone]);
+  }, [opKey, input, reason, needsReason, onDone, summarizeResult]);
 
   // Command-palette launch: open the flow the moment we mount.
   const startedRef = useRef(false);
@@ -302,7 +308,7 @@ export function OpRunner(props: OpRunnerProps) {
                 (the visual result banners below are not read on state change). */}
             <p role="status" aria-live="polite" className="sr-only">
               {phase === 'done'
-                ? '✓ نُفِّذت العملية وسُجّلت في التدقيق'
+                ? completion?.message ?? '✓ نُفِّذت العملية وسُجّلت في التدقيق'
                 : phase === 'error'
                   ? `خطأ: ${error ?? 'فشل التنفيذ'}`
                   : ''}
@@ -338,8 +344,8 @@ export function OpRunner(props: OpRunnerProps) {
 
             {phase === 'done' ? (
               <div className="space-y-4">
-                <p className="rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-300">
-                  ✓ نُفِّذت العملية وسُجّلت في التدقيق.
+                <p className={`rounded border px-3 py-2.5 text-sm ${completion?.intent === 'warn' ? 'border-amber-500/40 bg-amber-500/10 text-amber-300' : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'}`}>
+                  {completion?.message ?? '✓ نُفِّذت العملية وسُجّلت في التدقيق.'}
                 </p>
                 <div className="flex justify-end">
                   <button type="button" onClick={close} className="rounded bg-[#238636] px-4 py-1.5 text-sm font-bold text-white hover:bg-[#2ea043]">

@@ -36,7 +36,7 @@ export function NavLink({
       prefetch={false}
       aria-current={active ? 'page' : undefined}
       className={[
-        'flex items-center justify-between gap-2 rounded px-3 py-1.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]',
+        'flex min-h-[44px] items-center justify-between gap-2 rounded px-3 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff]',
         active
           ? 'bg-[#21262d] font-bold text-[#e6edf3]'
           : 'text-[#8b949e] hover:bg-[#161b22] hover:text-[#e6edf3]',
