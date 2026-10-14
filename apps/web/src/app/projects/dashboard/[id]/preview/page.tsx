@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { WathbaProjectPreview } from '@/components/ventures/wathba/dashboard/wathba-project-preview';
-import { getProjectDetail } from '@/lib/api/wathba';
+import { getProjectDetailLive } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'معاينة الحملة · وثبة' };
 export const dynamic = 'force-dynamic';
@@ -19,7 +19,7 @@ export default async function DashboardPreviewPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
-  const project = await getProjectDetail(id);
+  const project = await getProjectDetailLive(id);
   if (!project) notFound();
   return <WathbaProjectPreview projectId={id} project={project} />;
 }

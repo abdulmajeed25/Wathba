@@ -34,6 +34,7 @@ export default async function ProjectBackPage({
         initialAmountSar={sp.amount ? Number(sp.amount) : sp.custom ? 25 : undefined}
         liveTiers={tiers}
         liveTitleAr={detail?.titleAr ?? null}
+        liveProject={detail}
       />
     </WathbaShell>
   );

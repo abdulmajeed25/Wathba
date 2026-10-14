@@ -5,6 +5,7 @@ import { requireAdmin } from './_lib/guard';
 import { OpsNav } from './_components/ops-nav';
 import { CommandPalette } from './_components/command-palette';
 import { ThemeToggle } from './_components/theme-toggle';
+import { ResponsiveNavigation } from './_components/responsive-navigation';
 import { THEME_INIT_SCRIPT } from './_lib/theme';
 
 /**
@@ -51,27 +52,25 @@ export default async function OpsLayout({ children }: { children: ReactNode }) {
       </a>
 
       <header className="border-b border-[#21262d] bg-[#010409]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-6 py-3">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-5 gap-y-3 px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-400" aria-hidden />
-            <span className="text-sm font-bold tracking-wide">مركز عمليات وثبة</span>
+            <span className="whitespace-nowrap text-sm font-bold tracking-wide">مركز عمليات وثبة</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <CommandPalette />
             <ThemeToggle />
-            <kbd className="hidden rounded border border-[#30363d] bg-[#161b22] px-2 py-0.5 text-[11px] text-[#8b949e] sm:inline-block">
-              Ctrl+K للبحث
-            </kbd>
-            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300">
-              سطح داخلي — مراقَب ومسجَّل
+            <span className="whitespace-nowrap rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-300">
+              سجل تدقيق للإجراءات
             </span>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8 md:flex-row">
-        <aside className="shrink-0 md:w-52">
+      <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 md:flex-row md:py-8">
+        <aside className="min-w-0 shrink-0 md:w-52">
           <div className="md:sticky md:top-8">
-            <OpsNav />
+            <ResponsiveNavigation><OpsNav /></ResponsiveNavigation>
           </div>
         </aside>
         <main id="ops-main" tabIndex={-1} className="min-w-0 flex-1 outline-none">
@@ -79,7 +78,6 @@ export default async function OpsLayout({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <CommandPalette />
     </div>
   );
 }

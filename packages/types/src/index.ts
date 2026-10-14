@@ -113,7 +113,7 @@ export interface RewardTier {
 // PLEDGES / FUNDING
 // ============================================================================
 
-export type PledgeStatus = 'HELD' | 'CAPTURED' | 'REFUNDED' | 'FAILED';
+export type PledgeStatus = 'PENDING_AUTH' | 'HELD' | 'CAPTURED' | 'REFUNDED' | 'FAILED';
 export type ContractType = 'DONATION' | 'ISTISNA' | 'SALAM';
 
 export interface ShippingAddress {

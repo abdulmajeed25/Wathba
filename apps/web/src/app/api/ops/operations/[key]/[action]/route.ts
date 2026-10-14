@@ -19,5 +19,6 @@ export async function POST(
   }
   return proxyWithOpsToken(`/v1/ops/operations/${key}/${action}`, {
     body: await req.text(),
+    idempotencyKey: req.headers.get('x-idempotency-key'),
   });
 }

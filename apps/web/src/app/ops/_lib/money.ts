@@ -19,28 +19,27 @@ const SAR = new Intl.NumberFormat('ar-SA-u-nu-latn', {
 
 /** Format halalas (string|number|bigint) as an ar-SA SAR string. */
 export function formatSar(halalas: string | number | bigint | null | undefined): string {
-  if (halalas === null || halalas === undefined || halalas === '') return SAR.format(0);
-  let cents: bigint;
-  try {
-    cents = typeof halalas === 'bigint' ? halalas : BigInt(String(halalas).replace(/[^\d-]/g, '') || '0');
-  } catch {
-    return SAR.format(0);
-  }
+  const cents = parseHalalas(halalas);
+  if (cents === null) return 'غير متاح';
   const negative = cents < 0n;
   const abs = negative ? -cents : cents;
   const whole = abs / 100n;
   const frac = abs % 100n;
-  // Reconstruct as a Number only for the fractional formatting (safe: bounded).
-  const asNumber = Number(whole) + Number(frac) / 100;
-  return SAR.format(negative ? -asNumber : asNumber);
+  // Intl formats the integer BigInt exactly; only replace its two fraction
+  // digits. Converting the whole amount to Number loses cents on large totals.
+  const signedWhole = negative ? (whole === 0n ? -0 : -whole) : whole;
+  return SAR.formatToParts(signedWhole).map(part => part.type === 'fraction' ? frac.toString().padStart(2, '0') : part.value).join('');
+}
+
+function parseHalalas(value: string | number | bigint | null | undefined): bigint | null {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number') return Number.isSafeInteger(value) ? BigInt(value) : null;
+  if (typeof value !== 'string' || !/^-?\d+$/.test(value.trim())) return null;
+  try { return BigInt(value.trim()); } catch { return null; }
 }
 
 /** True when a halalas string represents a non-zero delta (for emphasis). */
 export function isNonZeroHalalas(halalas: string | number | bigint | null | undefined): boolean {
-  if (halalas === null || halalas === undefined || halalas === '') return false;
-  try {
-    return BigInt(String(halalas).replace(/[^\d-]/g, '') || '0') !== 0n;
-  } catch {
-    return false;
-  }
+  const parsed = parseHalalas(halalas);
+  return parsed !== null && parsed !== 0n;
 }

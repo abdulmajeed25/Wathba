@@ -13,7 +13,8 @@ export default async function CommentsPage({
 }): Promise<React.ReactElement> {
   const { id } = await params;
   const page = await listProjectComments(id, { take: 50 });
-  const items = page?.items ?? [];
+  if (!page || !Array.isArray(page.items)) throw new Error('تعذر تحميل تعليقات الحملة');
+  const items = page.items;
 
   return <DashboardCommentsManager projectId={id} initial={items} />;
 }

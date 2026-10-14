@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Children, cloneElement, isValidElement, useId, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ApiProjectDetail } from '@/lib/api/wathba';
@@ -512,14 +512,14 @@ export function DashboardSettings({
             <Hint>
               بين 7 و120 يوماً — حتى 60 تُعتمد مباشرة، وما فوقها يحتاج موافقة مسبقة من
               فريق وثبة. يُحتسب الموعد النهائي تلقائياً من المدّة عند نشر الحملة.
-              بعد النشر يُقفل الموعد ولا يمكن تمديده (سياسة §1).
+              بعد النشر تُطلب تغييرات الهدف والمدة من نموذج طلب التغيير وتخضع للمراجعة.
             </Hint>
           </Field>
         ) : (
           <>
             <ReadOnlyRow label="مدّة الحملة" value={`${project.durationDays} يوماً`} />
             <ReadOnlyRow label="الموعد النهائي" value={deadlineFmt} />
-            <Hint>الموعد النهائي مقفل بعد النشر — لا يمكن تمديده (سياسة §1).</Hint>
+            <Hint>لتعديل الهدف أو المدة، استخدم طلب التغيير أعلاه. القبول المبدئي لا يغيّر الموعد قبل استكمال متطلبات التطبيق.</Hint>
           </>
         )}
 
@@ -617,7 +617,7 @@ export function DashboardSettings({
                     busySection === null && project.storyAr.length >= 200,
                   )}
                 >
-                  {busySection === 'visibility' ? 'جارٍ الإرسال…' : 'إرسال للمراجعة'}
+                  {busySection === 'visibility' ? 'جارٍ الإرسال…' : 'طلب الموافقة على النشر'}
                 </button>
               }
             />
@@ -900,9 +900,19 @@ const CANCEL_COPY: Record<string, { hint: string; button: string; confirm: strin
   },
   LIVE: {
     hint:
-      'إلغاء الحملة أثناء التمويل يُلغي جميع الحجوزات ويعيد كامل المبالغ للداعمين تلقائياً (سياسة الاسترداد §5). لا يمكن التراجع.',
-    button: 'إلغاء الحملة وإرجاع المبالغ',
-    confirm: 'تأكيد الإلغاء وإرجاع كل المبالغ',
+      'إلغاء الحملة يوقف الدعم الجديد ويبدأ فك الحجوزات وإلغاء نيات التقسيط. قد تحتاج بعض العمليات إلى متابعة من الإدارة قبل اكتمال إعادة المبالغ. لا يمكن التراجع عن الإلغاء.',
+    button: 'إلغاء الحملة وبدء إعادة المبالغ',
+    confirm: 'تأكيد إلغاء الحملة',
+  },
+  PAUSED: {
+    hint: 'إلغاء الحملة الموقوفة يبدأ فك الحجوزات وإلغاء نيات التقسيط. قد تحتاج العمليات المتعثرة إلى متابعة من الإدارة. لا يمكن التراجع عن الإلغاء.',
+    button: 'إلغاء الحملة وبدء إعادة المبالغ',
+    confirm: 'تأكيد إلغاء الحملة',
+  },
+  SCHEDULED: {
+    hint: 'إلغاء موعد النشر وإعادة المشروع إلى مسودة قابلة للتعديل.',
+    button: 'إلغاء موعد النشر',
+    confirm: 'تأكيد إلغاء الموعد',
   },
 };
 
@@ -918,11 +928,12 @@ function CancelCampaign({
   const [typed, setTyped] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
   const copy = CANCEL_COPY[status];
   // CC-05 — typed-confirmation gate for IRREVERSIBLE actions: DRAFT hard-delete
   // and LIVE cancel-with-full-refund. UNDER_REVIEW withdraw is reversible so it
   // keeps the lighter arm→confirm. Server FSM stays the real enforcement point.
-  const requiresTyped = status === 'DRAFT' || status === 'LIVE';
+  const requiresTyped = status === 'DRAFT' || status === 'LIVE' || status === 'PAUSED';
   const titleMatches = typed.trim().toLowerCase() === project.titleAr.trim().toLowerCase();
   const canConfirm = !busy && (!requiresTyped || titleMatches);
 
@@ -930,9 +941,11 @@ function CancelCampaign({
     return (
       <>
         <Hint>
-          لا يمكن إلغاء حملة بحالة «{status}» — الأموال سُوّيت بالفعل. تواصل مع الدعم
-          للحالات الاستثنائية.
+          {status === 'FAILED'
+            ? 'انتهت الحملة ولم تُعتمد إعادة جميع المبالغ. راجع التعهدات وتواصل مع الإدارة لمتابعة العمليات المعلقة أو فروق المطابقة.'
+            : 'إلغاء الحملة غير متاح في حالتها الحالية. راجع التعهدات أو تواصل مع الإدارة لمتابعة الحالة المالية.'}
         </Hint>
+        {resultMessage && <p role="status">{resultMessage}</p>}
         <button type="button" disabled style={dangerBtnDisabledStyle}>
           الإلغاء غير متاح
         </button>
@@ -943,6 +956,7 @@ function CancelCampaign({
   async function doCancel(): Promise<void> {
     setBusy(true);
     setErr(null);
+    setResultMessage(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/cancel`, { method: 'POST' });
       const j = (await res.json()) as { outcome?: string; message?: string };
@@ -951,7 +965,13 @@ function CancelCampaign({
         return;
       }
       if (j.outcome === 'deleted') router.push('/projects/dashboard');
-      else router.refresh();
+      else {
+        setResultMessage(j.outcome === 'refund_pending'
+          ? 'أُغلقت الحملة، وما زالت بعض عمليات إعادة المبالغ أو مطابقتها بحاجة إلى متابعة الإدارة.'
+          : j.outcome === 'refunded' ? 'أُغلقت الحملة واكتملت إعادة التعهدات.' : 'حُفظ التغيير.');
+        setArming(false);
+        router.refresh();
+      }
     } catch {
       setErr('خطأ في الاتصال — أعد المحاولة.');
     } finally {
@@ -962,6 +982,7 @@ function CancelCampaign({
   return (
     <>
       <Hint>{copy.hint}</Hint>
+      {resultMessage && <p role="status">{resultMessage}</p>}
       {err && (
         <p role="alert" style={{ fontSize: 13, color: 'var(--err-ink)', margin: '6px 0' }}>
           {err}
@@ -992,7 +1013,7 @@ function CancelCampaign({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* CC-05 — live impact numbers so the creator sees exactly what the
               decision affects before confirming. */}
-          {status === 'LIVE' && (
+          {['LIVE', 'PAUSED'].includes(status) && (
             <div
               style={{
                 padding: '12px 14px',
@@ -1007,11 +1028,12 @@ function CancelCampaign({
               <div style={{ fontWeight: 700, marginBottom: 4, color: 'var(--err-ink)' }}>
                 إجراء لا يمكن التراجع عنه
               </div>
-              سيقوم النظام تلقائياً بإرجاع كامل المبالغ إلى{' '}
+              سيبدأ النظام معالجة تعهدات{' '}
               <b>{project.backersCount.toLocaleString('ar-SA-u-nu-latn')}</b> داعم — بإجمالي{' '}
-              <b>{fmtSAR(project.raisedHalalas)}</b>، وتنتقل الحملة نهائياً إلى حالة «متعثّر».
+              <b>{fmtSAR(project.raisedHalalas)}</b>. تُغلق الحملة أمام الدعم الجديد،
+              ولا تُعد إعادة المبالغ مكتملة حتى تنجح العمليات وتطابق سجلاتها.
               <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary, #3b4942)' }}>
-                أنت لا تحرّك الأموال بنفسك — الاسترداد نتيجة نظامية تلقائية للإلغاء.
+                فك الحجوزات وإلغاء نيات التقسيط يتبعان الإلغاء؛ تتولى الإدارة متابعة العمليات المتعثرة.
               </div>
             </div>
           )}
@@ -1149,10 +1171,13 @@ function Field({
   label: string;
   children: React.ReactNode;
 }): React.ReactElement {
+  const id = useId();
   return (
     <div>
-      <div
+      <label
+        htmlFor={id}
         style={{
+          display: 'block',
           fontSize: 12,
           fontWeight: 600,
           marginBottom: 6,
@@ -1160,8 +1185,9 @@ function Field({
         }}
       >
         {label}
-      </div>
-      {children}
+      </label>
+      {Children.map(children, child => isValidElement<{ id?: string }>(child) && typeof child.type === 'string' && ['input', 'textarea', 'select'].includes(child.type)
+        ? cloneElement(child, { id }) : child)}
     </div>
   );
 }

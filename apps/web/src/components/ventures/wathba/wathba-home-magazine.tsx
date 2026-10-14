@@ -212,8 +212,8 @@ export function wathbaMagazineRenderers(
           <div style={{ ...bannerCard, background: 'linear-gradient(130deg, rgba(5,166,97,.14), rgba(3,169,142,.04)), var(--card)' }}>
             <h3 style={{ fontSize: 19, fontWeight: 700, marginBottom: 8 }}>الفكرة تبدأ بإيمان</h3>
             <p style={{ fontSize: 13.5, color: 'var(--text-soft)', lineHeight: 1.7, marginBottom: 12 }}>
-              وثبة منصة الدعم الجماعي السعودية بضمان التنفيذ: لا يُخصم ريال واحد قبل بلوغ الحملة
-              عتبتها، وكل مبدع موثّق عبر نفاذ.
+              وثبة تجمع أصحاب المشاريع بداعميهم. تُراجع الحملات قبل النشر، وتُعرض شروط الدعم
+              والمكافآت وخطة التنفيذ لتختار ما يناسبك. الدعم لا يضمن نجاح المشروع أو تسليمه.
             </p>
             <Link href="/projects/about" style={bannerLink}>تعرّف على وثبة ←</Link>
           </div>

@@ -160,6 +160,7 @@ export class CreateProjectDto {
 }
 
 export class UpdateProjectDto {
+  @IsOptional() @IsEnum(ProjectRegion) region?: ProjectRegion;
   @IsOptional() @IsString() @MinLength(4) @MaxLength(120) titleAr?: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(240) shortDescAr?: string;
   @IsOptional() @IsEnum(ProjectCategory) category?: ProjectCategory;

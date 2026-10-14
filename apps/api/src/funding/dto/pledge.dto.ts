@@ -1,6 +1,6 @@
 import {
   ArrayMaxSize, IsArray, IsEnum, IsIn, IsInt, IsISO31661Alpha2, IsObject, IsOptional, IsString,
-  IsUUID, Matches, MaxLength, Min, MinLength, ValidateNested,
+  IsUUID, Matches, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -37,11 +37,14 @@ export class ShippingDto {
 export class PledgeAddOnDto {
   @ApiProperty() @IsUUID() addOnId!: string;
   @ApiProperty({ default: 1, minimum: 1 })
-  @IsOptional() @IsInt() @Min(1)
+  @IsOptional() @IsInt() @Min(1) @Max(2147483647)
   qty?: number;
 }
 
 export class CreatePledgeDto {
+  /** Required at the HTTP boundary; nullable storage preserves historical records. */
+  @ApiProperty({ format: 'uuid' }) @IsUUID()
+  requestKey?: string;
   @ApiProperty() @IsUUID() projectId!: string;
   /** Batch PAY (Part 3) — optional: absent = no-reward pledge (min 10 SAR). */
   @ApiProperty({ required: false }) @IsOptional() @IsUUID() tierId?: string;
@@ -51,7 +54,11 @@ export class CreatePledgeDto {
   @IsOptional() @IsIn(['CARD', 'TABBY', 'TAMARA']) paymentMethod?: string;
 
   @ApiProperty({ example: 75_000 })
-  @IsInt() @Min(100) amountHalalas!: number;
+  @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) amountHalalas!: number;
+
+  /** Shipping component already included in amountHalalas; explicit consent to the displayed fee. */
+  @ApiProperty({ required: false })
+  @IsOptional() @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) shippingHalalas?: number;
 
   /** STAKES/S-14 P3 — Turnstile token (required only when the env key is set). */
   @ApiProperty({ required: false })
@@ -81,4 +88,9 @@ export class CreatePledgeDto {
 export class RetryCaptureDto {
   @ApiProperty({ example: 'tok_sandbox_new' })
   @IsString() source!: string;
+}
+
+export class PledgeResultQueryDto {
+  @IsOptional() @IsUUID() pledgeId?: string;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(200) paymentRef?: string;
 }

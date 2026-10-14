@@ -55,6 +55,7 @@ function buildPrisma(): MockDb {
     operationExecution: model(), auditLog: model(), operationProposal: model(),
     $transaction: jest.fn(),
   };
+  prisma.project.findUniqueOrThrow.mockImplementation((args: unknown) => prisma.project.findUnique(args));
   prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
   return prisma;
 }
@@ -71,6 +72,12 @@ const ctx = (over: Partial<OperationContext> = {}): OperationContext => ({
 
 function escrowMock(): any {
   return {
+    reconcileInitialAuthorization: jest.fn(),
+    releaseRejectedAuthorization: jest.fn(),
+    reconcileCapturedRefund: jest.fn(),
+    reconcileUncountedVoid: jest.fn(),
+    reconcileHeldPayment: jest.fn(),
+    resumeReplacementCapture: jest.fn(),
     adminRefundPledge: jest.fn(),
     adminRefundProject: jest.fn(),
     retryCaptureCohort: jest.fn(),
@@ -78,12 +85,13 @@ function escrowMock(): any {
 }
 
 function buildReg(prisma: any, escrow: any = escrowMock(), moyasar: any = { fetchPayment: jest.fn() }) {
+  const disburser = { reconcilePayout: jest.fn().mockResolvedValue({ status: 'SENT', providerStatus: 'paid' }) };
   const reg = new OperationsRegistry(asPrisma(prisma));
   reg.permissionPort = { has: () => true };
   for (const op of moneyOps({
     prisma: asPrisma(prisma),
     funding: {} as never,
-    disburser: {} as never,
+    disburser: disburser as never,
     escrow,
     moyasar,
     zatca: {} as never,
@@ -91,12 +99,125 @@ function buildReg(prisma: any, escrow: any = escrowMock(), moyasar: any = { fetc
     email: { milestoneReleased: jest.fn().mockResolvedValue({}) } as never,
   }))
     reg.register(op);
-  return { reg, escrow, moyasar };
+  return { reg, escrow, moyasar, disburser };
 }
 
 const PLEDGE_ID = '11111111-1111-4111-8111-111111111111';
 const PROJECT_ID = '22222222-2222-4222-8222-222222222222';
 const PAYOUT_ID = '33333333-3333-4333-8333-333333333333';
+
+describe('money.authorization.reconcile governance', () => {
+  const pending = { id: PLEDGE_ID, status: 'PENDING_AUTH', paymentMethod: 'CARD',
+    authorizationContext: { version: 1 }, authorizationIssue: 'authorization-outcome-unknown' };
+  it.each([null, { ...pending, status: 'HELD' }, { ...pending, paymentMethod: 'BNPL' },
+    { ...pending, authorizationContext: null }, { ...pending, authorizationIssue: 'authorization-void-pending' }])('blocks ineligible row %#', async row => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(row);
+    const { reg, escrow } = buildReg(db);
+    await expect(reg.execute('money.authorization.reconcile', { pledgeId: PLEDGE_ID }, ctx())).rejects.toThrow();
+    expect(escrow.reconcileInitialAuthorization).not.toHaveBeenCalled();
+  });
+  it.each(['permission', 'reason', 'stepup', 'idempotency', 'agent'])('enforces %s before provider access', async mode => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db);
+    if (mode === 'permission') reg.permissionPort = { has: () => false };
+    const context = ctx(mode === 'reason' ? { reason: '' } : mode === 'stepup' ? { stepUpVerifiedAt: null } :
+      mode === 'idempotency' ? { idempotencyKey: undefined } : mode === 'agent' ? { actor: { id: 'agent', type: 'AGENT', roles: ['OWNER'], permissions: ['*'] } } : {});
+    await expect(reg.execute('money.authorization.reconcile', { pledgeId: PLEDGE_ID }, context)).rejects.toThrow();
+    expect(escrow.reconcileInitialAuthorization).not.toHaveBeenCalled();
+  });
+  it('preview and approval queue never contact the provider', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.authorization.reconcile', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(true);
+    reg.fourEyesPort = { mustQueue: async () => true };
+    expect(await reg.execute('money.authorization.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ queued: true });
+    expect(escrow.reconcileInitialAuthorization).not.toHaveBeenCalled();
+  });
+  it('records the verification outcome without exposing the backer bank challenge to administrators', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db);
+    escrow.reconcileInitialAuthorization.mockResolvedValue({ outcome: 'challenge', applied: false, transactionUrl: 'https://api.moyasar.com/v1/transaction_auths/private' });
+    const out = await reg.execute('money.authorization.reconcile', { pledgeId: PLEDGE_ID }, ctx());
+    expect(out.result).toEqual({ outcome: 'challenge', applied: false });
+    expect(escrow.reconcileInitialAuthorization).toHaveBeenCalledWith(PLEDGE_ID);
+    expect(JSON.stringify(db.operationExecution.update.mock.calls)).not.toContain('transaction_auths');
+  });
+});
+
+describe('money.authorization.release governance', () => {
+  const pending = { id: PLEDGE_ID, status: 'PENDING_AUTH', paymentMethod: 'CARD', capturedAt: null,
+    authorizationContext: { version: 1 }, authorizationIssue: 'authorization-terms-changed' };
+  it.each([null, { ...pending, status: 'HELD' }, { ...pending, paymentMethod: 'TABBY' },
+    { ...pending, authorizationContext: null }, { ...pending, capturedAt: new Date() },
+    { ...pending, authorizationIssue: 'void-outcome-unknown' }, { ...pending, authorizationIssue: 'authorization-outcome-unknown' }])('blocks ineligible row %#', async row => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(row); const { reg, escrow } = buildReg(db);
+    await expect(reg.execute('money.authorization.release', { pledgeId: PLEDGE_ID }, ctx())).rejects.toThrow();
+    expect(escrow.releaseRejectedAuthorization).not.toHaveBeenCalled();
+  });
+  it.each(['permission', 'reason', 'stepup', 'idempotency', 'agent'])('enforces %s before any financial request', async mode => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    if (mode === 'permission') reg.permissionPort = { has: () => false };
+    const context = ctx(mode === 'reason' ? { reason: '' } : mode === 'stepup' ? { stepUpVerifiedAt: null } :
+      mode === 'idempotency' ? { idempotencyKey: undefined } : mode === 'agent' ? { actor: { id: 'agent', type: 'AGENT', roles: ['OWNER'], permissions: ['*'] } } : {});
+    await expect(reg.execute('money.authorization.release', { pledgeId: PLEDGE_ID }, context)).rejects.toThrow();
+    expect(escrow.releaseRejectedAuthorization).not.toHaveBeenCalled();
+  });
+  it('preview and second approval queue never release the hold', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.authorization.release', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(true);
+    reg.fourEyesPort = { mustQueue: async () => true };
+    expect(await reg.execute('money.authorization.release', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ queued: true });
+    expect(escrow.releaseRejectedAuthorization).not.toHaveBeenCalled();
+  });
+  it('executes the saved pledge release and records its outcome', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    escrow.releaseRejectedAuthorization.mockResolvedValue({ ok: true });
+    expect(await reg.execute('money.authorization.release', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ result: { ok: true } });
+    expect(escrow.releaseRejectedAuthorization).toHaveBeenCalledWith(PLEDGE_ID);
+    expect(db.operationExecution.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'COMPLETED' }) }));
+  });
+});
+
+describe('money.refund.reconcile governance', () => {
+  const pending = { id: PLEDGE_ID, status: 'CAPTURED', amountHalalas: 1200n, addOnsHalalas: 600n,
+    refundRequestedAt: new Date(), refundReservedHalalas: 1800n };
+  it('previews without provider reads or financial writes', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.refund.reconcile', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(true);
+    expect(escrow.reconcileCapturedRefund).not.toHaveBeenCalled(); expect(db.pledge.update).not.toHaveBeenCalled();
+  });
+  it.each([null, { ...pending, status: 'REFUNDED' }, { ...pending, refundRequestedAt: null },
+    { ...pending, refundReservedHalalas: 500n }, { ...pending, refundReservedHalalas: 0n }])('refuses ineligible pledge %# before provider access', async row => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(row);
+    const { reg, escrow } = buildReg(db);
+    await expect(reg.execute('money.refund.reconcile', { pledgeId: PLEDGE_ID }, ctx())).rejects.toMatchObject({ response: expect.objectContaining({ code: 'refund-not-verifiable' }) });
+    expect(escrow.reconcileCapturedRefund).not.toHaveBeenCalled();
+  });
+  it.each(['permission', 'reason', 'stepup', 'idempotency', 'agent'])('enforces %s before external reads', async mode => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db);
+    if (mode === 'permission') reg.permissionPort = { has: () => false };
+    const context = ctx(mode === 'reason' ? { reason: '' } : mode === 'stepup' ? { stepUpVerifiedAt: null } :
+      mode === 'idempotency' ? { idempotencyKey: undefined } : mode === 'agent' ? { actor: { id: 'agent', type: 'AGENT', roles: ['OWNER'], permissions: ['*'] } } : {});
+    await expect(reg.execute('money.refund.reconcile', { pledgeId: PLEDGE_ID }, context)).rejects.toThrow();
+    expect(escrow.reconcileCapturedRefund).not.toHaveBeenCalled();
+  });
+  it('queues for second approval without contacting the provider', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db); reg.fourEyesPort = { mustQueue: async () => true };
+    expect(await reg.execute('money.refund.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ queued: true, result: null });
+    expect(escrow.reconcileCapturedRefund).not.toHaveBeenCalled();
+  });
+  it('stores the outcome from verification without invoking the refund command', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending);
+    const { reg, escrow } = buildReg(db); const proof = { outcome: 'partial', refundedHalalas: '500' };
+    escrow.reconcileCapturedRefund.mockResolvedValue(proof);
+    expect(await reg.execute('money.refund.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ result: proof });
+    expect(escrow.reconcileCapturedRefund).toHaveBeenCalledWith(PLEDGE_ID); expect(escrow.adminRefundPledge).not.toHaveBeenCalled();
+    expect(db.operationExecution.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: 'COMPLETED', result: proof }) }));
+  });
+});
 
 const refundablePledge = (over: Record<string, unknown> = {}) => ({
   id: PLEDGE_ID,
@@ -111,7 +232,119 @@ const refundablePledge = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+describe('money.void.reconcile governance', () => {
+  const pending = { status: 'PENDING_AUTH', authorizationIssue: 'void-outcome-unknown' };
+  it.each([null, { status: 'HELD', authorizationIssue: 'void-outcome-unknown' },
+    { status: 'PENDING_AUTH', authorizationIssue: 'finalization-outcome-unknown' },
+    { status: 'PENDING_AUTH', authorizationIssue: null }])('rejects an ineligible attempt %#', async row => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(row); const { reg, escrow } = buildReg(db);
+    await expect(reg.execute('money.void.reconcile', { pledgeId: PLEDGE_ID }, ctx())).rejects.toMatchObject({ response: expect.objectContaining({ code: 'void-not-verifiable' }) });
+    expect(escrow.reconcileUncountedVoid).not.toHaveBeenCalled();
+  });
+  it('preview does not read the provider and four-eyes queues before execution', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.void.reconcile', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(true);
+    reg.fourEyesPort = { mustQueue: async () => true };
+    expect(await reg.execute('money.void.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ queued: true });
+    expect(escrow.reconcileUncountedVoid).not.toHaveBeenCalled();
+  });
+  it.each(['permission', 'reason', 'stepup', 'idempotency', 'agent'])('enforces %s for the new operation', async mode => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    if (mode === 'permission') reg.permissionPort = { has: () => false };
+    const context = ctx(mode === 'reason' ? { reason: '' } : mode === 'stepup' ? { stepUpVerifiedAt: null } :
+      mode === 'idempotency' ? { idempotencyKey: undefined } : mode === 'agent' ? { actor: { id: 'a', type: 'AGENT', roles: ['OWNER'], permissions: ['*'] } } : {});
+    await expect(reg.execute('money.void.reconcile', { pledgeId: PLEDGE_ID }, context)).rejects.toThrow();
+    expect(escrow.reconcileUncountedVoid).not.toHaveBeenCalled();
+  });
+  it('delegates to GET reconciliation and persists the minimal result', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    escrow.reconcileUncountedVoid.mockResolvedValue({ outcome: 'pending' });
+    expect(await reg.execute('money.void.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ result: { outcome: 'pending' } });
+    expect(escrow.reconcileUncountedVoid).toHaveBeenCalledWith(PLEDGE_ID); expect(escrow.adminRefundPledge).not.toHaveBeenCalled();
+  });
+});
+
+describe('money.hold.reconcile governance', () => {
+  const pending = { status: 'HELD', authorizationIssue: 'payment:CAPTURE:11111111-1111-4111-8111-111111111111' };
+  it.each([null, { status: 'HELD', authorizationIssue: 'void-outcome-unknown' },
+    { status: 'PENDING_AUTH', authorizationIssue: 'finalization-outcome-unknown' },
+    { status: 'PENDING_AUTH', authorizationIssue: null }])('rejects an ineligible attempt %#', async row => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(row); const { reg, escrow } = buildReg(db);
+    await expect(reg.execute('money.hold.reconcile', { pledgeId: PLEDGE_ID }, ctx())).rejects.toMatchObject({ response: expect.objectContaining({ code: 'held-action-not-verifiable' }) });
+    expect(escrow.reconcileHeldPayment).not.toHaveBeenCalled();
+  });
+  it('preview does not read the provider and four-eyes queues before execution', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.hold.reconcile', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(true);
+    reg.fourEyesPort = { mustQueue: async () => true };
+    expect(await reg.execute('money.hold.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ queued: true });
+    expect(escrow.reconcileHeldPayment).not.toHaveBeenCalled();
+  });
+  it.each(['permission', 'reason', 'stepup', 'idempotency', 'agent'])('enforces %s for the new operation', async mode => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    if (mode === 'permission') reg.permissionPort = { has: () => false };
+    const context = ctx(mode === 'reason' ? { reason: '' } : mode === 'stepup' ? { stepUpVerifiedAt: null } :
+      mode === 'idempotency' ? { idempotencyKey: undefined } : mode === 'agent' ? { actor: { id: 'a', type: 'AGENT', roles: ['OWNER'], permissions: ['*'] } } : {});
+    await expect(reg.execute('money.hold.reconcile', { pledgeId: PLEDGE_ID }, context)).rejects.toThrow();
+    expect(escrow.reconcileHeldPayment).not.toHaveBeenCalled();
+  });
+  it('delegates to GET reconciliation and persists the minimal result', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    escrow.reconcileHeldPayment.mockResolvedValue({ outcome: 'pending' });
+    expect(await reg.execute('money.hold.reconcile', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ result: { outcome: 'pending' } });
+    expect(escrow.reconcileHeldPayment).toHaveBeenCalledWith(PLEDGE_ID); expect(escrow.adminRefundPledge).not.toHaveBeenCalled();
+  });
+});
+
+describe('money.replacement.capture governance', () => {
+  const pending = { status: 'CAPTURE_GRACE', authorizationIssue: 'payment:AUTHORIZE:11111111-1111-4111-8111-111111111111' };
+  it.each([null, { status: 'HELD', authorizationIssue: 'void-outcome-unknown' },
+    { status: 'PENDING_AUTH', authorizationIssue: 'finalization-outcome-unknown' },
+    { status: 'PENDING_AUTH', authorizationIssue: null }])('rejects an ineligible attempt %#', async row => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(row); const { reg, escrow } = buildReg(db);
+    await expect(reg.execute('money.replacement.capture', { pledgeId: PLEDGE_ID }, ctx())).rejects.toMatchObject({ response: expect.objectContaining({ code: 'replacement-not-resumable' }) });
+    expect(escrow.resumeReplacementCapture).not.toHaveBeenCalled();
+  });
+  it('preview does not read the provider and four-eyes queues before execution', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.replacement.capture', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(true);
+    reg.fourEyesPort = { mustQueue: async () => true };
+    expect(await reg.execute('money.replacement.capture', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ queued: true });
+    expect(escrow.resumeReplacementCapture).not.toHaveBeenCalled();
+  });
+  it.each(['permission', 'reason', 'stepup', 'idempotency', 'agent'])('enforces %s for the new operation', async mode => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    if (mode === 'permission') reg.permissionPort = { has: () => false };
+    const context = ctx(mode === 'reason' ? { reason: '' } : mode === 'stepup' ? { stepUpVerifiedAt: null } :
+      mode === 'idempotency' ? { idempotencyKey: undefined } : mode === 'agent' ? { actor: { id: 'a', type: 'AGENT', roles: ['OWNER'], permissions: ['*'] } } : {});
+    await expect(reg.execute('money.replacement.capture', { pledgeId: PLEDGE_ID }, context)).rejects.toThrow();
+    expect(escrow.resumeReplacementCapture).not.toHaveBeenCalled();
+  });
+  it('delegates to the governed continuation and persists the confirmed result', async () => {
+    const db = buildPrisma(); db.pledge.findUnique.mockResolvedValue(pending); const { reg, escrow } = buildReg(db);
+    escrow.resumeReplacementCapture.mockResolvedValue({ ok: true });
+    expect(await reg.execute('money.replacement.capture', { pledgeId: PLEDGE_ID }, ctx())).toMatchObject({ result: { ok: true } });
+    expect(escrow.resumeReplacementCapture).toHaveBeenCalledWith(PLEDGE_ID); expect(escrow.adminRefundPledge).not.toHaveBeenCalled();
+  });
+});
+
 describe('money.refund.pledge', () => {
+  it.each(['CAPTURE', 'VOID', 'REAUTHORIZE'])('refuses a conflicting %s attempt already at preview', async action => {
+    const db = buildPrisma();
+    db.pledge.findUnique.mockResolvedValue({ status: 'HELD', authorizationIssue: `payment:${action}:11111111-1111-4111-8111-111111111111` });
+    const { reg, escrow } = buildReg(db);
+    expect((await reg.dryRun('money.refund.pledge', { pledgeId: PLEDGE_ID }, ctx())).ok).toBe(false);
+    await expect(reg.execute('money.refund.pledge', { pledgeId: PLEDGE_ID }, ctx())).rejects.toMatchObject({ response: expect.objectContaining({ code: 'not-refundable' }) });
+    expect(escrow.adminRefundPledge).not.toHaveBeenCalled();
+  });
+  it('refuses a new captured refund while a durable request already exists', async () => {
+    const prisma = buildPrisma();
+    prisma.pledge.findUnique.mockResolvedValue(refundablePledge({ refundRequestedAt: new Date() }));
+    const { reg, escrow } = buildReg(prisma);
+    await expect(reg.execute('money.refund.pledge', { pledgeId: PLEDGE_ID }, ctx())).rejects.toMatchObject({ response: expect.objectContaining({ code: 'not-refundable' }) });
+    expect(escrow.adminRefundPledge).not.toHaveBeenCalled();
+  });
+
   it('refuses a missing pledge (pledge-missing)', async () => {
     const prisma = buildPrisma();
     prisma.pledge.findUnique.mockResolvedValue(null);
@@ -372,13 +605,14 @@ describe('money.payout.retry', () => {
     prisma.payout.findUnique.mockResolvedValue({
       id: PAYOUT_ID, status: 'FAILED', amountHalalas: 40_000n, failureReason: 'payout failed: no funds',
     });
-    prisma.payout.update.mockResolvedValue({
+    prisma.payout.updateMany.mockResolvedValue({ count: 1 });
+    prisma.payout.findUniqueOrThrow.mockResolvedValue({
       id: PAYOUT_ID, status: 'PENDING', amountHalalas: 40_000n, failureReason: null,
     });
     const { reg } = buildReg(prisma);
     const out = await reg.execute('money.payout.retry', { payoutId: PAYOUT_ID }, ctx());
-    expect(prisma.payout.update).toHaveBeenCalledWith({
-      where: { id: PAYOUT_ID },
+    expect(prisma.payout.updateMany).toHaveBeenCalledWith({
+      where: { id: PAYOUT_ID, status: 'FAILED', providerRef: null },
       data: { status: 'PENDING', failureReason: null },
     });
     expect(out.result).toEqual({ id: PAYOUT_ID, status: 'PENDING', amountHalalas: '40000' });
@@ -398,6 +632,45 @@ describe('money.payout.retry', () => {
       after: { status: 'PENDING', failureReason: null },
       monetaryDeltasHalalas: { payoutRequeuedGross: '40000' },
     });
+  });
+});
+
+describe('money.payout.reconcile governance', () => {
+  it('preview never calls the provider; execution delegates only the saved payout id', async () => {
+    const db = buildPrisma(); db.payout.findUnique.mockResolvedValue({ status: 'SENDING', providerRef: 'saved-ref' });
+    const { reg, disburser } = buildReg(db);
+    await reg.dryRun('money.payout.reconcile', { payoutId: PAYOUT_ID }, ctx());
+    expect(disburser.reconcilePayout).not.toHaveBeenCalled();
+    await reg.execute('money.payout.reconcile', { payoutId: PAYOUT_ID }, ctx());
+    expect(disburser.reconcilePayout).toHaveBeenCalledWith(PAYOUT_ID);
+    expect(db.operationExecution.create).toHaveBeenCalled();
+  });
+  it.each([null, { status: 'SENDING', providerRef: null }, { status: 'SENT', providerRef: 'ref' }])('blocks unverifiable row %j', async row => {
+    const db = buildPrisma(); db.payout.findUnique.mockResolvedValue(row);
+    const { reg, disburser } = buildReg(db);
+    await expect(reg.execute('money.payout.reconcile', { payoutId: PAYOUT_ID }, ctx())).rejects.toThrow();
+    expect(disburser.reconcilePayout).not.toHaveBeenCalled();
+  });
+  it('denied permission and missing step-up cannot reach the provider', async () => {
+    const db = buildPrisma(); db.payout.findUnique.mockResolvedValue({ status: 'SENDING', providerRef: 'ref' });
+    const { reg, disburser } = buildReg(db);
+    reg.permissionPort = { has: () => false };
+    await expect(reg.execute('money.payout.reconcile', { payoutId: PAYOUT_ID }, ctx())).rejects.toThrow();
+    reg.permissionPort = { has: () => true };
+    await expect(reg.execute('money.payout.reconcile', { payoutId: PAYOUT_ID }, ctx({ stepUpVerifiedAt: null }))).rejects.toThrow();
+    expect(disburser.reconcilePayout).not.toHaveBeenCalled();
+  });
+  it('a failed payout with a provider reference cannot re-enter the send queue', async () => {
+    const db = buildPrisma(); db.payout.findUnique.mockResolvedValue({ status: 'FAILED', providerRef: 'ref' });
+    const { reg } = buildReg(db);
+    await expect(reg.execute('money.payout.retry', { payoutId: PAYOUT_ID }, ctx())).rejects.toThrow();
+    expect(db.payout.updateMany).not.toHaveBeenCalled();
+  });
+  it('a retry eligibility race fails the conditional mutation', async () => {
+    const db = buildPrisma(); db.payout.findUnique.mockResolvedValue({ status: 'FAILED', providerRef: null });
+    const { reg } = buildReg(db);
+    db.payout.updateMany.mockResolvedValue({ count: 0 });
+    await expect(reg.execute('money.payout.retry', { payoutId: PAYOUT_ID }, ctx())).rejects.toThrow('not safely retryable');
   });
 });
 

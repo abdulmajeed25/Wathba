@@ -261,7 +261,7 @@ export function UserOperations({ userId, userName, suspendedKind, suspended }: P
           placeholder="معرّف الحساب الهدف (الباقي)"
           dir="ltr"
           aria-label="معرّف الحساب الهدف"
-          className="min-w-[22rem] flex-1 rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 font-mono text-xs outline-none focus:border-emerald-500"
+          className="min-w-0 w-full flex-1 sm:min-w-[22rem] rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 font-mono text-xs outline-none focus:border-emerald-500"
         />
         <OpRunner
           key={`merge-${targetId}`}

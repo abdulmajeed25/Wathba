@@ -104,7 +104,9 @@ const config: NextConfig = {
   reactStrictMode: true,
   htmlLimitedBots,
   // Slim Docker runtime (Sprint 4 / P0-1101).
-  output: 'standalone',
+  // Standard server builds also allow local production verification on Windows
+  // without symlink privileges. Deployment packaging remains standalone by default.
+  output: process.env.WATHBA_BUILD_MODE === 'server' ? undefined : 'standalone',
   // STAKES/M2 — next/image for real remote assets (MinIO avatars/covers).
   // `unoptimized`: the standalone runtime ships without sharp; next/image
   // still gives lazy-loading + enforced dimensions (no CLS), which is what

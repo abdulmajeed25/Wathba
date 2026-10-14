@@ -7,18 +7,25 @@ import { useState } from 'react';
 export function LeaveButton() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   async function leave() {
     setBusy(true);
+    setError('');
     try {
-      await fetch('/api/ops/auth/leave', { method: 'POST' });
-    } finally {
-      router.push('/projects/admin');
+      const response = await fetch('/api/ops/auth/leave', { method: 'POST' });
+      if (!response.ok && response.status !== 401) throw new Error('leave failed');
+      router.push('/projects');
       router.refresh();
+    } catch {
+      setError('تعذر التأكد من إنهاء جلسة الإدارة؛ أعد المحاولة.');
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
+    <div className="space-y-2">
     <button
       type="button"
       onClick={leave}
@@ -27,5 +34,7 @@ export function LeaveButton() {
     >
       {busy ? 'جارٍ الخروج…' : 'إنهاء الجلسة والخروج'}
     </button>
+    {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+    </div>
   );
 }

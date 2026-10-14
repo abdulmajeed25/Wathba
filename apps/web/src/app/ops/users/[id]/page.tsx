@@ -147,7 +147,7 @@ export default async function OpsUserDetailPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold">{user?.name ?? 'مستخدم'}</h1>
-          <p className="mt-1 font-mono text-xs text-[#8b949e]" dir="ltr">
+          <p className="mt-1 break-all font-mono text-xs text-[#8b949e]" dir="ltr">
             {id}
           </p>
         </div>
@@ -268,7 +268,7 @@ export default async function OpsUserDetailPage({
                 {user.pledgeCount.toLocaleString('ar-SA-u-nu-latn')})
               </span>
             </h2>
-            <div className="overflow-x-auto rounded-lg border border-[#21262d]">
+            <div tabIndex={0} role="region" aria-label="جدول بيانات قابل للتمرير" className="overflow-x-auto rounded-lg border border-[#21262d] focus-visible:outline focus-visible:outline-2">
               {pledges.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-[#8b949e]">لا تعهّدات لهذا الحساب.</p>
               ) : (
@@ -330,7 +330,7 @@ export default async function OpsUserDetailPage({
                 (أحدث {Math.min(sessions.length, 25).toLocaleString('ar-SA-u-nu-latn')} — البصمات محجوبة)
               </span>
             </h2>
-            <div className="overflow-x-auto rounded-lg border border-[#21262d]">
+            <div tabIndex={0} role="region" aria-label="جدول بيانات قابل للتمرير" className="overflow-x-auto rounded-lg border border-[#21262d] focus-visible:outline focus-visible:outline-2">
               {sessions.length === 0 ? (
                 <p className="px-4 py-6 text-center text-sm text-[#8b949e]">
                   لا جلسات أو أجهزة مسجّلة.

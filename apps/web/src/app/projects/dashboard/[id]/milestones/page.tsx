@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import {
-  getProjectDetail,
+  getProjectDetailLive,
   getProjectTransparency,
   listProjectMilestones,
   type ApiSpendLog,
@@ -20,7 +20,7 @@ export default async function MilestonesPage({
 }): Promise<React.ReactElement> {
   const { id } = await params;
   const [project, milestones, transparencyRaw] = await Promise.all([
-    getProjectDetail(id),
+    getProjectDetailLive(id),
     listProjectMilestones(id),
     getProjectTransparency(id),
   ]);

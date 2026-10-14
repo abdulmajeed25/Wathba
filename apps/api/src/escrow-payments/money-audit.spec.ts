@@ -89,6 +89,13 @@ describe('MONEY-AUDIT — payout SENT (PayoutDisburser)', () => {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     } as any;
+    prisma.$queryRaw = jest.fn();
+    prisma.project.findUniqueOrThrow = jest.fn(async () => ({ realizedHalalas: 5000000n }));
+    prisma.milestone = { aggregate: jest.fn(async () => ({ _sum: { releasedHalalas: 0n } })) };
+    prisma.payout.aggregate = jest.fn(async () => ({ _sum: { amountHalalas: 5000000n } }));
+    prisma.pledge = { aggregate: jest.fn(async () => ({ _sum: { refundReservedHalalas: 0n } })) };
+    prisma.ledgerEntry = { create: jest.fn() };
+    prisma.$transaction = jest.fn(async (fn: any) => fn(prisma));
     const cfg = { get: jest.fn().mockReturnValue('') } as any; // stub mode
     const audit = auditMock();
     const d = new PayoutDisburser(
@@ -103,7 +110,7 @@ describe('MONEY-AUDIT — payout SENT (PayoutDisburser)', () => {
       audit,
     );
     const res = await d.disbursePending();
-    expect(res).toEqual({ sent: 1, failed: 0 });
+    expect(res).toEqual({ sent: 1, failed: 0, pending: 0 });
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'system.payout.sent', entity: 'Payout', entityId: 'po-1' }),
     );
@@ -115,7 +122,7 @@ describe('MONEY-AUDIT — webhook capture (WebhookService)', () => {
     const prisma = {
       webhookEvent: {
         create: jest.fn().mockResolvedValue({ id: 'evt-1' }),
-        update: jest.fn().mockResolvedValue({}),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       pledge: {
         findFirst: jest.fn().mockResolvedValue({
@@ -135,7 +142,7 @@ describe('MONEY-AUDIT — webhook capture (WebhookService)', () => {
       { refundCompleted: jest.fn() } as any,
       { get: jest.fn().mockReturnValue('whsec') } as any,
     );
-    const r = await svc.process({ id: 'evt-1', type: 'payment_paid', data: { id: 'pay_x' } });
+    const r = await svc.process({ id: 'evt-1', type: 'payment_paid', data: { id: 'pay_x', status: 'paid', amount: 10000, captured: 10000, refunded: 0, currency: 'SAR' } });
     expect(r.outcome).toBe('applied');
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'system.webhook.captured', entity: 'Pledge', entityId: 'pl-1' }),

@@ -2,9 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useId, useMemo, useState, useEffect } from 'react';
+import { useId, useMemo, useState, useEffect, useRef } from 'react';
 
-import { formatSar } from '@/lib/i18n/format';
+import { formatSarExact as formatSar } from '@/lib/i18n/format';
 import { track } from '@/lib/analytics';
 
 import {
@@ -17,7 +17,8 @@ import { Icon, Num } from './wathba-icons';
 import { ShareRow } from './wathba-share';
 import { TurnstileSlot } from '@/components/auth/turnstile-slot';
 import { createCardToken } from '@/lib/payments/moyasar-client';
-import type { ApiRewardTier } from '@/lib/api/wathba';
+import { parsePledgePolicy, type PledgePolicy } from '@/lib/payments/pledge-policy';
+import type { ApiRewardTier, ApiProjectDetail } from '@/lib/api/wathba';
 import { toDisplayDigits } from './discover-all-constants';
 
 /**
@@ -38,6 +39,13 @@ interface DisplayTier {
   desc: string;
   rank: string;
   requiresShipping: boolean;
+  shippingPrice: number | null;
+  shipsTo: string[];
+}
+
+function countryLabel(country: string): string {
+  try { return new Intl.DisplayNames(['ar'], { type: 'region' }).of(country) ?? country; }
+  catch { return country; }
 }
 
 export function WathbaPledge({
@@ -45,12 +53,14 @@ export function WathbaPledge({
   initialTier = 't2',
   liveTiers = null,
   liveTitleAr = null,
+  liveProject = null,
   initialAmountSar,
 }: {
   projectId: string;
   initialTier?: string;
   liveTiers?: ApiRewardTier[] | null;
   liveTitleAr?: string | null;
+  liveProject?: ApiProjectDetail | null;
   /** Batch PAY (Part 3) — entering via «ادعم بدون مكافأة» (tierless). */
   initialAmountSar?: number;
 }) {
@@ -58,21 +68,27 @@ export function WathbaPledge({
   const project =
     wathbaProjects.find((p) => p.id === projectId) ?? wathbaProjects[0]!;
   const active = deriveProject(project);
-  const isLive = Boolean(liveTiers && liveTiers.length > 0);
+  const isDemo = wathbaProjects.some(p => p.id === projectId);
+  const isLive = liveTiers !== null && liveTitleAr !== null;
+  const displayTitle = liveTitleAr ?? (isDemo ? active.titleAr : 'بيانات الحملة غير متاحة');
+  const releaseThresholdPct = liveProject?.releaseThresholdPct ?? (isDemo ? active.releaseThresholdPct : null);
+  const campaignGoal = liveProject ? liveProject.fundingGoalHalalas / 100 : isDemo ? active.goal : 0;
   const tiers: DisplayTier[] = useMemo(() => {
     if (!isLive) {
-      return wathbaTiers.map((t) => ({ ...t, requiresShipping: false }));
+      return isDemo ? wathbaTiers.map((t) => ({ ...t, requiresShipping: false, shippingPrice: 0, shipsTo: [] })) : [];
     }
     return liveTiers!.map((t) => ({
       id: t.id,
-      price: Math.round(t.amountHalalas / 100),
+      price: (t.effectiveAmountHalalas ?? t.amountHalalas) / 100,
       title: t.titleAr,
       backers: t.claimedQty,
       desc: t.descAr,
-      rank: 'داعم مؤسس',
+      rank: 'داعم',
       requiresShipping: t.requiresShipping,
+      shipsTo: t.shipsTo ?? [],
+      shippingPrice: t.requiresShipping ? (t.shippingHalalas == null ? null : t.shippingHalalas / 100) : 0,
     }));
-  }, [isLive, liveTiers]);
+  }, [isLive, liveTiers, isDemo]);
 
   const [step, setStep] = useState(1);
 
@@ -82,14 +98,37 @@ export function WathbaPledge({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [tier, setTier] = useState(() =>
-    tiers.some((t) => t.id === initialTier) ? initialTier : tiers[0]!.id,
+    tiers.some((t) => t.id === initialTier) ? initialTier : tiers[0]?.id ?? '',
   );
 
   // Batch PAY (Part 3) — tierless mode + free amount (min 10 SAR).
-  const [noReward, setNoReward] = useState(initialAmountSar !== undefined);
+  const [noReward, setNoReward] = useState(initialAmountSar !== undefined || tiers.length === 0);
   const [freeAmountSar, setFreeAmountSar] = useState(initialAmountSar ?? 25);
   // Batch PAY (Part 4) — payment method (BNPL = deferred-initiation intent).
   const [method, setMethod] = useState<'CARD' | 'TABBY' | 'TAMARA'>('CARD');
+  const [policy, setPolicy] = useState<PledgePolicy | null>(null);
+  const [policyLoading, setPolicyLoading] = useState(!isDemo);
+  const loadPolicy = async (): Promise<PledgePolicy | null> => {
+    setPolicyLoading(true);
+    try {
+      const res = await fetch('/api/platform/pledge-policy', { cache: 'no-store' });
+      const value = res.ok ? parsePledgePolicy(await res.json()) : null;
+      setPolicy(value);
+      return value;
+    } catch { setPolicy(null); return null; }
+    finally { setPolicyLoading(false); }
+  };
+  useEffect(() => { if (!isDemo) void loadPolicy(); }, [isDemo]);
+  const allowedMethods = (['CARD', 'TABBY', 'TAMARA'] as const).filter(m =>
+    isDemo || (m === 'CARD' ? policy?.methodsEnabled.card : policy?.methodsEnabled.bnpl));
+  useEffect(() => {
+    if (policy && !(method === 'CARD' ? policy.methodsEnabled.card : policy.methodsEnabled.bnpl)) {
+      if (policy.methodsEnabled.card) setMethod('CARD');
+      else if (policy.methodsEnabled.bnpl) setMethod('TABBY');
+    }
+  }, [policy, method]);
+  const minimumSar = isDemo ? 10 : policy ? policy.minHalalas / 100 : null;
+  const maximumSar = policy?.maxHalalas == null ? undefined : policy.maxHalalas / 100;
 
   // STAKES/S-15 (A14) — stash the wizard intent (tier + step) per project so
   // a mid-pledge session expiry → re-auth → return lands the user back where
@@ -125,24 +164,37 @@ export function WathbaPledge({
   const [shipAddress, setShipAddress] = useState('');
   const [shipCity, setShipCity] = useState('');
   const [shipPostal, setShipPostal] = useState('');
+  const [shipCountry, setShipCountry] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
+  const paymentInFlight = useRef(false);
+  const requestKeyStorage = `wathba_pledge_request_${projectId}`;
 
-  const selTier = tiers.find((t) => t.id === tier) ?? tiers[0]!;
+  const selTier: DisplayTier = tiers.find((t) => t.id === tier) ?? tiers[0] ?? { id: '', price: 0, title: 'دعم دون مكافأة', rank: 'داعم', backers: 0, desc: '', requiresShipping: false, shippingPrice: 0, shipsTo: [] };
+  const selectedCountry = selTier.shipsTo.includes(shipCountry) ? shipCountry : selTier.shipsTo[0] ?? '';
   // Batch PAY (Part 3) — tierless pledges: free amount, no shipping fee.
   const effectivePrice = noReward ? Math.max(freeAmountSar, 0) : selTier.price;
-  const total = noReward ? effectivePrice : selTier.price + 8; // + shipping
+  const shippingPrice = noReward ? 0 : selTier.shippingPrice;
+  const total = effectivePrice + (shippingPrice ?? 0);
 
   async function confirmPledge(): Promise<void> {
+    if (paymentInFlight.current) return;
     if (!isLive) {
+      if (!isDemo) {
+        setPayError('تعذر تحميل بيانات الحملة الحالية. أعد تحميل الصفحة قبل تأكيد الدعم.');
+        return;
+      }
       // Demo fixture — keep the original in-page success step.
       setStep(4);
       return;
     }
     setPayError(null);
-    // Batch PAY (Part 3) — server also enforces the 10 SAR minimum.
-    if (noReward && total < 10) {
-      setPayError('الحد الأدنى للدعم 10 ريالات.');
+    if (shippingPrice === null) {
+      setPayError('لم يحدد مدير الحملة تكلفة الشحن بعد. اختر مكافأة أخرى أو دعمًا دون مكافأة.');
+      return;
+    }
+    if (!Number.isFinite(total) || !Number.isSafeInteger(Math.round(total * 100)) || total <= 0) {
+      setPayError('أدخل مبلغ دعم صحيحًا.');
       return;
     }
     const [expMonth = '', expYear = ''] = cardExp.split('/').map((s) => s.trim());
@@ -157,8 +209,45 @@ export function WathbaPledge({
       setStep(2);
       return;
     }
+    if (!noReward && selTier.requiresShipping && !selectedCountry) {
+      setPayError('لم يحدد مدير الحملة وجهات الشحن بعد. اختر مكافأة أخرى أو دعمًا دون مكافأة.');
+      setStep(2); return;
+    }
+    paymentInFlight.current = true;
     setSubmitting(true);
+    let navigatingToResult = false;
     try {
+      const currentPolicy = await loadPolicy();
+      if (!currentPolicy) {
+        setPayError('تعذر التحقق من إعدادات الدعم. أعد المحاولة، وراجع تعهداتك إذا كانت لديك محاولة سابقة.');
+        return;
+      }
+      // A stored attempt may replay an existing result; the API checks replay
+      // before applying new settings. Never replace its key to bypass a limit.
+      let priorAttempt: string | null;
+      try { priorAttempt = sessionStorage.getItem(requestKeyStorage); }
+      catch { setPayError('تعذر حفظ معرّف محاولة الدفع في المتصفح. فعّل تخزين الجلسة ثم حاول مجددًا.'); return; }
+      if (!priorAttempt) {
+        if (!(method === 'CARD' ? currentPolicy.methodsEnabled.card : currentPolicy.methodsEnabled.bnpl)) {
+          setPayError('وسيلة الدفع المختارة غير متاحة حاليًا. راجع الطرق المتاحة.'); return;
+        }
+        if (noReward && Math.round(total * 100) < currentPolicy.minHalalas) {
+          setPayError(`الحد الأدنى للدعم دون مكافأة ${formatSar('ar', currentPolicy.minHalalas / 100)}.`); return;
+        }
+        if (currentPolicy.maxHalalas !== null && Math.round(total * 100) > currentPolicy.maxHalalas) {
+          setPayError(`الحد الأقصى للدعم ${formatSar('ar', currentPolicy.maxHalalas / 100)} شاملًا الشحن.`); return;
+        }
+      }
+      // Persist only an opaque identifier, never card data, tokens or addresses.
+      // Retain it on all ambiguous failures, including reload and changed form fields.
+      let requestKey: string;
+      try {
+        requestKey = sessionStorage.getItem(requestKeyStorage) ?? crypto.randomUUID();
+        sessionStorage.setItem(requestKeyStorage, requestKey);
+      } catch {
+        setPayError('تعذر حفظ معرّف محاولة الدفع في المتصفح. فعّل تخزين الجلسة ثم حاول مجددًا.');
+        return;
+      }
       let source = 'bnpl-intent';
       if (method === 'CARD') {
         const tok = await createCardToken({
@@ -178,6 +267,7 @@ export function WathbaPledge({
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(localStorage.getItem('wathba_ref') ? { 'x-wathba-ref': localStorage.getItem('wathba_ref')! } : {}) },
         body: JSON.stringify({
+          requestKey,
           projectId,
           // STAKES/S-14 P3 — Turnstile implicit field (absent when the slot is off).
           ...(typeof document !== 'undefined' && (document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement | null)?.value
@@ -185,6 +275,7 @@ export function WathbaPledge({
             : {}),
           ...(noReward ? {} : { tierId: selTier.id }),
           amountHalalas: Math.round(total * 100),
+          shippingHalalas: Math.round(shippingPrice * 100),
           source,
           paymentMethod: method,
           ...(!noReward && selTier.requiresShipping
@@ -193,26 +284,34 @@ export function WathbaPledge({
                   name: shipName,
                   address: shipAddress,
                   city: shipCity,
-                  country: 'SA',
+                  country: selectedCountry,
                   postal: shipPostal,
                 },
               }
             : {}),
         }),
       });
-      const json = (await res.json()) as { paymentRef?: string; message?: string | string[] };
+      const json = (await res.json()) as { id?: string; paymentRef?: string; status?: string; message?: string | string[] };
       if (!res.ok) {
         const msg = Array.isArray(json.message) ? json.message.join('، ') : json.message;
         setPayError(msg ?? 'تعذّر إتمام الدفع');
         return;
       }
-      router.push(
-        `/projects/${projectId}/back/success${json.paymentRef ? `?ref=${encodeURIComponent(json.paymentRef)}` : ''}`,
-      );
+      if (['HELD', 'CAPTURED', 'PENDING_BNPL', 'FAILED', 'REFUNDED'].includes(json.status ?? '')) {
+        sessionStorage.removeItem(requestKeyStorage);
+      }
+      navigatingToResult = true;
+      const resultParams = new URLSearchParams();
+      if (json.id) resultParams.set('pledge', json.id);
+      if (json.paymentRef) resultParams.set('ref', json.paymentRef);
+      router.push(`/projects/${projectId}/back/success?${resultParams}`);
     } catch {
-      setPayError('خطأ في الاتصال — أعد المحاولة.');
+      setPayError('انقطع الاتصال قبل التأكد من النتيجة. راجع تعهداتي قبل إعادة الدفع لتجنب محاولة إضافية.');
     } finally {
-      setSubmitting(false);
+      if (!navigatingToResult) {
+        paymentInFlight.current = false;
+        setSubmitting(false);
+      }
     }
   }
 
@@ -223,7 +322,7 @@ export function WathbaPledge({
         style={{ maxWidth: 1040, margin: '0 auto', padding: '40px 26px 0' }}
       >
         <Link
-          href={`/projects/${active.id}`}
+          href={`/projects/${projectId}`}
           style={{
             cursor: 'pointer',
             fontSize: 13,
@@ -245,7 +344,7 @@ export function WathbaPledge({
             marginBottom: 6,
           }}
         >
-          ادعم: {liveTitleAr ?? active.titleAr}
+          ادعم: {displayTitle}
         </h1>
         <p
           style={{
@@ -254,11 +353,11 @@ export function WathbaPledge({
             marginBottom: 30,
           }}
         >
-          دعمك مؤمَّن — لن يُخصم أي مبلغ إلا عند نجاح المشروع.
+          راجع المكافأة والتكلفة وشروط الحملة قبل التأكيد. دعم المشروع لا يضمن نجاح تنفيذه.
         </p>
 
         {/* §5 mandatory threshold disclosure — must be visible BEFORE pledge */}
-        {active.releaseThresholdPct && active.releaseThresholdPct < 100 && (
+        {releaseThresholdPct != null && releaseThresholdPct < 100 && (
           <div
             style={{
               marginBottom: 26,
@@ -274,12 +373,12 @@ export function WathbaPledge({
             <Icon name="info" size={20} color="var(--accent)" />
             <div style={{ fontSize: 13.5, lineHeight: 1.6, color: 'var(--text-soft)' }}>
               <strong>قاعدة عتبة الإطلاق:</strong>{' '}
-              يُطلق المشروع عند بلوغ{' '}
+              عتبة نجاح التمويل المحددة لهذه الحملة هي{' '}
               <Num style={{ fontWeight: 700, color: 'var(--accent-ink)' }}>
-                {formatSar('ar', Math.round((active.goal * active.releaseThresholdPct) / 100))}
+                {formatSar('ar', Math.ceil(campaignGoal * releaseThresholdPct) / 100)}
               </Num>{' '}
-              (%{toDisplayDigits(active.releaseThresholdPct)} من الهدف). إذا لم يبلغ ذلك بحلول الموعد
-              النهائي، يُعاد كامل دعمك تلقائياً إلى بطاقتك خلال أيام عمل قليلة.
+              (%{toDisplayDigits(releaseThresholdPct)} من الهدف). إذا لم يبلغ ذلك بحلول الموعد
+              النهائي، تُعالج المساهمة وفق حالتها وسياسة الاسترداد. راجع تعهداتك لمعرفة تأكيد فك الحجز أو الاسترداد؛ مدة المعالجة تعتمد على مزود الدفع والبنك.
             </div>
           </div>
         )}
@@ -382,11 +481,12 @@ export function WathbaPledge({
               >
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>ادعم بدون مكافأة ❤</div>
                 <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: noReward ? 10 : 0 }}>
-                  أي مبلغ من 10 ريالات — كل داعم يُحتسب مهما كان مبلغه.
+                  {minimumSar === null ? 'بانتظار إعدادات حدود الدعم' : `الحد الأدنى للدعم دون مكافأة ${formatSar('ar', minimumSar)}`}
+                  {maximumSar !== undefined && `؛ الحد الأقصى ${formatSar('ar', maximumSar)} شاملًا الشحن.`}
                 </div>
                 {noReward && (
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    {[10, 25, 50, 100].map((amt) => (
+                    {[...new Set([minimumSar, 25, 50, 100])].filter((amt): amt is number => amt !== null && minimumSar !== null && amt >= minimumSar && (maximumSar === undefined || amt <= maximumSar)).map((amt) => (
                       <button
                         key={amt}
                         type="button"
@@ -404,7 +504,9 @@ export function WathbaPledge({
                     ))}
                     <input
                       type="number"
-                      min={10}
+                      min={minimumSar ?? undefined}
+                      max={maximumSar}
+                      step="0.01"
                       value={freeAmountSar}
                       aria-label="مبلغ الدعم"
                       onClick={(e) => e.stopPropagation()}
@@ -415,9 +517,9 @@ export function WathbaPledge({
                         background: 'var(--card)', color: 'var(--text)', outline: 'none',
                       }}
                     />
-                    {freeAmountSar < 10 && (
+                    {minimumSar !== null && freeAmountSar < minimumSar && (
                       <span role="alert" style={{ fontSize: 12, color: '#dc2626', fontWeight: 700 }}>
-                        الحد الأدنى للدعم 10 ريالات
+                        الحد الأدنى للدعم دون مكافأة {formatSar('ar', minimumSar)}
                       </span>
                     )}
                   </div>
@@ -514,10 +616,7 @@ export function WathbaPledge({
                   value={shipName}
                   onChange={setShipName}
                 />
-                <PledgeField
-                  label="البريد الإلكتروني"
-                  placeholder="you@email.com"
-                />
+                <p style={{ fontSize: 13, color: 'var(--muted)' }}>تصل مراسلات الدعم إلى بريد حسابك المسجل.</p>
               </div>
               <div style={{ marginBottom: 14 }}>
                 <PledgeField
@@ -535,7 +634,13 @@ export function WathbaPledge({
                 }}
               >
                 <PledgeField label="المدينة" value={shipCity} onChange={setShipCity} />
-                <PledgeField label="الدولة" defaultValue="السعودية" />
+                <label style={{ fontSize: 13, minWidth: 0 }}>الدولة
+                  <select aria-label="الدولة" value={selectedCountry} onChange={e => setShipCountry(e.target.value)}
+                    style={{ width: '100%', minWidth: 0, padding: '10px 4px', marginTop: 7, borderRadius: 8, color: 'var(--text)', background: 'var(--card)' }}>
+                    {!selTier.shipsTo.length && <option value="">لم تُحدد الوجهات</option>}
+                    {selTier.shipsTo.map(country => <option key={country} value={country}>{countryLabel(country)}</option>)}
+                  </select>
+                </label>
                 <PledgeField
                   label="الرمز البريدي"
                   value={shipPostal}
@@ -556,7 +661,7 @@ export function WathbaPledge({
               </h2>
               {/* Batch PAY (Part 4) — method selector: card vs BNPL intents. */}
               <div role="radiogroup" aria-label="طريقة الدفع" style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                {([['CARD', 'بطاقة'], ['TABBY', 'قسّطها مع تابي'], ['TAMARA', 'قسّطها مع تمارا']] as const).map(([m, label]) => (
+                {([['CARD', 'بطاقة'], ['TABBY', 'طلب تقسيط عبر تابي'], ['TAMARA', 'طلب تقسيط عبر تمارا']] as const).filter(([m]) => allowedMethods.includes(m)).map(([m, label]) => (
                   <button
                     key={m}
                     type="button"
@@ -585,62 +690,14 @@ export function WathbaPledge({
                   }}
                 >
                   <div style={{ fontWeight: 700 }}>
-                    4 دفعات × {Math.ceil((total || 0) / 4)} ر.س عبر {method === 'TABBY' ? 'تابي' : 'تمارا'}
+                    تسجيل طلب تقسيط عبر {method === 'TABBY' ? 'تابي' : 'تمارا'}
                   </div>
-                  لن يُنشأ التقسيط إلا إذا نجحت الحملة — لا عقد ولا خصم قبل ذلك،
-                  وإن لم تبلغ الحملة هدفها يُلغى الطلب تلقائياً دون أي أثر.
+                  هذه الخطوة تسجل نية الدعم بالتقسيط، وليست موافقة من مزود التقسيط أو تحصيلًا للمبلغ.
+                  تُعرض شروط المزود وجدول الدفعات عند توفر إجراء إتمام التقسيط؛ لا نؤكد عدد دفعات أو قبولًا مسبقًا.
                 </div>
               )}
-              <div style={{ display: method === 'CARD' ? 'flex' : 'none', gap: 11, marginBottom: 20 }}>
-                <div
-                  style={{
-                    flex: 1,
-                    background: 'rgba(var(--accent-rgb),.06)',
-                    border: '1.5px solid var(--accent)',
-                    borderRadius: 13,
-                    padding: 15,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Icon name="credit_card" size={22} color="var(--accent)" />
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>
-                    بطاقة ائتمان
-                  </span>
-                </div>
-                <div
-                  style={{
-                    flex: 1,
-                    background: 'rgba(var(--ink-rgb),.03)',
-                    border: '1px solid rgba(var(--ink-rgb),.1)',
-                    borderRadius: 13,
-                    padding: 15,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <Icon
-                    name="account_balance_wallet"
-                    size={22}
-                    color="var(--muted)"
-                  />
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: 'var(--muted)',
-                    }}
-                  >
-                    محفظة رقمية
-                  </span>
-                </div>
-              </div>
               {/* Batch PAY (Part 4) — card fields hide for BNPL (hosted flow). */}
-              <div style={{ display: method === 'CARD' ? 'block' : 'none' }}>
+              <div style={{ display: method === 'CARD' && allowedMethods.includes('CARD') ? 'block' : 'none' }}>
               <div style={{ marginBottom: 14 }}>
                 <label
                   htmlFor="wathba-card-number"
@@ -715,22 +772,6 @@ export function WathbaPledge({
                   mono
                 />
               </div>
-              {payError && (
-                <div
-                  role="alert"
-                  style={{
-                    marginTop: 16,
-                    fontSize: 13,
-                    color: '#ef4444',
-                    background: 'rgba(239,68,68,.07)',
-                    border: '1px solid rgba(239,68,68,.25)',
-                    borderRadius: 11,
-                    padding: '12px 14px',
-                  }}
-                >
-                  {payError}
-                </div>
-              )}
               </div>
               <div
                 style={{
@@ -747,7 +788,7 @@ export function WathbaPledge({
                 }}
               >
                 <Icon name="shield" size={18} />
-                الدفع مشفّر بالكامل. لن يُخصم المبلغ إلا عند نجاح المشروع.
+                {method === 'CARD' ? 'قد يحجز مزود الدفع المبلغ على بطاقتك. تحقق من الحالة المسجلة في تعهداتك؛ الحجز يختلف عن التحصيل.' : 'تسجيل نية التقسيط لا يعني تحصيل المبلغ أو اكتمال اتفاق مع المزود.'}
               </div>
               {/* Batch CONTENT Part 2 — the reassurance directly above makes a
                   promise about the reader's money; this is where they can go
@@ -895,6 +936,31 @@ export function WathbaPledge({
             </div>
           )}
 
+          {!isDemo && step < 4 && <div style={{ marginTop: 16 }}>
+            {policyLoading ? <p role="status">جارٍ التحقق من إعدادات الدعم…</p> : !policy ? <div role="alert">
+              تعذر تحميل إعدادات الدعم؛ لا يمكن تأكيد دعم جديد الآن.
+              <button type="button" onClick={() => void loadPolicy()}>إعادة تحميل الإعدادات</button>
+            </div> : allowedMethods.length === 0 ? <p role="alert">أوقفت الإدارة طرق الدفع حاليًا. يمكنك مراجعة تعهداتك السابقة.</p> : null}
+            {maximumSar !== undefined && <p>سقف المساهمة شاملًا الشحن: {formatSar('ar', maximumSar)}</p>}
+            <Link href="/projects/me/pledges">مراجعة تعهداتي وحالة محاولاتي السابقة</Link>
+          </div>}
+              {payError && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 16,
+                    fontSize: 13,
+                    color: '#ef4444',
+                    background: 'rgba(239,68,68,.07)',
+                    border: '1px solid rgba(239,68,68,.25)',
+                    borderRadius: 11,
+                    padding: '12px 14px',
+                  }}
+                >
+                  {payError}
+                </div>
+              )}
+
           {/* nav buttons (hidden on success) */}
           {step < 4 && (
             <div style={{ display: 'flex', gap: 12, marginTop: 26 }}>
@@ -919,7 +985,7 @@ export function WathbaPledge({
               )}
               <button
                 type="button"
-                disabled={submitting}
+                disabled={submitting || (step === 3 && !isDemo && (policyLoading || !policy || allowedMethods.length === 0))}
                 onClick={() => {
                   if (step === 3) void confirmPledge();
                   else setStep((s) => Math.min(4, s + 1));
@@ -982,12 +1048,12 @@ export function WathbaPledge({
               }}
             >
               <Num style={{ fontSize: 11, color: 'var(--ph-label)' }}>
-                [ {active.cat} ]
+                {isDemo ? `[ ${active.cat} ]` : 'الحملة التي تدعمها'}
               </Num>
             </div>
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>
-            {liveTitleAr ?? active.titleAr}
+            {displayTitle}
           </div>
           <div
             style={{
@@ -996,7 +1062,7 @@ export function WathbaPledge({
               marginBottom: 18,
             }}
           >
-            بواسطة {active.creator}
+            {isDemo ? `بواسطة ${active.creator}` : 'التكلفة أدناه تخص اختيارك الحالي'}
           </div>
           <div
             style={{
@@ -1012,9 +1078,9 @@ export function WathbaPledge({
                 marginBottom: 11,
               }}
             >
-              <span style={{ color: 'var(--muted)' }}>{selTier.title}</span>
+              <span style={{ color: 'var(--muted)' }}>{noReward ? 'دعم دون مكافأة' : selTier.title}</span>
               <Num style={{ fontWeight: 600 }}>
-                {formatSar('ar', selTier.price)}
+                {formatSar('ar', effectivePrice)}
               </Num>
             </div>
             <div
@@ -1026,7 +1092,7 @@ export function WathbaPledge({
               }}
             >
               <span style={{ color: 'var(--muted)' }}>الشحن</span>
-              <Num style={{ fontWeight: 600 }}>8 ر.س</Num>
+              <Num style={{ fontWeight: 600 }}>{shippingPrice === null ? 'لم تُحدد التكلفة' : shippingPrice === 0 ? 'لا تضاف رسوم شحن' : formatSar('ar', shippingPrice)}</Num>
             </div>
             <div
               style={{
@@ -1041,7 +1107,7 @@ export function WathbaPledge({
             >
               <span>الإجمالي</span>
               <Num style={{ color: 'var(--accent-ink)' }}>
-                {formatSar('ar', total)}
+                {shippingPrice === null ? 'بانتظار تحديد الشحن' : formatSar('ar', total)}
               </Num>
             </div>
           </div>
@@ -1060,7 +1126,7 @@ export function WathbaPledge({
             }}
           >
             <Icon name="workspace_premium" size={16} color="var(--gold)" />
-            هذا الدعم يمنحك رتبة «{selTier.rank}»
+            {isDemo ? `هذا الدعم يمنحك رتبة «${selTier.rank}»` : 'راجع سعر المكافأة والشحن والإجمالي قبل تأكيد الدعم.'}
           </div>
         </div>
       </section>

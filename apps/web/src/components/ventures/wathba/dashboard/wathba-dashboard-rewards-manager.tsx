@@ -1,14 +1,14 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { cloneElement, isValidElement, useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import type { ApiAddOn, ApiRewardTier } from '@/lib/api/wathba';
 import { useConfirm, useToast } from '../wathba-feedback';
-import { formatSarFromHalalas } from '@/lib/i18n/format';
+import { formatSarExact } from '@/lib/i18n/format';
 
-const fmtSAR = (h: number): string => formatSarFromHalalas('ar', h);
+const fmtSAR = (h: number): string => formatSarExact('ar', h / 100);
 
 interface TierFormState {
   titleAr: string;
@@ -19,6 +19,7 @@ interface TierFormState {
   featured: boolean;
   includesPhysicalProduct: boolean;
   requiresShipping: boolean;
+  shippingSAR: string;
   shipsTo: string;
   includedItems: Array<{ nameAr: string; qty: string }>;
   // CC-13 — optional time-boxed early-bird price.
@@ -35,6 +36,7 @@ const emptyTierForm: TierFormState = {
   featured: false,
   includesPhysicalProduct: false,
   requiresShipping: false,
+  shippingSAR: '',
   shipsTo: 'SA',
   includedItems: [{ nameAr: '', qty: '1' }],
   earlyBirdSAR: '',
@@ -79,6 +81,9 @@ export function DashboardRewardsManager({
     setBusy(true);
     setError(null);
     try {
+      if (tierForm.requiresShipping && tierForm.shippingSAR.trim() === '') {
+        throw new Error('حدد تكلفة الشحن؛ أدخل صفرًا إذا كان مشمولًا في السعر.');
+      }
       const data: Record<string, unknown> = {
         titleAr: tierForm.titleAr,
         amountHalalas: Math.round(Number(tierForm.amountSAR) * 100),
@@ -87,10 +92,11 @@ export function DashboardRewardsManager({
         featured: tierForm.featured,
         includesPhysicalProduct: tierForm.includesPhysicalProduct,
         requiresShipping: tierForm.requiresShipping,
+        shippingHalalas: tierForm.requiresShipping ? Math.round(Number(tierForm.shippingSAR) * 100) : 0,
         shipsTo: tierForm.shipsTo
           .split(',')
           .map((s) => s.trim().toUpperCase())
-          .filter((s) => s.length === 2),
+          .filter(Boolean),
         includedItems: tierForm.includedItems
           .filter((it) => it.nameAr.trim().length > 0)
           .map((it) => ({ nameAr: it.nameAr, qty: Number(it.qty) || 1 })),
@@ -120,6 +126,21 @@ export function DashboardRewardsManager({
   };
 
   // CC-13 — close/reopen a tier for new pledges.
+  const updateShipping = async (tierId: string, value: string): Promise<void> => {
+    setBusy(true); setError(null);
+    try {
+      if (value.trim() === '' || !Number.isFinite(Number(value)) || Number(value) < 0) throw new Error('أدخل تكلفة شحن صحيحة أو صفرًا للشحن المشمول.');
+      const res = await fetch('/api/rewards', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op: 'update', projectId, tierId, data: { shippingHalalas: Math.round(Number(value) * 100) } }) });
+      if (!res.ok) {
+        const body = await res.json() as { message?: string | string[] };
+        throw new Error(Array.isArray(body.message) ? body.message.join('، ') : body.message ?? 'تعذر حفظ تكلفة الشحن');
+      }
+      toast('success', 'حُفظت تكلفة الشحن.'); router.refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
   const toggleActive = async (tierId: string, next: boolean): Promise<void> => {
     setBusy(true);
     setError(null);
@@ -139,6 +160,22 @@ export function DashboardRewardsManager({
     } finally {
       setBusy(false);
     }
+  };
+
+  const updateDestinations = async (tierId: string, value: string): Promise<void> => {
+    setBusy(true); setError(null);
+    try {
+      const shipsTo = [...new Set(value.split(/[,،]/).map(s => s.trim().toUpperCase()).filter(Boolean))];
+      if (!shipsTo.length) throw new Error('حدد دولة شحن واحدة على الأقل قبل قبول دعم جديد.');
+      const res = await fetch('/api/rewards', { method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ op: 'update', projectId, tierId, data: { shipsTo } }) });
+      if (!res.ok) {
+        const body = await res.json() as { message?: string | string[] };
+        throw new Error(Array.isArray(body.message) ? body.message.join('، ') : body.message ?? 'تعذر حفظ الوجهات');
+      }
+      toast('success', 'حُفظت وجهات الشحن.'); router.refresh();
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
   };
 
   const deleteTier = async (tierId: string): Promise<void> => {
@@ -258,6 +295,9 @@ export function DashboardRewardsManager({
               <TierCard
                 key={t.id}
                 tier={t}
+                busy={busy}
+                onShippingChange={(value) => updateShipping(t.id, value)}
+                onDestinationsChange={(value) => updateDestinations(t.id, value)}
                 onDelete={() => deleteTier(t.id)}
                 onToggleActive={() => void toggleActive(t.id, !(t.isActive ?? true))}
               />
@@ -403,6 +443,11 @@ export function DashboardRewardsManager({
                 تتطلّب عنوان شحن
               </label>
             </Field>
+            {tierForm.requiresShipping && <Field label="تكلفة الشحن (ريال)">
+              <input aria-label="تكلفة الشحن للمكافأة الجديدة" type="number" min="0" step="0.01" value={tierForm.shippingSAR}
+                onChange={e => setTierForm({ ...tierForm, shippingSAR: e.target.value })} style={inputStyle} />
+              <p style={{ fontSize: 12 }}>تضاف إلى سعر المكافأة وتظهر قبل الدفع. أدخل صفرًا إذا كان الشحن مشمولًا. تطبق حدود الإدارة.</p>
+            </Field>}
             <button
               type="button"
               disabled={busy}
@@ -592,13 +637,20 @@ function Field({
   label: string;
   children: React.ReactNode;
 }): React.ReactElement {
+  const id = useId();
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary, #3b4942)' };
+  if (isValidElement<{ id?: string }>(children) && ['input', 'textarea', 'select'].includes(String(children.type))) {
+    const controlId = children.props.id ?? id;
+    return <div>
+      <label htmlFor={controlId} style={labelStyle}>{label}</label>
+      {cloneElement(children, { id: controlId })}
+    </div>;
+  }
   return (
-    <div>
-      <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--text-secondary, #3b4942)' }}>
-        {label}
-      </div>
+    <fieldset style={{ margin: 0, padding: 0, border: 0, minWidth: 0 }}>
+      <legend style={labelStyle}>{label}</legend>
       {children}
-    </div>
+    </fieldset>
   );
 }
 
@@ -622,16 +674,24 @@ function EmptyState({ message }: { message: string }): React.ReactElement {
 
 function TierCard({
   tier,
+  busy,
+  onShippingChange,
+  onDestinationsChange,
   onDelete,
   onToggleActive,
 }: {
   tier: ApiRewardTier;
+  busy: boolean;
+  onShippingChange: (value: string) => Promise<void>;
+  onDestinationsChange: (value: string) => Promise<void>;
   onDelete: () => void;
   onToggleActive: () => void;
 }): React.ReactElement {
   const soldOut = tier.limitQty !== null && tier.claimedQty >= tier.limitQty;
   const closed = tier.isActive === false;
   const hasBackers = tier.claimedQty > 0;
+  const [shippingSAR, setShippingSAR] = useState(tier.shippingHalalas == null ? '' : String(tier.shippingHalalas / 100));
+  const [destinations, setDestinations] = useState((tier.shipsTo ?? []).join(', '));
   const earlyBird = tier.earlyBirdActive === true;
   return (
     <div
@@ -687,6 +747,22 @@ function TierCard({
           ))}
         </ul>
       )}
+      {tier.requiresShipping && <div style={{ marginTop: 12, display: 'grid', gap: 12 }}>
+        <label style={{ display: 'grid', gap: 6, fontSize: 13, lineHeight: 1.7 }}>وجهات الشحن (رموز الدول، مثل SA, AE)
+          <input aria-label={`وجهات شحن ${tier.titleAr}`} value={destinations} disabled={busy}
+            onChange={e => setDestinations(e.target.value)} style={inputStyle} dir="ltr" />
+        </label>
+        <button type="button" disabled={busy} onClick={() => void onDestinationsChange(destinations)} style={{ ...ghostBtnStyle, minHeight: 40, justifySelf: 'start' }}>حفظ وجهات الشحن</button>
+        {!tier.shipsTo?.length && <p>لم تُحدد الوجهات؛ يلزم تحديدها لقبول دعم جديد.</p>}
+        {hasBackers && <p>يمكن إضافة وجهات؛ سحب وجهة سبق إتاحتها يحتاج اعتماد تغيير الاتفاق.</p>}
+        <label style={{ display: 'grid', gap: 6, fontSize: 13, lineHeight: 1.7 }}>تكلفة الشحن (ريال)
+          <input aria-label={`تكلفة شحن ${tier.titleAr}`} type="number" min="0" step="0.01" value={shippingSAR}
+            disabled={hasBackers || busy} onChange={e => setShippingSAR(e.target.value)} style={inputStyle} />
+        </label>
+        {hasBackers ? <p>تعديل تكلفة شحن مكافأة لها داعمون يحتاج مسار اعتماد تغيير الاتفاق.</p>
+          : <button type="button" disabled={busy} onClick={() => void onShippingChange(shippingSAR)} style={{ ...ghostBtnStyle, minHeight: 40, justifySelf: 'start' }}>حفظ تكلفة الشحن</button>}
+        {tier.shippingHalalas == null && <p>التكلفة غير محددة؛ لا يُقبل دعم جديد لهذه المكافأة حتى تحديدها.</p>}
+      </div>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, fontSize: 12, color: 'var(--text-tertiary, var(--muted2))' }}>
         <span>الداعمون: {tier.claimedQty.toLocaleString('en-US')}</span>
         <div style={{ display: 'flex', gap: 8 }}>

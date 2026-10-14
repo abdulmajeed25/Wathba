@@ -14,6 +14,8 @@ jobs:
     name: typecheck · lint · test · build · audit
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://localhost:4001
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +37,7 @@ jobs:
         run: pnpm --filter @wathba/api exec tsc --noEmit
 
       - name: Typecheck Web
-        run: pnpm --filter @wathba/web exec tsc --noEmit
+        run: pnpm --filter @wathba/web typecheck
 
       - name: Lint API
         run: pnpm --filter @wathba/api lint
@@ -47,6 +49,8 @@ jobs:
         run: pnpm --filter @wathba/api test
 
       - name: Build Web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:4001
         run: pnpm --filter @wathba/web build
 
       # Gate on critical advisories today; tighten to `high` once the
@@ -78,6 +82,10 @@ jobs:
       JWT_SECRET: e2e-ci-secret-value-not-a-placeholder-000
       NEXT_PUBLIC_API_URL: http://localhost:4001
       API_BASE_URL: http://localhost:4001
+      THROTTLE_LIMIT: 10000
+      AUTH_SIGNUP_THROTTLE_LIMIT: 10000
+      AUTH_SIGNIN_THROTTLE_LIMIT: 10000
+      OPS_AUTH_THROTTLE_LIMIT: 10000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -96,7 +104,7 @@ jobs:
           PORT=4001 node apps/api/dist/main.js & echo $! > /tmp/api.pid
           npx --yes wait-on http://localhost:4001/v1/health/live -t 60000
           # minimal seed: an admin/creator the journeys rely on
-          node apps/api/prisma/seed-e2e.mjs || true
+          node apps/api/prisma/seed-e2e.mjs
           (cd apps/web && PORT=3123 node .next/standalone/apps/web/server.js) & echo $! > /tmp/web.pid
           npx --yes wait-on http://localhost:3123/projects -t 60000
           cd apps/web && E2E_WEB_URL=http://localhost:3123 E2E_API_URL=http://localhost:4001 pnpm exec playwright test

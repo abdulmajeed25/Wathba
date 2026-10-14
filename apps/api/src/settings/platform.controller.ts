@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Header } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { SettingsService } from './settings.service';
@@ -12,6 +12,18 @@ import { SettingsService } from './settings.service';
 @Controller('platform')
 export class PlatformController {
   constructor(private readonly settings: SettingsService) {}
+
+  @Get('pledge-policy')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Public checkout limits and enabled payment methods; no private settings' })
+  async pledgePolicy() {
+    const [minHalalas, maxHalalas, methodsEnabled] = await Promise.all([
+      this.settings.get('pledges.minHalalas'),
+      this.settings.get('pledges.maxHalalas'),
+      this.settings.get('payments.methodsEnabled'),
+    ]);
+    return { minHalalas, maxHalalas, methodsEnabled };
+  }
 
   @Get('status')
   @ApiOperation({ summary: 'Public platform status — DB-backed maintenance flag' })

@@ -187,13 +187,33 @@ export class UpdatesService {
     projectId: string,
     updateId: string,
   ): Promise<PublicUpdate & { liked: boolean }> {
-    const existing = await this.prisma.projectUpdate.findFirst({
-      where: { id: updateId, projectId },
-      select: { id: true },
-    });
-    if (!existing) throw new NotFoundException('update not found');
-
-    const { row, liked } = await this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx) => {
+      // Keep campaign visibility stable, then serialize this update's reactions
+      // with edits/deletion. Reading before the lock can leak an update whose
+      // visibility changed while this request waited to increment the counter.
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${projectId}::uuid FOR SHARE`;
+      const project = await tx.project.findUnique({
+        where: { id: projectId },
+        select: { createdById: true, status: true, hiddenAt: true },
+      });
+      if (!project) throw new NotFoundException('project not found');
+      const isOwner = project.createdById === userId;
+      if (!isOwner && (project.hiddenAt || project.status === 'DRAFT' || project.status === 'UNDER_REVIEW')) {
+        throw new NotFoundException('project not found');
+      }
+      await tx.$queryRaw`SELECT "id" FROM "ProjectUpdate" WHERE "id" = ${updateId}::uuid AND "projectId" = ${projectId}::uuid FOR UPDATE`;
+      const existing = await tx.projectUpdate.findFirst({ where: { id: updateId, projectId } });
+      if (!existing || (!isOwner && existing.publishAt.getTime() > Date.now())) {
+        throw new NotFoundException('update not found');
+      }
+      const canSeeBackerOnly = isOwner || (existing.visibility === UpdateVisibility.BACKERS_ONLY &&
+        Boolean(await tx.pledge.findFirst({
+          where: { projectId, backerId: userId, status: PledgeStatus.CAPTURED }, select: { id: true },
+        })));
+      if (existing.visibility === UpdateVisibility.BACKERS_ONLY && !canSeeBackerOnly) {
+        throw new ForbiddenException('هذا التحديث متاح للداعمين المؤهلين فقط');
+      }
+      const context = { isOwner, canSeeBackerOnly };
       const had = await tx.updateLike.findUnique({
         where: { updateId_userId: { updateId, userId } },
         select: { updateId: true },
@@ -212,16 +232,15 @@ export class UpdatesService {
             data: { likeCount: 0 },
           });
         }
-        return { row: r, liked: false };
+        return { ...this.toPublic(r, context), liked: false };
       }
       await tx.updateLike.create({ data: { updateId, userId } });
       const r = await tx.projectUpdate.update({
         where: { id: updateId },
         data: { likeCount: { increment: 1 } },
       });
-      return { row: r, liked: true };
+      return { ...this.toPublic(r, context), liked: true };
     });
-    return { ...this.toPublic(row, { isOwner: true, canSeeBackerOnly: true }), liked };
   }
 
   async remove(

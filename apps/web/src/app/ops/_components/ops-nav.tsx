@@ -60,14 +60,14 @@ export async function OpsNav() {
   return (
     <nav
       aria-label="أقسام مركز العمليات"
-      className="flex gap-4 overflow-x-auto md:flex-col md:gap-5 md:overflow-visible"
+      className="grid grid-cols-1 gap-5 rounded-lg border border-[#30363d] bg-[#010409] p-3 sm:grid-cols-2 md:grid-cols-1 md:border-0 md:bg-transparent md:p-0"
     >
       {OPS_GROUPS.map((group) => (
         <div key={group.labelAr} className="shrink-0 md:shrink">
-          <h2 className="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-[#484f58]">
+          <h2 className="mb-1 px-3 text-xs font-bold text-[#8b949e]">
             {group.labelAr}
           </h2>
-          <div className="flex gap-1 md:flex-col">
+          <div className="flex flex-col gap-1">
             {group.items.map((s) => (
               <NavLink
                 key={s.href}

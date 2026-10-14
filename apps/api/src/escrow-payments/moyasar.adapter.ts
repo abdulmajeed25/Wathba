@@ -1,6 +1,9 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { verifyRefundEvidence } from './refund-evidence';
+import { verifyHeldEvidence } from './held-payment-action';
+import { verifyVoidEvidence } from './uncounted-void';
 
 /**
  * Minimal Moyasar Split adapter — Hold (authorize), Capture, Refund/Void.
@@ -16,6 +19,7 @@ export interface HoldRequest {
   pledgeId: string;
   /** Browser return URL for 3-D Secure hops (Moyasar `callback_url`). */
   callbackUrl?: string;
+  givenId?: string;
 }
 
 export interface HoldResponse {
@@ -60,21 +64,19 @@ export class MoyasarAdapter {
       this.logger.warn(
         `[STUB] Authorize-only hold pledge=${req.pledgeId} amount=${req.amountHalalas / 100} SAR`,
       );
-      return {
-        paymentRef: `stub-pay-${req.pledgeId}-${randomUUID().slice(0, 8)}`,
-        status: 'authorized',
-      };
+      const paymentRef = req.givenId ?? `stub-pay-${req.pledgeId}-${randomUUID().slice(0, 8)}`;
+      return { paymentRef, status: 'authorized', raw: { id: paymentRef, status: 'authorized', amount: req.amountHalalas, currency: 'SAR', captured: 0, refunded: 0 } };
     }
     const body = {
       amount: req.amountHalalas,
       currency: 'SAR',
       description: req.description,
-      source: { type: 'token', token: req.source },
-      capture: false,
+      source: { type: 'token', token: req.source, manual: true },
+      ...(req.givenId ? { given_id: req.givenId } : {}),
       metadata: { pledgeId: req.pledgeId },
       ...(req.callbackUrl ? { callback_url: req.callbackUrl } : {}),
     };
-    const res = await this.req('POST', '/payments', body);
+    const res = await this.req('POST', '/payments', body, 15_000);
     return {
       paymentRef: String(res['id']),
       status: res['status'] === 'authorized' ? 'authorized' : 'failed',
@@ -82,49 +84,63 @@ export class MoyasarAdapter {
     };
   }
 
-  async capture(paymentRef: string): Promise<{ ok: boolean }> {
+  async capture(paymentRef: string, expectedHalalas?: bigint): Promise<{ ok: boolean }> {
     this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Capture payment=${paymentRef}`);
       return { ok: true };
     }
-    const res = await this.req('POST', `/payments/${paymentRef}/capture`, {});
-    return { ok: res['status'] === 'paid' };
+    const res = await this.req('POST', `/payments/${encodeURIComponent(paymentRef)}/capture`, {}, 15_000);
+    if (expectedHalalas !== undefined) {
+      try { return { ok: verifyHeldEvidence(res, { paymentRef, amountHalalas: expectedHalalas, addOnsHalalas: 0n }, 'CAPTURE').outcome === 'confirmed' }; }
+      catch { return { ok: false }; }
+    }
+    return { ok: res['status'] === 'paid' || res['status'] === 'captured' };
   }
 
-  async refund(paymentRef: string): Promise<{ ok: boolean }> {
+  async refund(paymentRef: string, expectedHalalas: bigint): Promise<{ ok: boolean }> {
     this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Refund payment=${paymentRef}`);
       return { ok: true };
     }
-    const res = await this.req('POST', `/payments/${paymentRef}/refund`, {});
-    return { ok: res['status'] === 'refunded' };
+    const res = await this.req('POST', `/payments/${encodeURIComponent(paymentRef)}/refund`, {}, 15_000);
+    try {
+      return { ok: verifyRefundEvidence(res, { paymentRef, amountHalalas: expectedHalalas, addOnsHalalas: 0n }).outcome === 'confirmed' };
+    } catch { return { ok: false }; }
   }
 
   /**
    * Batch PAY (Part 5) — re-authorization for long campaigns. Issuer holds
    * expire in days-to-weeks (assumption documented in ReauthScheduler); the
-   * real flow re-authorizes against the saved payment source. Stub always
+   * production renewal integration is not verified and sends no HTTP request. Stub always
    * succeeds unless the ref carries the test marker 'reauth-fail'.
    */
-  async reauthorize(paymentRef: string): Promise<{ ok: boolean }> {
+  assertReauthorizationAvailable(): void {
     this.assertConfiguredInProd();
+    if (!this.isStub) throw new ServiceUnavailableException('إعادة التفويض الآلي تحتاج تكاملًا موثقًا مع المزود؛ لم يرسل طلب تجديد.');
+  }
+
+  async reauthorize(paymentRef: string): Promise<{ ok: boolean }> {
+    this.assertReauthorizationAvailable();
     if (this.isStub) {
       this.logger.warn(`[STUB] Reauthorize payment=${paymentRef}`);
       return { ok: !paymentRef.includes('reauth-fail') };
     }
-    const res = await this.req('POST', `/payments/${paymentRef}/reauthorize`, {});
-    return { ok: res['status'] === 'authorized' };
+    throw new ServiceUnavailableException('إعادة التفويض الآلي تحتاج تكاملًا موثقًا مع المزود؛ لم يرسل طلب تجديد.');
   }
 
-  async void(paymentRef: string): Promise<{ ok: boolean }> {
+  async void(paymentRef: string, expectedHalalas?: bigint): Promise<{ ok: boolean }> {
     this.assertConfiguredInProd();
     if (this.isStub) {
       this.logger.warn(`[STUB] Void payment=${paymentRef}`);
       return { ok: true };
     }
-    const res = await this.req('POST', `/payments/${paymentRef}/void`, {});
+    const res = await this.req('POST', `/payments/${encodeURIComponent(paymentRef)}/void`, {}, 15_000);
+    if (expectedHalalas !== undefined) {
+      try { return { ok: verifyVoidEvidence(res, { paymentRef, amountHalalas: expectedHalalas, addOnsHalalas: 0n }).outcome === 'confirmed' }; }
+      catch { return { ok: false }; }
+    }
     return { ok: res['status'] === 'voided' };
   }
 
@@ -139,7 +155,7 @@ export class MoyasarAdapter {
       this.logger.warn(`[STUB] Fetch payment=${paymentRef} — no PSP truth in stub mode`);
       return { status: null, amountHalalas: null };
     }
-    const res = await this.req('GET', `/payments/${paymentRef}`, undefined);
+    const res = await this.req('GET', `/payments/${encodeURIComponent(paymentRef)}`, undefined, 15_000);
     return {
       status: typeof res['status'] === 'string' ? res['status'] : null,
       amountHalalas: typeof res['amount'] === 'number' ? res['amount'] : null,
@@ -147,9 +163,10 @@ export class MoyasarAdapter {
     };
   }
 
-  private async req(method: string, path: string, body: unknown): Promise<Record<string, unknown>> {
+  private async req(method: string, path: string, body: unknown, timeoutMs?: number): Promise<Record<string, unknown>> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
       headers: {
         'content-type': 'application/json',
         authorization: `Basic ${Buffer.from(`${this.apiKey}:`).toString('base64')}`,
@@ -158,8 +175,8 @@ export class MoyasarAdapter {
     });
     const json = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {
-      this.logger.error(`Moyasar ${method} ${path} -> ${res.status}: ${JSON.stringify(json)}`);
-      throw new Error(`moyasar: ${res.status} ${JSON.stringify(json)}`);
+      this.logger.error(`Moyasar ${method} request failed (${res.status})`);
+      throw new Error(`moyasar request failed: ${res.status}`);
     }
     return json;
   }

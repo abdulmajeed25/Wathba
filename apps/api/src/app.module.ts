@@ -13,6 +13,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthController } from './health/health.controller';
 import { IdentityModule } from './identity/identity.module';
 import { ProjectsModule } from './projects/projects.module';
+import { ProjectVisibilityGuard } from './projects/project-visibility.guard';
 import { RewardsModule } from './rewards/rewards.module';
 import { AddonsModule } from './addons/addons.module';
 import { FundingModule } from './funding/funding.module';
@@ -94,6 +95,9 @@ import { AppealsModule } from './appeals/appeals.module';
   controllers: [HealthController],
   // CLOSEOUT C5 — per-subject buckets (see subject-throttler.guard.ts); the
   // stock IP tracker made every signed-in user share one bucket behind the BFF.
-  providers: [{ provide: APP_GUARD, useClass: SubjectThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: SubjectThrottlerGuard },
+    { provide: APP_GUARD, useClass: ProjectVisibilityGuard },
+  ],
 })
 export class AppModule {}

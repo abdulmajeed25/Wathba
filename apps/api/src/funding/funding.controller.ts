@@ -6,7 +6,7 @@ import { JwtAuthGuard } from '../identity/jwt-auth.guard';
 import { CurrentUser } from '../identity/current-user.decorator';
 import type { JwtPayload } from '../identity/auth.service';
 import { FundingService } from './funding.service';
-import { CreatePledgeDto, RetryCaptureDto } from './dto/pledge.dto';
+import { CreatePledgeDto, RetryCaptureDto, PledgeResultQueryDto } from './dto/pledge.dto';
 import { BnplService } from '../escrow-payments/bnpl.service';
 
 @ApiTags('funding')
@@ -25,7 +25,7 @@ export class FundingController {
   @ApiOperation({ summary: 'Pledge to a LIVE project (hold-only authorize)' })
   async pledge(@CurrentUser() jwt: JwtPayload, @Body() dto: CreatePledgeDto) {
     const p = await this.funding.pledge(jwt.sub, dto);
-    return this.funding.toPublic(p);
+    return { ...this.funding.toPublic(p), replayed: p.replayed === true };
   }
 
   @Post(':id/cancel')
@@ -37,6 +37,13 @@ export class FundingController {
   })
   async cancel(@CurrentUser() jwt: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
     return this.funding.cancelPledge(jwt.sub, id);
+  }
+
+  @Post(':id/verify-authorization')
+  @HttpCode(200)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  async verifyAuthorization(@CurrentUser() jwt: JwtPayload, @Param('id', ParseUUIDPipe) id: string) {
+    return this.funding.verifyAuthorization(jwt.sub, id);
   }
 
   @Post(':id/retry')
@@ -71,5 +78,11 @@ export class FundingController {
     const p = phase === 'active' || phase === 'past' ? phase : undefined;
     const { items, nextCursor } = await this.funding.listMine(jwt.sub, { ...q, phase: p });
     return { items: items.map((i) => this.funding.toPublic(i)), nextCursor };
+  }
+
+  @Get('me/result')
+  @ApiOperation({ summary: 'Look up my payment result without pagination' })
+  async result(@CurrentUser() jwt: JwtPayload, @Query() query: PledgeResultQueryDto) {
+    return this.funding.toPublic(await this.funding.myResult(jwt.sub, query));
   }
 }

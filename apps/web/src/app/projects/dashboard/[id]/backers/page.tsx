@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { getProjectDetail } from '@/lib/api/wathba';
+import { getProjectDetailLive } from '@/lib/api/wathba';
 import { WathbaDashboardBackers } from '@/components/ventures/wathba/dashboard/wathba-dashboard-backers';
 
 export const metadata: Metadata = { title: 'الداعمون · وثبة' };
@@ -17,7 +17,7 @@ export default async function DashboardBackersPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
-  const project = await getProjectDetail(id);
+  const project = await getProjectDetailLive(id);
   const tiers = (project?.rewardTiers ?? [])
     .map((t) => ({ id: String(t.id ?? ''), titleAr: String(t.titleAr ?? '') }))
     .filter((t) => t.id);

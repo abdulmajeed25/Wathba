@@ -36,7 +36,7 @@ export async function opsToken(): Promise<string | undefined> {
 /** Forward a JSON call to the ops surface with the session's x-ops-token. */
 export async function proxyWithOpsToken(
   path: string,
-  init: { method?: string; body?: string } = {},
+  init: { method?: string; body?: string; idempotencyKey?: string | null } = {},
 ): Promise<Response> {
   const store = await cookies();
   // BOTH credentials, every call. Middleware enforces this pairing for the /ops
@@ -60,7 +60,9 @@ export async function proxyWithOpsToken(
   }
   const r = await fetch(`${API_BASE}${path}`, {
     method: init.method ?? 'POST',
-    headers: { 'x-ops-token': token, 'content-type': 'application/json' },
+    headers: { 'x-ops-token': token, 'content-type': 'application/json',
+      ...(init.idempotencyKey ? { 'x-idempotency-key': init.idempotencyKey } : {}),
+    },
     body: init.body,
     cache: 'no-store',
   });

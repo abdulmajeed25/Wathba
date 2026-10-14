@@ -77,6 +77,7 @@ export interface ApiForumThread {
 }
 
 export interface ApiBackingRow {
+  shippingHalalas?: number | null;
   id: string;
   ventureId: string;
   backerUserId: string;
@@ -91,6 +92,8 @@ export interface ApiBackingRow {
   venture?: { id: string; slug: string; title: string; state: string };
   /** Batch PAY — cancel window + grace states. */
   paymentMethod?: string;
+  paymentVerificationPending?: boolean;
+  authorizationRecoverable?: boolean;
   graceExpiresAt?: string | null;
   cancellableUntil?: string | null;
   projectStatus?: string | null;
@@ -98,6 +101,8 @@ export interface ApiBackingRow {
 
 /** Raw pledge row as `/v1/pledges/me` actually returns it. */
 interface ApiPledgeRaw {
+  shippingHalalas?: number | null;
+  projectTitleAr?: string | null;
   id: string;
   projectId: string;
   backerId: string;
@@ -109,6 +114,8 @@ interface ApiPledgeRaw {
   refundedAt: string | null;
   paymentRef: string | null;
   paymentMethod?: string;
+  paymentVerificationPending?: boolean;
+  authorizationRecoverable?: boolean;
   graceExpiresAt?: string | null;
   cancellableUntil?: string | null;
   projectStatus?: string | null;
@@ -134,6 +141,7 @@ async function fetchJson<T>(
   token?: string | null,
 ): Promise<T | null> {
   try {
+    if (token === undefined && path.startsWith('/v1/projects/')) token = await readSessionToken();
     const headers: HeadersInit = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     // Authed reads are per-user and MUST NOT enter the shared data cache
@@ -230,6 +238,8 @@ export interface ApiMyProject {
   slug: string | null;
   titleAr: string;
   status: string;
+  reviewFeedback?: string | null;
+  applicationApprovedAt?: string | null;
   raisedHalalas: string;
   fundingGoalHalalas: string;
   backersCount: number;
@@ -276,6 +286,7 @@ export async function listMyBackings(token?: string | null): Promise<ApiBackingR
     ventureId: r.projectId,
     backerUserId: r.backerId,
     amount: String(r.amountHalalas + (r.addOnsHalalas ?? 0)),
+    shippingHalalas: r.shippingHalalas ?? null,
     currency: 'SAR',
     committedAt: r.createdAt,
     state: r.status,
@@ -284,10 +295,23 @@ export async function listMyBackings(token?: string | null): Promise<ApiBackingR
     paymentRef: r.paymentRef,
     // Batch PAY — cancellation window + grace surfaces.
     paymentMethod: r.paymentMethod ?? 'CARD',
+    paymentVerificationPending: r.paymentVerificationPending === true,
+    authorizationRecoverable: r.authorizationRecoverable === true,
     graceExpiresAt: r.graceExpiresAt ?? null,
     cancellableUntil: r.cancellableUntil ?? null,
     projectStatus: r.projectStatus ?? null,
+    venture: r.projectTitleAr ? { id: r.projectId, slug: r.projectId, title: r.projectTitleAr, state: r.projectStatus ?? '' } : undefined,
   }));
+}
+
+export async function getMyPledgeResult(query: { pledgeId?: string; paymentRef?: string }): Promise<ApiPledgeRaw | null> {
+  const bearer = await readSessionToken();
+  if (!bearer) return null;
+  const params = new URLSearchParams();
+  if (query.pledgeId) params.set('pledgeId', query.pledgeId);
+  else if (query.paymentRef) params.set('paymentRef', query.paymentRef);
+  else return null;
+  return fetchJson<ApiPledgeRaw>(`/v1/pledges/me/result?${params}`, 0, bearer);
 }
 
 
@@ -336,6 +360,8 @@ export interface ApiProjectDetail {
   titleAr: string;
   shortDescAr: string;
   category: string;
+  categoryId?: string | null;
+  region?: string | null;
   storyAr: string;
   mediaUrls: string[];
   /**
@@ -371,6 +397,7 @@ export interface ApiProjectDetail {
   /** CC-04 — admin review feedback surfaced to the creator. */
   reviewFeedback?: string | null;
   reviewedAt?: string | null;
+  applicationApprovedAt?: string | null;
   /** CC-14 — pause state + cumulative paused time (7-day cap). */
   pausedAt?: string | null;
   pausedMsAccrued?: number;
@@ -405,7 +432,14 @@ export async function getProjectDetail(
 export async function getProjectDetailLive(
   projectId: string,
 ): Promise<ApiProjectDetail | null> {
-  return fetchJson<ApiProjectDetail>(`/v1/projects/${projectId}`, 0);
+  const token = await readSessionToken();
+  const response = await fetch(`${API_BASE}/v1/projects/${encodeURIComponent(projectId)}`, {
+    cache: 'no-store', headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+  if (response.status === 404) return null;
+  // An unavailable backend is not evidence that the user's project disappeared.
+  if (!response.ok) throw new Error('تعذر تحميل بيانات المشروع؛ أعد المحاولة');
+  return response.json() as Promise<ApiProjectDetail>;
 }
 
 
@@ -613,6 +647,7 @@ export interface ApiRewardTier {
   descAr: string;
   includesPhysicalProduct: boolean;
   requiresShipping: boolean;
+  shippingHalalas?: number | null;
   estDeliveryDate: string;
   limitQty: number | null;
   claimedQty: number;

@@ -19,6 +19,7 @@ const OUTCOME_INTENT: Record<string, 'ok' | 'warn' | 'danger' | 'info' | 'muted'
   duplicate: 'info',
   mismatch: 'danger',
 };
+const OUTCOME_LABEL: Record<string, string> = { applied: 'تمت المعالجة', ignored: 'لا يتطلب تغييرًا', duplicate: 'مكرّر', mismatch: 'يحتاج مراجعة' };
 
 /**
  * OPS-360 Unit 3 — the WebhookEvent browser. Before this, webhooks.replay was
@@ -38,6 +39,7 @@ export async function WebhooksPanel({
   let rows: WebhookRow[] = [];
   let nextCursor: string | null = null;
   let refused = false;
+  let failed = false;
   try {
     const res = await fetch(`${API_BASE}/v1/ops/money/webhook-events${qs({ outcome, cursor, limit: '50' })}`, {
       headers: { 'x-ops-token': opsToken },
@@ -48,18 +50,23 @@ export async function WebhooksPanel({
       const b = (await res.json()) as { items: WebhookRow[]; nextCursor: string | null };
       rows = b.items;
       nextCursor = b.nextCursor;
-    }
+    } else failed = true;
   } catch {
-    /* tolerated */
+    failed = true;
   }
 
   if (refused) {
     return (
-      <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
-        تفتقد صلاحية <code dir="ltr">money.execute</code> لعرض أحداث الويبهوك.
+      <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+        حسابك لا يملك صلاحية عرض إشعارات الدفع. راجع مسؤول صلاحيات الإدارة.
       </p>
     );
   }
+  if (failed) return <section role="alert" className="space-y-3 rounded-lg border border-amber-500/40 p-4">
+    <h2 className="font-semibold">تعذر تحميل إشعارات الدفع</h2>
+    <p className="text-sm">لم نتمكن من التحقق من قائمة الإشعارات. أعد المحاولة لعرض حالتها.</p>
+    <a className="inline-block text-sm text-[#58a6ff] underline" href={`/ops/money${qs({ tab: 'webhooks', outcome, cursor })}`}>إعادة تحميل الإشعارات</a>
+  </section>;
 
   return (
     <section className="space-y-4">
@@ -67,11 +74,13 @@ export async function WebhooksPanel({
         <form method="get" className="flex items-center gap-2">
           <input type="hidden" name="tab" value="webhooks" />
           <select
+            aria-label="حالة إشعار الدفع"
             name="outcome"
             defaultValue={outcome ?? ''}
             className="rounded border border-[#30363d] bg-[#0d1117] px-3 py-1.5 text-sm text-[#e6edf3]"
           >
             <option value="">كل النتائج</option>
+            <option value="pending">لم تكتمل المعالجة</option>
             <option value="mismatch">تعارض (قابل لإعادة التشغيل)</option>
             <option value="applied">مُطبَّق</option>
             <option value="ignored">مُتجاهَل</option>
@@ -82,7 +91,7 @@ export async function WebhooksPanel({
           </button>
         </form>
         <p className="text-xs text-[#8b949e]">
-          إعادة التشغيل تعيد تطبيق حدث مخزَّن على حالة التعهد الحالية — تعالج أحداث «التعارض» التي وصلت والحالة غير مناسبة.
+          الإشعار غير المكتمل يستأنف عند إعادة تسليمه. ويمكن للإدارة مراجعته وإعادة معالجته بسبب موثّق؛ لا يُرسل بذلك طلب دفع جديد إلى المزود.
         </p>
       </div>
 
@@ -112,7 +121,8 @@ export async function WebhooksPanel({
                 <td className="px-3 py-2 text-[#8b949e]">{e.provider}</td>
                 <td className="px-3 py-2 font-mono text-[11px] text-[#8b949e]" dir="ltr">{e.pspRef.slice(0, 16)}</td>
                 <td className="px-3 py-2">
-                  {e.outcome ? <StatusBadge intent={OUTCOME_INTENT[e.outcome] ?? 'muted'}>{e.outcome}</StatusBadge> : <span className="text-[#484f58]">—</span>}
+                  {e.processedAt === null ? <StatusBadge intent="warn">لم تكتمل المعالجة</StatusBadge> :
+                    <StatusBadge intent={OUTCOME_INTENT[e.outcome ?? ''] ?? 'muted'}>{OUTCOME_LABEL[e.outcome ?? ''] ?? 'نتيجة غير معروفة'}</StatusBadge>}
                 </td>
                 <td className="px-3 py-2 text-[11px] text-[#8b949e]">
                   {new Date(e.createdAt).toLocaleString('ar-SA-u-nu-latn', { dateStyle: 'short', timeStyle: 'short' })}

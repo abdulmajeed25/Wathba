@@ -110,6 +110,8 @@ export class ProjectsService {
         slug: true,
         titleAr: true,
         status: true,
+        reviewFeedback: true,
+        applicationApprovedAt: true,
         raisedHalalas: true,
         fundingGoalHalalas: true,
         backersCount: true,
@@ -128,6 +130,10 @@ export class ProjectsService {
     // decorators already reject out-of-range input, so these checks are no-ops
     // until an operator tightens them — behaviour is unchanged by default.
     const minGoalHalalas = await this.settings.get('projects.fundingGoalMinHalalas');
+    const maxGoalHalalas = await this.settings.get('projects.fundingGoalMaxHalalas');
+    if (maxGoalHalalas != null && dto.fundingGoalHalalas > maxGoalHalalas) {
+      throw new BadRequestException(`الحد الأقصى لهدف التمويل هو ${maxGoalHalalas / 100} ريال`);
+    }
     if (dto.fundingGoalHalalas < minGoalHalalas) {
       throw new BadRequestException(`الحد الأدنى لهدف التمويل هو ${minGoalHalalas} هللة`);
     }
@@ -186,6 +192,16 @@ export class ProjectsService {
 
   async update(creatorId: string, projectId: string, dto: UpdateProjectDto): Promise<Project> {
     const proj = await this.requireOwned(creatorId, projectId);
+    if (dto.fundingGoalHalalas !== undefined && BigInt(dto.fundingGoalHalalas) !== proj.fundingGoalHalalas) {
+      const min = await this.settings.get('projects.fundingGoalMinHalalas');
+      const max = await this.settings.get('projects.fundingGoalMaxHalalas');
+      if (dto.fundingGoalHalalas < min || (max != null && dto.fundingGoalHalalas > max)) {
+        throw new BadRequestException(`هدف التمويل خارج حدود المنصة: ${min / 100} ريال كحد أدنى${max == null ? '' : ` و${max / 100} ريال كحد أقصى`}`);
+      }
+    }
+    if (dto.durationDays !== undefined && dto.durationDays !== proj.durationDays && dto.durationDays > await this.settings.get('projects.durationHardMaxDays')) {
+      throw new BadRequestException('مدة الحملة تتجاوز الحد الأقصى للمنصة');
+    }
     // The pre-launch freeze exists to lock the FUNDING CONTRACT and the pitch a
     // backer read before they pledged: goal, threshold, duration, deadline,
     // story, title. Card media is neither. `videoUrl` and `cardMedia` decide
@@ -225,10 +241,13 @@ export class ProjectsService {
     // form re-applies the same set — whole-set semantics make that idempotent.
     if (dto.tagSlugs) await this.tags.setProjectTags(projectId, dto.tagSlugs);
     return this.prisma.project.update({
-      where: { id: projectId },
+      // Approval/publication may commit after requireOwned reads the draft.
+      // Never let an old editor request change a newly published agreement.
+      where: { id: projectId, createdById: creatorId, ...(touchesFrozen ? { status: proj.status, updatedAt: proj.updatedAt } : {}) },
       data: {
         ...(dto.titleAr !== undefined && { titleAr: dto.titleAr }),
         ...(dto.shortDescAr !== undefined && { shortDescAr: dto.shortDescAr }),
+        ...(dto.region !== undefined && { region: dto.region }),
         ...(cat && { category: cat.category, categoryId: cat.categoryId }),
         ...(dto.storyAr !== undefined && { storyAr: dto.storyAr }),
         ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
@@ -262,6 +281,9 @@ export class ProjectsService {
         }),
       },
     }).catch((e: unknown) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+        throw new ConflictException('تغيرت الحملة أثناء الحفظ؛ حدّث الصفحة وراجع حالتها قبل إعادة المحاولة');
+      }
       // Unique slug clash → friendly 400 instead of a 500.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new BadRequestException('هذا المُعرّف (slug) مستخدَم بالفعل — اختر غيره');
@@ -361,27 +383,27 @@ export class ProjectsService {
     if (!editable.includes(proj.status)) {
       throw new BadRequestException(`cannot edit the story in status ${proj.status}`);
     }
-    const updated = await this.prisma.project.update({
-      where: { id: projectId },
-      data: {
-        storyAr: dto.storyAr,
-        ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }),
-      },
-    });
-
     const postLaunch = proj.status === ProjectStatus.LIVE || proj.status === ProjectStatus.PAUSED;
-    if (postLaunch) {
-      const note = dto.changeNote?.trim();
-      await this.prisma.projectChangeLog.create({
-        data: {
-          projectId,
-          actorId: creatorId,
-          field: 'story',
-          summaryAr: note
-            ? `حدّث صاحب المشروع نص القصة: ${note}`
-            : 'حدّث صاحب المشروع نص القصة',
-        },
+    const note = dto.changeNote?.trim();
+    const updated = await this.prisma.$transaction(async tx => {
+      const saved = await tx.project.update({
+        where: { id: projectId, createdById: creatorId, status: proj.status, updatedAt: proj.updatedAt },
+        data: { storyAr: dto.storyAr, ...(dto.mediaUrls !== undefined && { mediaUrls: dto.mediaUrls }) },
       });
+      // A published story and its public disclosure commit together. An audit
+      // insertion failure must not silently leave a changed pitch behind.
+      if (postLaunch) await tx.projectChangeLog.create({ data: {
+        projectId, actorId: creatorId, field: 'story',
+        summaryAr: note ? `حدّث صاحب المشروع نص القصة: ${note}` : 'حدّث صاحب المشروع نص القصة',
+      } });
+      return saved;
+    }).catch((error: unknown) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        throw new ConflictException('تغيرت الحملة أثناء حفظ القصة؛ حدّث الصفحة قبل إعادة المحاولة');
+      }
+      throw error;
+    });
+    if (postLaunch) {
       await this.audit.log({
         actorId: creatorId,
         action: 'creator.project.story-edit',
@@ -576,6 +598,7 @@ export class ProjectsService {
   /** Admin: approves a project and starts the funding clock. */
   async publish(projectId: string): Promise<Project> {
     const proj = await this.findById(projectId);
+    if (!proj.applicationApprovedAt) throw new BadRequestException('يجب اعتماد الطلب قبل مراجعة نشر الحملة');
     if (proj.status !== ProjectStatus.UNDER_REVIEW) {
       throw new BadRequestException(`only UNDER_REVIEW projects can publish (was ${proj.status})`);
     }
@@ -731,7 +754,8 @@ export class ProjectsService {
       },
         });
     if (!proj) throw new NotFoundException('project not found');
-    if (proj.hiddenAt && proj.createdById !== viewerId) {
+    const privateProject = proj.hiddenAt || proj.status === ProjectStatus.DRAFT || proj.status === ProjectStatus.UNDER_REVIEW;
+    if (privateProject && proj.createdById !== viewerId) {
       throw new NotFoundException('project not found');
     }
     return proj;
@@ -917,6 +941,7 @@ export class ProjectsService {
 
   toPublic(
     p: Project & { rewardTiers?: Array<Record<string, unknown>> },
+    includeReviewFeedback = false,
   ): Record<string, unknown> {
     return {
       id: p.id,
@@ -956,8 +981,9 @@ export class ProjectsService {
       createdAt: p.createdAt.toISOString(),
       publishedAt: p.publishedAt?.toISOString() ?? null,
       // CC-04 — admin review feedback surfaced to the creator.
-      reviewFeedback: p.reviewFeedback ?? null,
+      reviewFeedback: includeReviewFeedback ? p.reviewFeedback ?? null : null,
       reviewedAt: p.reviewedAt?.toISOString() ?? null,
+      applicationApprovedAt: p.applicationApprovedAt?.toISOString() ?? null,
       // CC-14 — pause state + cumulative paused time (7-day cap).
       pausedAt: p.pausedAt?.toISOString() ?? null,
       pausedMsAccrued: Number(p.pausedMsAccrued),

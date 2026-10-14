@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 import { WathbaDashboardAnalytics } from '@/components/ventures/wathba/dashboard/wathba-dashboard-analytics';
-import { getProjectAnalytics, getProjectDetail, getCreatorFollowers } from '@/lib/api/wathba';
+import { getProjectAnalytics, getProjectDetailLive, getCreatorFollowers } from '@/lib/api/wathba';
 
 export const metadata: Metadata = { title: 'التحليلات · وثبة' };
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export default async function DashboardAnalyticsPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
-  const project = await getProjectDetail(id);
+  const project = await getProjectDetailLive(id);
   const [analytics, followers] = await Promise.all([
     getProjectAnalytics(id),
     project ? getCreatorFollowers(project.createdBy) : Promise.resolve(null),

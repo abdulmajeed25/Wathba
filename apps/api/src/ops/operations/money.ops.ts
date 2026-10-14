@@ -1,4 +1,9 @@
-import { BadRequestException } from '@nestjs/common';
+import type { RefundVerification } from '../../escrow-payments/refund-evidence';
+import { canRecoverAuthorization } from '../../escrow-payments/authorization-evidence';
+import { heldAction, type HeldVerification } from '../../escrow-payments/held-payment-action';
+import { VOID_PENDING_ISSUES, type VoidVerification } from '../../escrow-payments/uncounted-void';
+import { availableProjectFunds } from '../../escrow-payments/project-liquidity';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { MilestoneStatus, NotificationKind, PayoutStatus, PledgeStatus, ProjectStatus } from '@prisma/client';
 import { z } from 'zod';
 
@@ -60,7 +65,7 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
     key: 'money.deadline.override',
     titleAr: 'تعديل الموعد النهائي لحملة',
     descriptionAr:
-      'أداة تشغيلية تُغيّر موعد إغلاق الحملة. سياسة: لا يتجاوز الموعد الجديد سقف الـ١٢٠ يوماً من النشر. تقديم الموعد إلى الماضي مسموح (مقعد تسوية تشغيلي) — التسوية نفسها تبقى عملية مستقلة.',
+      'تعديل موعد حملة مجدولة لم تنشر ولم تتلق تعهدات فقط. الحملات المنشورة تتطلب مسار طلب التغيير وموافقات المتأثرين؛ لا يجوز تجاوز ذلك بهذه الأداة.',
     inputSchema: deadlineInput,
     permission: 'money.execute',
     riskTier: 'MONEY',
@@ -76,18 +81,20 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       },
       {
         code: 'not-settleable-status',
-        reasonAr: 'تعديل الموعد متاح فقط لحملة LIVE أو PAUSED أو SCHEDULED',
+        reasonAr: 'التعديل المباشر متاح لحملة مجدولة لم تنشر فقط؛ استخدم طلب تغيير للحملة المنشورة',
         check: async (db, input) => {
           const p = await db.project.findUnique({
             where: { id: input.projectId },
-            select: { status: true },
+            select: { status: true, publishedAt: true },
           });
-          return (
-            p?.status === ProjectStatus.LIVE ||
-            p?.status === ProjectStatus.PAUSED ||
-            p?.status === ProjectStatus.SCHEDULED
-          );
+          return p?.status === ProjectStatus.SCHEDULED && p.publishedAt === null;
         },
+      },
+      {
+        code: 'existing-pledge-agreements',
+        reasonAr: 'توجد تعهدات مرتبطة بالحملة؛ تغيير الموعد يتطلب مسار الموافقات الفردية',
+        check: async (db, input) =>
+          (await db.pledge.count({ where: { projectId: input.projectId } })) === 0,
       },
       {
         code: 'beyond-duration-cap',
@@ -114,10 +121,19 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       };
     },
     async execute(tx, input) {
-      await tx.project.update({
-        where: { id: input.projectId },
+      // Recheck at the write: publication may race the preview/preconditions.
+      const updated = await tx.project.updateMany({
+        where: {
+          id: input.projectId,
+          status: ProjectStatus.SCHEDULED,
+          publishedAt: null,
+          pledges: { none: {} },
+        },
         data: { deadline: input.deadline },
       });
+      if (updated.count !== 1) {
+        throw new ConflictException('تغيرت حالة الحملة أو توجد تعهدات؛ استخدم مسار طلب التغيير');
+      }
       return { ok: true as const, deadline: input.deadline.toISOString() };
     },
   };
@@ -229,6 +245,19 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
           return (p?.realizedHalalas ?? 0n) > 0n;
         },
       },
+      {
+        code: 'funds-reserved',
+        reasonAr: 'الرصيد المتاح لا يغطي المرحلة بعد احتساب الدفعات والاستردادات المعلّقة.',
+        check: async (db, input) => {
+          const [p, m] = await Promise.all([
+            db.project.findUnique({ where: { id: input.projectId } }),
+            db.milestone.findFirst({ where: { id: input.milestoneId, projectId: input.projectId } }),
+          ]);
+          if (!p || !m || !Number.isInteger(m.releasePct) || m.releasePct <= 0 || m.releasePct > 100) return false;
+          const amount = p.realizedHalalas * BigInt(m.releasePct) / 100n;
+          return amount > 0n && await availableProjectFunds(db, input.projectId) >= amount;
+        },
+      },
     ],
     async dryRun(db, input) {
       const [p, m] = await Promise.all([
@@ -236,6 +265,7 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
         db.milestone.findFirst({ where: { id: input.milestoneId, projectId: input.projectId } }),
       ]);
       const amount = p && m ? (p.realizedHalalas * BigInt(m.releasePct)) / 100n : 0n;
+      const available = p ? await availableProjectFunds(db, input.projectId) : 0n;
       return {
         summaryAr: `سيُصرف ${m?.releasePct ?? 0}٪ من المقطوف فعلياً — دفعة معلّقة للمبدع تُرسل في دورة الصرف`,
         before: {
@@ -252,24 +282,28 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
         monetaryDeltasHalalas: {
           payoutCreated: amount.toString(),
           basisRealized: p?.realizedHalalas.toString() ?? '0',
+          availableAfterReservations: available.toString(),
         },
       };
     },
     async execute(tx, input) {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${input.projectId}::uuid FOR UPDATE`;
       const project = await tx.project.findUniqueOrThrow({ where: { id: input.projectId } });
-      const m = await tx.milestone.findFirstOrThrow({
-        where: { id: input.milestoneId, projectId: input.projectId },
-      });
-      // Batch PAY (Part 2) — payouts compute from REALIZED only.
+      const m = await tx.milestone.findFirstOrThrow({ where: { id: input.milestoneId, projectId: input.projectId } });
+      if (!['FUNDED', 'IN_PRODUCTION'].includes(project.status) || m.status !== MilestoneStatus.APPROVED ||
+          !Number.isInteger(m.releasePct) || m.releasePct <= 0 || m.releasePct > 100) {
+        throw new ConflictException('لم تعد المرحلة مؤهلة للصرف؛ حدّث البيانات وراجع حالة الحملة والمرحلة.');
+      }
       const amountHalalas = (project.realizedHalalas * BigInt(m.releasePct)) / 100n;
-      const updated = await tx.milestone.update({
-        where: { id: input.milestoneId },
-        data: {
-          status: MilestoneStatus.RELEASED,
-          releasedAt: new Date(),
-          releasedHalalas: amountHalalas,
-        },
+      if (amountHalalas <= 0n || await availableProjectFunds(tx, input.projectId) < amountHalalas) {
+        throw new ConflictException({ code: 'insufficient-unreserved-funds', message: 'الرصيد المتاح لا يغطي هذه الدفعة بعد احتساب الصرف والاستردادات المعلّقة.' });
+      }
+      const changed = await tx.milestone.updateMany({
+        where: { id: m.id, projectId: input.projectId, status: MilestoneStatus.APPROVED, releasePct: m.releasePct },
+        data: { status: MilestoneStatus.RELEASED, releasedAt: new Date(), releasedHalalas: amountHalalas },
       });
+      if (changed.count !== 1) throw new ConflictException('تغيرت المرحلة أثناء اعتماد الصرف؛ حدّث البيانات قبل المتابعة.');
+      const updated = { ...m, releasedHalalas: amountHalalas };
       await tx.payout.create({
         data: {
           projectId: input.projectId,
@@ -459,14 +493,107 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
    *  A refund of captured money may only draw from this — released tranches
    *  already left toward the creator and cannot be clawed back here. */
   const unreleasedRealized = async (db: ReadOnlyDb, projectId: string): Promise<bigint> => {
-    const [p, rel] = await Promise.all([
-      db.project.findUnique({ where: { id: projectId }, select: { realizedHalalas: true } }),
-      db.milestone.aggregate({ where: { projectId }, _sum: { releasedHalalas: true } }),
-    ]);
-    return (p?.realizedHalalas ?? 0n) - (rel._sum.releasedHalalas ?? 0n);
+    return availableProjectFunds(db, projectId);
   };
 
   const refundPledgeInput = z.object({ pledgeId: z.string().uuid() });
+
+  const refundReconcile: OperationDef<{ pledgeId: string }, RefundVerification> = {
+    key: 'money.refund.reconcile', titleAr: 'التحقق من الاسترداد المحفوظ',
+    descriptionAr: 'يقرأ نتيجة الدفع لدى المزود دون طلب استرداد جديد. يثبت الرد الكامل المطابق فقط؛ الجزئي أو غير المؤكد يبقى محجوزًا للمراجعة.',
+    inputSchema: refundPledgeInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'refund-not-verifiable', reasonAr: 'يلزم تعهد محصل له محاولة استرداد محفوظة وحجز يطابق المبلغ الكامل.',
+      check: async (db, input) => {
+        const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+        return !!p && p.status === 'CAPTURED' && !!p.refundRequestedAt && p.refundReservedHalalas > 0n &&
+          p.refundReservedHalalas === p.amountHalalas + p.addOnsHalalas;
+      } }],
+    async dryRun(db, input) {
+      const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+      return { summaryAr: 'التحقق من نتيجة الاسترداد المحفوظ. لن يرسل طلب مالي جديد ولن يحرر الحجز دون إثبات الرد الكامل المطابق.',
+        before: { status: p?.status, reservedHalalas: p?.refundReservedHalalas.toString() },
+        after: { status: 'مسترد عند الإثبات الكامل؛ وإلا يبقى قيد المراجعة' } };
+    },
+    async execute(_tx, input) { return deps.escrow.reconcileCapturedRefund(input.pledgeId); },
+  };
+
+  const voidReconcile: OperationDef<{ pledgeId: string }, VoidVerification> = {
+    key: 'money.void.reconcile', titleAr: 'التحقق من فك حجز غير محتسب',
+    descriptionAr: 'يقرأ نتيجة محاولة فك محفوظة دون طلب مالي جديد. لا يعدل رصيد الحملة أو المخزون لأن التعهد لم يحتسب أصلًا.',
+    inputSchema: refundPledgeInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'void-not-verifiable', reasonAr: 'يلزم تعهد غير محتسب مع محاولة فك حجز محفوظة.',
+      check: async (db, input) => {
+        const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+        return !!p && p.status === 'PENDING_AUTH' && !p.capturedAt && VOID_PENDING_ISSUES.includes(p.authorizationIssue ?? '');
+      } }],
+    async dryRun(db, input) {
+      const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+      return { summaryAr: 'قراءة نتيجة فك الحجز المحفوظ دون إعادة الطلب. يبقى الدعم غير محتسب، ولا تخصم أموال من الحملة أو وحدات من المكافآت.',
+        before: { status: p?.status }, after: { status: 'فك مؤكد عند تطابق الدليل؛ وإلا يبقى للمراجعة' } };
+    },
+    async execute(_tx, input) { return deps.escrow.reconcileUncountedVoid(input.pledgeId); },
+  };
+
+  const authorizationReconcile: OperationDef<{ pledgeId: string }, { outcome: string; applied?: boolean }> = {
+    key: 'money.authorization.reconcile', titleAr: 'التحقق من الحجز الأول',
+    descriptionAr: 'يقرأ الدفع المحفوظ ويطابق شروط الدعم الأصلية؛ لا ينشئ دفعًا جديدًا.',
+    inputSchema: refundPledgeInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'authorization-not-recoverable', reasonAr: 'يلزم حجز أول له شروط محفوظة ولا يتعارض مع محاولة فك.',
+      check: async (db, input) => { const p = await db.pledge.findUnique({ where: { id: input.pledgeId } }); return !!p && canRecoverAuthorization(p); } }],
+    async dryRun() { return { summaryAr: 'قراءة مرجع الحجز ومطابقة الشروط والمخزون قبل احتساب الدعم. تحقق البنك يكمله الداعم من حسابه.', before: null, after: { status: 'حسب الدليل والشروط' } }; },
+    async execute(_db, input) {
+      const result = await deps.escrow.reconcileInitialAuthorization(input.pledgeId);
+      // A payer's bank challenge link must never be returned to an operator.
+      return { outcome: result.outcome, applied: result.applied };
+    },
+  };
+
+  const authorizationRelease: OperationDef<{ pledgeId: string }, { ok: true }> = {
+    key: 'money.authorization.release', titleAr: 'فك الحجز غير المحتسب',
+    descriptionAr: 'يفك حجزًا تعذر احتسابه بسبب تغير الشروط، بعد قراءة دليل مطابق؛ لا يغير رصيد الحملة أو مخزونها.',
+    inputSchema: refundPledgeInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'authorization-not-rejected', reasonAr: 'يلزم حجز أول غير محتسب مع شروط محفوظة وسبب رفض الاحتساب.',
+      check: async (db, input) => { const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+        return !!p && canRecoverAuthorization(p) && p.authorizationIssue === 'authorization-terms-changed' && !p.capturedAt; } }],
+    async dryRun() { return { summaryAr: 'بعد التحقق من المزود، يُطلب فك الحجز غير المحتسب مرة واحدة. هذا ليس رد مبلغ محصل؛ لا ينقص تمويل الحملة أو مخزونها.', before: null, after: { status: 'فك مؤكد أو انتظار التحقق' } }; },
+    async execute(_db, input) { return deps.escrow.releaseRejectedAuthorization(input.pledgeId); },
+  };
+
+  const replacementCapture: OperationDef<{ pledgeId: string }, { ok: true }> = {
+    key: 'money.replacement.capture', titleAr: 'استكمال تحصيل البطاقة الجديدة',
+    descriptionAr: 'يتحقق من التفويض المحفوظ ثم يرسل التحصيل مرة واحدة. لا ينشئ دفعًا جديدًا.',
+    inputSchema: refundPledgeInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'replacement-not-resumable', reasonAr: 'يلزم تفويض بطاقة جديدة محفوظ ينتظر التحقق.',
+      check: async (db, input) => {
+        const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+        return !!p && p.status === 'CAPTURE_GRACE' && !p.capturedAt && heldAction(p.authorizationIssue) === 'AUTHORIZE';
+      } }],
+    async dryRun() { return { summaryAr: 'يقرأ الدفع المحفوظ أولًا؛ عند تأكيد التفويض يحصله مرة واحدة، وعند تأكيد تحصيل سابق يحفظ نتيجته دون طلب آخر.', before: null, after: { status: 'وفق نتيجة المزود' } }; },
+    async execute(_db, input) { return deps.escrow.resumeReplacementCapture(input.pledgeId); },
+  };
+
+  const heldReconcile: OperationDef<{ pledgeId: string }, HeldVerification> = {
+    key: 'money.hold.reconcile', titleAr: 'التحقق من محاولة الحجز المالي',
+    descriptionAr: 'يقرأ نتيجة التحصيل أو فك الحجز دون إعادة الطلب. بقاء authorized لا يثبت تجديد التفويض.',
+    inputSchema: refundPledgeInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'held-action-not-verifiable', reasonAr: 'يلزم تعهد محجوز له محاولة مالية محفوظة.',
+      check: async (db, input) => {
+        const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+        return !!p && ['HELD', 'PENDING_REAUTH', 'CAPTURE_GRACE'].includes(p.status) && !p.capturedAt && !!heldAction(p.authorizationIssue);
+      } }],
+    async dryRun(db, input) {
+      const p = await db.pledge.findUnique({ where: { id: input.pledgeId } });
+      return { summaryAr: 'قراءة المحاولة المحفوظة فقط. لا يكرر التحصيل أو الفك أو التجديد، ولا يثبت النجاح دون تطابق المرجع والمبالغ.',
+        before: { status: p?.status, action: heldAction(p?.authorizationIssue) }, after: { status: 'وفق الدليل؛ النتيجة المجهولة تبقى للمراجعة' } };
+    },
+    async execute(_tx, input) { return deps.escrow.reconcileHeldPayment(input.pledgeId); },
+  };
 
   const refundPledge: OperationDef<
     z.infer<typeof refundPledgeInput>,
@@ -491,13 +618,14 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       },
       {
         code: 'not-refundable',
-        reasonAr: 'التعهد ليس في حالة قابلة للاسترداد — المؤهل: HELD أو PENDING_REAUTH أو CAPTURED',
+        reasonAr: 'التعهد غير مؤهل لمحاولة جديدة؛ الاسترداد الجاري أو المجهول يحتاج مطابقة، والمؤهل HELD أو PENDING_REAUTH أو CAPTURED دون محاولة سابقة',
         check: async (db, input) => {
           const p = await db.pledge.findUnique({
             where: { id: input.pledgeId },
-            select: { status: true },
+            select: { status: true, refundRequestedAt: true, authorizationIssue: true },
           });
-          return !!p && REFUNDABLE.includes(p.status);
+          return !!p && REFUNDABLE.includes(p.status) && !(p.status === 'CAPTURED' && p.refundRequestedAt) &&
+            !(['HELD', 'PENDING_REAUTH'].includes(p.status) && p.authorizationIssue);
         },
       },
       {
@@ -555,9 +683,12 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       if (!r.ok) {
         // Throwing marks the orchestrated claim FAILED — a PSP refusal is a
         // recorded failure, never a silent no-op.
-        throw new BadRequestException(
-          `تعذّر الاسترداد عبر بوابة الدفع: ${r.failureReason ?? 'رفض المزوّد'}`,
-        );
+        const reasons: Record<string, string> = {
+          'insufficient-unreserved-funds': 'الرصيد المتاح لا يغطي الاسترداد بعد احتساب الالتزامات الأخرى.',
+          'refund-already-requested-or-state-changed': 'للتعهد محاولة استرداد سابقة أو تغيرت حالته؛ راجع المطابقة قبل إعادة الطلب.',
+          'refund-outcome-unknown': 'لم تتأكد نتيجة الاسترداد. بقي المبلغ محجوزًا للمطابقة؛ لا ترسل طلبًا جديدًا.',
+        };
+        throw new BadRequestException(`تعذّر الاسترداد: ${reasons[r.failureReason ?? ''] ?? r.failureReason ?? 'رفض المزوّد'}`);
       }
       return { ok: true as const, mode: r.mode, amountHalalas: r.amountHalalas.toString() };
     },
@@ -756,7 +887,7 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
     key: 'money.payout.retry',
     titleAr: 'إعادة دفعة فاشلة إلى طابور الصرف',
     descriptionAr:
-      'يعيد دفعة FAILED إلى PENDING ويمسح سبب الفشل — دورة الصرف (كل ٥ دقائق) تلتقطها وتتولى نداء المزوّد. سياسة: FAILED فقط؛ دفعة عالقة في SENDING تعني انهياراً منتصف الإرسال وتتطلب تحقيقاً يدوياً لا إعادة تلقائية.',
+      'يعيد دفعة FAILED إلى PENDING ويمسح سبب الفشل — دورة الصرف (كل ٥ دقائق) تلتقطها وتتولى نداء المزوّد. سياسة: FAILED بلا مرجع مزود فقط؛ دفعة عالقة في SENDING تعني انهياراً منتصف الإرسال وتتطلب تحقيقاً يدوياً لا إعادة تلقائية.',
     inputSchema: payoutRetryInput,
     permission: 'money.execute',
     riskTier: 'MONEY',
@@ -772,13 +903,13 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       {
         code: 'not-failed',
         reasonAr:
-          'فقط دفعة FAILED تُعاد إلى الطابور — دفعة عالقة في SENDING تحقيق يدوي (خطر صرف مزدوج)، وPENDING/SENT لا تحتاج إعادة',
+          'تُعاد دفعة FAILED بلا مرجع مزود فقط؛ وجود مرجع تحويل أو نتيجة معلقة يستلزم المطابقة لمنع الصرف المزدوج',
         check: async (db, input) => {
           const p = await db.payout.findUnique({
             where: { id: input.payoutId },
-            select: { status: true },
+            select: { status: true, providerRef: true },
           });
-          return p?.status === PayoutStatus.FAILED;
+          return p?.status === PayoutStatus.FAILED && !p.providerRef;
         },
       },
     ],
@@ -792,16 +923,37 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
       };
     },
     async execute(tx, input) {
-      const updated = await tx.payout.update({
-        where: { id: input.payoutId },
+      const claim = await tx.payout.updateMany({
+        where: { id: input.payoutId, status: PayoutStatus.FAILED, providerRef: null },
         data: { status: PayoutStatus.PENDING, failureReason: null },
       });
+      if (claim.count !== 1) throw new ConflictException('Payout is not safely retryable; reconcile the provider reference first');
+      const updated = await tx.payout.findUniqueOrThrow({ where: { id: input.payoutId } });
       return {
         id: updated.id,
         status: updated.status,
         amountHalalas: updated.amountHalalas.toString(),
       };
     },
+  };
+
+  const payoutReconcile: OperationDef<{ payoutId: string }, { status: string; providerStatus: string | null }> = {
+    key: 'money.payout.reconcile', titleAr: 'التحقق من نتيجة تحويل محفوظ',
+    descriptionAr: 'يقرأ التحويل المحفوظ لدى المزود دون إنشاء تحويل جديد. يتحقق من المرجع والمبلغ والعملة قبل تثبيت الصرف؛ الانتظار أو فشل القراءة لا يعيدان الإرسال.',
+    inputSchema: payoutRetryInput, permission: 'money.execute', riskTier: 'MONEY',
+    reversible: false, requiresReason: true, orchestrated: true,
+    preconditions: [{ code: 'payout-not-verifiable', reasonAr: 'يلزم تحويل معلق بمرجع مزود محفوظ؛ النتيجة المجهولة بلا مرجع تتطلب مطابقة منفصلة.',
+      check: async (db, input) => {
+        const p = await db.payout.findUnique({ where: { id: input.payoutId }, select: { status: true, providerRef: true } });
+        return p?.status === PayoutStatus.SENDING && !!p.providerRef;
+      } }],
+    async dryRun(db, input) {
+      const p = await db.payout.findUnique({ where: { id: input.payoutId } });
+      return { summaryAr: 'قراءة حالة التحويل لدى المزود وتثبيت نتيجته المطابقة دون إرسال مبلغ جديد.',
+        before: { status: p?.status, providerStatus: p?.providerStatus },
+        after: { status: 'بحسب نتيجة المزود المطابقة' } };
+    },
+    async execute(_tx, input) { return deps.disburser.reconcilePayout(input.payoutId); },
   };
 
   /* ── reconciliation (SENSITIVE — reads PSP truth, moves no money) ───── */
@@ -1295,9 +1447,16 @@ export function moneyOps(deps: MoneyOpsDeps): Array<OperationDef<never, unknown>
     settleRun,
     payoutDisburse,
     refundPledge,
+    refundReconcile,
+    voidReconcile,
+    heldReconcile,
+    authorizationReconcile,
+    authorizationRelease,
+    replacementCapture,
     refundProject,
     captureRetryCohort,
     payoutRetry,
+    payoutReconcile,
     reconcileRun,
     disputeResolve,
     pledgeRevive,

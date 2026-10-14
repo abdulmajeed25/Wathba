@@ -284,6 +284,26 @@ describe('OpsReadService', () => {
     });
   });
 
+  it('pending-refund filter uses the durable reservation and exposes its read-only evidence', async () => {
+    const db = buildPrisma();
+    db.pledge.findMany.mockResolvedValue([{ id: 'pledge', projectId: 'project', backer: { id: 'backer', name: 'test', email: 'a@example.com' },
+      amountHalalas: 10000n, addOnsHalalas: 0n, status: 'CAPTURED', refundReservedHalalas: 10000n,
+      refundRequestedAt: new Date('2026-10-14T00:00:00Z'), refundIssue: 'refund-outcome-unknown' }]);
+    const out = await svc(db).listPledges({ status: 'REFUND_PENDING' });
+    expect(db.pledge.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { refundReservedHalalas: { gt: 0n } } }));
+    expect(out.items[0]).toMatchObject({ refundReservedHalalas: '10000', refundRequestedAt: '2026-10-14T00:00:00.000Z', refundIssue: 'refund-outcome-unknown' });
+  });
+
+  it('initial authorization exposes eligibility without exporting the original contract snapshot', async () => {
+    const db = buildPrisma();
+    db.pledge.findMany.mockResolvedValue([{ id: 'pledge', projectId: 'project', backer: { id: 'backer', name: 'test', email: 'a@example.com' },
+      amountHalalas: 2000n, addOnsHalalas: 0n, status: 'PENDING_AUTH', paymentMethod: 'CARD',
+      authorizationIssue: 'authorization-challenge', authorizationContext: { version: 1 } }]);
+    const out = await svc(db).listPledges({ status: 'PENDING_AUTH' });
+    expect(out.items[0]).toMatchObject({ authorizationRecoverable: true });
+    expect(out.items[0]).not.toHaveProperty('authorizationContext');
+  });
+
   describe('listPayouts — money always strings', () => {
     it('stringifies gross/net/withheld and keeps failureReason', async () => {
       const db = buildPrisma();
@@ -298,6 +318,7 @@ describe('OpsReadService', () => {
           feeWithheldHalalas: 170000n,
           status: 'SENT',
           failureReason: null,
+          providerRef: 'provider-ref', providerStatus: 'paid', providerCheckedAt: new Date('2026-10-14T00:00:00Z'),
           zatcaInvoiceId: 'ZTC-1',
           sentAt: new Date(),
           createdAt: new Date(),
@@ -305,6 +326,7 @@ describe('OpsReadService', () => {
       ]);
       const out = await svc(db).listPayouts({ status: 'SENT' });
       const row = out.items[0]!;
+      expect(row).toMatchObject({ providerRef: 'provider-ref', providerStatus: 'paid', providerCheckedAt: '2026-10-14T00:00:00.000Z' });
       expect(row.grossHalalas).toBe('1000000');
       expect(row.netHalalas).toBe('830000');
       expect(row.feeWithheldHalalas).toBe('170000');
@@ -559,6 +581,15 @@ describe('OpsReadService', () => {
   });
 
   describe('listWebhookEvents — outcome filter (unblocks webhooks.replay)', () => {
+    it('finds unfinished receipts by processing state without exposing the stored payload', async () => {
+      const db = buildPrisma();
+      db.webhookEvent.findMany.mockResolvedValue([{ id: 'pending-event', provider: 'moyasar', eventType: 'payment_paid',
+        pspRef: 'pending-ref', outcome: null, processedAt: null, createdAt: new Date(), payload: { secret_token: 'must-stay-private' } }]);
+      const out = await svc(db).listWebhookEvents({ outcome: 'pending', provider: 'moyasar' });
+      expect(db.webhookEvent.findMany.mock.calls[0]![0].where).toEqual({ processedAt: null, provider: 'moyasar' });
+      expect(out.items[0]).toMatchObject({ id: 'pending-event', processed: false, processedAt: null });
+      expect(out.items[0]).not.toHaveProperty('payload');
+    });
     it('lists event ids and threads the outcome filter', async () => {
       const db = buildPrisma();
       db.webhookEvent.findMany.mockResolvedValue([

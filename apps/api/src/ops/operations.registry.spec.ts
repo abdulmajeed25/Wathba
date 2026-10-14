@@ -21,7 +21,7 @@ import type { PrismaService } from '../prisma/prisma.service';
 type Mock = jest.Mock;
 interface MockModel {
   findUnique: Mock; findUniqueOrThrow: Mock; findFirst: Mock; findFirstOrThrow: Mock;
-  findMany: Mock; count: Mock; create: Mock; update: Mock; updateMany: Mock;
+  aggregate: Mock; findMany: Mock; count: Mock; create: Mock; update: Mock; updateMany: Mock;
   delete: Mock; deleteMany: Mock; upsert: Mock;
 }
 interface MockDb {
@@ -30,11 +30,12 @@ interface MockDb {
   editorialCard: MockModel; homepageSection: MockModel; collection: MockModel;
   projectCollection: MockModel; operationExecution: MockModel; auditLog: MockModel;
   operationProposal: MockModel; opsRole: MockModel; opsRoleGrant: MockModel;
-  $transaction: Mock;
+  $transaction: Mock; $queryRaw: Mock;
 }
 
 function buildPrisma(): MockDb {
   const model = () => ({
+    aggregate: jest.fn().mockResolvedValue({ _sum: {} }),
     findUnique: jest.fn(),
     findUniqueOrThrow: jest.fn(),
     findFirst: jest.fn(),
@@ -55,7 +56,7 @@ function buildPrisma(): MockDb {
     editorialCard: model(), homepageSection: model(), collection: model(),
     projectCollection: model(), operationExecution: model(), auditLog: model(),
     operationProposal: model(), opsRole: model(), opsRoleGrant: model(),
-    $transaction: jest.fn(),
+    $transaction: jest.fn(), $queryRaw: jest.fn(),
   };
   prisma.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) => fn(prisma));
   return prisma;
@@ -385,6 +386,19 @@ describe('money.milestone.release — realized-basis proof (ported from mileston
   const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
   const MILESTONE_ID = '22222222-2222-4222-8222-222222222222';
 
+  it('blocks the release preview when pending refunds consume the available money', async () => {
+    const prisma = buildPrisma();
+    const project = { id: PROJECT_ID, status: 'FUNDED', realizedHalalas: 10000n };
+    prisma.project.findUnique.mockResolvedValue(project);
+    prisma.project.findUniqueOrThrow.mockResolvedValue(project);
+    prisma.milestone.findFirst.mockResolvedValue({ id: MILESTONE_ID, status: 'APPROVED', releasePct: 100 });
+    prisma.pledge.aggregate.mockResolvedValue({ _sum: { refundReservedHalalas: 10000n } });
+    const dry = await regWithMoneyOps(prisma).dryRun('money.milestone.release', { projectId: PROJECT_ID, milestoneId: MILESTONE_ID }, ctx());
+    expect(dry.ok).toBe(false);
+    expect(dry.blockers).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'funds-reserved' })]));
+    expect(prisma.payout.create).not.toHaveBeenCalled();
+  });
+
   it('releases 30% of REALIZED (90M → 27M), never raised (100M), and queues the PENDING payout', async () => {
     const prisma = buildPrisma();
     const project = {
@@ -397,6 +411,7 @@ describe('money.milestone.release — realized-basis proof (ported from mileston
     prisma.project.findUniqueOrThrow.mockResolvedValue(project);
     prisma.milestone.findFirst.mockResolvedValue(milestone);
     prisma.milestone.findFirstOrThrow.mockResolvedValue(milestone);
+    prisma.milestone.updateMany.mockResolvedValue({ count: 1 });
     prisma.milestone.update.mockResolvedValue({ ...milestone, status: 'RELEASED', releasedHalalas: 27_000_000n });
     const reg = regWithMoneyOps(prisma);
     prisma.operationExecution.findUnique.mockResolvedValue(null);
@@ -454,27 +469,44 @@ describe('money.milestone.release — realized-basis proof (ported from mileston
     });
   });
 
-  it('money.deadline.override enforces the 120-day policy cap', async () => {
+  it.each(['LIVE', 'PAUSED', 'FUNDED'])('blocks legacy deadline changes for %s campaigns', async (status) => {
     const prisma = buildPrisma();
-    const published = new Date('2026-01-01T00:00:00Z');
-    prisma.project.findUnique.mockResolvedValue({
-      id: PROJECT_ID, status: 'LIVE', publishedAt: published, titleAr: 'م', deadline: new Date(),
-    });
+    prisma.project.findUnique.mockResolvedValue({ id: PROJECT_ID, status, publishedAt: new Date() });
     const reg = regWithMoneyOps(prisma);
-    prisma.operationExecution.findUnique.mockResolvedValue(null);
-    await expect(
-      reg.execute(
-        'money.deadline.override',
-        { projectId: PROJECT_ID, deadline: new Date('2026-06-01T00:00:00Z').toISOString() },
-        ctx({ reason: 'تمديد يتجاوز السقف عمداً', idempotencyKey: 'DL-1' }),
-      ),
-    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'beyond-duration-cap' }) });
-    // Past deadline (settlement drill) stays allowed.
-    const ok = await reg.execute(
-      'money.deadline.override',
-      { projectId: PROJECT_ID, deadline: new Date('2026-01-02T00:00:00Z').toISOString() },
-      ctx({ reason: 'مقعد تسوية تشغيلي للاختبار', idempotencyKey: 'DL-2' }),
-    );
+    await expect(reg.execute('money.deadline.override',
+      { projectId: PROJECT_ID, deadline: '2027-01-01T00:00:00Z' },
+      ctx({ reason: 'محاولة تغيير موعد حملة منشورة', idempotencyKey: 'DL-block' }),
+    )).rejects.toMatchObject({ response: expect.objectContaining({ code: 'not-settleable-status' }) });
+    expect(prisma.project.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('allows only unpublished scheduled campaigns without agreements', async () => {
+    const prisma = buildPrisma();
+    prisma.project.findUnique.mockResolvedValue({ id: PROJECT_ID, status: 'SCHEDULED', publishedAt: null });
+    prisma.project.updateMany.mockResolvedValue({ count: 1 });
+    const reg = regWithMoneyOps(prisma);
+    const input = { projectId: PROJECT_ID, deadline: '2027-01-01T00:00:00Z' };
+    prisma.pledge.count.mockResolvedValue(1);
+    await expect(reg.execute('money.deadline.override', input,
+      ctx({ reason: 'اختبار حماية الاتفاقات السابقة', idempotencyKey: 'DL-pledge' }),
+    )).rejects.toMatchObject({ response: expect.objectContaining({ code: 'existing-pledge-agreements' }) });
+    prisma.pledge.count.mockResolvedValue(0);
+    const ok = await reg.execute('money.deadline.override', input,
+      ctx({ reason: 'تعديل موعد قبل نشر الحملة', idempotencyKey: 'DL-safe' }));
     expect((ok.result as { ok: boolean }).ok).toBe(true);
+    expect(prisma.project.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: PROJECT_ID, status: 'SCHEDULED', publishedAt: null, pledges: { none: {} } },
+    }));
+  });
+
+  it('rejects publication racing the deadline write', async () => {
+    const prisma = buildPrisma();
+    prisma.project.findUnique.mockResolvedValue({ id: PROJECT_ID, status: 'SCHEDULED', publishedAt: null });
+    prisma.project.updateMany.mockResolvedValue({ count: 0 });
+    const reg = regWithMoneyOps(prisma);
+    await expect(reg.execute('money.deadline.override',
+      { projectId: PROJECT_ID, deadline: '2027-01-01T00:00:00Z' },
+      ctx({ reason: 'اختبار النشر المتزامن مع التعديل', idempotencyKey: 'DL-race' }),
+    )).rejects.toMatchObject({ status: 409 });
   });
 });

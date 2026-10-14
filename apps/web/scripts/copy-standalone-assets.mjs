@@ -20,6 +20,10 @@ import { cpSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
+if (process.env.WATHBA_BUILD_MODE === 'server') {
+  console.log('[standalone-assets] standard server build; standalone packaging is not requested');
+  process.exit(0);
+}
 const standalone = join(root, '.next', 'standalone', 'apps', 'web');
 
 if (!existsSync(standalone)) {

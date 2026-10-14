@@ -31,9 +31,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // kills the still-valid access token on its next request.
     const u = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { suspendedAt: true },
+      select: { suspendedAt: true, roles: true },
     });
+    if (!u) throw new UnauthorizedException('الحساب غير موجود');
     if (u?.suspendedAt) throw new UnauthorizedException('الحساب موقوف');
-    return payload;
+    return { ...payload, roles: u.roles };
   }
 }

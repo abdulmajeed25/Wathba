@@ -20,7 +20,7 @@ function escrowMock(): any {
  *   secret verification (good / bad / unset-dev)
  *   duplicate delivery (P2002 on dedupKey) → 'duplicate', no state touch
  *   payment_paid     HELD→CAPTURED via escrow.markCaptured (OPS-0 #1) · already-CAPTURED → 'ignored'
- *   payment_failed   HELD→FAILED
+ *   payment_failed   counted pledge stays unchanged and requires review
  *   payment_voided   HELD→REFUNDED
  *   payment_refunded CAPTURED→REFUNDED · HELD → 'mismatch'
  *   unknown pspRef → 'mismatch' · unknown type → 'ignored'
@@ -33,7 +33,7 @@ function cfg(secret = 'whsec_test'): any {
 }
 
 function makePrisma(over: Record<string, any> = {}): any {
-  return {
+  const prisma: any = {
     webhookEvent: {
       create: jest.fn().mockResolvedValue({ id: 'evt-row-1' }),
       update: jest.fn().mockResolvedValue({}),
@@ -45,6 +45,20 @@ function makePrisma(over: Record<string, any> = {}): any {
     },
     ...over,
   };
+  prisma.webhookEvent.updateMany ??= jest.fn().mockResolvedValue({ count: 1 });
+  prisma.pledge.updateMany ??= jest.fn().mockResolvedValue({ count: 1 });
+  prisma.ledgerEntry ??= { create: jest.fn().mockResolvedValue({}) };
+  prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+  prisma.pledge.count ??= jest.fn().mockResolvedValue(0);
+  prisma.project ??= {};
+  prisma.project.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.user ??= {};
+  prisma.user.updateMany = jest.fn().mockResolvedValue({ count: 1 });
+  prisma.rewardTier ??= { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+  prisma.pledgeAddOn = { findMany: jest.fn().mockResolvedValue([]) };
+  prisma.addOn = { updateMany: jest.fn().mockResolvedValue({ count: 1 }) };
+  prisma.$transaction = jest.fn(async (fn: (tx: any) => unknown) => fn(prisma));
+  return prisma;
 }
 
 function notificationsMock(): any {
@@ -60,7 +74,8 @@ function pledge(status: PledgeStatus): any {
 }
 
 function payload(type: string, extra: Record<string, unknown> = {}): any {
-  return { id: 'evt-1', type, secret_token: 'whsec_test', data: { id: REF, status: 'x' }, ...extra };
+  return { id: 'evt-1', type, secret_token: 'whsec_test', data: { id: REF, status: type === 'payment_refunded' ? 'refunded' : type === 'payment_voided' ? 'voided' : 'paid',
+    amount: 12000, captured: type === 'payment_voided' ? 0 : 12000, refunded: type === 'payment_refunded' ? 12000 : 0, currency: 'SAR' }, ...extra };
 }
 
 describe('WebhookService.verify', () => {
@@ -78,13 +93,23 @@ describe('WebhookService.verify', () => {
 });
 
 describe('WebhookService.process — dedup', () => {
+  it('does not acknowledge an unrelated uniqueness failure as a duplicate', async () => {
+    const error = new Prisma.PrismaClientKnownRequestError('other constraint', { code: 'P2002', clientVersion: 'test' });
+    const prisma = makePrisma();
+    prisma.webhookEvent.create.mockRejectedValue(error);
+    prisma.webhookEvent.findUnique.mockResolvedValue(null);
+    const svc = new WebhookService(prisma, ledgerMock(), escrowMock(), auditMock(), notificationsMock(), emailMock(), cfg());
+    await expect(svc.process(payload('payment_paid'))).rejects.toBe(error);
+    expect(prisma.pledge.findFirst).not.toHaveBeenCalled();
+  });
   it('returns duplicate on unique-violation without touching pledges', async () => {
     const p2002 = new Prisma.PrismaClientKnownRequestError('dup', {
       code: 'P2002',
       clientVersion: 'test',
     } as any);
     const prisma = makePrisma({
-      webhookEvent: { create: jest.fn().mockRejectedValue(p2002), update: jest.fn() },
+      webhookEvent: { create: jest.fn().mockRejectedValue(p2002), update: jest.fn(),
+        findUnique: jest.fn().mockResolvedValue({ processedAt: new Date() }) },
     });
     const svc = new WebhookService(prisma, ledgerMock(), escrowMock(), auditMock(), notificationsMock(), emailMock(), cfg());
     const r = await svc.process(payload('payment_paid'));
@@ -95,7 +120,6 @@ describe('WebhookService.process — dedup', () => {
 
 describe('WebhookService.process — event branches', () => {
   it.each([
-    ['payment_failed', PledgeStatus.HELD, PledgeStatus.FAILED],
     ['payment_voided', PledgeStatus.HELD, PledgeStatus.REFUNDED],
     ['payment_refunded', PledgeStatus.CAPTURED, PledgeStatus.REFUNDED],
   ] as const)('%s transitions %s → %s', async (type, from, to) => {
@@ -108,13 +132,21 @@ describe('WebhookService.process — event branches', () => {
     const svc = new WebhookService(prisma, ledgerMock(), escrowMock(), auditMock(), notificationsMock(), emailMock(), cfg());
     const r = await svc.process(payload(type));
     expect(r.outcome).toBe('applied');
-    expect(prisma.pledge.update).toHaveBeenCalledWith(
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: to }) }),
     );
     // outcome persisted on the event row
-    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+    expect(prisma.webhookEvent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ outcome: 'applied' }) }),
     );
+  });
+
+  it('a failure notification cannot drop the state of an already-counted pledge', async () => {
+    const prisma = makePrisma({ pledge: { findFirst: jest.fn().mockResolvedValue(pledge(PledgeStatus.HELD)), update: jest.fn() } });
+    const svc = new WebhookService(prisma, ledgerMock(), escrowMock(), auditMock(), notificationsMock(), emailMock(), cfg());
+    expect((await svc.process(payload('payment_failed'))).outcome).toBe('mismatch');
+    expect(prisma.pledge.updateMany).not.toHaveBeenCalled();
+    expect(prisma.pledge.update).not.toHaveBeenCalled();
   });
 
   it('OPS-0 correction #1: payment_paid routes through the markCaptured chokepoint (realized credited)', async () => {
@@ -137,7 +169,7 @@ describe('WebhookService.process — event branches', () => {
     );
     expect(prisma.pledge.update).not.toHaveBeenCalled();
     expect(ledger.record).not.toHaveBeenCalled();
-    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+    expect(prisma.webhookEvent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ outcome: 'applied' }) }),
     );
   });
@@ -169,12 +201,13 @@ describe('WebhookService.process — event branches', () => {
     const svc = new WebhookService(prisma, ledger, escrowMock(), audit, notificationsMock(), emailMock(), cfg());
     const r = await svc.process(payload('payment_disputed'));
     expect(r.outcome).toBe('applied');
-    expect(prisma.pledge.update).toHaveBeenCalledWith(
+    expect(prisma.pledge.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: PledgeStatus.DISPUTED }) }),
     );
-    expect(ledger.record).toHaveBeenCalledWith(
-      expect.objectContaining({ entryType: 'DISPUTE', source: 'webhook' }),
+    expect(prisma.ledgerEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entryType: 'DISPUTE', source: 'webhook' }) }),
     );
+    expect(ledger.record).not.toHaveBeenCalled();
     expect(audit.log).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'pledge.disputed', entity: 'Pledge' }),
     );
@@ -229,7 +262,7 @@ describe('WebhookService.process — event branches', () => {
  * and stays idempotent once the transition has already been applied.
  */
 describe('WebhookService.replayStored', () => {
-  const storedEvent = { id: 'evt-row-1', provider: 'moyasar', eventType: 'payment_paid', pspRef: REF };
+  const storedEvent = { id: 'evt-row-1', provider: 'moyasar', eventType: 'payment_paid', pspRef: REF, payload: payload('payment_paid') };
 
   it('re-applies a stored mismatch event now that the pledge is HELD (heals + re-stamps outcome)', async () => {
     const escrow = escrowMock();
@@ -253,7 +286,7 @@ describe('WebhookService.replayStored', () => {
       { source: 'webhook' },
     );
     expect(prisma.webhookEvent.create).not.toHaveBeenCalled();
-    expect(prisma.webhookEvent.update).toHaveBeenCalledWith(
+    expect(prisma.webhookEvent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'evt-row-1' },
         data: expect.objectContaining({ outcome: 'applied' }),

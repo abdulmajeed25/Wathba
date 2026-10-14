@@ -5,7 +5,7 @@ import { wathbaProjects } from './wathba-data';
 import { EmptyState } from './wathba-states';
 import { Icon, Num } from './wathba-icons';
 import { PledgeActions } from './wathba-pledge-actions';
-import { formatSarFromHalalas } from '@/lib/i18n/format';
+import { formatSarExact } from '@/lib/i18n/format';
 
 /**
  * Backer's "my pledges" screen — lists the current user's HELD / CAPTURED /
@@ -17,15 +17,16 @@ const STATE_TONE: Record<
   string,
   { label: string; bg: string; color: string; border: string }
 > = {
+  PENDING_AUTH: { label: 'جارٍ التحقق من الحجز — لم يُحتسب الدعم بعد', bg: 'rgba(251,191,36,.10)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.30)' },
   HELD:      { label: 'محجوز · بانتظار النجاح',  bg: 'rgba(251,191,36,.10)',  color: 'var(--gold-ink)',   border: 'rgba(251,191,36,.30)' },
   CAPTURED:  { label: 'تم الخصم',                bg: 'rgba(52,211,153,.10)',  color: 'var(--pos-ink)',    border: 'rgba(52,211,153,.30)' },
   REFUNDED:  { label: 'مسترَد',                   bg: 'rgba(var(--ink-rgb),.06)', color: 'var(--muted)', border: 'rgba(var(--ink-rgb),.20)' },
   FAILED:    { label: 'فشل الدفع',                bg: 'rgba(239,68,68,.08)',  color: '#dc2626',       border: 'rgba(239,68,68,.30)' },
   // Batch PAY — the new pledge states.
   PENDING_BNPL:   { label: 'تقسيط معلّق · حتى نجاح الحملة', bg: 'rgba(96,165,250,.10)', color: 'var(--blue)', border: 'rgba(96,165,250,.30)' },
-  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع · 72 ساعة', bg: 'rgba(251,191,36,.12)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)' },
-  FAILED_CAPTURE: { label: 'أُلغي — تعذّر السحب',            bg: 'rgba(239,68,68,.08)', color: '#dc2626', border: 'rgba(239,68,68,.30)' },
-  PENDING_REAUTH: { label: 'بحاجة لتحديث البطاقة',           bg: 'rgba(251,191,36,.10)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.30)' },
+  CAPTURE_GRACE:  { label: 'بانتظار إتمام الدفع', bg: 'rgba(251,191,36,.12)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.35)' },
+  FAILED_CAPTURE: { label: 'تعذّر التحصيل',            bg: 'rgba(239,68,68,.08)', color: '#dc2626', border: 'rgba(239,68,68,.30)' },
+  PENDING_REAUTH: { label: 'بانتظار تحديث التفويض',           bg: 'rgba(251,191,36,.10)', color: 'var(--gold-ink)', border: 'rgba(251,191,36,.30)' },
 };
 
 export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null }) {
@@ -39,15 +40,15 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
           مشاريع دعمتُها
         </h1>
         <p style={{ fontSize: 15, color: 'var(--text-soft)', maxWidth: 640, lineHeight: 1.6, marginBottom: 28 }}>
-          تتبّع كل المشاريع التي دعمتها وحالة كل دعم. المبلغ يُخصم فعلياً فقط
-          عند نجاح المشروع؛ إن فشلت الحملة يُسترد كامل المبلغ تلقائياً.
+          تتبّع المشاريع التي دعمتها وحالة كل تعهد. نجاح الحملة يبدأ إجراءات
+          التحصيل؛ راجع الحالة هنا للتحقق من التحصيل أو فك الحجز أو الاسترداد.
         </p>
 
-        {(!pledges || pledges.length === 0) ? (
+        {pledges == null ? <div role="alert"><p>تعذّر تحميل التعهدات. أعد المحاولة للتحقق من حالتها.</p><Link href="/projects/me/pledges" prefetch={false}>إعادة المحاولة</Link></div> : pledges.length === 0 ? (
           <EmptyState
             icon="favorite"
             title="لم تدعم أي مشروع بعد"
-            body="ابدأ رحلتك بدعم أول مشروع — كل دعم محجوز فقط ويُخصم عند نجاح الحملة."
+            body="استكشف المشاريع، واقرأ شروط الدعم ووسيلة الدفع قبل تأكيد تعهدك."
             cta={
               <Link
                 href="/projects/discover-all"
@@ -100,8 +101,11 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                     </Num>
                   </div>
                   <Num style={{ fontSize: 17, fontWeight: 700, color: 'var(--accent-ink)' }}>
-                    {formatSarFromHalalas('ar', Number(p.amount))}
+                    {formatSarExact('ar', Number(p.amount) / 100)}
                   </Num>
+                  {p.shippingHalalas != null && p.shippingHalalas > 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    منها {formatSarExact('ar', p.shippingHalalas / 100)} شحن وفق تعهدك
+                  </span>}
                   <span
                     style={{
                       fontSize: 12,
@@ -113,10 +117,16 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                       border: `1px solid ${tone.border}`,
                     }}
                   >
-                    {tone.label}
+                    {p.paymentVerificationPending ? 'عملية مالية قيد التحقق'
+                      : p.state.toUpperCase() === 'REFUNDED' && !p.capturedAt
+                        ? p.paymentMethod === 'BNPL' ? 'أُلغي طلب التقسيط' : 'فُكّ الحجز'
+                        : tone.label}
                   </span>
                   {/* Batch PAY — cancel window / grace call-to-actions. */}
-                  <PledgeActions row={p} />
+                  {p.paymentVerificationPending
+                    ? <p role="status" style={{ width: '100%', fontSize: 13 }}>نراجع نتيجة العملية مع مزود الدفع. لا يلزمك دفع جديد الآن؛ ستظهر النتيجة هنا بعد التحقق.</p>
+                    : <PledgeActions row={p} />}
+                  <Link href={`/projects/me/pledges/${p.id}/changes`} style={{ padding: '12px 8px', textDecoration: 'underline', color: 'var(--accent-ink)' }}>طلبات تغيير الشروط</Link>
                   {/* Sprint 1 / P0-202 — refund status detail per pledge */}
                   {p.state.toUpperCase() === 'REFUNDED' && (
                     <div
@@ -131,7 +141,9 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                         padding: '10px 14px',
                       }}
                     >
-                      أُلغي الحجز وأُعيد المبلغ إلى وسيلة الدفع
+                      {p.capturedAt ? 'سُجّل استرداد المبلغ إلى وسيلة الدفع'
+                        : p.paymentMethod === 'BNPL' ? 'أُلغي طلب الدعم بالتقسيط دون تحصيل المبلغ'
+                        : 'سُجّل فك حجز المبلغ لدى مزود الدفع'}
                       {p.refundedAt && (
                         <>
                           {' '}بتاريخ{' '}
@@ -140,7 +152,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                           </Num>
                         </>
                       )}
-                      . يظهر في كشف حسابك خلال 3–14 يوم عمل حسب البنك.
+                      . {p.paymentMethod !== 'BNPL' || p.capturedAt ? 'راجع كشف وسيلة الدفع للتأكد من ظهور النتيجة.' : ''}
                       {p.paymentRef && (
                         <>
                           {' '}رقم العملية:{' '}
@@ -165,7 +177,7 @@ export function WathbaMyPledges({ pledges }: { pledges?: ApiBackingRow[] | null 
                         textDecoration: 'none',
                       }}
                     >
-                      إدارة الدعم
+                      عرض المشروع
                     </a>
                   )}
                 </article>

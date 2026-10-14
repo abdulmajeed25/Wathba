@@ -17,7 +17,8 @@ const BACKER = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 
 function makePrisma(over: Record<string, any> = {}): any {
   const prisma: any = {
-    project: { findUnique: jest.fn() },
+    project: { findUnique: jest.fn().mockResolvedValue({ createdById: CREATOR, status: 'LIVE', hiddenAt: null }) },
+    $queryRaw: jest.fn().mockResolvedValue([]),
     projectUpdate: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -200,7 +201,7 @@ describe('UpdatesService.like (toggle)', () => {
     const updateRow = jest.fn().mockResolvedValue({ ...baseRow, likeCount: 6 });
     const prisma = makePrisma({
       projectUpdate: {
-        findFirst: jest.fn().mockResolvedValue({ id: UPD }),
+        findFirst: jest.fn().mockResolvedValue(baseRow),
         update: updateRow,
       },
       updateLike: { findUnique, create, delete: jest.fn() },
@@ -222,7 +223,7 @@ describe('UpdatesService.like (toggle)', () => {
     const updateRow = jest.fn().mockResolvedValue({ ...baseRow, likeCount: 4 });
     const prisma = makePrisma({
       projectUpdate: {
-        findFirst: jest.fn().mockResolvedValue({ id: UPD }),
+        findFirst: jest.fn().mockResolvedValue(baseRow),
         update: updateRow,
       },
       updateLike: { findUnique, create: jest.fn(), delete: del },
@@ -246,7 +247,7 @@ describe('UpdatesService.like (toggle)', () => {
       .mockResolvedValueOnce({ ...baseRow, likeCount: 0 }); // clamp call
     const prisma = makePrisma({
       projectUpdate: {
-        findFirst: jest.fn().mockResolvedValue({ id: UPD }),
+        findFirst: jest.fn().mockResolvedValue(baseRow),
         update,
       },
       updateLike: { findUnique, delete: jest.fn(), create: jest.fn() },

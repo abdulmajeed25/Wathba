@@ -88,6 +88,22 @@ export function settingsOps(deps: SettingsOpsDeps): Array<OperationDef<never, un
         },
       },
       {
+        code: 'invalid-price-range',
+        reasonAr: 'الحد الأدنى لا يمكن أن يتجاوز الحد الأقصى. عدّل الحد المقابل أولاً.',
+        check: async (db, input) => {
+          const pairs: [SettingKey, SettingKey][] = [
+            ['pledges.minHalalas', 'pledges.maxHalalas'],
+            ['projects.fundingGoalMinHalalas', 'projects.fundingGoalMaxHalalas'],
+            ['rewards.minHalalas', 'rewards.maxHalalas'],
+          ];
+          const pair = pairs.find((p) => p.includes(input.key));
+          if (!pair) return true;
+          const min = input.key === pair[0] ? input.value : (await effectiveValue(db, pair[0])).value;
+          const max = input.key === pair[1] ? input.value : (await effectiveValue(db, pair[1])).value;
+          return max == null || (typeof min === 'number' && typeof max === 'number' && min <= max);
+        },
+      },
+      {
         code: 'no-change',
         reasonAr: 'القيمة المقترحة تطابق القيمة السارية — لا تغيير',
         check: async (db, input) => {

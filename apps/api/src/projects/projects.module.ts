@@ -9,11 +9,15 @@ import { LaunchScheduler } from './launch.scheduler';
 import { SearchController } from './search.controller';
 import { SearchService } from './search.service';
 import { TabCountsService } from './tab-counts.service';
+import { ProjectChangesService } from './project-changes.service';
+import { ProjectChangesController } from './project-changes.controller';
+import { ChangeConsentController } from './change-consent.controller';
+import { ChangeConsentService } from './change-consent.service';
 
 @Module({
   imports: [FundingModule, IdentityModule, SettingsModule, TagsModule],
-  controllers: [ProjectsController, SearchController],
-  providers: [ProjectsService, SearchService, TabCountsService, LaunchScheduler],
+  controllers: [ProjectsController, SearchController, ProjectChangesController, ChangeConsentController],
+  providers: [ProjectsService, SearchService, TabCountsService, LaunchScheduler, ProjectChangesService, ChangeConsentService],
   exports: [ProjectsService, SearchService, TabCountsService],
 })
 export class ProjectsModule {}

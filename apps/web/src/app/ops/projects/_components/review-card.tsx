@@ -93,12 +93,12 @@ export function ReviewCard({ project }: { project: ProjectRow }) {
             {age.overdue ? ' — تجاوز SLA' : ''}
           </span>
           <a
-            href={`/projects/${project.id}`}
+            href={`/ops/projects/${project.id}`}
             target="_blank"
             rel="noreferrer"
             className="text-xs text-[#58a6ff] hover:underline"
           >
-            معاينة الصفحة العامة ↗
+            معاينة بيانات الطلب ↗
           </a>
           <a
             href={`/ops/projects/${project.id}`}
@@ -126,7 +126,7 @@ export function ReviewCard({ project }: { project: ProjectRow }) {
       </fieldset>
 
       <div className="space-y-2">
-        <label className="block text-xs text-[#8b949e]">
+        <label htmlFor={`feedback-${project.id}`} className="block text-xs text-[#8b949e]">
           ملاحظات منظَّمة للمبدع (تُرسل مع الرفض/طلب التعديل)
         </label>
         <select
@@ -144,6 +144,7 @@ export function ReviewCard({ project }: { project: ProjectRow }) {
           ))}
         </select>
         <textarea
+          id={`feedback-${project.id}`}
           value={feedback}
           onChange={(e) => setFeedback(e.target.value)}
           rows={3}
@@ -156,7 +157,7 @@ export function ReviewCard({ project }: { project: ProjectRow }) {
         <OpRunner
           opKey="projects.review.approve"
           input={{ projectId: project.id }}
-          triggerLabel="اعتماد"
+          triggerLabel={project.applicationApprovedAt ? 'الموافقة على النشر' : 'اعتماد الطلب وفتح التجهيز'}
           variant="primary"
           requiresReason={false}
           riskTier="STANDARD"

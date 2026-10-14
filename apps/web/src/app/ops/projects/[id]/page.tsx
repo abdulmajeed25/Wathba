@@ -10,6 +10,8 @@ import { BackersTable, type BackerRow } from '../_components/backers-table';
 import { CommentsPanel, type CommentRow } from '../_components/comments-panel';
 import { PartnerRunner } from '../_components/partner-runner';
 import { statusIntent, statusLabel } from '../_components/status';
+import { ChangeRequestsPanel } from '../_components/change-requests-panel';
+import type { CampaignChangeRow } from '@/lib/projects/change-requests';
 
 /**
  * OPS Phase 2 + OPS-360 Unit 3 — the per-project WORKSPACE. Server-first.
@@ -49,6 +51,7 @@ interface RecentPledge {
   createdAt: string;
 }
 interface ProjectDetail {
+  changeRequests?: CampaignChangeRow[];
   id: string;
   titleAr: string;
   shortDescAr: string | null;
@@ -64,6 +67,7 @@ interface ProjectDetail {
   deadline: string | null;
   publishedAt: string | null;
   reviewedAt: string | null;
+  applicationApprovedAt?: string | null;
   reviewFeedback: string | null;
   hiddenAt: string | null;
   hiddenReasonAr: string | null;
@@ -153,6 +157,7 @@ interface FaqQuestion {
 type SubResource = { items: unknown[]; nextCursor: string | null };
 
 const TABS: Array<{ key: string; labelAr: string }> = [
+  { key: 'changes', labelAr: 'طلبات التغيير' },
   { key: 'overview', labelAr: 'نظرة عامة' },
   { key: 'milestones', labelAr: 'المراحل والصرف' },
   { key: 'backers', labelAr: 'الداعمون' },
@@ -360,6 +365,7 @@ export default async function OpsProjectDetailPage({
         ))}
       </nav>
 
+      {tab === 'changes' && <ChangeRequestsPanel rows={d.changeRequests ?? []} />}
       {tab === 'overview' ? (
         <section className="space-y-4">
           <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -848,7 +854,7 @@ export default async function OpsProjectDetailPage({
               <OpRunner
                 opKey="projects.review.approve"
                 input={{ projectId: d.id }}
-                triggerLabel="اعتماد"
+                triggerLabel={d.applicationApprovedAt ? 'الموافقة على النشر' : 'اعتماد الطلب وفتح التجهيز'}
                 variant="primary"
                 requiresReason={false}
                 riskTier="STANDARD"

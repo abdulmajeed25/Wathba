@@ -29,6 +29,7 @@ async function notifyReviewed(
   projectId: string,
   decision: 'approve' | 'reject',
   reviewFeedback: string | null,
+  preparationOnly = false,
 ): Promise<void> {
   await deps.notifications.create({
     userId: creatorId,
@@ -37,6 +38,7 @@ async function notifyReviewed(
       projectId,
       decision,
       reviewFeedback,
+      preparationOnly,
       deepLink: `/projects/dashboard/${projectId}/settings`,
     },
   });
@@ -49,6 +51,7 @@ async function notifyReviewed(
       projectTitle: project.titleAr,
       approved: decision === 'approve',
       feedback: reviewFeedback,
+      preparationOnly,
     });
   }
 }
@@ -63,7 +66,7 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
     key: 'projects.review.approve',
     titleAr: 'اعتماد مشروع',
     descriptionAr:
-      'ينقل مشروعاً من المراجعة إلى النشر (LIVE فوراً أو SCHEDULED لموعد الإطلاق المحدد). يمسح ملاحظات الرفض السابقة ويُخطر المبدع.',
+      'المراجعة الأولى تفتح تجهيز المشروع فقط. بعد إعادة الإرسال، المراجعة الثانية تنشر الحملة أو تجدولها. يعرض الفحص المسبق المرحلة والنتيجة.',
     inputSchema: approveInput,
     permission: 'projects.review',
     riskTier: 'STANDARD',
@@ -111,6 +114,11 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
     async dryRun(db, input) {
       const p = await db.project.findUnique({ where: { id: input.projectId } });
       if (!p) return { summaryAr: 'المشروع غير موجود', before: null, after: null };
+      if (!p.applicationApprovedAt) return {
+        summaryAr: `سيُعتمد طلب «${p.titleAr}» وتُفتح مساحة التجهيز فقط؛ لن تُنشر الحملة ولن تستقبل تمويلاً`,
+        before: { status: p.status, applicationApprovedAt: null },
+        after: { status: 'DRAFT', applicationApproved: true, public: false },
+      };
       const now = Date.now();
       const scheduled = !!p.scheduledLaunchAt && p.scheduledLaunchAt.getTime() > now;
       const to = scheduled ? 'SCHEDULED' : 'LIVE';
@@ -127,9 +135,16 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
     async execute(tx, input) {
       const p = await tx.project.findUniqueOrThrow({ where: { id: input.projectId } });
       const now = new Date();
+      if (!p.applicationApprovedAt) {
+        const accepted = await tx.project.update({
+          where: { id: input.projectId, status: ProjectStatus.UNDER_REVIEW, applicationApprovedAt: null },
+          data: { status: ProjectStatus.DRAFT, applicationApprovedAt: now, reviewedAt: now, reviewFeedback: null, rejectedAt: null },
+        });
+        return { id: accepted.id, status: accepted.status, createdById: accepted.createdById } as { id: string; status: string };
+      }
       const scheduled = !!p.scheduledLaunchAt && p.scheduledLaunchAt.getTime() > now.getTime();
       const updated = await tx.project.update({
-        where: { id: input.projectId },
+        where: { id: input.projectId, status: ProjectStatus.UNDER_REVIEW, applicationApprovedAt: { not: null } },
         data: {
           ...(input.approvedDurationDays ? { approvedDurationDays: input.approvedDurationDays } : {}),
           ...(scheduled
@@ -156,7 +171,7 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
           where: { id: input.projectId },
           select: { createdById: true },
         })).createdById;
-      await notifyReviewed(deps, creatorId, input.projectId, 'approve', null);
+      await notifyReviewed(deps, creatorId, input.projectId, 'approve', null, r.status === 'DRAFT');
       if (r.status === 'LIVE') {
         // Went LIVE right now → tell the creator's followers (scheduled
         // launches fan out from the LaunchScheduler when they flip).
@@ -204,7 +219,7 @@ export function projectsOps(deps: ProjectsOpsDeps): Array<OperationDef<never, un
     async execute(tx, input, ctx) {
       const feedback = (input.feedbackAr ?? ctx.reason ?? '').trim() || null;
       const updated = await tx.project.update({
-        where: { id: input.projectId },
+        where: { id: input.projectId, status: ProjectStatus.UNDER_REVIEW },
         // Batch ACCOUNT — rejectedAt is written HERE because rejection is not a
         // status: the project goes back to DRAFT carrying reviewFeedback, so
         // without this column the only record of WHEN it was rejected is an

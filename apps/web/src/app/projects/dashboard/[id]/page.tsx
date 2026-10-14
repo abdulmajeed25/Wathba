@@ -1,4 +1,4 @@
-import { getProjectDetail } from '@/lib/api/wathba';
+import { getProjectDetailLive } from '@/lib/api/wathba';
 import { DashboardOverview } from '@/components/ventures/wathba/dashboard/wathba-dashboard-overview';
 
 export default async function DashboardOverviewPage({
@@ -7,6 +7,6 @@ export default async function DashboardOverviewPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
-  const project = await getProjectDetail(id);
+  const project = await getProjectDetailLive(id);
   return <DashboardOverview project={project} />;
 }

@@ -58,6 +58,8 @@ interface MyProject {
   slug?: string | null;
   titleAr: string;
   status: string;
+  reviewFeedback?: string | null;
+  applicationApprovedAt?: string | null;
   mediaUrls?: string[];
 }
 
@@ -267,7 +269,7 @@ export function WathbaAccountMenu() {
               </span>
               <span className="wathba-acct-project-text">
                 <strong>{p.titleAr}</strong>
-                <em>{PROJECT_STATUS_AR[p.status] ?? p.status}</em>
+                <em>{p.status === 'DRAFT' && p.reviewFeedback ? 'يحتاج تعديلات' : PROJECT_STATUS_AR[p.status] ?? p.status}</em>
               </span>
             </Link>
           ))}

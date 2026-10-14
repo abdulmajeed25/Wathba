@@ -102,6 +102,7 @@ enum ProjectStatus {
 }
 
 enum PledgeStatus {
+  PENDING_AUTH
   HELD
   CAPTURED
   REFUNDED
@@ -312,6 +313,7 @@ model User {
   updatedAt            DateTime        @updatedAt
 
   projects          Project[]          @relation("ProjectCreator")
+  campaignChangeRequests ProjectChangeRequest[] @relation("ChangeRequester")
   pledges           Pledge[]
   comments          Comment[]
   notifications     Notification[]
@@ -354,6 +356,60 @@ model Address {
 // ============================================================================
 // PROJECTS / REWARDS
 // ============================================================================
+
+enum ProjectChangeStatus {
+  SUBMITTED
+  ACCEPTED_FOR_PREPARATION
+  CONSENT_OPEN
+  REJECTED
+  WITHDRAWN
+}
+
+/// Immutable proposal. Acceptance never mutates campaign terms or money.
+model ProjectChangeRequest {
+  id String @id @default(uuid()) @db.Uuid
+  projectId String @db.Uuid
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  requestedById String @db.Uuid
+  requestedBy User @relation("ChangeRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  clientRequestId String @db.Uuid
+  reasonAr String @db.Text
+  before Json
+  proposed Json
+  status ProjectChangeStatus @default(SUBMITTED)
+  reviewedById String? @db.Uuid
+  reviewNoteAr String? @db.Text
+  reviewedAt DateTime?
+  consentOpenedAt DateTime?
+  responses ProjectChangeResponse[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, clientRequestId])
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+}
+
+enum ProjectChangeDecision {
+  ACCEPT
+  DECLINE
+}
+
+/// Append-only individual responses. No response is never interpreted as acceptance.
+model ProjectChangeResponse {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @db.Uuid
+  request ProjectChangeRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  pledgeId String @db.Uuid
+  pledge Pledge @relation(fields: [pledgeId], references: [id], onDelete: Restrict)
+  clientRequestId String @db.Uuid
+  decision ProjectChangeDecision
+  pledgeSnapshot Json
+  createdAt DateTime @default(now())
+
+  @@unique([pledgeId, clientRequestId])
+  @@index([requestId, pledgeId, createdAt])
+}
 
 model Project {
   id                   String           @id @default(uuid()) @db.Uuid
@@ -428,6 +484,9 @@ model Project {
   /// and shown in the dashboard so the creator can fix and resubmit.
   reviewFeedback       String?          @db.Text
   reviewedAt           DateTime?
+  /// Initial application approval opens preparation; publication needs a second review.
+  applicationApprovedAt DateTime?
+  changeRequests ProjectChangeRequest[]
   /// Pause/unpause (Creator-CC / CC-14). `pausedAt` is set while status=PAUSED;
   /// `pausedMsAccrued` accumulates total paused time across pause periods and is
   /// capped at 7 days per campaign. The deadline clock keeps running while paused
@@ -511,6 +570,7 @@ model RewardTier {
   descAr                  String    @db.Text
   includesPhysicalProduct Boolean   @default(false)
   requiresShipping        Boolean   @default(false)
+  shippingHalalas         BigInt?
   estDeliveryDate         DateTime
   limitQty                Int?
   claimedQty              Int       @default(0)
@@ -595,6 +655,19 @@ model Pledge {
   /// Sum of add-on amounts (sub-total) — convenience cache, recomputed on add-on change.
   addOnsHalalas     BigInt                  @default(0)
   status            PledgeStatus            @default(HELD)
+  /// Uncounted authorization awaiting confirmation or manual reconciliation.
+  authorizationIssue String?
+  /// Financial conditions approved before the first authorization; no card data.
+  authorizationContext Json?
+  /// Durable reservation before requesting a captured-payment refund.
+  refundRequestedAt DateTime?
+  refundReservedHalalas BigInt @default(0)
+  refundIssue String?
+
+  requestKey String?
+  requestHash String?
+  /// Included in amountHalalas, never added a second time. Null for historical records.
+  shippingHalalas BigInt?
   /// Creator-editable fulfillment bookkeeping (Creator-CC / CC-02). No money
   /// effect — never read by any capture/refund/payout path.
   rewardStatus      RewardFulfillmentStatus @default(PENDING)
@@ -619,6 +692,7 @@ model Pledge {
 
   addOns       PledgeAddOn[]
   materialised CommunityMaterialised?
+  changeResponses ProjectChangeResponse[]
 
   // (projectId, status)      → funding aggregations
   // (backerId, createdAt)    → /v1/pledges/me chronological list
@@ -626,6 +700,7 @@ model Pledge {
   // (projectId, backerNo)    → look up backer by # for contest announcements
   // (projectId, rewardStatus)→ backer-roster fulfillment filter (CC-02)
   @@unique([projectId, backerNo])
+  @@unique([backerId, requestKey])
   @@index([projectId, status])
   @@index([backerId, createdAt])
   @@index([backerId, status])
@@ -741,6 +816,12 @@ model Payout {
   /// When the SENDING claim was taken — stale claims (crash mid-send) are
   /// surfaced every disburse tick and never auto-resent.
   claimedAt          DateTime?
+  /// Provider evidence for an in-flight transfer; not proof of settlement.
+  providerRef        String?      @unique
+  providerStatus     String?
+  providerCheckedAt  DateTime?
+  providerSequenceNumber String?
+  providerSourceId   String?
   createdAt          DateTime     @default(now())
 
   // (creatorId, status, createdAt) → wallet view (SENT vs PENDING ordering)

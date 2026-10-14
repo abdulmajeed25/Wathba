@@ -1,13 +1,21 @@
-import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { ProjectChangeStatus } from '@prisma/client';
 
 import { OpsIpAllowlistGuard, OpsSessionGuard } from '../ops-session.guard';
 import type { OpsPrincipal } from '../ops-auth.service';
 import { OpsReadService } from './ops-read.service';
+import { ListProjectChangesDto } from '../../projects/project-changes.service';
 
 type OpsRequest = Request & { opsPrincipal: OpsPrincipal };
+
+class ProjectChangeListQuery {
+  @IsOptional() @IsEnum(ProjectChangeStatus) status?: ProjectChangeStatus;
+  @IsOptional() @IsUUID() cursor?: string;
+}
 
 function toBool(v: string | undefined): boolean | undefined {
   if (v === undefined) return undefined;
@@ -71,6 +79,18 @@ export class OpsReadController {
   }
 
   /* ── 2. projects ───────────────────────────────────────────────────────── */
+
+  @Get('project-changes')
+  projectChanges(@Req() req: OpsRequest, @Query() query: ProjectChangeListQuery) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.listProjectChanges({ ...query, limit: 25 });
+  }
+
+  @Get('project-changes/:id/responses')
+  projectChangeResponses(@Req() req: OpsRequest, @Param('id', ParseUUIDPipe) id: string, @Query() query: ListProjectChangesDto) {
+    this.read.assertPermission(req.opsPrincipal, 'projects.review');
+    return this.read.projectChangeResponses(id, { ...query, limit: 25 });
+  }
 
   @Get('projects')
   @ApiOperation({ summary: 'Projects list — filter status/category/q/hidden, cursor-paged' })

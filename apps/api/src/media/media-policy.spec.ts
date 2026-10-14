@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { ALLOWED_KINDS } from './media.service';
 
@@ -26,7 +27,7 @@ import { ALLOWED_KINDS } from './media.service';
  * change for no benefit. So the module is evaluated by Node itself, exactly as
  * the script loads it, and this asserts on what that real load produces.
  */
-const POLICY = join(__dirname, '..', '..', 'prisma', 'media-policy.mjs');
+const POLICY = pathToFileURL(join(__dirname, '..', '..', 'prisma', 'media-policy.mjs')).href;
 const BUCKET = 'venture-evidence';
 
 interface Statement {

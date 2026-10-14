@@ -48,7 +48,7 @@ function Segmented<T extends string>({
             onClick={() => onPick(o.value)}
             aria-pressed={active}
             title={o.title}
-            className={`rounded px-2 py-0.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff] ${
+            className={`min-h-[44px] min-w-[44px] rounded px-2 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#58a6ff] ${
               active ? 'bg-[#21262d] font-bold text-[#e6edf3]' : 'text-[#8b949e] hover:text-[#e6edf3]'
             }`}
           >
@@ -74,7 +74,7 @@ export function ThemeToggle() {
   if (!mounted) return null;
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-2">
       <Segmented<OpsTheme>
         legend="سمة العرض"
         value={theme}

@@ -1,6 +1,6 @@
 import {
   ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsInt, IsOptional, IsString,
-  Length, MaxLength, Min, MinLength, ValidateNested,
+  IsISO31661Alpha2, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
@@ -27,6 +27,9 @@ export class CreateRewardTierDto {
 
   @ApiProperty({ default: false })
   @IsOptional() @IsBoolean() requiresShipping?: boolean;
+
+  @ApiProperty({ required: false, description: 'Explicit shipping price in halalas; 0 means included/free.' })
+  @IsOptional() @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) shippingHalalas?: number;
 
   @ApiProperty({ example: '2026-12-15' })
   @IsDateString() estDeliveryDate!: string;
@@ -55,7 +58,7 @@ export class CreateRewardTierDto {
     description: 'ISO-3166-1 alpha-2 country codes ("SA", "AE"…).',
   })
   @IsOptional() @IsArray() @ArrayMaxSize(60)
-  @IsString({ each: true }) @Length(2, 2, { each: true })
+  @IsISO31661Alpha2({ each: true })
   shipsTo?: string[];
 
   @ApiProperty({ default: 0 })
@@ -70,6 +73,7 @@ export class CreateRewardTierDto {
 }
 
 export class UpdateRewardTierDto {
+  @IsOptional() @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) shippingHalalas?: number;
   @IsOptional() @IsString() @MinLength(2) @MaxLength(80) titleAr?: string;
   @IsOptional() @IsInt() @Min(100) amountHalalas?: number;
   @IsOptional() @IsString() @MinLength(8) descAr?: string;
@@ -83,7 +87,7 @@ export class UpdateRewardTierDto {
   @ValidateNested({ each: true }) @Type(() => RewardIncludedItemDto)
   includedItems?: RewardIncludedItemDto[];
   @IsOptional() @IsArray() @ArrayMaxSize(60)
-  @IsString({ each: true }) @Length(2, 2, { each: true })
+  @IsISO31661Alpha2({ each: true })
   shipsTo?: string[];
   @IsOptional() @IsInt() sortOrder?: number;
   // CC-13 — close/reopen a tier for new pledges.

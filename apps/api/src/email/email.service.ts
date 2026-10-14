@@ -170,7 +170,7 @@ export class EmailService {
   payoutSent(to: string, d: { projectTitle: string; amountHalalas: number }) {
     return this.deliverKeyed('payoutSent', to, emailTemplates.payoutSent(d));
   }
-  projectReviewed(to: string, d: { projectTitle: string; approved: boolean; feedback?: string | null }) {
+  projectReviewed(to: string, d: { projectTitle: string; approved: boolean; feedback?: string | null; preparationOnly?: boolean }) {
     return this.deliverKeyed('projectReviewed', to, emailTemplates.projectReviewed(d));
   }
   // Batch OPS (registry completion) — account lifecycle + support desk.

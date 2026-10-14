@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { availableProjectFunds } from './project-liquidity';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { createHash, randomUUID } from 'node:crypto';
@@ -27,12 +28,13 @@ export interface PayoutBeneficiary {
 /** Moyasar payout `status` values that mean "accepted / in flight". */
 const ACCEPTED_STATUSES = new Set(['queued', 'initiated', 'paid']);
 /** Terminal-failure statuses — OPS-0 correction #3: these now write FAILED. */
-const FAILED_STATUSES = new Set(['failed', 'canceled', 'returned']);
+const FAILED_STATUSES = new Set(['failed', 'canceled']);
 
-/** OPS-0 correction #3 — a provider-terminal rejection (vs a transient
- *  config/network error): the payout is marked FAILED with the reason instead
- *  of silently returning to PENDING forever. */
-export class TerminalPayoutError extends Error {}
+/** A local failure proved to occur before any provider request. */
+class PayoutPreflightError extends Error {}
+type ProviderEvidence = { id: string; status: string; amount: number; currency: string;
+  sequence_number: string; source_id: string; failure_reason?: string };
+type PayoutAttempt = 'sent' | 'failed' | 'pending';
 
 /**
  * Build the Moyasar `POST /payouts` request body per the documented contract
@@ -58,7 +60,7 @@ export function buildPayoutRequest(input: {
     currency: 'SAR',
     purpose: input.purpose,
     sequence_number: sequenceNumberFor(input.payoutId),
-    destination: input.destination,
+    destination: { ...input.destination, type: input.destination.type === 'bank_account' ? 'bank' : 'wallet' },
     comment: `Wathba milestone payout ${input.milestoneId}`,
     metadata: { payoutId: input.payoutId, projectId: input.projectId },
   };
@@ -84,9 +86,9 @@ export function sequenceNumberFor(payoutId: string): string {
  * so a concurrent tick — cron racing the manual ops trigger — can never
  * double-send. A crash mid-flight leaves the row visibly stuck in SENDING
  * (surfaced loudly each tick), never silently re-payable; the deterministic
- * `sequence_number` doubles as the provider-side idempotency reference.
- * Terminal provider rejections write FAILED + failureReason; transient errors
- * (config/network) release the claim back to PENDING for the next tick.
+ * `sequence_number` supports matching; it does not guarantee provider idempotency.
+ * Only verified paid results write SENT. Unknown remote outcomes remain
+ * SENDING; only preflight failures before an HTTP request return to PENDING.
  */
 @Injectable()
 export class PayoutDisburser {
@@ -99,7 +101,7 @@ export class PayoutDisburser {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly ledger: LedgerService,
+    _ledger: LedgerService,
     private readonly zatca: ZatcaService,
     private readonly heartbeat: HeartbeatService,
     private readonly beneficiaries: PayoutBeneficiaryService,
@@ -131,7 +133,7 @@ export class PayoutDisburser {
     }
   }
 
-  async disbursePending(): Promise<{ sent: number; failed: number }> {
+  async disbursePending(): Promise<{ sent: number; failed: number; pending: number }> {
     // OPS-0 correction #3 — a row stuck in SENDING means a crash mid-provider
     // call: it must NEVER be auto-resent (double-pay risk); surface it loudly
     // every tick until an operator reconciles it (money.reconcile, Part 5§4).
@@ -151,66 +153,139 @@ export class PayoutDisburser {
     });
     let sent = 0;
     let failed = 0;
+    let awaiting = 0;
     for (const p of pending) {
       // Sequential on purpose: payouts are low-volume, high-stakes.
-      if (await this.disburseOne(p)) sent++;
+      const result = await this.disburseOne(p);
+      if (result === 'sent') sent++;
+      else if (result === 'pending') awaiting++;
       else failed++;
     }
-    return { sent, failed };
+    return { sent, failed, pending: awaiting };
   }
 
-  private async disburseOne(p: Payout): Promise<boolean> {
-    // OPS-0 correction #3 — atomic claim: only the caller that flips
-    // PENDING→SENDING owns this payout; a concurrent tick claims 0 rows.
-    const claim = await this.prisma.payout.updateMany({
-      where: { id: p.id, status: PayoutStatus.PENDING },
-      data: { status: PayoutStatus.SENDING, claimedAt: new Date() },
-    });
-    if (claim.count === 0) return false;
-
-    // OPS-0 correction #2 — withhold exactly what the ZATCA invoice bills
-    // (commission + VAT) and transfer the NET; same breakdown function as
-    // the invoice, so they agree to the halala.
+  private async disburseOne(p: Payout): Promise<PayoutAttempt> {
     const fees = commissionBreakdown(p.amountHalalas);
+    const sequence = sequenceNumberFor(p.id);
+    const claim = await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${p.projectId}::uuid FOR UPDATE`;
+      if (await availableProjectFunds(tx, p.projectId) < 0n) {
+        await tx.payout.updateMany({ where: { id: p.id, status: PayoutStatus.PENDING },
+          data: { failureReason: 'insufficient-unreserved-funds' } });
+        return { count: 0 };
+      }
+    return tx.payout.updateMany({
+      where: { id: p.id, status: PayoutStatus.PENDING, amountHalalas: p.amountHalalas, providerRef: null },
+      data: { status: PayoutStatus.SENDING, claimedAt: new Date(), failureReason: null,
+        providerSequenceNumber: sequence, providerSourceId: this.sourceId || 'local-stub',
+        netHalalas: fees.netHalalas, feeWithheldHalalas: fees.withheldHalalas },
+    });
+    });
+    if (claim.count === 0) return 'failed';
+    const claimed = { ...p, providerSequenceNumber: sequence, providerSourceId: this.sourceId || 'local-stub',
+      netHalalas: fees.netHalalas, feeWithheldHalalas: fees.withheldHalalas };
     try {
-      const transferRef = await this.sendViaProvider(p, fees.netHalalas);
-      await this.prisma.payout.update({
-        where: { id: p.id },
-        data: {
-          status: PayoutStatus.SENT,
-          sentAt: new Date(),
-          feeWithheldHalalas: fees.withheldHalalas,
-          netHalalas: fees.netHalalas,
-        },
+      return await this.applyProviderEvidence(claimed, await this.sendViaProvider(claimed));
+    } catch (error) {
+      const preflight = error instanceof PayoutPreflightError;
+      // Once a request may have left this process, never put it back in the
+      // automatic POST queue. This also covers failure after remote success.
+      await this.prisma.payout.updateMany({
+        where: { id: p.id, status: PayoutStatus.SENDING },
+        data: preflight ? { status: PayoutStatus.PENDING, claimedAt: null, failureReason: 'configuration-incomplete' }
+          : { failureReason: 'provider-outcome-needs-reconciliation' },
       });
-      // Batch ACCOUNT — the settlement clock. This is the moment the money
-      // finished moving, which is what the between-projects cooldown counts
-      // from. NOT the campaign end (`deadline`) and NOT the outcome decision
-      // (funding.service sets SUCCESSFUL/FAILED at close, often long before a
-      // payout lands). Written idempotently: a project with several payouts
-      // stamps the first one that lands and keeps it, so a later payout cannot
-      // push the creator's cooldown further out.
-      await this.prisma.project.updateMany({
-        where: { id: p.projectId, settledAt: null },
-        data: { settledAt: new Date() },
+      this.logger.error(`Payout ${p.id}: ${preflight ? 'preflight blocked' : 'reconciliation required'}`);
+      return preflight ? 'failed' : 'pending';
+    }
+  }
+
+  /** Governed operator read: GET only. No resubmission of a transfer. */
+  async reconcilePayout(payoutId: string): Promise<{ status: string; providerStatus: string | null }> {
+    const p = await this.prisma.payout.findUniqueOrThrow({ where: { id: payoutId } });
+    if (p.status !== PayoutStatus.SENDING || !p.providerRef || !p.providerSequenceNumber ||
+        !p.providerSourceId || p.netHalalas === null || p.feeWithheldHalalas === null) {
+      throw new ConflictException('Payout requires a saved provider reference and original payment snapshot');
+    }
+    if (!this.providerKey) throw new ConflictException('Provider verification is unavailable in stub mode');
+    // Official Fetch Payout endpoint is singular /payout/:id.
+    const base = this.providerUrl.replace(/\/payouts\/?$/, '/payout');
+    const res = await fetch(`${base}/${encodeURIComponent(p.providerRef)}`, {
+      headers: { authorization: this.authorization() }, signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok) throw new ConflictException('Provider read failed; payout has not been resubmitted');
+    const evidence = this.validateEvidence(await res.json(), p);
+    await this.applyProviderEvidence(p, evidence);
+    const current = await this.prisma.payout.findUniqueOrThrow({ where: { id: p.id } });
+    return { status: current.status, providerStatus: current.providerStatus };
+  }
+
+  private authorization(): string {
+    return `Basic ${Buffer.from(`${this.providerKey}:`).toString('base64')}`;
+  }
+
+  private validateEvidence(raw: unknown, p: Payout): ProviderEvidence {
+    const e = raw as Partial<ProviderEvidence> | null;
+    if (!e || typeof e.id !== 'string' || !e.id || (p.providerRef && e.id !== p.providerRef) ||
+        !Number.isSafeInteger(e.amount) || BigInt(e.amount!) !== p.netHalalas || e.currency !== 'SAR' ||
+        e.sequence_number !== p.providerSequenceNumber || e.source_id !== p.providerSourceId ||
+        typeof e.status !== 'string' || (!ACCEPTED_STATUSES.has(e.status) && !FAILED_STATUSES.has(e.status) && e.status !== 'returned')) {
+      throw new ConflictException('Provider evidence does not match the saved payout; reconciliation required');
+    }
+    return e as ProviderEvidence;
+  }
+
+  private async applyProviderEvidence(p: Payout, e: ProviderEvidence): Promise<PayoutAttempt> {
+    const paid = e.status === 'paid';
+    const failed = FAILED_STATUSES.has(e.status);
+    const saved = await this.prisma.payout.updateMany({
+      where: { id: p.id, status: PayoutStatus.SENDING, amountHalalas: p.amountHalalas,
+        netHalalas: p.netHalalas, feeWithheldHalalas: p.feeWithheldHalalas,
+        providerSequenceNumber: p.providerSequenceNumber,
+        AND: [{ OR: [{ providerRef: null }, { providerRef: e.id }] },
+          ...(paid ? [] : [{ OR: [{ providerStatus: null }, { providerStatus: { not: 'paid' } }] }])],
+      },
+      data: { providerRef: e.id, providerStatus: e.status, providerCheckedAt: new Date(),
+        ...(failed ? { status: PayoutStatus.FAILED } : {}),
+        failureReason: paid ? null : failed ? 'provider-rejected' : e.status === 'returned'
+          ? 'provider-returned-needs-reconciliation' : 'awaiting-provider-confirmation',
+      },
+    });
+    if (saved.count !== 1) {
+      const current = await this.prisma.payout.findUniqueOrThrow({ where: { id: p.id } });
+      return current.status === 'SENT' ? 'sent' : current.status === 'FAILED' ? 'failed' : 'pending';
+    }
+    if (failed) {
+      await this.audit.log({ actorId: null, action: 'system.payout.failed', entity: 'Payout', entityId: p.id,
+        detail: { projectId: p.projectId, providerStatus: e.status, pspRef: e.id } });
+      return 'failed';
+    }
+    if (!paid) return 'pending';
+    const applied = await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "Project" WHERE "id" = ${p.projectId}::uuid FOR UPDATE`;
+      const claim = await tx.payout.updateMany({
+        where: { id: p.id, status: PayoutStatus.SENDING, providerRef: e.id, providerStatus: 'paid',
+          amountHalalas: p.amountHalalas, netHalalas: p.netHalalas, feeWithheldHalalas: p.feeWithheldHalalas },
+        data: { status: PayoutStatus.SENT, sentAt: new Date(), failureReason: null },
       });
-      await this.ledger.record({
-        entryType: LedgerEntryType.PAYOUT_SENT,
-        amountHalalas: fees.netHalalas,
-        pspRef: transferRef,
-        payoutId: p.id,
-        projectId: p.projectId,
-        source: 'disburser',
-      });
-      // The withheld leg: PAYOUT_SENT (net) + COMMISSION (withheld) = gross.
-      await this.ledger.record({
-        entryType: LedgerEntryType.COMMISSION,
-        amountHalalas: fees.withheldHalalas,
-        pspRef: `commission-${p.id}`,
-        payoutId: p.id,
-        projectId: p.projectId,
-        source: 'disburser',
-      });
+      if (claim.count !== 1) return false;
+      await tx.project.updateMany({ where: { id: p.projectId, settledAt: null }, data: { settledAt: new Date() } });
+      await tx.ledgerEntry.create({ data: { entryType: LedgerEntryType.PAYOUT_SENT, amountHalalas: p.netHalalas!,
+        pspRef: e.id, payoutId: p.id, projectId: p.projectId, source: 'disburser' } });
+      await tx.ledgerEntry.create({ data: { entryType: LedgerEntryType.COMMISSION, amountHalalas: p.feeWithheldHalalas!,
+        pspRef: `commission-${p.id}`, payoutId: p.id, projectId: p.projectId, source: 'disburser' } });
+      return true;
+    });
+    if (applied) {
+      await this.notifyConfirmed(p, e.id);
+      return 'sent';
+    }
+    const current = await this.prisma.payout.findUniqueOrThrow({ where: { id: p.id } });
+    return current.status === 'SENT' ? 'sent' : 'pending';
+  }
+
+  private async notifyConfirmed(p: Payout, transferRef: string): Promise<void> {
+    const fees = { netHalalas: p.netHalalas!, withheldHalalas: p.feeWithheldHalalas! };
       this.logger.log(
         `Payout SENT id=${p.id} creator=${p.creatorId} gross=${p.amountHalalas} net=${fees.netHalalas} withheld=${fees.withheldHalalas} ref=${transferRef}`,
       );
@@ -262,142 +337,36 @@ export class PayoutDisburser {
       }
       // ZATCA (Sprint 2 / P0-701): each disbursed tranche carries the
       // platform-commission tax invoice. Failure must not undo the payout —
-      // log loudly; generateForPayout is idempotent so the next tick heals.
+      // log loudly; the governed invoice retry is required to backfill.
       try {
         const inv = await this.zatca.generateForPayout(p);
         this.logger.log(`ZATCA invoice ${inv.invoiceNumber} issued for payout=${p.id}`);
       } catch (err) {
         this.logger.error(`ZATCA invoice FAILED for payout=${p.id} — backfill required`, err as Error);
       }
-      return true;
-    } catch (err) {
-      if (err instanceof TerminalPayoutError) {
-        // OPS-0 correction #3 — the provider terminally rejected: FAILED is
-        // finally reachable, with the reason on the row. Retry is an explicit
-        // ops decision (money.payout.retry, census N₄), never automatic.
-        await this.prisma.payout.update({
-          where: { id: p.id },
-          data: { status: PayoutStatus.FAILED, failureReason: err.message.slice(0, 500) },
-        });
-        // MONEY-AUDIT — the SENDING→FAILED terminal flip. Reached only by the
-        // owner of the atomic claim (one tick), so no duplicate row. Never throws.
-        await this.audit.log({
-          actorId: null,
-          action: 'system.payout.failed',
-          entity: 'Payout',
-          entityId: p.id,
-          detail: {
-            projectId: p.projectId,
-            creatorId: p.creatorId,
-            milestoneId: p.milestoneId,
-            grossHalalas: p.amountHalalas.toString(),
-            failureReason: err.message.slice(0, 500),
-          },
-        });
-        this.logger.error(`payout FAILED (terminal) id=${p.id}: ${err.message}`);
-      } else {
-        // Transient (config/network/beneficiary-missing): release the claim —
-        // back to PENDING for the next tick.
-        await this.prisma.payout.updateMany({
-          where: { id: p.id, status: PayoutStatus.SENDING },
-          data: { status: PayoutStatus.PENDING, claimedAt: null },
-        });
-        this.logger.error(`payout disburse failed id=${p.id} (returned to PENDING)`, err as Error);
-      }
-      return false;
-    }
   }
 
-  /**
-   * Sprint 5 / #4 — real Moyasar Payouts integration
-   * (docs.moyasar.com/api/payouts/04-create-payout).
-   *
-   * Two hard prerequisites gate the real path; when either is absent the
-   * payout stays PENDING (never SENT on an unconfirmed transfer):
-   *   1. MOYASAR_PAYOUT_SOURCE_ID — Wathba's payout source account.
-   *   2. A validated creator beneficiary (IBAN/mobile) — NOT yet captured
-   *      by the platform; `resolveBeneficiary` throws until that lands.
-   *
-   * Idempotency: Moyasar has no idempotency header, so we send a
-   * deterministic `sequence_number` (from the payout id) and rely on our own
-   * "only disburse PENDING" guard + reconciliation to avoid double-pay. A
-   * follow-up payout-status webhook should confirm final `paid`.
-   *
-   * Stub mode (no PAYOUT_PROVIDER_KEY) is unchanged for local/dev.
-   */
-  private async sendViaProvider(p: Payout, netHalalas: bigint): Promise<string> {
+  private async sendViaProvider(p: Payout): Promise<ProviderEvidence> {
+    if (!Number.isSafeInteger(Number(p.netHalalas)) || p.netHalalas! <= 0n) throw new PayoutPreflightError('Invalid payout amount');
     if (!this.providerKey) {
-      this.logger.warn(
-        `[STUB] Disburse payout=${p.id} net=${Number(netHalalas) / 100} SAR (gross=${Number(p.amountHalalas) / 100}) to creator=${p.creatorId}`,
-      );
-      return `stub-transfer-${p.id.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
+      return { id: `stub-transfer-${p.id}-${randomUUID()}`, status: 'paid', amount: Number(p.netHalalas),
+        currency: 'SAR', source_id: p.providerSourceId!, sequence_number: p.providerSequenceNumber! };
     }
-    if (!this.sourceId) {
-      throw new Error('MOYASAR_PAYOUT_SOURCE_ID not configured — cannot create a payout');
+    if (!this.sourceId) throw new PayoutPreflightError('Payout source is missing');
+    const destination = await this.beneficiaries.resolveDestination(p.creatorId);
+    if (!destination) throw new PayoutPreflightError('Payout beneficiary is missing');
+    if (destination.type === 'bank_account' && (!destination.iban || !destination.name || !destination.city || !destination.country)) {
+      throw new PayoutPreflightError('Bank beneficiary details are incomplete');
     }
-    const destination = await this.resolveBeneficiary(p);
     const res = await fetch(this.providerUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${this.providerKey}`,
-      },
-      body: JSON.stringify(
-        buildPayoutRequest({
-          sourceId: this.sourceId,
-          // OPS-0 correction #2 — the transfer is the NET (gross − withheld).
-          amountHalalas: netHalalas,
-          purpose: this.purpose,
-          payoutId: p.id,
-          projectId: p.projectId,
-          milestoneId: p.milestoneId,
-          destination,
-        }),
-      ),
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: this.authorization() },
+      body: JSON.stringify(buildPayoutRequest({ sourceId: p.providerSourceId!, amountHalalas: p.netHalalas!,
+        purpose: this.purpose, payoutId: p.id, projectId: p.projectId, milestoneId: p.milestoneId, destination })),
       signal: AbortSignal.timeout(15_000),
     });
-    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) {
-      // 4xx = the provider examined and rejected this request — terminal.
-      // 5xx/network stays transient (generic Error → back to PENDING).
-      if (res.status >= 400 && res.status < 500) {
-        throw new TerminalPayoutError(`Moyasar payouts ${res.status}: ${JSON.stringify(json)}`);
-      }
-      throw new Error(`Moyasar payouts ${res.status}: ${JSON.stringify(json)}`);
-    }
-    const status = String(json['status'] ?? '');
-    if (FAILED_STATUSES.has(status)) {
-      throw new TerminalPayoutError(
-        `payout ${status}: ${String(json['failure_reason'] ?? 'no reason given')}`,
-      );
-    }
-    if (!ACCEPTED_STATUSES.has(status) && status !== '') {
-      throw new Error(`payout returned unexpected status "${status}"`);
-    }
-    const ref = json['id'];
-    if (typeof ref !== 'string' || ref.length === 0) {
-      throw new Error('Moyasar payouts returned no payout id');
-    }
-    return ref;
-  }
-
-  /**
-   * Resolve the creator's payout beneficiary (Moyasar `destination`).
-   *
-   * Wathba does not yet capture creator bank beneficiaries (IBAN / mobile /
-   * name). Until that feature ships, a real payout cannot be constructed —
-   * we refuse rather than send a malformed request, which correctly leaves
-   * the payout PENDING. Tracked on issue #4's checklist.
-   */
-  private async resolveBeneficiary(p: Payout): Promise<PayoutBeneficiary> {
-    const dest = await this.beneficiaries.resolveDestination(p.creatorId);
-    if (!dest) {
-      // Correct behaviour: refuse to pay a creator with no beneficiary on
-      // file — the payout stays PENDING until they add bank details (#7).
-      throw new Error(
-        `no payout beneficiary on file for creator=${p.creatorId} — creator must add bank details (see #7)`,
-      );
-    }
-    return dest;
+    // HTTP errors, timeouts, malformed or mismatched replies are ambiguous.
+    // Only a validated provider object can certify a paid/failed outcome.
+    if (!res.ok) throw new Error('Payout request outcome is unconfirmed');
+    return this.validateEvidence(await res.json(), p);
   }
 }

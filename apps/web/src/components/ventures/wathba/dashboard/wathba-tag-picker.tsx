@@ -104,7 +104,7 @@ export function WathbaTagPicker({
       {/* The chosen set. Each chip is removable; the group is labelled so a
           screen reader announces it as a list rather than as loose buttons. */}
       <div
-        role="list"
+        role={chosen.length ? 'list' : 'group'}
         aria-label="وسوم المشروع"
         style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12, minHeight: 34 }}
       >

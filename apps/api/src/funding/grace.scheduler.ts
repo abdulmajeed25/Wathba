@@ -10,7 +10,7 @@ import { MoyasarAdapter } from '../escrow-payments/moyasar.adapter';
 import { AuditService } from '../identity/audit.service';
 
 /**
- * Batch PAY (Part 2) — the 72-hour failed-capture grace machine.
+ * Batch PAY (Part 2) — the configured failed-capture grace window.
  *
  * Every 30 minutes:
  *  1. RETRY — CARD pledges in CAPTURE_GRACE get automatic capture retries at
@@ -18,7 +18,7 @@ import { AuditService } from '../identity/audit.service';
  *     mark is next). BNPL rows get REMINDER notifications at the same marks
  *     (no auto-retry is possible — the backer must complete the hosted
  *     checkout themselves).
- *  2. EXPIRE — past graceExpiresAt the pledge becomes FAILED_CAPTURE:
+ *  2. EXPIRE — past graceExpiresAt, matched uncharged provider evidence is required:
  *     excluded from REALIZED (it never entered it), the tier claim returns
  *     to stock, and both the backer and the creator are notified.
  *
@@ -34,7 +34,7 @@ export class GraceScheduler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly escrow: EscrowService,
-    private readonly moyasar: MoyasarAdapter,
+    _moyasar: MoyasarAdapter,
     private readonly email: EmailService,
     private readonly notifications: NotificationsService,
     private readonly audit: AuditService,
@@ -55,10 +55,11 @@ export class GraceScheduler {
   /** Extracted for tests + manual admin trigger. */
   async run(now = new Date()): Promise<{ retried: number; expired: number }> {
     let retried = 0;
+    let expired = 0;
 
     // 1) Retries / reminders for rows still inside the window.
     const inGrace = await this.prisma.pledge.findMany({
-      where: { status: PledgeStatus.CAPTURE_GRACE, graceExpiresAt: { gt: now } },
+      where: { status: PledgeStatus.CAPTURE_GRACE, authorizationIssue: null, graceExpiresAt: { gt: now } },
       include: {
         backer: { select: { id: true, email: true } },
         project: { select: { id: true, titleAr: true } },
@@ -68,16 +69,14 @@ export class GraceScheduler {
       const started = p.graceStartedAt?.getTime() ?? p.createdAt.getTime();
       // captureAttempts=1 means the settlement attempt happened; automatic
       // marks consume indexes 0..2 (+6h/+24h/+48h) via attempts 1→2→3→4.
-      const markIdx = Math.min(p.captureAttempts - 1, GraceScheduler.RETRY_MARKS_MS.length - 1);
+      const markIdx = Math.min(Math.max(0, p.captureAttempts - 1), GraceScheduler.RETRY_MARKS_MS.length - 1);
       const nextDue = started + GraceScheduler.RETRY_MARKS_MS[markIdx]!;
       if (now.getTime() < nextDue || p.captureAttempts > GraceScheduler.RETRY_MARKS_MS.length) continue;
 
       if (p.paymentMethod === 'CARD') {
         retried++;
         try {
-          const { ok } = await this.moyasar.capture(p.paymentRef);
-          if (ok) {
-            await this.escrow.markCaptured(p);
+          if (await this.escrow.captureGracePledge(p)) {
             this.logger.log(`grace retry captured pledge=${p.id}`);
             // MONEY-AUDIT — a grace-retry recovered this capture. markCaptured
             // is the idempotent chokepoint that flips CAPTURE_GRACE→CAPTURED,
@@ -98,12 +97,8 @@ export class GraceScheduler {
             continue;
           }
         } catch {
-          /* fall through to attempt bump */
+          /* the shared service retains any durable financial claim */
         }
-        await this.prisma.pledge.update({
-          where: { id: p.id },
-          data: { captureAttempts: { increment: 1 } },
-        });
       } else {
         // BNPL — reminder only; the checkout is the backer's move.
         await this.prisma.pledge.update({
@@ -128,32 +123,21 @@ export class GraceScheduler {
       }
     }
 
-    // 2) Expiry → FAILED_CAPTURE (terminal): stock released, both sides told.
+    // 2) Verified expiry only; unknown results retain stock and grace state.
     const dead = await this.prisma.pledge.findMany({
-      where: { status: PledgeStatus.CAPTURE_GRACE, graceExpiresAt: { lte: now } },
+      where: { status: PledgeStatus.CAPTURE_GRACE, authorizationIssue: null, graceExpiresAt: { lte: now } },
       include: {
         backer: { select: { id: true, email: true } },
         project: { select: { id: true, titleAr: true, createdById: true } },
       },
     });
     for (const p of dead) {
-      // Idempotent claim — only the updateMany that still sees GRACE wins.
-      const claimed = await this.prisma.$transaction(async (tx) => {
-        const c = await tx.pledge.updateMany({
-          where: { id: p.id, status: PledgeStatus.CAPTURE_GRACE },
-          data: { status: PledgeStatus.FAILED_CAPTURE },
-        });
-        if (c.count === 0) return false;
-        if (p.tierId) {
-          // The reward claim returns to stock.
-          await tx.rewardTier.update({
-            where: { id: p.tierId },
-            data: { claimedQty: { decrement: 1 } },
-          });
-        }
-        return true;
-      });
+      // No deadline-only expiry: verify the payment before releasing inventory.
+      let claimed = false;
+      try { claimed = await this.escrow.expireGracePledge(p, now); }
+      catch { this.logger.warn(`Grace expiry requires reconciliation pledge=${p.id}`); }
       if (!claimed) continue;
+      expired++;
       // MONEY-AUDIT — grace expired: terminal CAPTURE_GRACE→FAILED_CAPTURE.
       // Guarded by the status-scoped updateMany claim above (claimed===false
       // → continue), so a re-run of an already-expired pledge writes nothing.
@@ -194,6 +178,6 @@ export class GraceScheduler {
       this.logger.warn(`pledge=${p.id} FAILED_CAPTURE after grace expiry`);
     }
 
-    return { retried, expired: dead.length };
+    return { retried, expired };
   }
 }

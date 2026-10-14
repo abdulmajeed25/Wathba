@@ -418,11 +418,11 @@ describe('JwtStrategy — suspension enforcement on the live token', () => {
     await expect(strategy.validate(payload)).rejects.toThrow('الحساب موقوف');
   });
 
-  it('passes the payload through for an active user', async () => {
+  it('refreshes an active user from the current database roles', async () => {
     const prisma = {
-      user: { findUnique: jest.fn().mockResolvedValue({ suspendedAt: null }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ suspendedAt: null, roles: ['CREATOR'] }) },
     } as never;
     const strategy = new JwtStrategy(cfg, prisma);
-    await expect(strategy.validate(payload)).resolves.toBe(payload);
+    await expect(strategy.validate(payload)).resolves.toEqual({ sub: U, email: 's@x.sa', roles: ['CREATOR'] });
   });
 });
