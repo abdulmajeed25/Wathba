@@ -77,7 +77,7 @@ jobs:
   e2e:
     name: playwright golden journeys
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -119,13 +119,20 @@ jobs:
       - run: pnpm --filter @wathba/api prisma:generate
       - run: pnpm --filter @wathba/api exec prisma migrate deploy
       - run: pnpm --filter @wathba/web exec playwright install --with-deps chromium
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.8'
+          cache: false
       - name: Prepare isolated media fixtures
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          docker run -d --name wathba-ci-media -p 127.0.0.1:9000:9000 \
-            -e MINIO_ROOT_USER="$MINIO_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
-            minio/minio:latest server /data
+          # The upstream Docker distribution is no longer available. Build a
+          # pinned official source release for this loopback-only test fixture.
+          GOBIN="$RUNNER_TEMP/wathba-ci-bin" go install github.com/minio/minio@RELEASE.2025-10-15T17-29-55Z
+          MINIO_ROOT_USER="$MINIO_ACCESS_KEY" MINIO_ROOT_PASSWORD="$MINIO_SECRET_KEY" \
+            "$RUNNER_TEMP/wathba-ci-bin/minio" server "$RUNNER_TEMP/wathba-ci-media" \
+            --address 127.0.0.1:9000 --console-address 127.0.0.1:9001 > "$RUNNER_TEMP/wathba-ci-media.log" 2>&1 &
           curl --fail --retry 30 --retry-delay 2 --retry-connrefused http://127.0.0.1:9000/minio/health/ready
           node apps/api/prisma/prepare-ci-media.mjs
       - name: Build API + Web

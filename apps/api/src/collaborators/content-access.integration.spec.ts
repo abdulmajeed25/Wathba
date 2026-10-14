@@ -13,6 +13,11 @@ import { UpdatesController } from '../updates/updates.controller';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtStrategy } from '../identity/jwt.strategy';
 import { ProjectVisibilityGuard } from '../projects/project-visibility.guard';
+import { ProjectsService } from '../projects/projects.service';
+import { RewardsService } from '../rewards/rewards.service';
+import { BackersService } from '../backers/backers.service';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { FundingService } from '../funding/funding.service';
 
 const enabled = process.env.WATHBA_CONSENT_DB_TESTS === '1';
 if (enabled) {
@@ -164,6 +169,31 @@ suite('Content collaborators — PostgreSQL grants, revocation and publication',
       ...(body ? { body: JSON.stringify(body) } : {}),
     }) };
   }
+  // Use the real owner-only services as well as the visibility guard: making
+  // a campaign public must not turn its content membership into money access.
+  it.each(['DRAFT', 'LIVE'] as const)('%s editor cannot change financial terms, manage funds or export backers', async status => {
+    await db.project.update({ where: { id: projectId }, data: { status } });
+    await team.invite(owner, projectId, email);
+    const dependency = new Proxy({}, { get() { throw new Error('Financial side effect reached before access was denied'); } }) as never;
+    const projects = new ProjectsService(db as never, dependency, dependency, dependency);
+    const rewards = new RewardsService(db as never, dependency);
+    const backers = new BackersService(db as never, dependency);
+    const analytics = new AnalyticsService(db as never);
+    const funding = new FundingService(db as never, dependency, dependency, dependency, dependency, dependency,
+      dependency, dependency, dependency, dependency, dependency);
+    const before = await db.project.findUniqueOrThrow({ where: { id: projectId } });
+    await expect(projects.update(editor, projectId, { fundingGoalHalalas: 500000, durationDays: 60 })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(rewards.update(editor, projectId, randomUUID(), { amountHalalas: 2500 })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(backers.list(editor, projectId, {})).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(backers.exportCsv(editor, projectId, {})).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(analytics.forProject(editor, projectId)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(funding.pauseCampaign(editor, projectId)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(funding.cancelCampaign(editor, projectId)).rejects.toBeInstanceOf(ForbiddenException);
+    const after = await db.project.findUniqueOrThrow({ where: { id: projectId } });
+    expect(after).toMatchObject({ status: before.status, fundingGoalHalalas: before.fundingGoalHalalas, durationDays: before.durationDays,
+      raisedHalalas: before.raisedHalalas, realizedHalalas: before.realizedHalalas });
+    expect(await db.projectCollaborator.count({ where: { projectId, userId: editor } })).toBe(1);
+  });
   it('HTTP reaches only the invited editorial workspace, reads and saves, then enforces owner revocation', async () => {
     const http = await httpFixture();
     try {
